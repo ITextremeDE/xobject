@@ -21,7 +21,5 @@ window.addEventListener("storage", (event) => {
   root.dataset.theme = ["light", "dark"].includes(event.newValue)
     ? event.newValue
     : "system";
-  const control = document.querySelector("#theme");
-  if (control) control.value = root.dataset.theme;
   applyTheme();
 });

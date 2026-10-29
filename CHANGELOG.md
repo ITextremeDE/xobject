@@ -25,8 +25,10 @@ The project is in early development. No software release is available yet.
 
 ### Changed
 
+- Match ITx header controls with real Base UI theme/mobile icon menus, neutral Button variants and compact single-row navigation, retaining the restrictive CSP and stored theme preference.
+
 - Remove the public `/licenses/NOTICE.txt` index; individual upstream license files remain distributed with their assets.
-- Align the project website with ITextreme’s page structure: compact sticky header, separate section navigation, accessible mobile navigation, shared container rhythm and grouped footer; remove visible license notices from the footer while retaining distributed attribution files.
+- Align the project website with ITextreme’s page structure: compact sticky header, compact section navigation, accessible mobile navigation, shared container rhythm and grouped footer; remove visible license notices from the footer while retaining distributed attribution files.
 
 ### Fixed
 
