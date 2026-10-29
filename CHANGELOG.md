@@ -10,7 +10,7 @@ The project is in early development. No software release is available yet.
 
 ### Added
 
-- Record rows open details from non-interactive cells, with a pointer cursor and a keyboard-accessible Keyword link; embedded controls and text selection keep their own behavior.
+- Record rows open details from non-interactive cells, with a keyboard-accessible Keyword link; embedded controls and text selection keep their own behavior.
 - Clicking the exact active Sidebar destination refreshes its data while preserving the document, list parameters, history and unsaved-change guard.
 - Direct web routes for personal settings, workspace Dashboards, object lists and records, with URL-based search/sort/pagination and guarded Back/Forward navigation.
 - Record-table column sorting through shared API/MCP operations, applied before pagination with accessible direction indicators.

@@ -251,7 +251,7 @@ function RecordList({ definition, selectedRecord, basePath, onField, disabled }:
           const Icon = active ? (sort.direction === 'asc' ? ArrowUpIcon : ArrowDownIcon) : ArrowUpDownIcon;
           return <TableHead key={column.name} aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><Button variant="ghost" className="-ml-2" disabled={disabled} aria-label={t('sortColumn', { column: column.label, direction: t(active && sort.direction === 'asc' ? 'sortDescending' : 'sortAscending') })} onClick={() => changeList({ sort: column.name, direction: active && sort.direction === 'asc' ? 'desc' : 'asc', page: null })}>{column.label}<Icon data-icon="inline-end" /></Button></TableHead>;
         })}</TableRow></TableHeader>
-          <TableBody>{result.data.records.map(record => <TableRow key={record.id} className={cn(!disabled && 'cursor-pointer')} data-state={record.id === selectedRecord ? 'selected' : undefined} onClick={event => {
+          <TableBody>{result.data.records.map(record => <TableRow key={record.id} data-state={record.id === selectedRecord ? 'selected' : undefined} onClick={event => {
             if (disabled || record.id === selectedRecord || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             const target = event.target instanceof Element ? event.target : null;
             // Links and future row controls retain their own actions and keyboard semantics.

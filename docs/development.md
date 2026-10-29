@@ -70,7 +70,7 @@ Back/Forward and internal navigation use the same unsaved-change confirmation as
 
 Clicking the exact active Dashboard or object-list destination in the Sidebar re-fetches the current view’s workspace/type metadata and, for object lists, definition and record queries. It preserves the document, URL parameters and history entry. Other Sidebar targets navigate normally, including returning from record details to their list. Busy writes and unsaved-change confirmation remain in effect; the Breadcrumb has no special refresh action.
 
-Record-table rows open details when a non-interactive cell is clicked and show a pointer cursor when enabled. The Keyword remains a real link for keyboard access and native link actions. Interactive child controls, modified clicks and selected text do not trigger row navigation. The application retains shadcn’s existing cursor styles elsewhere; there is no global pointer override.
+Record-table rows open details when a non-interactive cell is clicked. They retain the standard cursor without an application override. The Keyword remains a real link for keyboard access and native link actions. Interactive child controls, modified clicks and selected text do not trigger row navigation. The application retains shadcn’s existing cursor styles elsewhere; there is no global pointer override.
 
 ## Header search
 
