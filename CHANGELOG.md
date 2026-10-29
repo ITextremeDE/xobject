@@ -10,6 +10,7 @@ The project is in early development. No software release is available yet.
 
 ### Added
 
+- Shared ITextreme website design system with Tailwind CSS 4, typed Astro/React components, adapted shadcn/ui Base UI primitives, Lucide, schema-validated MDX content, reusable page metadata and generated sitemap.
 - Public Astro project website at xobject.org, following the ITextreme Corporate Operating System, with self-hosted fonts, unchanged official logo assets, accessible light/dark/system modes and an explicit early-development status.
 - Initial product requirements with 47 requirements, acceptance criteria, seven end-to-end acceptance scenarios and remaining design decisions.
 - Project README describing the product idea, planned first-version scope, technology and commercial model.

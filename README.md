@@ -67,6 +67,7 @@ The planned model combines an independently usable free Community edition with p
 ## Public project website
 
 The project introduction is available at [xobject.org](https://xobject.org).
-Its static Astro source lives in `apps/site`; see the [website guide](docs/website.md)
-for design provenance, development and release checks. The project website is
+Its static Astro/TypeScript source lives in `apps/site`, with Tailwind CSS 4,
+ITextreme design tokens and selective shadcn/ui Base UI components. See the
+[website guide](docs/website.md) for design provenance, development and release checks. The project website is
 separate from the planned xObject application and does not provide an installation.

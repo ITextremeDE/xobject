@@ -14,8 +14,9 @@ The repository contains a local backend technical spike in `apps/server`, with n
 
 From the repository root, use `npm ci`, `npm run typecheck`, `npm run build` and `npm test`. Tests require Docker and start an isolated disposable PostgreSQL container. See `docs/development.md` for `npm run db:migrate`, `npm run admin:create` and `npm run dev`; never point experimental initialization at a production database. No lint command is established.
 
-The independent public project website lives in `apps/site`; it is not an application release. Run `npm ci`, `npm run build` and `npm test` in that directory. Browser tests require Chromium (`npx playwright install chromium`). See `docs/website.md`.
+The independent public project website lives in `apps/site`; it is not an application release. Run `npm ci`, `npm run typecheck`, `npm run build` and `npm test` in that directory. Browser tests require Chromium (`npx playwright install chromium`). See `docs/website.md`.
 
+Website components use the shared ITextreme COS roles, Tailwind CSS 4, Lucide and selectively adopted `@shadcn` `base-nova`/Base UI primitives. Follow the component rules in `docs/website.md`: built-in variants, semantic tokens, native semantics and composition before custom markup. Astro uses `rsc: false`; render static React primitives at build time and add client hydration only for required interactions.
 
 For documentation changes, check Markdown structure, relative links and section anchors, requirement references, whitespace and unintended sensitive content. `git diff --check` is an available whitespace check; include newly created files in review because untracked files are not covered by that command.
 

@@ -1,3 +1,6 @@
+---
+import { UserRound, ClipboardList, ListTodo, Box } from '@lucide/astro';
+---
 <figure class="object-model">
   <svg viewBox="0 0 520 410" role="img" aria-labelledby="model-title model-description">
     <title id="model-title">Das geplante Objektmodell</title>
@@ -8,11 +11,11 @@
     </g>
     <g class="model-node"><rect x="20" y="24" width="180" height="94" rx="8"/><rect x="320" y="24" width="180" height="94" rx="8"/><rect x="24" y="312" width="188" height="94" rx="8"/><rect x="300" y="312" width="204" height="94" rx="8"/></g>
     <rect class="model-focus" x="170" y="145" width="180" height="86" rx="8"/>
-    <g class="model-icons" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <g transform="translate(39 51) scale(1.4)"><circle cx="12" cy="7" r="4"/><path d="M4 23v-3a8 8 0 0 1 16 0v3"/></g>
-      <g transform="translate(336 52) scale(1.4)"><rect x="3" y="2" width="18" height="22" rx="2"/><path d="M8 8h8M8 13h8M8 18h5"/></g>
-      <g transform="translate(41 340) scale(1.4)"><rect x="2" y="2" width="21" height="22" rx="2"/><path d="m7 13 4 4 7-8"/></g>
-      <g transform="translate(314 341) scale(1.4)"><path d="m12 1 10 5.5v11L12 23 2 17.5v-11zM2 6.5 12 12l10-5.5M12 12v11"/></g>
+    <g class="model-icons">
+      <UserRound x={39} y={51} size={34} stroke-width={1.5} aria-hidden="true"/>
+      <ClipboardList x={336} y={52} size={34} stroke-width={1.5} aria-hidden="true"/>
+      <ListTodo x={41} y={340} size={34} stroke-width={1.5} aria-hidden="true"/>
+      <Box x={314} y={341} size={34} stroke-width={1.5} aria-hidden="true"/>
     </g>
     <g class="model-label"><text x="133" y="65">Kontakt</text><text x="433" y="65">Vorgang</text><text x="143" y="353">Aufgabe</text><text x="420" y="353">Eigene Objekte</text></g>
     <g class="model-code"><text x="133" y="90">OBJ.KONTAKT</text><text x="433" y="90">OBJ.VORGANG</text><text x="143" y="378">OBJ.AUFGABE</text><text x="420" y="378">OBJ.EIGEN</text></g>

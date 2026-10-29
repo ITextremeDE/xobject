@@ -1,8 +1,11 @@
-const control = document.querySelector('#theme');
+const control = document.querySelector("#theme");
 if (control) {
-  control.value = document.documentElement.dataset.theme || 'system';
-  control.addEventListener('change', () => {
+  control.value = document.documentElement.dataset.theme || "system";
+  control.addEventListener("change", () => {
     document.documentElement.dataset.theme = control.value;
-    try { localStorage.setItem('xobject-theme', control.value); } catch {}
+    try {
+      localStorage.setItem("xobject-theme", control.value);
+    } catch {}
+    document.dispatchEvent(new Event("xobject-theme-change"));
   });
 }
