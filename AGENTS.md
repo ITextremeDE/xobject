@@ -58,7 +58,7 @@ The established conventions are Markdown, Diataxis, ADRs, Conventional Commits, 
 
 `CHANGELOG.md` is the intended release-change source. `ROADMAP.md` is a curated public view of OpenProject, not a parallel operational task list. Reuse these sources in the planned Astro/Starlight documentation instead of maintaining manual copies.
 
-AGPLv3 is the selected license, including Premium code. The full license file, precise licensing declaration, contribution terms and commercial feature split still require completion. Do not invent those terms or introduce proprietary Premium code.
+xObject is licensed under `AGPL-3.0-only`, including Premium code. See `LICENSE` for the unmodified license text and `README.md` for the project licensing declaration. Preserve the version-3-only choice. Contribution terms, legal licensor designation and commercial feature split still require completion. Do not invent those terms or introduce proprietary Premium code.
 
 ## Commits, remotes and publication
 

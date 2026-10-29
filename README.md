@@ -57,6 +57,8 @@ The intended development workflow uses small changes, pull requests, review and 
 
 ## Licensing and commercial model
 
-**AGPLv3 is the selected open-source license for xObject.** The full license file and contribution terms remain to be added; the licensing declaration is tracked in the PRD.
+**xObject is licensed under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`).** You may redistribute and modify it under version 3 of that license. See [LICENSE](LICENSE) for the full terms. xObject is provided without any warranty, including the implied warranties of merchantability or fitness for a particular purpose.
+
+This licensing declaration also applies to Premium code. Contribution terms remain to be defined.
 
 The planned model combines an independently usable free Community edition with paid Premium activation, support and maintenance. Premium code will also remain open source. A hosted cloud offering may follow later. Feature tiers, pricing and commercial terms are not yet defined.

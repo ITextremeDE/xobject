@@ -193,7 +193,7 @@ The common fields apply to every supplied type. Additional fields are:
 | R-044 | Prefer standard shadcn components and variants, minimal custom CSS and semantic design tokens/CSS variables for light/dark theming. | Forms are composed from reusable components. Theme changes preserve readable contrast and visible focus. A runtime theme editor is not presumed to be supplied by shadcn. |
 | R-045 | Official self-hosting uses versioned prebuilt images and Docker Compose with xObject and PostgreSQL services. | A clean supported Linux host can install the published package, configure HTTPS, start services and create the first Administrator without building source or installing Node.js. |
 | R-046 | Release updates include controlled database migrations and consistent database/configuration backup with a tested restore procedure. | An acceptance run restores the release's data/configuration into an isolated installation. Failed migrations do not produce a falsely successful upgrade result. |
-| R-047 | The full product, including Premium code, is open source under AGPLv3. Community is independently usable; official Premium activation accompanies support/maintenance offerings. | The release declares its license and includes the corresponding source availability. UI/API/MCP apply the same official feature entitlements. The exact feature split and commercial terms are unresolved. |
+| R-047 | The full product, including Premium code, is open source under GNU AGPL version 3 only (`AGPL-3.0-only`). Community is independently usable; official Premium activation accompanies support/maintenance offerings. | The release declares its license and includes the corresponding source availability. UI/API/MCP apply the same official feature entitlements. The exact feature split and commercial terms are unresolved. |
 
 ### 9.1 Delivery conventions
 
@@ -220,7 +220,7 @@ These items require elaboration, not additional feature discovery. They must be 
 | Journal and recycle bin | Event schema and additional journal privileges, reduced deletion-event format, history erasure including linked contexts, invalid links on restore and relationship cleanup after permanent deletion. R-034–R-040. |
 | Interfaces and UI | API contract/versioning, MCP tools, bulk-action semantics, pagination, routing/query libraries, tree traversal presentation, navigation and configurable theme scope. R-030–R-033, R-041, R-044. |
 | Operations | Backend framework/data-access layer/package versions, supported Linux requirements, proxy example, migration/backup tooling, metadata backup and release/site publication processes. R-043–R-046. |
-| Commercial | Legal licensor designation, contribution rights, exact AGPL licensing declaration, Community/Premium feature split, pricing, activation and support terms. R-047. |
+| Commercial | Legal licensor designation, contribution rights, Community/Premium feature split, pricing, activation and support terms. R-047. |
 | Quality | Concrete initial user profile, representative data sizes and measurable performance, accessibility and operational acceptance targets. Cross-cutting. |
 
 ## 11. Initial acceptance scenarios
@@ -238,7 +238,7 @@ These scenarios guide the first implementation slices. They are not a completed 
 ## 12. References
 
 - [IREB/CPRE glossary](https://cpre.ireb.org/en/downloads-and-resources/glossary)
-- [AGPLv3](https://opensource.org/license/agpl-3.0)
+- [GNU AGPL version 3](../LICENSE), with the version-3-only licensing declaration in the [README](../README.md#licensing-and-commercial-model).
 - [UUIDv7, RFC 9562](https://www.rfc-editor.org/rfc/rfc9562.html#section-5.7)
 - [Diátaxis](https://diataxis.fr/)
 - [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)

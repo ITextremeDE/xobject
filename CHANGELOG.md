@@ -14,3 +14,4 @@ The project is at the specification stage. No software release is available yet.
 - Project README describing the product idea, planned first-version scope, technology and commercial model.
 - Shared agent instructions in `AGENTS.md`, imported by Claude through `CLAUDE.md`.
 - Public roadmap outlining the first implementation slice, remaining version-one goals and later development areas.
+- Full GNU AGPL version 3 license text and explicit `AGPL-3.0-only` licensing declaration, including Premium code.
