@@ -27,7 +27,7 @@ Run schema initialization explicitly, using Better Auth's migration API and idem
 - Dynamic object schemas require runtime validation; TypeScript cannot statically know user-created columns.
 - A global lock is simple for this test but limits throughput. Finer locking remains a design task.
 - The experiment implements Keyword, creation/update metadata and versioning. Type/Status, Category and other shared fields remain product requirements, not delivered features.
-- Schema initialization, local account provisioning and cookie-based MCP access need further design before production use. Auth-account/session changes are not yet covered by xObject's system journal.
+- Schema initialization, local account provisioning and cookie-based MCP access need further design before production use. Account provisioning and session-lifecycle changes are not yet covered by xObject's system journal; the language-preference operations added in ADR 0003 are journaled.
 - Collections/references, full permissions, journal pagination/retention, a stable REST/OpenAPI contract, production migration history and deployment remain open.
 - The server is intended for loopback-only development with disposable data. Passing tests does not establish release readiness or completion of PRD acceptance scenario 1.
 

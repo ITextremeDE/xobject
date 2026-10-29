@@ -6,7 +6,7 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 ## Project status
 
-**Early development.** The repository includes the product requirements and a local backend technical spike for PostgreSQL-backed authentication, dynamic text fields, API/MCP operations and atomic per-field journaling. There is no web application, installation package or software release yet. See the [development guide](docs/development.md) for the evaluated scope and commands.
+**Early development.** The repository includes the product requirements and a local backend technical spike for PostgreSQL-backed authentication, dynamic text fields, translated definition labels, user/workspace language preferences, API/MCP operations and atomic per-field journaling. There is no web application, installation package or software release yet. See the [development guide](docs/development.md) for the evaluated scope and commands.
 
 The [Product Requirements Document](docs/PRD.md) defines the initial scope, 47 requirements, acceptance criteria and remaining design decisions. It describes intended behavior, not implemented features.
 

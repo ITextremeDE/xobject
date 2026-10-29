@@ -109,10 +109,10 @@ test('credentials and sessions are persisted in PostgreSQL; public signup stays 
 
 test('API and real MCP share definitions, data, UUIDv7 identities and per-field journal', async () => {
   const ws = await ok('create_workspace', { name: 'ITextreme', code: 'itx' });
-  const type = await tool('create_object_type', { workspaceId: ws.id, technicalName: 'vehicles', label: 'Vehicles' });
+  const type = await tool('create_object_type', { workspaceId: ws.id, technicalName: 'vehicles', labels: { en: 'Vehicles' } });
   assert.equal(type.tableName, 'itx_vehicles');
   assert.equal(type.id[14], '7');
-  const field = await ok('create_field', { objectTypeId: type.id, technicalName: 'registration', label: 'Registration' });
+  const field = await ok('create_field', { objectTypeId: type.id, technicalName: 'registration', labels: { en: 'Registration' } });
   const record = await tool('create_record', { objectTypeId: type.id, keyword: 'Delivery van', values: { registration: 'ITX 1' } });
   assert.equal(record.id[14], '7');
   const updated = await ok('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Service van', values: { registration: 'ITX 2' } });
@@ -140,16 +140,16 @@ test('API and real MCP share definitions, data, UUIDv7 identities and per-field 
 
 test('names are validated and same object names in different workspaces remain separate', async () => {
   const ws = await tool('create_workspace', { name: 'Other workspace', code: 'other' });
-  const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'vehicles', label: 'Other vehicles' });
+  const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'vehicles', labels: { en: 'Other vehicles' } });
   assert.equal(type.tableName, 'other_vehicles');
   for (const code of ['sys', 'bad_code', 'Bad', '1bad']) {
     assert.equal((await api('create_workspace', { name: 'Invalid', code })).statusCode, 400);
   }
   assert.equal((await api('create_workspace', { name: 'Duplicate', code: 'itx' })).statusCode, 409);
   for (const name of ['id', 'keyword', 'select', 'bad-name', 'x'.repeat(63)]) {
-    assert.equal((await api('create_object_type', { workspaceId: ws.id, technicalName: name, label: 'Invalid' })).statusCode, 400);
+    assert.equal((await api('create_object_type', { workspaceId: ws.id, technicalName: name, labels: { en: 'Invalid' } })).statusCode, 400);
   }
-  assert.equal((await api('create_field', { objectTypeId: type.id, technicalName: 'version', label: 'Invalid' })).statusCode, 400);
+  assert.equal((await api('create_field', { objectTypeId: type.id, technicalName: 'version', labels: { en: 'Invalid' } })).statusCode, 400);
   const columns = await sql<{ table_name: string }>`SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'public' AND table_name IN ('itx_vehicles', 'other_vehicles')`.execute(runtime.db);
   assert.equal(columns.rows.length, 2);
@@ -176,15 +176,18 @@ test('unauthenticated, non-admin, forged and cross-origin requests cannot mutate
 
 test('journal failure rolls back record writes and schema/metadata changes', async () => {
   const ws = await ok('create_workspace', { name: 'Rollback test', code: 'rollback' });
-  const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'items', label: 'Items' });
+  const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'items', labels: { en: 'Items' } });
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Original' });
   await sql`CREATE FUNCTION reject_test_journal() RETURNS trigger LANGUAGE plpgsql AS
     $$ BEGIN RAISE EXCEPTION 'Induced journal failure'; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER reject_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
   try {
     assert.equal((await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Should roll back' })).statusCode, 500);
-    assert.equal((await api('create_field', { objectTypeId: type.id, technicalName: 'rolled_back', label: 'Rolled back' })).statusCode, 500);
-    assert.equal((await api('create_object_type', { workspaceId: ws.id, technicalName: 'rolled_back', label: 'Rolled back' })).statusCode, 500);
+    assert.equal((await api('create_field', { objectTypeId: type.id, technicalName: 'rolled_back', labels: { en: 'Rolled back' } })).statusCode, 500);
+    assert.equal((await api('create_object_type', { workspaceId: ws.id, technicalName: 'rolled_back', labels: { en: 'Rolled back' } })).statusCode, 500);
+    assert.equal((await api('set_labels', { kind: 'object_type', id: type.id, labels: { de: 'Geändert' } })).statusCode, 500);
+    assert.equal((await api('set_workspace_language', { workspaceId: ws.id, language: 'de' })).statusCode, 500);
+    assert.equal((await api('set_user_language', { language: 'de' })).statusCode, 500);
   } finally { await sql`DROP TRIGGER reject_journal ON sys_journal`.execute(runtime.db); }
   const after = await ok('get_record', { objectTypeId: type.id, recordId: record.id });
   assert.equal(after.keyword, 'Original');
@@ -197,12 +200,18 @@ test('journal failure rolls back record writes and schema/metadata changes', asy
   assert.equal((tables.rows[0] as { name: unknown }).name, null);
   const types = await sql`SELECT 1 FROM sys_object_types WHERE workspace_id = ${ws.id}::uuid AND technical_name = 'rolled_back'`.execute(runtime.db);
   assert.equal(types.rows.length, 0);
+  const definition = await ok('get_object_type', { objectTypeId: type.id });
+  assert.deepEqual(definition.labels, { en: 'Items' });
+  const preferences = await sql<{ language: string | null; default_language: string }>`SELECT u.language, w.default_language
+    FROM sys_users u CROSS JOIN sys_workspaces w WHERE u.id = ${adminId} AND w.id = ${ws.id}::uuid`.execute(runtime.db);
+  assert.equal(preferences.rows[0].language, null);
+  assert.equal(preferences.rows[0].default_language, 'en');
 });
 
 test('concurrent edits cannot silently overwrite each other', async () => {
   const workspaces = await ok('list_workspaces', {});
   const workspace = workspaces.find((w: { code: string }) => w.code === 'rollback');
-  const type = await ok('create_object_type', { workspaceId: workspace.id, technicalName: 'concurrent', label: 'Concurrent edits' });
+  const type = await ok('create_object_type', { workspaceId: workspace.id, technicalName: 'concurrent', labels: { en: 'Concurrent edits' } });
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Initial' });
   const results = await Promise.all(['First', 'Second'].map(keyword => api('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword })));
   assert.deepEqual(results.map(r => r.statusCode).sort(), [200, 409]);
@@ -228,4 +237,75 @@ test('sign-out revokes the session for API and MCP', async () => {
   const mcp = await runtime.app.inject({ method: 'POST', url: '/mcp',
     headers: { host: '127.0.0.1:4100', cookie, 'x-xobject-request': '1' }, payload: {} });
   assert.equal(mcp.statusCode, 401);
+});
+
+test('translated definitions use user/workspace fallback while contents and physical names stay unchanged', async () => {
+  const workspace = await ok('create_workspace', { name: 'Languages', code: 'languages', defaultLanguage: 'de' });
+  const type = await tool('create_object_type', { workspaceId: workspace.id, technicalName: 'vehicles', labels: { de: 'Fahrzeuge', en: 'Vehicles' } });
+  const field = await ok('create_field', { objectTypeId: type.id, technicalName: 'registration', labels: { de: 'Kennzeichen', en: 'Registration' } });
+  const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Lieferwagen' });
+  let definition = await ok('get_object_type', { objectTypeId: type.id });
+  assert.equal(definition.label, 'Fahrzeuge');
+  assert.deepEqual(definition.columns, ['id', 'keyword', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'registration']);
+  await tool('set_user_language', { language: 'en' });
+  definition = await ok('get_object_type', { objectTypeId: type.id });
+  assert.equal(definition.label, 'Vehicles');
+  assert.equal(definition.fields.find((f: { id: string }) => f.id === field.id).label, 'Registration');
+  await tool('set_labels', { kind: 'field', id: field.id, labels: { de: 'Amtliches Kennzeichen' } });
+  await tool('set_labels', { kind: 'field', id: field.id, labels: { de: 'Amtliches Kennzeichen' } });
+  definition = await tool('get_object_type', { objectTypeId: type.id });
+  assert.equal(definition.fields.find((f: { id: string }) => f.id === field.id).label, 'Amtliches Kennzeichen');
+  assert.equal((await ok('get_record', { objectTypeId: type.id, recordId: record.id })).keyword, 'Lieferwagen');
+  await ok('set_user_language', { language: null });
+  await tool('set_workspace_language', { workspaceId: workspace.id, language: 'en' });
+  assert.equal((await ok('get_object_type', { objectTypeId: type.id })).label, 'Vehicles');
+  const fixedField = definition.fields.find((f: { technicalName: string }) => f.technicalName === 'keyword');
+  assert.equal((await api('set_labels', { kind: 'field', id: fixedField.id, labels: { en: 'Wrong' } })).statusCode, 400);
+  for (const invalid of [{}, { fr: 'Véhicules' }, { en: '' }]) {
+    assert.equal((await api('set_labels', { kind: 'object_type', id: type.id, labels: invalid })).statusCode, 400);
+  }
+  assert.equal((await api('set_user_language', { language: 'invalid' })).statusCode, 400);
+  assert.equal((await api('set_workspace_language', { workspaceId: workspace.id, language: 'invalid' })).statusCode, 400);
+  const changes = await sql<{ field_id: string; new_value: unknown }>`SELECT field_id, new_value FROM sys_journal
+    WHERE entity_id = ${field.id}::uuid AND field_key = 'labels' AND old_value <> 'null'::jsonb`.execute(runtime.db);
+  assert.equal(changes.rows.length, 1);
+  assert.equal(changes.rows[0].field_id, field.id);
+  assert.deepEqual(changes.rows[0].new_value, { de: 'Amtliches Kennzeichen' });
+});
+
+test('upgrading legacy scalar labels preserves identities, records, journal and old column order', async () => {
+  const { connect } = await import('../src/database.js');
+  await exec('docker', ['exec', container, 'createdb', '-U', 'postgres', 'xobject_legacy_test']);
+  const legacyURL = databaseURL.replace('/xobject_test', '/xobject_legacy_test');
+  await migrate(legacyURL, secret, baseURL);
+  const { db, pool } = connect(legacyURL);
+  const { Application } = await import('../src/domain.js');
+  try {
+    const auth = createAuth(pool, secret, baseURL, true);
+    const user = await auth.api.signUpEmail({ body: { email: 'legacy@example.test', name: 'Legacy', password: 'test-password-legacy' } });
+    await sql`INSERT INTO sys_administrators (user_id) VALUES (${user.user.id})`.execute(db);
+    const application = new Application(db);
+    const workspace = await application.execute('create_workspace', { code: 'legacy', name: 'Legacy' }, user.user.id) as { id: string };
+    const type = await application.execute('create_object_type', { workspaceId: workspace.id, technicalName: 'items', labels: { en: 'Original label' } }, user.user.id) as { id: string };
+    const record = await application.execute('create_record', { objectTypeId: type.id, keyword: 'Existing record' }, user.user.id) as { id: string };
+    // Recreate the previous scalar-label/preference schema in this disposable database.
+    for (const name of ['sys_object_types', 'sys_fields']) {
+      await sql`ALTER TABLE ${sql.table(name)} ALTER COLUMN labels TYPE text USING labels->>'en'`.execute(db);
+      await sql`ALTER TABLE ${sql.table(name)} RENAME COLUMN labels TO label`.execute(db);
+    }
+    await sql`ALTER TABLE sys_workspaces DROP COLUMN default_language`.execute(db);
+    await sql`ALTER TABLE sys_users DROP COLUMN language`.execute(db);
+    const beforeColumns = await sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'legacy_items' ORDER BY ordinal_position`.execute(db);
+    const beforeJournal = await sql`SELECT * FROM sys_journal ORDER BY id`.execute(db);
+    await migrate(legacyURL, secret, baseURL);
+    await migrate(legacyURL, secret, baseURL);
+    const labels = await sql<{ labels: unknown }>`SELECT labels FROM sys_object_types WHERE id = ${type.id}::uuid`.execute(db);
+    assert.deepEqual(labels.rows[0].labels, { und: 'Original label' });
+    const afterColumns = await sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'legacy_items' ORDER BY ordinal_position`.execute(db);
+    assert.deepEqual(afterColumns.rows, beforeColumns.rows);
+    assert.deepEqual((await sql`SELECT * FROM sys_journal ORDER BY id`.execute(db)).rows, beforeJournal.rows);
+    const readback = await application.execute('get_record', { objectTypeId: type.id, recordId: record.id }, user.user.id) as { keyword: string };
+    assert.equal(readback.keyword, 'Existing record');
+    assert.equal((await application.execute('get_object_type', { objectTypeId: type.id }, user.user.id) as { label: string }).label, 'Original label');
+  } finally { await db.destroy(); }
 });

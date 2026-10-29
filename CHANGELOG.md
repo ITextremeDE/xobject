@@ -18,3 +18,5 @@ The project is in early development. No software release is available yet.
 - Workspace codes and readable technical table/field naming rules, documented in the PRD and ADR 0001.
 - Local backend technical spike using Fastify, Kysely/pg and Better Auth, with workspace-prefixed text-field tables, shared API/MCP operations and atomic per-field journals.
 - PostgreSQL integration tests, TypeScript build/check commands, development setup guide and GitHub checks workflow for the spike.
+- Localized definition labels in JSONB, user/workspace language preferences and shared API/MCP operations with transactional journaling.
+- Explicit standard-column order for new object tables and a development migration preserving earlier labels, records, identities and historical journal entries.

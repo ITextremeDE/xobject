@@ -2,7 +2,7 @@ name: Backend spike checks
 on:
   pull_request:
   push:
-    branches: [main, feat/backend-spike]
+    branches: [main]
 permissions:
   contents: read
 jobs:
