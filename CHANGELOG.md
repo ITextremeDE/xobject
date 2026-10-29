@@ -25,7 +25,7 @@ The project is in early development. No software release is available yet.
 
 ### Changed
 
-- Match the ITx footer with adapted product copy, the same nine social brand icons and developer/technology credit.
+- Match the ITx footer with adapted product copy, the same nine social brand icons and developer/technology credit; use the same complete copyright line.
 
 - Match ITx header controls with real Base UI theme/mobile icon menus, neutral Button variants and compact single-row navigation, retaining the restrictive CSP and stored theme preference.
 
