@@ -10,9 +10,12 @@ OpenProject is the source for operational tasks, priorities and dependencies. Th
 
 ## Current state and commands
 
-The application remains at the specification stage on this branch. The independent public project website lives in `apps/site`; it is not an application release.
+The repository contains a local backend technical spike in `apps/server`, with npm workspaces, a lockfile and a GitHub checks workflow. There is no web client, installation package or software release. The experiment is restricted to authenticated Administrators and scalar text fields; it does not satisfy the complete version-1 scope.
 
-For the website, run `npm ci`, `npm run build` and `npm test` in `apps/site`. Browser tests require Chromium (`npx playwright install chromium`). See `docs/website.md`. Application commands must be established separately when an application scaffold exists.
+From the repository root, use `npm ci`, `npm run typecheck`, `npm run build` and `npm test`. Tests require Docker and start an isolated disposable PostgreSQL container. See `docs/development.md` for `npm run db:migrate`, `npm run admin:create` and `npm run dev`; never point experimental initialization at a production database. No lint command is established.
+
+The independent public project website lives in `apps/site`; it is not an application release. Run `npm ci`, `npm run build` and `npm test` in that directory. Browser tests require Chromium (`npx playwright install chromium`). See `docs/website.md`.
+
 
 For documentation changes, check Markdown structure, relative links and section anchors, requirement references, whitespace and unintended sensitive content. `git diff --check` is an available whitespace check; include newly created files in review because untracked files are not covered by that command.
 
@@ -20,6 +23,8 @@ For documentation changes, check Markdown structure, relative links and section 
 
 - PostgreSQL is authoritative for definitions, records, relationships and journal data. Object types use their own data tables; specify collection/reference storage and schema migrations before implementing them.
 - Use readable workspace-prefixed data table names (`itx_contacts`) and the reserved `sys_` prefix for system tables, as specified in PRD section 3.1 and ADR 0001. Keep UUID identities separate from technical names and editable display labels. Workspace codes and technical names are fixed after creation in version 1; prefixes do not enforce authorization.
+- The backend experiment evaluates Fastify, Kysely/pg, Better Auth and the official MCP SDK; see ADR 0002 for scope and outstanding production decisions.
+- Definition labels use JSONB language maps, separate from stable technical names. Follow PRD section 3.3 and ADR 0003 for user/workspace language fallback and physical column order. Preserve existing records and historical journal values during migration; do not automatically rebuild tables solely for ordering. An explicitly authorized development-data rebuild is a separate maintenance operation.
 - Backend, API and MCP use TypeScript on Node.js in a modular monolith. Web uses React, TypeScript and Vite.
 - UI uses Tailwind CSS and shadcn/ui. Prefer standard components, existing variants and composition, with minimal custom CSS and centralized semantic tokens/CSS variables.
 - UI, API and MCP use the same backend rules. Do not implement a capability exclusively in the UI or rely on UI checks for correctness or authorization.

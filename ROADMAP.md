@@ -1,6 +1,6 @@
 # Roadmap
 
-xObject is at the specification stage. There is no runnable application or software release yet.
+xObject is in early development. A local backend technical spike exists; the web application and a software release are not available yet.
 
 This roadmap summarizes product goals from the [Product Requirements Document](docs/PRD.md). Operational tasks, dependencies and priorities are managed in OpenProject; this file is a curated public overview, not a duplicate task list or a live implementation-status report. Goals will be reconciled with that planning as implementation is organized.
 
@@ -10,11 +10,11 @@ No delivery dates are committed. An item here is not evidence that its requireme
 
 - Static Astro project homepage, separate from the application, linking to the canonical requirements and roadmap. Full Starlight documentation and release/version navigation remain later work.
 
-## In progress — Product definition
+## In progress — Product definition and technical foundation
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
 - Resolve the technical foundation decisions needed for the first implementation slice: backend framework, data access, workspace isolation, authentication and controlled schema changes.
-- Establish the repository's introductory documentation and agent guidance.
+- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The complete first slice below remains the delivery goal.
 
 ## Next — First end-to-end object slice
 
@@ -40,7 +40,7 @@ The following goals build on that foundation. Their detailed sequencing and work
 | **CRM and project management** | Contacts with distinct contact kinds and main Organization relationships; Projects, Cases and Tasks with responsibility and assignment. |
 | **Daily work and lifecycle** | Searchable tables, module forms, record details, dossier and relationship tree; per-field journal, recycle bin, restoration and controlled permanent deletion. |
 | **Self-hosting and acceptance** | Versioned container images, Docker Compose installation, controlled migrations, backup/restore instructions and checks against the version-1 acceptance criteria. |
-| **Public documentation** | Astro product website, Astro/Starlight documentation, release notes and versioned documentation published through the planned static hosting setup. |
+| **Public documentation** | Extend the published Astro project homepage with Astro/Starlight documentation, release notes and versioned documentation. |
 
 All version-1 capabilities must remain available through the API and MCP. Security, validation and journal behavior are part of each affected implementation slice, not a final add-on.
 
