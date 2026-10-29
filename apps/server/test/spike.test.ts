@@ -1,4 +1,5 @@
 import { after, before, test } from 'node:test';
+import { existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -403,4 +404,20 @@ test('workspace search shares API/MCP behavior, isolates workspaces and treats t
   for (const change of [{ query: ' ' }, { limit: 0 }, { limit: 51 }]) assert.equal((await api('search_workspace', { ...input, ...change })).statusCode, 400);
   assert.equal((await api('search_workspace', input, userCookie)).statusCode, 403);
   assert.equal((await api('search_workspace', input, '')).statusCode, 401);
+});
+
+test('web deep links serve only the application shell and preserve API/asset errors', { skip: !existsSync(new URL('../../web/dist/index.html', import.meta.url)) }, async () => {
+  for (const url of ['/settings', '/w/itx', '/w/itx/objects/vehicles?q=sample&sort=keyword&direction=asc&page=2', '/w/itx/objects/vehicles/new', `/w/itx/objects/vehicles/${randomUUID()}`]) {
+    const response = await runtime.app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4100', accept: 'text/html' } });
+    assert.equal(response.statusCode, 200, response.body);
+    assert.match(response.headers['content-type']!, /text\/html/);
+    assert.equal(response.headers['cache-control'], 'no-store');
+    assert.match(response.body, /id="root"/);
+  }
+  for (const url of ['/api/v1/missing', '/api/missing', '/mcp/missing', '/assets/missing.js', '/unknown']) {
+    assert.equal((await runtime.app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4100', accept: 'text/html' } })).statusCode, 404);
+  }
+  assert.equal((await runtime.app.inject({ method: 'GET', url: '/settings', headers: { host: '127.0.0.1:4100', accept: 'application/json' } })).statusCode, 404);
+  assert.equal((await runtime.app.inject({ method: 'POST', url: '/settings', headers: { host: '127.0.0.1:4100', accept: 'text/html' } })).statusCode, 404);
+  assert.equal((await runtime.app.inject({ method: 'GET', url: '/settings', headers: { host: 'wrong.test', accept: 'text/html' } })).statusCode, 400);
 });

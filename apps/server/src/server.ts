@@ -106,6 +106,16 @@ export function buildServer(config: Config) {
   const webRoot = fileURLToPath(new URL('../../web/dist/', import.meta.url));
   if (existsSync(webRoot)) {
     app.register(fastifyStatic, { root: webRoot, prefix: '/', index: ['index.html'] });
+    app.setNotFoundHandler((request, reply) => {
+      const pathname = new URL(request.url, base).pathname;
+      // Only application document routes fall back to the shell. Missing API/MCP/assets stay 404.
+      const documentRoute = /^\/(?:settings\/?|w\/[a-z][a-z0-9]*(?:\/objects\/[a-z][a-z0-9_]*(?:\/(?:new|[0-9a-f-]{36}))?)?\/?)$/i.test(pathname);
+      if (request.method === 'GET' && request.headers.accept?.includes('text/html') && documentRoute) {
+        return reply.header('Cache-Control', 'no-store').sendFile('index.html', { cacheControl: false });
+      }
+      return reply.code(404).send({ error: 'Not found' });
+    });
+
   }
   return { app, db, auth };
 }
