@@ -68,6 +68,10 @@ Record lists use `q`, `sort`, `direction` (`asc`/`desc`) and one-based `page` qu
 
 Back/Forward and internal navigation use the same unsaved-change confirmation as mouse actions. Pending saves block navigation. Reload/closing the tab uses the browser's native before-unload prompt for dirty forms. The server falls back to the application shell only for known document URL patterns requested as HTML; missing API/MCP endpoints and assets keep their original error responses. This also supports direct links and refresh without a separate proxy.
 
+Clicking the exact active Dashboard or object-list destination in the Sidebar re-fetches the current view’s workspace/type metadata and, for object lists, definition and record queries. It preserves the document, URL parameters and history entry. Other Sidebar targets navigate normally, including returning from record details to their list. Busy writes and unsaved-change confirmation remain in effect; the Breadcrumb has no special refresh action.
+
+Record-table rows open details when a non-interactive cell is clicked and show a pointer cursor when enabled. The Keyword remains a real link for keyboard access and native link actions. Interactive child controls, modified clicks and selected text do not trigger row navigation. The application retains shadcn’s existing cursor styles elsewhere; there is no global pointer override.
+
 ## Header search
 
 The header search complements the Breadcrumb and object-table Keyword filter. It searches the current workspace's localized object names/technical names and record Keywords through `search_workspace`, exposed through the same API/MCP application layer. It requires two characters, debounces requests and opens selected object types or records directly. Native Command navigation supports arrow keys, Enter and Escape; navigating to a result retains the unsaved-record confirmation.

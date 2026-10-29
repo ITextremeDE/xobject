@@ -93,6 +93,19 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   function showKeyboardHelp(origin: HTMLButtonElement | null) {
     helpOrigin.current = origin; setOpenMobile(false); setHelpOpen(true);
   }
+  function navigateSidebar(path: string) {
+    if (busy) return;
+    if (location.pathname !== path) { void routeNavigate(path); return; }
+    navigate(() => {
+      setOpenMobile(false);
+      // Re-read this view's data without replacing the document, URL or history entry.
+      void queryClient.invalidateQueries({ predicate: ({ queryKey }) =>
+        (queryKey[0] === 'workspaces' && queryKey[1] === user.id) ||
+        (queryKey[0] === 'types' && queryKey[1] === workspace?.id) ||
+        (selectedType && ['definition', 'records'].includes(String(queryKey[0])) && queryKey[1] === selectedType.id) === true,
+      });
+    });
+  }
   function showPage(page: 'dashboard' | 'settings') {
     if (!busy) void routeNavigate(page === 'settings' ? '/settings' : dashboardPath, { state: page === 'settings' ? { workspaceCode: workspace?.code } : null });
   }
@@ -149,11 +162,11 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem>
-          <SidebarMenuButton isActive={view === 'dashboard'} tooltip={t('dashboard')} disabled={busy} onClick={() => showPage('dashboard')}><LayoutDashboardIcon /><span>{t('dashboard')}</span></SidebarMenuButton>
+          <SidebarMenuButton isActive={view === 'dashboard'} tooltip={t('dashboard')} disabled={busy} onClick={() => navigateSidebar(dashboardPath)}><LayoutDashboardIcon /><span>{t('dashboard')}</span></SidebarMenuButton>
         </SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>
         <SidebarGroup><SidebarGroupLabel>{t('objects')}</SidebarGroupLabel><SidebarGroupContent>
           {types.isPending && workspace ? <Loading /> : types.isError ? <ErrorNotice error={types.error} retry={() => { void types.refetch(); }} /> : <SidebarMenu>{types.data?.map(type => <SidebarMenuItem key={type.id}>
-            <SidebarMenuButton isActive={selectedType?.id === type.id} onClick={() => selectType(type.id)} tooltip={type.label} disabled={busy}><DatabaseIcon /><span>{type.label}</span></SidebarMenuButton>
+            <SidebarMenuButton isActive={selectedType?.id === type.id} onClick={() => navigateSidebar(`${dashboardPath}/objects/${type.technicalName}`)} tooltip={type.label} disabled={busy}><DatabaseIcon /><span>{type.label}</span></SidebarMenuButton>
           </SidebarMenuItem>)}</SidebarMenu>}
           <SidebarMenu className="mt-2"><SidebarMenuItem><SidebarMenuButton data-definition-trigger="object" tooltip={t('newObject')} disabled={!workspace || busy} onClick={() => navigate(() => { setOpenMobile(false); setDialog('object'); })}><PlusIcon /><span>{t('newObject')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
         </SidebarGroupContent></SidebarGroup>
@@ -211,6 +224,7 @@ function Welcome({ title, description, action, onAction, icon: Icon = PlusIcon }
 
 function RecordList({ definition, selectedRecord, basePath, onField, disabled }: { definition: ObjectDefinition; selectedRecord: string | null; basePath: string; onField: () => void; disabled: boolean }) {
   const { t, i18n } = useTranslation();
+  const openRecord = useNavigate();
   const [params, setParams] = useSearchParams();
   const search = (params.get('q') ?? '').slice(0, 200);
   const page = Number(params.get('page') ?? '1');
@@ -237,7 +251,14 @@ function RecordList({ definition, selectedRecord, basePath, onField, disabled }:
           const Icon = active ? (sort.direction === 'asc' ? ArrowUpIcon : ArrowDownIcon) : ArrowUpDownIcon;
           return <TableHead key={column.name} aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><Button variant="ghost" className="-ml-2" disabled={disabled} aria-label={t('sortColumn', { column: column.label, direction: t(active && sort.direction === 'asc' ? 'sortDescending' : 'sortAscending') })} onClick={() => changeList({ sort: column.name, direction: active && sort.direction === 'asc' ? 'desc' : 'asc', page: null })}>{column.label}<Icon data-icon="inline-end" /></Button></TableHead>;
         })}</TableRow></TableHeader>
-          <TableBody>{result.data.records.map(record => <TableRow key={record.id} data-state={record.id === selectedRecord ? 'selected' : undefined}>
+          <TableBody>{result.data.records.map(record => <TableRow key={record.id} className={cn(!disabled && 'cursor-pointer')} data-state={record.id === selectedRecord ? 'selected' : undefined} onClick={event => {
+            if (disabled || record.id === selectedRecord || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            const target = event.target instanceof Element ? event.target : null;
+            // Links and future row controls retain their own actions and keyboard semantics.
+            if (target?.closest('a, button, input, textarea, select, label, [role="button"], [role="link"], [role="checkbox"], [role="menuitem"], [role="switch"], [role="combobox"], [contenteditable], [data-row-action]')) return;
+            if (window.getSelection()?.toString()) return;
+            void openRecord(`${basePath}/${record.id}?${params}`);
+          }}>
             <TableCell><Button variant="link" className="max-w-80 justify-start truncate px-0 hover:no-underline" render={<Link to={`${basePath}/${record.id}?${params}`} />} nativeButton={false} disabled={disabled}>{record.keyword}</Button></TableCell>
             {fields.map(field => <TableCell key={field.id} className="max-w-64 truncate" title={String(record[field.technicalName] ?? '')}>{String(record[field.technicalName] ?? '—')}</TableCell>)}
             <TableCell className="text-muted-foreground">{new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(new Date(record.updated_at))}</TableCell>
