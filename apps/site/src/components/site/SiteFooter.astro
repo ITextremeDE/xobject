@@ -1,5 +1,7 @@
 ---
-import { ArrowUp } from '@lucide/astro';
+import { ArrowUp, CodeXml, Earth, Heart } from '@lucide/astro';
+import SocialIcon from './SocialIcon.astro';
+import { socialLinks } from '../../config/social';
 import { primaryNavigation, projectResources } from '../../config/navigation';
 ---
 <footer class="site-footer">
@@ -7,7 +9,10 @@ import { primaryNavigation, projectResources } from '../../config/navigation';
     <div class="footer-grid">
       <div class="footer-brand">
         <a class="parent-brand" href="https://itextreme.de/" aria-label="ITextreme – Solutions & Services"><img class="logo-light" src="/brand/itextreme-logo.svg" width="1267" height="370" alt="ITextreme – Solutions & Services" loading="lazy"/><img class="logo-dark" src="/brand/itextreme-logo-inverted.svg" width="1267" height="370" alt="ITextreme – Solutions & Services" loading="lazy"/></a>
-        <p>Kontakte, Projekte und eigene Datenobjekte verbinden.</p>
+        <p>Kontakte, Projekte und eigene Datenobjekte verbinden – für eine selbstbestimmte digitale Arbeitswelt.</p>
+        <ul class="footer-social" aria-label="ITextreme in sozialen Netzwerken">
+          {socialLinks.map(link => <li><a href={link.href} aria-label={`${link.label} – öffnet in neuem Tab`} title={link.label} target="_blank" rel="noreferrer"><SocialIcon name={link.label}/></a></li>)}
+        </ul>
       </div>
       <nav class="footer-columns" aria-label="Footer-Navigation">
         <div><h2>xObject</h2><ul data-section-navigation>{primaryNavigation.map(link => <li><a href={link.href}>{link.label}</a></li>)}</ul></div>
@@ -15,6 +20,6 @@ import { primaryNavigation, projectResources } from '../../config/navigation';
         <div><h2>Rechtliches</h2><ul><li><a href="https://itextreme.de/impressum">Impressum</a></li><li><a href="https://itextreme.de/datenschutzerklaerung">Datenschutz</a></li></ul></div>
       </nav>
     </div>
-    <div class="footer-bottom"><p>© {new Date().getUTCFullYear()} ITextreme.</p><a href="#seitenanfang">Nach oben <ArrowUp aria-hidden="true" stroke-width={1.5}/></a></div>
+    <div class="footer-bottom"><div><p class="footer-credit"><CodeXml aria-hidden="true"/><span>Entwickelt mit</span><Heart aria-hidden="true" class="footer-heart"/><span class="sr-only">Liebe</span><span>von</span><a href="https://juergen-schadek.de" aria-label="Jürgen Schadek – öffnet in neuem Tab" target="_blank" rel="noreferrer">Jürgen Schadek</a><span>–</span><Earth aria-hidden="true"/><span>gebaut mit Astro, Tailwind CSS und shadcn/ui.</span></p><p class="footer-copyright">© {new Date().getUTCFullYear()} ITextreme.</p></div><a href="#seitenanfang">Nach oben <ArrowUp aria-hidden="true" stroke-width={1.5}/></a></div>
   </div>
 </footer>

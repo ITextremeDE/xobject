@@ -122,8 +122,10 @@ Container, HomeHero and SiteFooter. The 2026-10-29 review used anonymous live
 - Hero: surface-colored full-width band, equal desktop columns, the shared
   heading scale and 18 px/32 px intro text. xObject's own copy and object-model
   diagram remain the product-specific content; no magazine kicker is invented.
-- Footer: brand/description on the left, grouped xObject, project and legal
-  navigation, separated copyright and a working native back-to-top link.
+- Footer: ITextreme brand and adapted xObject description on the left, the same
+  nine social brand icons and public ITextreme channel URLs as the parent site
+  (maintained in `src/config/social.ts`), grouped xObject/project/legal navigation,
+  developer credit with the actual Astro stack, copyright and a native back-to-top link.
 - Intentional differences: xObject's identity and four real section targets
   replace magazine categories. Only existing project resources are linked;
   no empty search, social feeds or third-party consent widget is added.
