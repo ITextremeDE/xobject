@@ -15,3 +15,4 @@ The project is at the specification stage. No software release is available yet.
 - Shared agent instructions in `AGENTS.md`, imported by Claude through `CLAUDE.md`.
 - Public roadmap outlining the first implementation slice, remaining version-one goals and later development areas.
 - Full GNU AGPL version 3 license text and explicit `AGPL-3.0-only` licensing declaration, including Premium code.
+- Workspace codes and readable technical table/field naming rules, documented in the PRD and ADR 0001.

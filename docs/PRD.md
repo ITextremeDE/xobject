@@ -58,7 +58,19 @@ Role assignment details for Designers and Users remain to be specified. Administ
 | R-006 | A record must satisfy required fields across its shared object type, including fields absent from the current module form. | Saving incomplete input reveals the missing fields for direct completion. If field permissions prevent completion, saving is refused with an actionable error without revealing restricted values. |
 | R-007 | User-defined fields containing data are deactivated rather than deleted in version 1. Field type changes require safe conversion of all existing values. | Deactivation retains stored values. A proposed type change containing even one unconvertible value is rejected without partial conversion or data loss. Protected module fields remain protected. |
 
-### 3.1 Shared fields
+### 3.1 Workspace codes and technical names
+
+Each workspace has a freely editable display name and an installation-wide unique technical code chosen at creation. xObject proposes a code; the creator can edit it before saving. Codes begin with a lowercase ASCII letter and contain only lowercase ASCII letters and digits. The code `sys` is reserved for system tables. Workspace codes cannot be changed in version 1.
+
+Object types and fields have immutable UUID identities, readable technical names and separately editable/translatable display labels. xObject proposes English `snake_case` technical names that the Designer can edit before creation. Technical names begin with a lowercase ASCII letter and contain only lowercase ASCII letters, digits and underscores. They are fixed after creation in version 1. Object technical names are unique within their workspace; field technical names are unique within their object type. Supplied module definitions use fixed technical names. Activation must check for conflicting definitions before applying changes; a matching name alone does not identify a shared object type.
+
+An object type's data table is named `<workspace_code>_<object_name>`, for example `itx_contacts`, `itx_projects` or `itx_vehicles` for the workspace **ITextreme** with code `itx`. This uses table prefixes rather than a separate database schema for each workspace. Installation-wide system tables use the reserved `sys_` prefix. Column names remain readable, for example `birth_date` and `commercial_register`.
+
+Creation rejects reserved/conflicting names and names exceeding PostgreSQL identifier limits, including the complete generated table name. System-managed field names are reserved within object types. Display-label changes never rename tables or columns. UUIDs remain the references for definition identity, relationships and journal entries; authorization uses workspace/type identities and permissions rather than table-name prefixes. The backend applies the same naming validation through UI, API and MCP.
+
+See [ADR 0001](adr/0001-readable-workspace-table-names.md) for the naming decision and its consequences. Physical access isolation, schema-change execution and collection/reference storage still require technical design.
+
+### 3.2 Shared fields
 
 | Field | Definition and default |
 | --- | --- |

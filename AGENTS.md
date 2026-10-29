@@ -19,6 +19,7 @@ For documentation changes, check Markdown structure, relative links and section 
 ## Agreed architecture
 
 - PostgreSQL is authoritative for definitions, records, relationships and journal data. Object types use their own data tables; specify collection/reference storage and schema migrations before implementing them.
+- Use readable workspace-prefixed data table names (`itx_contacts`) and the reserved `sys_` prefix for system tables, as specified in PRD section 3.1 and ADR 0001. Keep UUID identities separate from technical names and editable display labels. Workspace codes and technical names are fixed after creation in version 1; prefixes do not enforce authorization.
 - Backend, API and MCP use TypeScript on Node.js in a modular monolith. Web uses React, TypeScript and Vite.
 - UI uses Tailwind CSS and shadcn/ui. Prefer standard components, existing variants and composition, with minimal custom CSS and centralized semantic tokens/CSS variables.
 - UI, API and MCP use the same backend rules. Do not implement a capability exclusively in the UI or rely on UI checks for correctness or authorization.
