@@ -9,11 +9,13 @@ The backend experiment needs a browser interface that exercises real PostgreSQL 
 
 ## Decision
 
-Use React and Vite with TypeScript, TanStack Query for server state and i18next for interface strings. Compose standard Radix-based shadcn/ui components with Tailwind and centralized semantic CSS variables. Keep business data on the server; only the appearance preference is stored locally.
+Use React and Vite with TypeScript, TanStack Query for server state and i18next for interface strings. Compose standard Base UI-based shadcn/ui components (`base-nova`) with Tailwind and centralized semantic CSS variables. Keep business data on the server; only the appearance preference is stored locally.
 
 Serve the built browser assets through Fastify on the same origin as Better Auth, API and MCP. Local iteration uses Vite build watch and browser refresh. Preserve existing Host/Origin checks rather than introducing a cross-origin development exception.
 
 Move canonical operation input schemas and wire types into `packages/contracts`. Add object listing and bounded, literal Keyword search to the existing Application so UI, HTTP and MCP share authorization and behavior. Retain the Administrator-only restriction and scalar-text scope.
+
+The shell follows the official Sidebar 07 structure; record lists use the Tasks example as a layout reference. Use upstream component styles, variants and theme variables. The initial Radix experiment was switched to Base UI before merging, following the selected common component baseline. Preserve localized labels and unsaved-edit protection when updating generated primitives.
 
 ## Consequences
 

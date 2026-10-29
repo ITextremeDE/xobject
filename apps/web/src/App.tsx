@@ -1,5 +1,6 @@
 import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { installKeyboardShortcuts } from '@/lib/keyboard';
 import { getSession } from '@/lib/api';
 import { Login } from '@/components/login';
 import { Loading, ErrorNotice } from '@/components/feedback';
@@ -13,6 +14,7 @@ class WorkspaceBoundary extends Component<{ children: ReactNode }, { error: Erro
 
 export default function App() {
   const client = useQueryClient();
+  useEffect(installKeyboardShortcuts, []);
   const session = useQuery({ queryKey: ['session'], queryFn: getSession, retry: false });
   function forgetSession() { void client.cancelQueries(); client.removeQueries({ predicate: query => query.queryKey[0] !== 'session' }); client.setQueryData(['session'], null); }
   useEffect(() => {

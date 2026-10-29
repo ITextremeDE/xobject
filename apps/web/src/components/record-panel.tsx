@@ -1,3 +1,5 @@
+import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
+import { Kbd } from '@/components/ui/kbd';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -25,9 +27,8 @@ export function RecordPanel(props: Props) {
   const record = useQuery({ queryKey: ['record', props.definition.id, props.recordId],
     queryFn: () => api('get_record', { objectTypeId: props.definition.id, recordId: props.recordId }), enabled: props.recordId !== 'new' });
   const title = props.recordId === 'new' ? t('newRecord') : record.data?.keyword || t('details');
-  return <Sheet open modal={props.mobile} onOpenChange={open => { if (!open) props.onClose(); }}>
-    <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[26rem]" showCloseButton={false}
-      onInteractOutside={event => { if (!props.mobile) event.preventDefault(); }}>
+  return <Sheet open modal={props.mobile} disablePointerDismissal={!props.mobile} onOpenChange={open => { if (!open) props.onClose(); }}>
+    <SheetContent data-nonmodal-panel={!props.mobile} showOverlay={props.mobile} className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[26rem]" showCloseButton={false}>
       <SheetHeader className="gap-2 p-6 pr-12"><SheetTitle>{title}</SheetTitle><SheetDescription>{t(props.recordId === 'new' ? 'newRecordDescription' : 'recordDetails')}</SheetDescription></SheetHeader>
       <Button variant="ghost" size="icon-sm" className="absolute top-4 right-4" onClick={props.onClose} aria-label={t('close')}><XIcon /></Button>
       <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
@@ -66,7 +67,7 @@ function RecordForm({ definition, record, onDirtyChange, onBusyChange, onSaved }
     const next = { ...values, [key]: value }; setValues(next); setSaved(false);
     onDirtyChange(Object.keys(next).some(k => next[k] !== (baseline[k] ?? '')));
   }
-  return <form className="flex min-h-full flex-col" onSubmit={event => { event.preventDefault(); mutation.mutate(); }}>
+  return <form data-shortcut-submit className="flex min-h-full flex-col" onSubmit={event => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
     <div className="flex flex-1 flex-col gap-6 p-6">
       {mutation.isError ? <ErrorNotice error={mutation.error} /> : null}
       {mutation.error instanceof ApiError && mutation.error.status === 409 ? <Button variant="outline" type="button" onClick={() => { window.location.reload(); }}>{t('reload')}</Button> : null}
@@ -76,7 +77,7 @@ function RecordForm({ definition, record, onDirtyChange, onBusyChange, onSaved }
         {definition.fields.filter(f => f.technicalName !== 'keyword').map(field => <Field key={field.id}><FieldLabel htmlFor={`field-${field.id}`}>{field.label}</FieldLabel><Input id={`field-${field.id}`} value={values[field.technicalName] ?? ''} maxLength={10000} disabled={mutation.isPending} onChange={event => update(field.technicalName, event.target.value)} /></Field>)}
       </FieldGroup>
     </div>
-    <div className="sticky bottom-0 border-t bg-background p-6"><Button type="submit" className="w-full" disabled={mutation.isPending || !values.keyword.trim() || Boolean(record && !dirty)}>{mutation.isPending ? t('saving') : t('save')}</Button></div>
+    <div className="sticky bottom-0 border-t bg-background p-6"><Button type="submit" aria-keyshortcuts={keyboardCommands.save.aria} className="w-full" disabled={mutation.isPending || !values.keyword.trim() || Boolean(record && !dirty)}>{mutation.isPending ? t('saving') : t('save')}<Kbd>{saveShortcutLabel}</Kbd></Button></div>
   </form>;
 }
 

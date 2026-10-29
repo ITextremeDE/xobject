@@ -1,3 +1,5 @@
+import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
+import { Kbd } from '@/components/ui/kbd';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { signIn, ApiError } from '@/lib/api';
@@ -17,7 +19,7 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
     <Card className="w-full max-w-sm">
       <CardHeader><CardTitle>{t('signIn')}</CardTitle><CardDescription>{t('loginDescription')}</CardDescription></CardHeader>
       <CardContent>
-        <form id="login" onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); mutation.mutate({ email: String(data.get('email')), password: String(data.get('password')) }); }}>
+        <form data-shortcut-submit id="login" onSubmit={event => { event.preventDefault(); if (mutation.isPending) return; const data = new FormData(event.currentTarget); mutation.mutate({ email: String(data.get('email')), password: String(data.get('password')) }); }}>
           <FieldGroup>
             {mutation.isError ? <Alert variant="destructive"><AlertDescription>{t(mutation.error instanceof ApiError && mutation.error.status === 401 ? 'loginFailed' : 'networkError')}</AlertDescription></Alert> : null}
             <Field><FieldLabel htmlFor="email">{t('email')}</FieldLabel><Input autoFocus id="email" name="email" type="email" autoComplete="username" required disabled={mutation.isPending} /></Field>
@@ -25,7 +27,7 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
           </FieldGroup>
         </form>
       </CardContent>
-      <CardFooter><Button form="login" type="submit" className="w-full" disabled={mutation.isPending}>{mutation.isPending ? t('loading') : t('signIn')}</Button></CardFooter>
+      <CardFooter><Button form="login" type="submit" aria-keyshortcuts={keyboardCommands.save.aria} className="w-full" disabled={mutation.isPending}>{mutation.isPending ? t('loading') : t('signIn')}<Kbd>{saveShortcutLabel}</Kbd></Button></CardFooter>
     </Card>
     <div className="flex w-full max-w-sm gap-3">
       <Field><FieldLabel htmlFor="login-language" className="sr-only">{t('language')}</FieldLabel><NativeSelect id="login-language" className="w-full" value={i18n.language} onChange={event => { void i18n.changeLanguage(event.target.value); }}><NativeSelectOption value="de">Deutsch</NativeSelectOption><NativeSelectOption value="en">English</NativeSelectOption></NativeSelect></Field>

@@ -1,3 +1,5 @@
+import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
+import { Kbd } from '@/components/ui/kbd';
 import { XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -35,10 +37,13 @@ export function DefinitionDialog({ kind, workspaceId, objectTypeId, onClose, onC
       .replace(kind === 'workspace' ? /[^a-z0-9]/g : /[^a-z0-9]+/g, kind === 'workspace' ? '' : '_').replace(/^[^a-z]+|_+$/g, ''));
   }
   return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending) onClose(); }}>
-    <DialogContent showCloseButton={false}>
-      <DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-2 top-2" aria-label={t('close')} disabled={mutation.isPending}><XIcon /></Button></DialogClose>
+    <DialogContent showCloseButton={false} finalFocus={() => {
+      const origin = document.querySelector<HTMLElement>(`[data-definition-trigger="${kind}"]`);
+      return origin?.getClientRects().length ? origin : document.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]') ?? true;
+    }}>
+      <DialogClose render={<Button variant="ghost" size="icon" className="absolute right-2 top-2" aria-label={t('close')} disabled={mutation.isPending} />}><XIcon /></DialogClose>
       <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{t(kind === 'workspace' ? 'workspaceHelp' : kind === 'object' ? 'objectDescription' : 'fieldDescription')}</DialogDescription></DialogHeader>
-      <form id="definition-form" onSubmit={event => { event.preventDefault(); mutation.mutate(); }}>
+      <form data-shortcut-submit id="definition-form" onSubmit={event => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
         <FieldGroup>
           {mutation.isError ? <ErrorNotice error={mutation.error} /> : null}
           {kind === 'workspace' ? <Field><FieldLabel htmlFor="workspace-name">{t('workspaceName')}</FieldLabel><Input id="workspace-name" autoFocus required maxLength={200} value={name} onChange={event => { setName(event.target.value); propose(event.target.value); }} disabled={mutation.isPending} /></Field> : <>
@@ -49,7 +54,7 @@ export function DefinitionDialog({ kind, workspaceId, objectTypeId, onClose, onC
           {kind === 'workspace' ? <Field><FieldLabel htmlFor="default-language">{t('defaultLanguage')}</FieldLabel><NativeSelect id="default-language" value={language} onChange={event => setLanguage(event.target.value as Language)} disabled={mutation.isPending}><NativeSelectOption value="de">Deutsch</NativeSelectOption><NativeSelectOption value="en">English</NativeSelectOption></NativeSelect></Field> : null}
         </FieldGroup>
       </form>
-      <DialogFooter><Button variant="outline" onClick={onClose} disabled={mutation.isPending}>{t('cancel')}</Button><Button form="definition-form" type="submit" disabled={mutation.isPending}>{mutation.isPending ? t('saving') : t('create')}</Button></DialogFooter>
+      <DialogFooter><Button variant="outline" onClick={onClose} disabled={mutation.isPending}>{t('cancel')}</Button><Button form="definition-form" type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={mutation.isPending}>{mutation.isPending ? t('saving') : t('create')}<Kbd>{saveShortcutLabel}</Kbd></Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

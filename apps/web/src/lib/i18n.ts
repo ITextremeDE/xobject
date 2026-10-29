@@ -2,6 +2,17 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 const en = {
+  sortColumn: '{{column}}: sort {{direction}}', sortAscending: 'ascending', sortDescending: 'descending',
+  searchAction: 'Search',
+  workspaceSearchShortcut: 'Open or close workspace search',
+  preferencesFormDescription: 'Choose how you want to work with xObject.', languagePreferenceHelp: 'Workspace language inherits the current workspace’s default.', appearancePreferenceHelp: 'Applies to this browser. System follows your device settings.', resetPreferences: 'Reset',
+  workspaceSearch: 'Search workspace', workspaceSearchPlaceholder: 'Object type or record keyword…', searchScope: 'Search object types and record keywords in {{workspace}}.', searchResults: 'Search results', searchMinimum: 'Enter at least two characters.', noSearchResults: 'No matches in this workspace.', records: 'Records', searchRefine: 'More matches are available. Refine your search.',
+  notificationsSoon: 'Notifications — coming later',
+  settings: 'Settings', personalPreferences: 'Personal preferences', settingsDescription: 'Language and appearance for your account.', autoSavePreferences: 'Changes are saved automatically. Appearance applies to this browser.',
+  dashboard: 'Dashboard', dashboardDescription: 'Your workspace at a glance. Open an object type to work with its records.', dashboardObjects: 'Available object types', dashboardEmpty: 'Create your first object type to get started.',
+  keyboardHelp: 'Keyboard shortcuts', keyboardHelpDescription: 'Shortcuts follow the current focus. Browser tab shortcuts remain available.', keys: 'Keys', action: 'Action',
+  focusShortcut: 'Move between controls', arrowsShortcut: 'Navigate menus, choices and tabs', activateShortcut: 'Select or activate', escapeShortcut: 'Close; confirm unsaved changes',
+  saveShortcut: 'Submit the focused form', searchShortcut: 'Focus record search outside inputs and popups',
   signIn: 'Sign in', signOut: 'Sign out', email: 'Email', password: 'Password', welcome: 'Your data. Connected.',
   loginDescription: 'Sign in to your xObject workspace.', loginFailed: 'Email or password is incorrect.',
   workspace: 'Workspace', newWorkspace: 'Create workspace', workspaceName: 'Workspace name', code: 'Code',
@@ -29,6 +40,17 @@ const en = {
   workspaceHelp: 'The code prefixes the database tables and is fixed after creation.',
 };
 const de: Record<keyof typeof en, string> = {
+  sortColumn: '{{column}} {{direction}} sortieren', sortAscending: 'aufsteigend', sortDescending: 'absteigend',
+  searchAction: 'Suchen',
+  workspaceSearchShortcut: 'Arbeitsbereichssuche öffnen oder schließen',
+  preferencesFormDescription: 'Lege fest, wie Du mit xObject arbeiten möchtest.', languagePreferenceHelp: 'Arbeitsbereichssprache übernimmt die Vorgabe des aktuellen Arbeitsbereichs.', appearancePreferenceHelp: 'Gilt für diesen Browser. System übernimmt die Geräteeinstellung.', resetPreferences: 'Zurücksetzen',
+  workspaceSearch: 'Arbeitsbereich durchsuchen', workspaceSearchPlaceholder: 'Datenobjekt oder Stichwort…', searchScope: 'Datenobjekte und Datensatz-Stichwörter in {{workspace}} durchsuchen.', searchResults: 'Suchergebnisse', searchMinimum: 'Gib mindestens zwei Zeichen ein.', noSearchResults: 'Keine Treffer in diesem Arbeitsbereich.', records: 'Datensätze', searchRefine: 'Weitere Treffer vorhanden. Grenze die Suche genauer ein.',
+  notificationsSoon: 'Benachrichtigungen — demnächst',
+  settings: 'Einstellungen', personalPreferences: 'Persönliche Einstellungen', settingsDescription: 'Sprache und Darstellung für Dein Benutzerkonto.', autoSavePreferences: 'Änderungen werden automatisch gespeichert. Die Darstellung gilt für diesen Browser.',
+  dashboard: 'Dashboard', dashboardDescription: 'Dein Arbeitsbereich im Überblick. Öffne ein Datenobjekt, um mit seinen Datensätzen zu arbeiten.', dashboardObjects: 'Verfügbare Datenobjekte', dashboardEmpty: 'Lege Dein erstes Datenobjekt an, um zu starten.',
+  keyboardHelp: 'Tastaturhilfe', keyboardHelpDescription: 'Kürzel richten sich nach dem aktuellen Fokus. Browserkürzel für Tabs bleiben verfügbar.', keys: 'Tasten', action: 'Aktion',
+  focusShortcut: 'Zwischen Bedienelementen wechseln', arrowsShortcut: 'In Menüs, Auswahllisten und Tabs navigieren', activateShortcut: 'Auswählen oder ausführen', escapeShortcut: 'Schließen; ungespeicherte Änderungen bestätigen',
+  saveShortcut: 'Aktuelles Formular absenden', searchShortcut: 'Datensatzsuche außerhalb von Eingaben und Popups fokussieren',
   signIn: 'Anmelden', signOut: 'Abmelden', email: 'E-Mail', password: 'Passwort', welcome: 'Deine Daten. Verbunden.',
   loginDescription: 'Melde Dich in Deinem xObject-Arbeitsbereich an.', loginFailed: 'E-Mail oder Passwort ist falsch.',
   workspace: 'Arbeitsbereich', newWorkspace: 'Arbeitsbereich anlegen', workspaceName: 'Name des Arbeitsbereichs', code: 'Kürzel',

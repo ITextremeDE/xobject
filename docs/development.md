@@ -37,13 +37,36 @@ The root development commands read `.env` through Node's environment-file suppor
 
 ## Web interface
 
-The React/Vite client uses standard Radix-based shadcn/ui components and Tailwind semantic tokens in `apps/web/src/index.css`. Adjust appearance through those variables and existing component variants. UI strings live in `apps/web/src/lib/i18n.ts`; definition labels come from PostgreSQL. Record contents are never translated.
+The React/Vite client uses standard Base UI-based shadcn/ui components (`base-nova`) and Tailwind semantic tokens in `apps/web/src/index.css`. Adjust appearance through those variables and existing component variants. The application shell follows the official [Sidebar 07 block](https://ui.shadcn.com/blocks/sidebar#sidebar-07): workspace switcher, icon-collapsible inset sidebar, user menu and Breadcrumb header. The record list follows the compact filter/table structure of the [Tasks example](https://ui.shadcn.com/examples/tasks), with only supported xObject actions. Keep these references when changing the layout; the installed official Nova components and theme remain the visual baseline. UI strings live in `apps/web/src/lib/i18n.ts`; definition labels come from PostgreSQL. Record contents are never translated.
 
 The server serves `apps/web/dist` and API/auth/MCP from one origin. For frontend iteration, leave `npm run dev` running and run `npm run dev:web` in a second terminal. Vite rebuilds on changes; refresh the browser afterwards. There is deliberately no cross-origin development proxy or relaxed auth origin check. Restart the backend after server changes.
 
+The Dashboard is the first navigation entry and workspace landing page. It displays the real object types available in the selected workspace, with actions to open or create one. Navigation to it preserves the unsaved-record confirmation. The workspace name in the Breadcrumb links to this Dashboard. The shared user menu at the top right and in the sidebar footer opens personal Settings for the existing language preference and browser appearance. The form stages changes until Save (including Command/Ctrl+Enter), supports Reset and uses the shared unsaved-change guard. The header appearance dropdown remains immediate; these controls no longer occupy the sidebar footer. Header buttons use the standard `outline` / `icon-lg` variants. Header actions run left to right: workspace search, disabled notification placeholder, appearance dropdown, user menu. No notification backend, counts or read status are implemented. Theme application remains mounted globally so system appearance changes also work away from Settings.
+
 The client covers login/logout, workspace selection/creation, object and text-field creation, Keyword search with 25-row pagination, record creation/editing and record journals. Conflicting versions are rejected by the backend; unsaved record edits prompt before navigation. Language follows the user preference or workspace default. Theme is local to the browser; authentication uses the server session cookie. Business data and credentials are not persisted in browser local storage.
 
+Record-list sorting runs on the server before pagination, with nulls last and record ID as a stable tie-breaker. Column headers toggle ascending/descending order and reset to the first page; the initial order is Last changed descending. Only defined record fields and Last changed are accepted as sort columns. Text ordering follows the database collation.
+
 Shared operation schemas and wire types live in `packages/contracts`; all three workspaces build from the root. Browser validation supplements the same backend rules used by HTTP and MCP. The entire experiment still requires an Administrator account; it is not the complete permissions model or version-1 acceptance.
+
+## Header search
+
+The header search complements the Breadcrumb and object-table Keyword filter. It searches the current workspace's localized object names/technical names and record Keywords through `search_workspace`, exposed through the same API/MCP application layer. It requires two characters, debounces requests and opens selected object types or records directly. Native Command navigation supports arrow keys, Enter and Escape; navigating to a result retains the unsaved-record confirmation.
+
+The backend returns bounded groups with explicit overflow flags, shown as a request to refine the query. Text is literal, case-insensitive substring matching; custom field values and journal history are not searched. This experiment scans the workspace's metadata-derived tables under its existing Administrator guard/model lock; production full-text indexing and the complete permissions model remain outside this slice.
+
+## Keyboard interaction
+
+Keep application shortcuts in `apps/web/src/lib/keyboard.ts`; native focus, menu and tab navigation belongs to Base UI. Both user menus open the localized keyboard help alongside Settings. Closing it returns focus to its originating user button; the mobile sidebar falls back to the header user button. Standard `Kbd` hints accompany search and form actions.
+
+- Tab / Shift+Tab move focus; arrow keys navigate menus, choices and tabs; Enter/Space activate the focused control.
+- Escape closes menus/dialogs. Leaving an edited record retains the existing discard confirmation.
+- Command+Enter (macOS) or Ctrl+Enter submits the focused, explicitly opted-in form. Native validation and the normal backend path still apply; disabled/pending submit buttons and key repeats do not submit. Forms include record editing, model/workspace creation and login.
+- Command+K / Ctrl+K opens or closes the header workspace search, including from text inputs; other modal dialogs and menus retain focus. The shortcut is displayed in the header trigger/tooltip and keyboard help.
+- `/` focuses Keyword search only outside editable controls, menus and dialogs. It does not insert a slash into the newly focused search field.
+- Preserve visible focus styles and return focus to the originating control when closing a popup. Browser tab shortcuts Command/Ctrl+1–9 remain untouched. The upstream sidebar Command/Ctrl+B handler is disabled to keep browser shortcuts and application shortcut ownership explicit.
+
+When adding a shortcut, update the central definition, visible hint, localized help and affected browser checks together. Do not bind an action solely in a keyboard handler; mouse, keyboard and API must retain the same validation and authorization.
 
 ## HTTP and MCP interface
 
@@ -56,8 +79,9 @@ For this experiment, each application operation is a JSON `POST` to `/api/v1/<op
 | `create_workspace` | `name`, `code`, optional `defaultLanguage` (`en` by default) |
 | `list_workspaces` | Empty object |
 | `create_object_type` | `workspaceId`, `technicalName`, `labels` |
+| `search_workspace` | `workspaceId`, `query` (2–200 characters), optional `limit` (1–50, default 20 per result group); localized object matches and record Keyword matches with explicit overflow flags |
 | `list_object_types` | `workspaceId`; returns localized object names |
-| `list_records` | `objectTypeId`, optional literal Keyword `query`, `limit` (1–100, default 25), `offset` |
+| `list_records` | `objectTypeId`, optional literal Keyword `query`, `limit` (1–100, default 25), `offset`, `sortBy` (Keyword, defined text field technical name or `updated_at`, default), `sortDirection` (`asc`/`desc`, default `desc`) |
 | `create_field` | `objectTypeId`, `technicalName`, `labels`; text only |
 | `get_object_type` | `objectTypeId`; returns labels, resolved names, fields and physical column names |
 | `set_labels` | `kind` (`object_type` or `field`), definition `id`, complete replacement `labels` map |

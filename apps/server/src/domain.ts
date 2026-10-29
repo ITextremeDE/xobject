@@ -55,13 +55,19 @@ export class Application {
             return types.map(type => ({ id: type.id, technicalName: type.technical_name, labels: type.labels,
               label: localizedLabel(type.labels, user.language, workspace.default_language) }));
           }
+          case 'search_workspace': return this.searchWorkspace(tx, schemas.search_workspace.parse(parsed), userId);
           case 'list_records': {
             const args = schemas.list_records.parse(parsed);
             const type = await this.objectType(tx, args.objectTypeId);
+            const sortableFields = (await sql<{ technical_name: string }>`SELECT technical_name FROM sys_fields WHERE object_type_id = ${type.id}::uuid`.execute(tx)).rows;
+            if (!['keyword', 'updated_at'].includes(args.sortBy) && !sortableFields.some(field => field.technical_name === args.sortBy)) {
+              throw new AppError(400, 'Unknown sort field');
+            }
+            const direction = args.sortDirection === 'asc' ? sql`ASC` : sql`DESC`;
             const predicate = sql`position(lower(${args.query}) in lower(keyword)) > 0`;
             const total = (await sql<{ total: number }>`SELECT count(*)::integer AS total FROM ${sql.table(tableName(type))} WHERE ${predicate}`.execute(tx)).rows[0].total;
             const records = (await sql`SELECT * FROM ${sql.table(tableName(type))} WHERE ${predicate}
-              ORDER BY updated_at DESC, id LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
+              ORDER BY ${sql.ref(args.sortBy)} ${direction} NULLS LAST, id LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
             return { records, total, limit: args.limit, offset: args.offset };
           }
           case 'create_object_type': return this.createObjectType(tx, schemas.create_object_type.parse(parsed), userId);
@@ -90,6 +96,25 @@ export class Application {
       if ((error as { code?: string }).code === '23505') throw new AppError(409, 'Name already exists');
       throw error;
     }
+  }
+
+  private async searchWorkspace(tx: Executor, args: z.infer<typeof schemas.search_workspace>, userId: string) {
+    const workspace = (await sql<{ code: string; default_language: string }>`SELECT code, default_language FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
+    if (!workspace) throw new AppError(404, 'Workspace not found');
+    const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
+    const types = (await sql<{ id: string; technical_name: string; labels: Labels }>`SELECT id, technical_name, labels FROM sys_object_types WHERE workspace_id = ${args.workspaceId}::uuid ORDER BY technical_name`.execute(tx)).rows;
+    const summaries = types.map(type => ({ id: type.id, technicalName: type.technical_name, labels: type.labels, label: localizedLabel(type.labels, user.language, workspace.default_language) }));
+    const needle = args.query.toLowerCase();
+    const matches = summaries.filter(type => type.label.toLowerCase().includes(needle) || type.technicalName.includes(needle));
+    // Search only this workspace's metadata-derived tables; user text is always a SQL value.
+    const queries = types.map(type => sql`(SELECT id, keyword, updated_at, ${type.id}::uuid AS object_type_id FROM ${sql.table(`${workspace.code}_${type.technical_name}`)}
+      WHERE position(lower(${args.query}) in lower(keyword)) > 0 ORDER BY updated_at DESC, id LIMIT ${args.limit + 1})`);
+    const rows = queries.length ? (await sql<{ id: string; keyword: string; object_type_id: string }>`SELECT * FROM (${sql.join(queries, sql` UNION ALL `)}) AS matches
+      ORDER BY updated_at DESC, id LIMIT ${args.limit + 1}`.execute(tx)).rows : [];
+    const labels = new Map(summaries.map(type => [type.id, type.label]));
+    return { objectTypes: matches.slice(0, args.limit),
+      records: rows.slice(0, args.limit).map(row => ({ id: row.id, keyword: row.keyword, objectTypeId: row.object_type_id, objectLabel: labels.get(row.object_type_id)! })),
+      hasMoreObjects: matches.length > args.limit, hasMoreRecords: rows.length > args.limit };
   }
 
   private async objectType(tx: Executor, id: string) {

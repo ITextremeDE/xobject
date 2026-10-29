@@ -341,3 +341,66 @@ test('object/record lists are scoped, localized, paginated and search literal ke
   assert.equal((await api('list_object_types', { workspaceId: workspace.id }, userCookie)).statusCode, 403);
   assert.equal((await api('list_records', { objectTypeId: type.id }, '')).statusCode, 401);
 });
+
+test('record sorting validates fields and applies before pagination identically through API and MCP', async () => {
+  const workspace = await ok('create_workspace', { code: 'sorting', name: 'Sorting' });
+  const type = await ok('create_object_type', { workspaceId: workspace.id, technicalName: 'items', labels: { en: 'Items' } });
+  await ok('create_field', { objectTypeId: type.id, technicalName: 'note', labels: { en: 'Note' } });
+  const zulu = await ok('create_record', { objectTypeId: type.id, keyword: 'Zulu', values: { note: 'Alpha' } });
+  const alpha = await ok('create_record', { objectTypeId: type.id, keyword: 'Alpha', values: { note: 'Zulu' } });
+  const blank = await ok('create_record', { objectTypeId: type.id, keyword: 'Bravo' });
+  const args = { objectTypeId: type.id, sortBy: 'keyword', sortDirection: 'asc', limit: 1 };
+  const first = await ok('list_records', args);
+  assert.equal(first.records[0].id, alpha.id);
+  assert.deepEqual(await tool('list_records', args), first);
+  assert.equal((await ok('list_records', { ...args, offset: 1 })).records[0].id, blank.id);
+  assert.equal((await ok('list_records', { ...args, sortDirection: 'desc' })).records[0].id, zulu.id);
+  for (const direction of ['asc', 'desc']) {
+    const page = await ok('list_records', { objectTypeId: type.id, sortBy: 'note', sortDirection: direction });
+    assert.deepEqual(page.records.map((record: { id: string }) => record.id), direction === 'asc' ? [zulu.id, alpha.id, blank.id] : [alpha.id, zulu.id, blank.id]);
+  }
+  const filtered = await ok('list_records', { ...args, query: 'Alpha', sortDirection: 'desc' });
+  assert.equal(filtered.total, 1);
+  assert.equal(filtered.records[0].id, alpha.id);
+  // Identical values use record IDs as a deterministic tie-breaker across pages.
+  await ok('update_record', { objectTypeId: type.id, recordId: alpha.id, version: alpha.version, values: { note: 'Alpha' } });
+  const tied = await ok('list_records', { objectTypeId: type.id, sortBy: 'note', sortDirection: 'asc' });
+  assert.deepEqual(tied.records.slice(0, 2).map((record: { id: string }) => record.id), [alpha.id, zulu.id].sort());
+  const latest = await ok('list_records', { objectTypeId: type.id });
+  assert.equal(latest.records[0].id, alpha.id);
+  for (const input of [{ sortBy: 'missing' }, { sortBy: 'created_by' }, { sortBy: 'keyword; DROP TABLE sys_users' }, { sortDirection: 'sideways' }]) {
+    assert.equal((await api('list_records', { objectTypeId: type.id, ...input })).statusCode, 400);
+  }
+});
+
+test('workspace search shares API/MCP behavior, isolates workspaces and treats text literally', async () => {
+  const workspace = await ok('create_workspace', { code: 'search', name: 'Search', defaultLanguage: 'de' });
+  const other = await ok('create_workspace', { code: 'searchother', name: 'Other' });
+  const empty = await ok('create_workspace', { code: 'searchempty', name: 'Empty' });
+  const type = await ok('create_object_type', { workspaceId: workspace.id, technicalName: 'vehicles', labels: { de: 'Fahrzeuge', en: 'Vehicles' } });
+  const second = await ok('create_object_type', { workspaceId: workspace.id, technicalName: 'notes', labels: { de: 'Notizen' } });
+  const outsider = await ok('create_object_type', { workspaceId: other.id, technicalName: 'vehicles', labels: { de: 'Fahrzeuge' } });
+  const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Suche 100%_Test' });
+  await ok('create_record', { objectTypeId: second.id, keyword: 'Suche ebenfalls' });
+  await ok('create_record', { objectTypeId: outsider.id, keyword: 'Suche geheim' });
+  const input = { workspaceId: workspace.id, query: 'SUCHE' };
+  const result = await ok('search_workspace', input);
+  assert.deepEqual(result, await tool('search_workspace', input));
+  assert.equal(result.records.length, 2);
+  assert.equal(result.records.find((r: { id: string }) => r.id === record.id).objectLabel, 'Fahrzeuge');
+  assert.equal(result.records.some((r: { keyword: string }) => r.keyword === 'Suche geheim'), false);
+  const literal = await ok('search_workspace', { ...input, query: '100%_' });
+  assert.equal(literal.records.length, 1);
+  assert.equal(literal.records[0].id, record.id);
+  assert.equal((await ok('search_workspace', { ...input, query: "' OR 1=1 --" })).records.length, 0);
+  assert.equal((await ok('search_workspace', { ...input, query: 'fahr' })).objectTypes[0].id, type.id);
+  assert.equal((await ok('search_workspace', { ...input, query: 'vehicles' })).objectTypes[0].id, type.id);
+  const limited = await ok('search_workspace', { ...input, limit: 1 });
+  assert.equal(limited.records.length, 1);
+  assert.equal(limited.hasMoreRecords, true);
+  assert.deepEqual((await ok('search_workspace', { ...input, workspaceId: empty.id })).records, []);
+  assert.equal((await api('search_workspace', { ...input, workspaceId: randomUUID() })).statusCode, 404);
+  for (const change of [{ query: ' ' }, { limit: 0 }, { limit: 51 }]) assert.equal((await api('search_workspace', { ...input, ...change })).statusCode, 400);
+  assert.equal((await api('search_workspace', input, userCookie)).statusCode, 403);
+  assert.equal((await api('search_workspace', input, '')).statusCode, 401);
+});
