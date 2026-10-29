@@ -1,2 +1,12 @@
 import { defineConfig } from "astro/config";
-export default defineConfig({ site: "https://xobject.org", output: "static", vite: { build: { assetsInlineLimit: 0 } } });
+import react from "@astrojs/react";
+import mdx from "@astrojs/mdx";
+import sitemap from "@astrojs/sitemap";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  site: "https://xobject.org",
+  output: "static",
+  integrations: [react(), mdx(), sitemap()],
+  vite: { plugins: [tailwindcss()], build: { assetsInlineLimit: 0 } },
+});

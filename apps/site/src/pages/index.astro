@@ -1,61 +1,39 @@
 ---
-import '@fontsource-variable/inter';
-import '@fontsource-variable/orbitron';
-import '@fontsource-variable/jetbrains-mono';
-import '../styles/global.css';
+import SiteLayout from '../layouts/SiteLayout.astro';
 import ObjectModel from '../components/ObjectModel.astro';
+import { ProjectActions } from '../components/site/project-actions';
+import { ArrowUpRight, UsersRound, Folder, Box } from '@lucide/astro';
+import { getEntry, render } from 'astro:content';
+const development = await getEntry('project', 'development');
+if (!development) throw new Error('Missing development content');
+const { Content: DevelopmentContent } = await render(development);
 const repo = 'https://github.com/ITextremeDE/xobject';
 const areas = [
-  { title: 'CRM', text: 'Kontakte, Organisationen und Beziehungen zentral erfassen und mit Projekten und Vorgängen in Verbindung bringen.', icon: 'people' },
-  { title: 'Projektmanagement', text: 'Projekte, Vorgänge und Aufgaben strukturiert abbilden und mit relevanten Kontakten und eigenen Datenobjekten verknüpfen.', icon: 'folder' },
-  { title: 'Eigene Objekte', text: 'Eigene Datenobjekte flexibel definieren und in die zentrale Struktur integrieren.', icon: 'cube' }
+  { title: 'CRM', text: 'Kontakte, Organisationen und Beziehungen zentral erfassen und mit Projekten und Vorgängen in Verbindung bringen.', icon: UsersRound },
+  { title: 'Projektmanagement', text: 'Projekte, Vorgänge und Aufgaben strukturiert abbilden und mit relevanten Kontakten und eigenen Datenobjekten verknüpfen.', icon: Folder },
+  { title: 'Eigene Objekte', text: 'Eigene Datenobjekte flexibel definieren und in die zentrale Struktur integrieren.', icon: Box }
 ];
 ---
-<!doctype html>
-<html lang="de">
-  <head>
-    <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>xObject by ITextreme – Deine Daten. Klar verbunden.</title>
-    <meta name="description" content="xObject ist eine offene Plattform in Entwicklung für Kontakte, Projekte und eigene Datenobjekte. Mit gemeinsamem Objektkern, API und MCP."/>
-    <meta name="theme-color" content="#f9fafb"/>
-    <meta property="og:title" content="xObject by ITextreme"/><meta property="og:description" content="Deine Daten. Klar verbunden. Eine offene Plattform in Entwicklung."/><meta property="og:type" content="website"/><meta property="og:url" content="https://xobject.org/"/>
-    <link rel="canonical" href="https://xobject.org/"/><link rel="icon" href="/brand/itextreme-it-logo.svg" type="image/svg+xml"/>
-    <script is:inline src="/theme-init.js"></script>
-  </head>
-  <body>
-    <a class="skip-link" href="#inhalt">Zum Inhalt</a>
-    <header class="site-header container">
-      <a class="project-brand" href="/" aria-label="xObject – Startseite">xObject <span>by ITextreme</span></a>
-      <nav aria-label="Hauptnavigation"><a href="#idee">Idee</a><a href="#entwicklung">Entwicklung</a><a href={repo}>GitHub</a></nav>
-      <label class="theme-control"><span class="sr-only">Darstellung</span><select id="theme" aria-label="Darstellung"><option value="system">System</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label>
-    </header>
+<SiteLayout title="xObject by ITextreme – Deine Daten. Klar verbunden." description="xObject ist eine offene Plattform in Entwicklung für Kontakte, Projekte und eigene Datenobjekte. Mit gemeinsamem Objektkern, API und MCP.">
     <main id="inhalt">
-      <section class="hero container" aria-labelledby="hero-heading">
+      <section class="hero site-container" aria-labelledby="hero-heading">
         <div><h1 id="hero-heading">Deine Daten.<br/>Klar verbunden.</h1>
           <p class="lead">Kontakte, Projekte und eigene Datenobjekte verbinden. xObject ist eine offene Plattform in Entwicklung.</p>
-          <div class="actions"><a class="button primary" href={repo}>Projekt auf GitHub <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a><a class="button secondary" href={`${repo}/blob/main/docs/PRD.md`}>Konzept lesen</a></div>
+          <ProjectActions repository={repo}/>
         </div>
         <ObjectModel/>
       </section>
-      <section class="idea container" id="idee" aria-labelledby="idea-heading">
+      <section class="idea site-container" id="idee" aria-labelledby="idea-heading">
         <h2 id="idea-heading">Ein Kern. Deine Arbeitswelt.</h2>
         <div class="areas">{areas.map(area => <article>
-          <svg class="area-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            {area.icon === 'people' ? <><circle cx="9" cy="7" r="4"/><path d="M2 22v-3a7 7 0 0 1 14 0v3M16 3a4 4 0 0 1 0 8M19 15a7 7 0 0 1 3 6"/></> : area.icon === 'folder' ? <path d="M3 4h6l2 3h10v13H3z"/> : <><path d="m12 2 10 5.5v9L12 22 2 16.5v-9zM2 7.5 12 13l10-5.5M12 13v9"/></>}
-          </svg><h3>{area.title}</h3><p>{area.text}</p>
+          <area.icon class="area-icon" stroke-width={1.5} aria-hidden="true"/><h3>{area.title}</h3><p>{area.text}</p>
         </article>)}</div>
         <p class="channels">Weboberfläche <span>·</span> API <span>·</span> MCP</p>
       </section>
-      <section class="development" id="entwicklung" aria-labelledby="development-heading"><div class="container">
-        <h2 id="development-heading">Offen entwickelt.<br class="mobile-break"/> Von Anfang an.</h2>
-        <p class="lead">xObject steht am Anfang. Quellcode und Anforderungen zeigen, was entsteht. Eine installierbare Version gibt es noch nicht.</p>
-        <nav class="resources" aria-label="Projektressourcen"><a href={repo}>Quellcode <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a><a href={`${repo}/blob/main/docs/PRD.md`}>Anforderungen <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a><a href={`${repo}/blob/main/ROADMAP.md`}>Roadmap <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a></nav>
+      <section class="development" id="entwicklung" aria-labelledby="development-heading"><div class="site-container">
+        <h2 id="development-heading">{development.data.title}</h2>
+        <div class="lead"><DevelopmentContent/></div>
+        <nav class="resources" aria-label="Projektressourcen"><a href={repo}>Quellcode <ArrowUpRight stroke-width={1.5} aria-hidden="true"/></a><a href={`${repo}/blob/main/docs/PRD.md`}>Anforderungen <ArrowUpRight stroke-width={1.5} aria-hidden="true"/></a><a href={`${repo}/blob/main/ROADMAP.md`}>Roadmap <ArrowUpRight stroke-width={1.5} aria-hidden="true"/></a></nav>
       </div></section>
     </main>
-    <footer class="container site-footer"><div><a class="project-brand" href="/">xObject</a><p class="license">AGPL-3.0-only</p></div>
-      <a class="parent-brand" href="https://itextreme.de/" aria-label="ITextreme – Solutions & Services"><img class="logo-light" src="/brand/itextreme-logo.svg" width="1267" height="370" alt="ITextreme – Solutions & Services" loading="lazy"/><img class="logo-dark" src="/brand/itextreme-logo-inverted.svg" width="1267" height="370" alt="ITextreme – Solutions & Services" loading="lazy"/></a>
-      <nav aria-label="Rechtliches"><a href="https://itextreme.de/impressum">Impressum</a><a href="https://itextreme.de/datenschutzerklaerung">Datenschutz</a></nav>
-    </footer>
-    <script is:inline src="/theme-controls.js" defer></script>
-  </body>
-</html>
+</SiteLayout>

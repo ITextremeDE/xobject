@@ -1,0 +1,49 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource-variable/orbitron';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/global.css';
+import { ThemeControl } from '../components/site/theme-control';
+const repo = 'https://github.com/ITextremeDE/xobject';
+
+interface Props { title: string; description: string; }
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const structuredData = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'xObject by ITextreme',
+  url: Astro.site?.href,
+  inLanguage: 'de',
+}).replace(/</g, '\\u003c');
+---
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>{title}</title>
+    <meta name="description" content={description}/>
+    <meta name="theme-color" content="#f9fafb" media="(prefers-color-scheme: light)"/>
+    <meta name="theme-color" content="#030712" media="(prefers-color-scheme: dark)"/>
+    <meta property="og:title" content={title}/><meta property="og:description" content={description}/><meta property="og:type" content="website"/><meta property="og:url" content={canonical}/>
+    <meta name="twitter:card" content="summary"/>
+    <link rel="canonical" href={canonical}/><link rel="icon" href="/brand/itextreme-it-logo.svg" type="image/svg+xml"/>
+    <script is:inline src="/theme-init.js"></script>
+    <script is:inline type="application/ld+json" set:html={structuredData}/>
+  </head>
+  <body>
+    <a class="skip-link" href="#inhalt">Zum Inhalt</a>
+    <header class="site-header site-container">
+      <a class="project-brand" href="/" aria-label="xObject – Startseite">xObject <span>by ITextreme</span></a>
+      <nav aria-label="Hauptnavigation"><a href="/#idee">Idee</a><a href="/#entwicklung">Entwicklung</a><a href={repo}>GitHub</a></nav>
+      <ThemeControl/>
+    </header>
+    <slot/>
+    <footer class="site-container site-footer"><div><a class="project-brand" href="/">xObject</a><p class="license">AGPL-3.0-only</p></div>
+      <a class="parent-brand" href="https://itextreme.de/" aria-label="ITextreme – Solutions & Services"><img class="logo-light" src="/brand/itextreme-logo.svg" width="1267" height="370" alt="ITextreme – Solutions & Services" loading="lazy"/><img class="logo-dark" src="/brand/itextreme-logo-inverted.svg" width="1267" height="370" alt="ITextreme – Solutions & Services" loading="lazy"/></a>
+      <nav aria-label="Rechtliches"><a href="https://itextreme.de/impressum">Impressum</a><a href="https://itextreme.de/datenschutzerklaerung">Datenschutz</a><a href="/licenses/NOTICE.txt">Lizenzen</a></nav>
+    </footer>
+
+    <script is:inline src="/theme-controls.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+xObject project website – third-party notices
+
+The project source is licensed AGPL-3.0-only:
+https://github.com/ITextremeDE/xobject/blob/main/LICENSE
+
+The following assets and adapted component sources retain their licenses:
+- shadcn/ui Button and Native Select (CLI 4.23.0, base-nova/Base UI): /licenses/shadcn-ui-MIT.txt
+- Lucide icons, including applicable Feather attribution: /licenses/lucide.txt
+- Inter Variable: /licenses/inter-OFL.txt
+- Orbitron Variable: /licenses/orbitron-OFL.txt
+- JetBrains Mono Variable: /licenses/jetbrains-mono-OFL.txt
+
+ITextreme brand assets are used unchanged for this ITextreme project.
+Dependencies and exact versions are recorded in apps/site/package-lock.json.
