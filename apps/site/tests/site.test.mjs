@@ -216,19 +216,20 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
       assert((await toggle.boundingBox()).height >= 44);
       await toggle.click();
       await expect(menu).toHaveJSProperty("open", true);
-      if (width === 390 && process.env.QA_SCREENSHOT_DIR)
+      if (width === 390 && process.env.QA_SCREENSHOT_DIR) {
         await page.waitForFunction(
           () =>
             !document
               .getAnimations()
               .some((animation) => animation.playState === "running"),
         );
-      await page.screenshot({
-        path: join(
-          process.env.QA_SCREENSHOT_DIR,
-          "xobject-itx-layout-mobile-menu.png",
-        ),
-      });
+        await page.screenshot({
+          path: join(
+            process.env.QA_SCREENSHOT_DIR,
+            "xobject-itx-layout-mobile-menu.png",
+          ),
+        });
+      }
       if (width === 390) {
         const openMenu = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
