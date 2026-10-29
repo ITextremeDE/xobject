@@ -49,6 +49,25 @@ Record-list sorting runs on the server before pagination, with nulls last and re
 
 Shared operation schemas and wire types live in `packages/contracts`; all three workspaces build from the root. Browser validation supplements the same backend rules used by HTTP and MCP. The entire experiment still requires an Administrator account; it is not the complete permissions model or version-1 acceptance.
 
+## URLs and navigation
+
+React Router uses browser history, with the current URL as the source for the selected page and list state:
+
+| URL | View |
+| --- | --- |
+| `/` | Redirect to the first available workspace, or initial workspace creation |
+| `/settings` | Personal settings; navigation from a workspace retains its context in the history entry |
+| `/w/itx` | ITextreme workspace Dashboard |
+| `/w/itx/objects/vehicles` | Vehicles list |
+| `/w/itx/objects/vehicles/new` | Unsaved new record form |
+| `/w/itx/objects/vehicles/<UUID>` | Existing record details |
+
+Workspace codes and object technical names are fixed identifiers, independent of translated labels. A new record replaces `new` with its returned UUID after successful saving. Invalid workspaces/object types display a not-found state rather than silently switching context. Authentication is still required for data; signing in retains the requested URL.
+
+Record lists use `q`, `sort`, `direction` (`asc`/`desc`) and one-based `page` query parameters, for example `/w/itx/objects/vehicles?q=Service&sort=keyword&direction=asc&page=2`. Search edits replace the current history entry; sort/page changes create history entries. Search/sort reset the page, and opening/closing details retains list parameters. Invalid values fall back to supported defaults; the server remains authoritative for validation and access.
+
+Back/Forward and internal navigation use the same unsaved-change confirmation as mouse actions. Pending saves block navigation. Reload/closing the tab uses the browser's native before-unload prompt for dirty forms. The server falls back to the application shell only for known document URL patterns requested as HTML; missing API/MCP endpoints and assets keep their original error responses. This also supports direct links and refresh without a separate proxy.
+
 ## Header search
 
 The header search complements the Breadcrumb and object-table Keyword filter. It searches the current workspace's localized object names/technical names and record Keywords through `search_workspace`, exposed through the same API/MCP application layer. It requires two characters, debounces requests and opens selected object types or records directly. Native Command navigation supports arrow keys, Enter and Escape; navigating to a result retains the unsaved-record confirmation.

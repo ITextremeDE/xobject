@@ -9,7 +9,7 @@ export function ErrorNotice({ error, retry }: { error: unknown; retry?: () => vo
   const key = error instanceof ApiError
     ? error.status === 403 ? 'denied' : error.status === 401 ? 'sessionExpired'
       : error.status === 409 ? error.message.includes('conflict') ? 'conflict' : 'duplicate'
-      : error.status === 400 ? 'invalid' : 'networkError'
+      : error.status === 400 ? 'invalid' : error.status === 404 ? 'notFound' : 'networkError'
     : 'networkError';
   return <Alert variant="destructive"><AlertTitle>{t('errorTitle')}</AlertTitle><AlertDescription>
     <p>{t(key)}</p>{retry ? <Button variant="outline" size="sm" onClick={retry}>{t('retry')}</Button> : null}

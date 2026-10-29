@@ -10,6 +10,7 @@ The project is in early development. No software release is available yet.
 
 ### Added
 
+- Direct web routes for personal settings, workspace Dashboards, object lists and records, with URL-based search/sort/pagination and guarded Back/Forward navigation.
 - Record-table column sorting through shared API/MCP operations, applied before pagination with accessible direction indicators.
 - Command/Ctrl+K toggles workspace search, with visible shortcut hints and keyboard-help documentation.
 - Workspace search in the header alongside Breadcrumb navigation, with object/record results, keyboard selection and a shared API/MCP search operation.
@@ -41,6 +42,8 @@ The project is in early development. No software release is available yet.
 - Align the project website with ITextreme’s page structure: compact sticky header, compact section navigation, accessible mobile navigation, shared container rhythm and grouped footer; remove visible license notices from the footer while retaining distributed attribution files.
 
 ### Fixed
+
+- Not-found views use a Dashboard icon for navigation and distinguish missing records from connection errors.
 
 - Record keywords retain keyboard focus styling without a hover underline; standard table-row hover highlighting remains.
 - Field and record creation buttons include standard Lucide icons, including the empty-table action.

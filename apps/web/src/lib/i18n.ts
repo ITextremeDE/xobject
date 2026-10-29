@@ -2,6 +2,8 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 const en = {
+  notFound: 'The requested item was not found.',
+  routeNotFound: 'Page not found', routeNotFoundDescription: 'This workspace or object type does not exist. Choose an available workspace or return to the Dashboard.',
   sortColumn: '{{column}}: sort {{direction}}', sortAscending: 'ascending', sortDescending: 'descending',
   searchAction: 'Search',
   workspaceSearchShortcut: 'Open or close workspace search',
@@ -40,6 +42,8 @@ const en = {
   workspaceHelp: 'The code prefixes the database tables and is fixed after creation.',
 };
 const de: Record<keyof typeof en, string> = {
+  notFound: 'Der angeforderte Eintrag wurde nicht gefunden.',
+  routeNotFound: 'Seite nicht gefunden', routeNotFoundDescription: 'Dieser Arbeitsbereich oder dieses Datenobjekt existiert nicht. Wähle einen verfügbaren Arbeitsbereich oder gehe zum Dashboard.',
   sortColumn: '{{column}} {{direction}} sortieren', sortAscending: 'aufsteigend', sortDescending: 'absteigend',
   searchAction: 'Suchen',
   workspaceSearchShortcut: 'Arbeitsbereichssuche öffnen oder schließen',
