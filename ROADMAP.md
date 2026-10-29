@@ -6,6 +6,10 @@ This roadmap summarizes product goals from the [Product Requirements Document](d
 
 No delivery dates are committed. An item here is not evidence that its requirements have been implemented or accepted.
 
+## Delivered — Public project introduction
+
+- Static Astro project homepage, separate from the application, linking to the canonical requirements and roadmap. Full Starlight documentation and release/version navigation remain later work.
+
 ## In progress — Product definition and technical foundation
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
@@ -36,7 +40,7 @@ The following goals build on that foundation. Their detailed sequencing and work
 | **CRM and project management** | Contacts with distinct contact kinds and main Organization relationships; Projects, Cases and Tasks with responsibility and assignment. |
 | **Daily work and lifecycle** | Searchable tables, module forms, record details, dossier and relationship tree; per-field journal, recycle bin, restoration and controlled permanent deletion. |
 | **Self-hosting and acceptance** | Versioned container images, Docker Compose installation, controlled migrations, backup/restore instructions and checks against the version-1 acceptance criteria. |
-| **Public documentation** | Astro product website, Astro/Starlight documentation, release notes and versioned documentation published through the planned static hosting setup. |
+| **Public documentation** | Extend the published Astro project homepage with Astro/Starlight documentation, release notes and versioned documentation. |
 
 All version-1 capabilities must remain available through the API and MCP. Security, validation and journal behavior are part of each affected implementation slice, not a final add-on.
 

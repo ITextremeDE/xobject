@@ -63,3 +63,10 @@ Development uses small changes, pull requests, review and checks against accepta
 This licensing declaration also applies to Premium code. Contribution terms remain to be defined.
 
 The planned model combines an independently usable free Community edition with paid Premium activation, support and maintenance. Premium code will also remain open source. A hosted cloud offering may follow later. Feature tiers, pricing and commercial terms are not yet defined.
+
+## Public project website
+
+The project introduction is available at [xobject.org](https://xobject.org).
+Its static Astro source lives in `apps/site`; see the [website guide](docs/website.md)
+for design provenance, development and release checks. The project website is
+separate from the planned xObject application and does not provide an installation.
