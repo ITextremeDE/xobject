@@ -1,0 +1,25 @@
+---
+import { UserRound, ClipboardList, ListTodo, Box } from '@lucide/astro';
+---
+<figure class="object-model" id="objektmodell">
+  <svg viewBox="0 0 520 410" role="img" aria-labelledby="model-title model-description">
+    <title id="model-title">Das geplante Objektmodell</title>
+    <desc id="model-description">Kontakt, Vorgang, Aufgabe und eigene Objekte sind mit einem gemeinsamen Projekt verknüpft. Eine Konzeptdarstellung, keine fertige Benutzeroberfläche.</desc>
+    <g class="connections" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M110 118v51q0 15 15 15h63M410 118v51q0 15-15 15h-63M260 231v29q0 15-15 15h-112q-15 0-15 15v22M260 231v29q0 15 15 15h112q15 0 15 15v22"/>
+      <circle cx="110" cy="118" r="4"/><circle cx="410" cy="118" r="4"/><circle cx="118" cy="312" r="4"/><circle cx="402" cy="312" r="4"/>
+    </g>
+    <g class="model-node"><rect x="20" y="24" width="180" height="94" rx="8"/><rect x="320" y="24" width="180" height="94" rx="8"/><rect x="24" y="312" width="188" height="94" rx="8"/><rect x="300" y="312" width="204" height="94" rx="8"/></g>
+    <rect class="model-focus" x="170" y="145" width="180" height="86" rx="8"/>
+    <g class="model-icons">
+      <UserRound x={39} y={51} size={34} stroke-width={1.5} aria-hidden="true"/>
+      <ClipboardList x={336} y={52} size={34} stroke-width={1.5} aria-hidden="true"/>
+      <ListTodo x={41} y={340} size={34} stroke-width={1.5} aria-hidden="true"/>
+      <Box x={314} y={341} size={34} stroke-width={1.5} aria-hidden="true"/>
+    </g>
+    <g class="model-label"><text x="133" y="65">Kontakt</text><text x="433" y="65">Vorgang</text><text x="143" y="353">Aufgabe</text><text x="420" y="353">Eigene Objekte</text></g>
+    <g class="model-code"><text x="133" y="90">OBJ.KONTAKT</text><text x="433" y="90">OBJ.VORGANG</text><text x="143" y="378">OBJ.AUFGABE</text><text x="420" y="378">OBJ.EIGEN</text></g>
+    <text class="focus-label" x="260" y="183">Projekt</text><text class="focus-code" x="260" y="207">OBJ.PROJEKT</text>
+  </svg>
+  <figcaption>Das geplante Objektmodell</figcaption>
+</figure>

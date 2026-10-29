@@ -1,0 +1,39 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import ObjectModel from '../components/ObjectModel.astro';
+import { ProjectActions } from '../components/site/project-actions';
+import { ArrowUpRight, UsersRound, Folder, Box } from '@lucide/astro';
+import { getEntry, render } from 'astro:content';
+import { repositoryURL as repo, projectResources } from '../config/navigation';
+const development = await getEntry('project', 'development');
+if (!development) throw new Error('Missing development content');
+const { Content: DevelopmentContent } = await render(development);
+const areas = [
+  { title: 'CRM', text: 'Kontakte, Organisationen und Beziehungen zentral erfassen und mit Projekten und Vorgängen in Verbindung bringen.', icon: UsersRound },
+  { title: 'Projektmanagement', text: 'Projekte, Vorgänge und Aufgaben strukturiert abbilden und mit relevanten Kontakten und eigenen Datenobjekten verknüpfen.', icon: Folder },
+  { title: 'Eigene Objekte', text: 'Eigene Datenobjekte flexibel definieren und in die zentrale Struktur integrieren.', icon: Box }
+];
+---
+<SiteLayout title="xObject by ITextreme – Deine Daten. Klar verbunden." description="xObject ist eine offene Plattform in Entwicklung für Kontakte, Projekte und eigene Datenobjekte. Mit gemeinsamem Objektkern, API und MCP.">
+    <main id="inhalt" tabindex="-1">
+      <section class="hero-band" id="ueberblick" aria-labelledby="hero-heading"><div class="hero site-container">
+        <div><h1 id="hero-heading">Deine Daten.<br/>Klar verbunden.</h1>
+          <p class="lead">Kontakte, Projekte und eigene Datenobjekte verbinden. xObject ist eine offene Plattform in Entwicklung.</p>
+          <ProjectActions repository={repo}/>
+        </div>
+        <ObjectModel/>
+      </div></section>
+      <section class="idea site-container" id="idee" aria-labelledby="idea-heading">
+        <h2 id="idea-heading">Ein Kern. Deine Arbeitswelt.</h2>
+        <div class="areas">{areas.map(area => <article>
+          <area.icon class="area-icon" stroke-width={1.5} aria-hidden="true"/><h3>{area.title}</h3><p>{area.text}</p>
+        </article>)}</div>
+        <p class="channels">Weboberfläche <span>·</span> API <span>·</span> MCP</p>
+      </section>
+      <section class="development" id="entwicklung" aria-labelledby="development-heading"><div class="site-container">
+        <h2 id="development-heading">{development.data.title}</h2>
+        <div class="lead"><DevelopmentContent/></div>
+        <nav class="resources" aria-label="Projektressourcen">{projectResources.map(link => <a href={link.href}>{link.label} <ArrowUpRight stroke-width={1.5} aria-hidden="true"/></a>)}</nav>
+      </div></section>
+    </main>
+</SiteLayout>

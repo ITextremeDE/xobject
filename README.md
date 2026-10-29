@@ -6,7 +6,7 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 ## Project status
 
-**Early development.** The repository includes the product requirements and a local backend technical spike for PostgreSQL-backed authentication, dynamic text fields, translated definition labels, user/workspace language preferences, API/MCP operations and atomic per-field journaling. A first React web interface supports login, workspace/object/text-field creation, searchable record tables, editing and record journals in German and English. Access remains restricted to Administrators. There is no installation package or software release yet. See the [development guide](docs/development.md) for the evaluated scope and commands.
+**Early development.** The repository includes the product requirements and a local backend technical spike for PostgreSQL-backed authentication, dynamic text fields, translated definition labels, user/workspace language preferences, API/MCP operations and atomic per-field journaling. A first React web interface supports login, workspace/object/text-field creation, sortable/searchable record tables, editing and record journals in German and English. The interface includes a Dashboard, personal settings, workspace search and keyboard shortcuts. Access remains restricted to Administrators. There is no installation package or software release yet. See the [development guide](docs/development.md) for the evaluated scope and commands.
 
 The [Product Requirements Document](docs/PRD.md) defines the initial scope, 47 requirements, acceptance criteria and remaining design decisions. It describes intended behavior, not implemented features.
 
@@ -63,3 +63,11 @@ Development uses small changes, pull requests, review and checks against accepta
 This licensing declaration also applies to Premium code. Contribution terms remain to be defined.
 
 The planned model combines an independently usable free Community edition with paid Premium activation, support and maintenance. Premium code will also remain open source. A hosted cloud offering may follow later. Feature tiers, pricing and commercial terms are not yet defined.
+
+## Public project website
+
+The project introduction is available at [xobject.org](https://xobject.org).
+Its static Astro/TypeScript source lives in `apps/site`, with Tailwind CSS 4,
+ITextreme design tokens and selective shadcn/ui Base UI components. See the
+[website guide](docs/website.md) for design provenance, development and release checks. The project website is
+separate from the planned xObject application and does not provide an installation.

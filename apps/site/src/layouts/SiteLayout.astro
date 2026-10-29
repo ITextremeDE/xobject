@@ -1,0 +1,42 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource-variable/orbitron';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/global.css';
+import SiteHeader from '../components/site/SiteHeader.astro';
+import SiteFooter from '../components/site/SiteFooter.astro';
+
+interface Props { title: string; description: string; }
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const structuredData = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'xObject by ITextreme',
+  url: Astro.site?.href,
+  inLanguage: 'de',
+}).replace(/</g, '\\u003c');
+---
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>{title}</title>
+    <meta name="description" content={description}/>
+    <meta name="theme-color" content="#f9fafb" media="(prefers-color-scheme: light)"/>
+    <meta name="theme-color" content="#030712" media="(prefers-color-scheme: dark)"/>
+    <meta property="og:title" content={title}/><meta property="og:description" content={description}/><meta property="og:type" content="website"/><meta property="og:url" content={canonical}/>
+    <meta name="twitter:card" content="summary"/>
+    <link rel="canonical" href={canonical}/><link rel="icon" href="/brand/itextreme-it-logo.svg" type="image/svg+xml"/>
+    <script is:inline src="/theme-init.js"></script>
+    <script is:inline type="application/ld+json" set:html={structuredData}/>
+  </head>
+  <body id="seitenanfang">
+    <a class="skip-link" href="#inhalt">Zum Inhalt</a>
+    <SiteHeader/>
+    <slot/>
+    <SiteFooter/>
+
+    <script is:inline src="/navigation.js" defer></script>
+  </body>
+</html>

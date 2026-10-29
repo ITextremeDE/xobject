@@ -12,12 +12,13 @@ The project is in early development. No software release is available yet.
 
 - Record-table column sorting through shared API/MCP operations, applied before pagination with accessible direction indicators.
 - Command/Ctrl+K toggles workspace search, with visible shortcut hints and keyboard-help documentation.
-- Settings form with language explanations, appearance choices, explicit Save/Reset actions and unsaved-change protection.
 - Workspace search in the header alongside Breadcrumb navigation, with object/record results, keyboard selection and a shared API/MCP search operation.
 - Header actions for the user menu, appearance selection and a disabled placeholder for future notifications.
-- Personal settings page in the user menu for account language and browser appearance, with a workspace Breadcrumb link back to the Dashboard.
+- Personal settings form in both user menus for account language and browser appearance, with explicit Save/Reset actions, unsaved-change protection and a workspace Breadcrumb link back to the Dashboard.
 - Dashboard as the first navigation entry and workspace landing page, showing available object types with direct access and creation.
 - Central keyboard shortcuts for focused-form submission and record search, with localized keyboard help, visible key hints and preserved native widget navigation.
+- Shared ITextreme website design system with Tailwind CSS 4, typed Astro/React components, adapted shadcn/ui Base UI primitives, Lucide, schema-validated MDX content, reusable page metadata and generated sitemap.
+- Public Astro project website at xobject.org, following the ITextreme Corporate Operating System, with self-hosted fonts, unchanged official logo assets, accessible light/dark/system modes and an explicit early-development status.
 - Initial product requirements with 47 requirements, acceptance criteria, seven end-to-end acceptance scenarios and remaining design decisions.
 - Project README describing the product idea, planned first-version scope, technology and commercial model.
 - Shared agent instructions in `AGENTS.md`, imported by Claude through `CLAUDE.md`.
@@ -31,6 +32,13 @@ The project is in early development. No software release is available yet.
 - First Administrator web interface using React, Vite, standard shadcn/ui and semantic theme variables, with German/English labels and light/dark/system appearance.
 - Browser login/logout, workspace/object/text-field creation, searchable paginated record tables, versioned editing, unsaved-change protection and per-field record journals.
 - Shared TypeScript input/output contracts and matching API/MCP operations for listing object types and searching records.
+
+### Changed
+
+- Match the ITx footer with adapted product copy, the same nine social brand icons and developer/technology credit; use the same complete copyright line.
+- Match ITx header controls with real Base UI theme/mobile icon menus, neutral Button variants and compact single-row navigation, retaining the restrictive CSP and stored theme preference.
+- Remove the public `/licenses/NOTICE.txt` index; individual upstream license files remain distributed with their assets.
+- Align the project website with ITextreme’s page structure: compact sticky header, compact section navigation, accessible mobile navigation, shared container rhythm and grouped footer; remove visible license notices from the footer while retaining distributed attribution files.
 
 ### Fixed
 

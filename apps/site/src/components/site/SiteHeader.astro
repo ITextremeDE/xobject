@@ -1,0 +1,24 @@
+---
+import { createElement } from 'react';
+import { renderToString } from 'react-dom/server';
+import { HeaderControls, headerIdentifierPrefix } from './header-controls';
+import { primaryNavigation, repositoryURL } from '../../config/navigation';
+const controls = renderToString(createElement(HeaderControls), {identifierPrefix: headerIdentifierPrefix});
+---
+<header class="site-header">
+  <div class="site-container header-bar">
+    <a class="project-brand" href="/" aria-label="xObject – Startseite">xObject <span>by ITextreme</span></a>
+    <nav class="section-navigation" aria-label="Hauptnavigation" data-section-navigation>
+      {primaryNavigation.map(link => <a href={link.href}>{link.label}</a>)}
+    </nav>
+    <nav class="header-utility" aria-label="Weitere Angebote"><a href="https://itextreme.de/">ITextreme</a><a href={repositoryURL}>GitHub</a></nav>
+    <div id="header-controls" class="header-controls" set:html={controls}/>
+  </div>
+</header>
+<script>
+  import { createElement } from 'react';
+  import { hydrateRoot } from 'react-dom/client';
+  import { HeaderControls, headerIdentifierPrefix } from './header-controls';
+  const container = document.getElementById('header-controls');
+  if (container) hydrateRoot(container, createElement(HeaderControls), { identifierPrefix: headerIdentifierPrefix });
+</script>
