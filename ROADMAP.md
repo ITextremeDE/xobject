@@ -6,6 +6,10 @@ This roadmap summarizes product goals from the [Product Requirements Document](d
 
 No delivery dates are committed. An item here is not evidence that its requirements have been implemented or accepted.
 
+## Delivered — Public project introduction
+
+- Static Astro project homepage, separate from the application, linking to the canonical requirements and roadmap. Full Starlight documentation and release/version navigation remain later work.
+
 ## In progress — Product definition
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.

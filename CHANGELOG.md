@@ -10,6 +10,8 @@ The project is at the specification stage. No software release is available yet.
 
 ### Added
 
+- Public Astro project website at xobject.org, following the ITextreme Corporate Operating System, with self-hosted fonts, unchanged official logo assets, accessible light/dark/system modes and an explicit early-development status.
+
 - Initial product requirements with 47 requirements, acceptance criteria, seven end-to-end acceptance scenarios and remaining design decisions.
 - Project README describing the product idea, planned first-version scope, technology and commercial model.
 - Shared agent instructions in `AGENTS.md`, imported by Claude through `CLAUDE.md`.

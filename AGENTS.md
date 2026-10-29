@@ -10,9 +10,9 @@ OpenProject is the source for operational tasks, priorities and dependencies. Th
 
 ## Current state and commands
 
-This repository is at the specification stage. There is no application scaffold, package manifest, dependency lockfile, CI pipeline, installation package or executable release yet.
+The application remains at the specification stage on this branch. The independent public project website lives in `apps/site`; it is not an application release.
 
-No application install, development, build, lint or test commands are established. Inspect the actual manifests and scripts once they exist; document commands only after verifying them. Do not invent commands or claim checks ran when the required tooling is absent.
+For the website, run `npm ci`, `npm run build` and `npm test` in `apps/site`. Browser tests require Chromium (`npx playwright install chromium`). See `docs/website.md`. Application commands must be established separately when an application scaffold exists.
 
 For documentation changes, check Markdown structure, relative links and section anchors, requirement references, whitespace and unintended sensitive content. `git diff --check` is an available whitespace check; include newly created files in review because untracked files are not covered by that command.
 
