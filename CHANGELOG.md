@@ -20,3 +20,7 @@ The project is in early development. No software release is available yet.
 - PostgreSQL integration tests, TypeScript build/check commands, development setup guide and GitHub checks workflow for the spike.
 - Localized definition labels in JSONB, user/workspace language preferences and shared API/MCP operations with transactional journaling.
 - Explicit standard-column order for new object tables and a development migration preserving earlier labels, records, identities and historical journal entries.
+
+### Fixed
+
+- Database readiness checks use PostgreSQL TCP connections in integration tests and development Compose, avoiding premature success during container initialization.

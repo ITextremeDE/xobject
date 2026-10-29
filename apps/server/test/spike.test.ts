@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
 import { sql } from 'kysely';
+import { Client as PgClient } from 'pg';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { buildServer } from '../src/server.js';
@@ -52,13 +53,17 @@ before(async () => {
     '-e', 'POSTGRES_PASSWORD=xobject_test_only', '-e', 'POSTGRES_DB=xobject_test',
     '-p', '127.0.0.1::5432', 'postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5'], { timeout: 120000 });
   const mapping = (await exec('docker', ['port', container, '5432/tcp'])).stdout.trim();
+  databaseURL = `postgres://postgres:xobject_test_only@${mapping}/xobject_test`;
   let ready = false;
   for (let attempt = 0; attempt < 80; attempt++) {
-    try { await exec('docker', ['exec', container, 'pg_isready', '-U', 'postgres', '-d', 'xobject_test']); ready = true; break; }
+    // The image's temporary bootstrap server accepts local socket connections.
+    // Wait for the final server using the actual published TCP endpoint instead.
+    const probe = new PgClient({ connectionString: databaseURL, connectionTimeoutMillis: 1000 });
+    try { await probe.connect(); await probe.query('SELECT 1'); ready = true; break; }
     catch { await setTimeout(250); }
+    finally { await probe.end().catch(() => {}); }
   }
-  assert.ok(ready, 'Temporary PostgreSQL must become ready');
-  databaseURL = `postgres://postgres:xobject_test_only@${mapping}/xobject_test`;
+  assert.ok(ready, 'Temporary PostgreSQL must accept SQL over its published TCP endpoint');
   await migrate(databaseURL, secret, baseURL);
   await migrate(databaseURL, secret, baseURL); // Explicit migration is repeatable.
   runtime = buildServer({ databaseURL, authSecret: secret, baseURL });
