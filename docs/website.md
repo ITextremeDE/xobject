@@ -63,7 +63,7 @@ Chromium instead of controlling the user's browser through another channel.
 ## Shared component rules
 
 The ITextreme COS is the design source. The public ITextreme website's ADR 0002
-provides the shared implementation strategy; [ADR 0004](adr/0004-public-website-design-system.md)
+provides the shared implementation strategy; [ADR 0005](adr/0005-public-website-design-system.md)
 records its application to Astro.
 
 - `components.json`: `base-nova`, Base UI, Lucide, CSS variables, `rsc: false`.

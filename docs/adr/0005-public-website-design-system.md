@@ -1,4 +1,4 @@
-# ADR 0004: Share the ITextreme design system in the Astro website
+# ADR 0005: Share the ITextreme design system in the Astro website
 
 - Status: Accepted
 - Date: 2026-10-29
