@@ -5,17 +5,20 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "workspaces": [
-    "apps/server"
+    "packages/contracts",
+    "apps/server",
+    "apps/web"
   ],
   "engines": {
     "node": ">=24 <27"
   },
   "scripts": {
-    "build": "npm run build --workspace @xobject/server",
-    "typecheck": "npm run typecheck --workspace @xobject/server",
-    "test": "npm run test --workspace @xobject/server",
-    "dev": "node --env-file-if-exists=.env --import tsx apps/server/src/main.ts",
-    "db:migrate": "node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts migrate",
-    "admin:create": "node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts create-admin"
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run build --workspace @xobject/contracts && npm run typecheck --workspaces --if-present",
+    "test": "npm run build --workspace @xobject/contracts && npm run test --workspace @xobject/server",
+    "dev": "npm run build --workspace @xobject/contracts && npm run build --workspace @xobject/web && node --env-file-if-exists=.env --import tsx apps/server/src/main.ts",
+    "db:migrate": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts migrate",
+    "admin:create": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts create-admin",
+    "dev:web": "npm run dev --workspace @xobject/web"
   }
 }

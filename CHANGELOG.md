@@ -21,6 +21,10 @@ The project is in early development. No software release is available yet.
 - Localized definition labels in JSONB, user/workspace language preferences and shared API/MCP operations with transactional journaling.
 - Explicit standard-column order for new object tables and a development migration preserving earlier labels, records, identities and historical journal entries.
 
+- First Administrator web interface using React, Vite, standard shadcn/ui and semantic theme variables, with German/English labels and light/dark/system appearance.
+- Browser login/logout, workspace/object/text-field creation, searchable paginated record tables, versioned editing, unsaved-change protection and per-field record journals.
+- Shared TypeScript input/output contracts and matching API/MCP operations for listing object types and searching records.
+
 ### Fixed
 
 - Database readiness checks use PostgreSQL TCP connections in integration tests and development Compose, avoiding premature success during container initialization.

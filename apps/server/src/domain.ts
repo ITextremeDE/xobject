@@ -1,36 +1,14 @@
 import { sql } from 'kysely';
 import { v7 } from 'uuid';
-import { z } from 'zod';
+import type { z } from 'zod';
+import { schemas, type Operation } from '@xobject/contracts';
+export { schemas, type Operation } from '@xobject/contracts';
 import type { Database, Executor } from './database.js';
 
 export class AppError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-const uuid = z.uuid();
-const label = z.string().trim().min(1).max(200);
-const language = z.enum(['de', 'en']);
-const labels = z.object({ de: label.optional(), en: label.optional() }).strict()
-  .refine(value => Object.keys(value).length > 0, 'At least one translated label is required');
-const technicalName = z.string().regex(/^[a-z][a-z0-9_]*$/).max(63);
-const values = z.record(z.string(), z.string().max(10000).nullable()).refine(
-  (value) => Object.keys(value).length <= 100, 'At most 100 fields per write',
-);
-export const schemas = {
-  create_workspace: z.object({ name: label, code: z.string().regex(/^[a-z][a-z0-9]*$/).max(61), defaultLanguage: language.default('en') }).strict(),
-  list_workspaces: z.object({}).strict(),
-  create_object_type: z.object({ workspaceId: uuid, technicalName, labels }).strict(),
-  create_field: z.object({ objectTypeId: uuid, technicalName, labels }).strict(),
-  get_object_type: z.object({ objectTypeId: uuid }).strict(),
-  set_labels: z.object({ kind: z.enum(['object_type', 'field']), id: uuid, labels }).strict(),
-  set_workspace_language: z.object({ workspaceId: uuid, language }).strict(),
-  set_user_language: z.object({ language: language.nullable() }).strict(),
-  create_record: z.object({ objectTypeId: uuid, keyword: label, values: values.default({}) }).strict(),
-  update_record: z.object({ objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: label.optional(), values: values.default({}) }).strict(),
-  get_record: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
-  get_journal: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
-};
-export type Operation = keyof typeof schemas;
 type Labels = Record<string, string>;
 type ObjectType = { id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string };
 type Field = { id: string; technical_name: string; labels: Labels };
@@ -68,6 +46,24 @@ export class Application {
         switch (operation) {
           case 'create_workspace': return this.createWorkspace(tx, schemas.create_workspace.parse(parsed), userId);
           case 'list_workspaces': return (await sql`SELECT id, code, name, default_language FROM sys_workspaces ORDER BY code`.execute(tx)).rows;
+          case 'list_object_types': {
+            const args = schemas.list_object_types.parse(parsed);
+            const workspace = (await sql<{ default_language: string }>`SELECT default_language FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
+            if (!workspace) throw new AppError(404, 'Workspace not found');
+            const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
+            const types = (await sql<{ id: string; technical_name: string; labels: Labels }>`SELECT id, technical_name, labels FROM sys_object_types WHERE workspace_id = ${args.workspaceId}::uuid ORDER BY technical_name`.execute(tx)).rows;
+            return types.map(type => ({ id: type.id, technicalName: type.technical_name, labels: type.labels,
+              label: localizedLabel(type.labels, user.language, workspace.default_language) }));
+          }
+          case 'list_records': {
+            const args = schemas.list_records.parse(parsed);
+            const type = await this.objectType(tx, args.objectTypeId);
+            const predicate = sql`position(lower(${args.query}) in lower(keyword)) > 0`;
+            const total = (await sql<{ total: number }>`SELECT count(*)::integer AS total FROM ${sql.table(tableName(type))} WHERE ${predicate}`.execute(tx)).rows[0].total;
+            const records = (await sql`SELECT * FROM ${sql.table(tableName(type))} WHERE ${predicate}
+              ORDER BY updated_at DESC, id LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
+            return { records, total, limit: args.limit, offset: args.offset };
+          }
           case 'create_object_type': return this.createObjectType(tx, schemas.create_object_type.parse(parsed), userId);
           case 'create_field': return this.createField(tx, schemas.create_field.parse(parsed), userId);
           case 'get_object_type': return this.definition(tx, schemas.get_object_type.parse(parsed).objectTypeId, userId);

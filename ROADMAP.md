@@ -1,6 +1,6 @@
 # Roadmap
 
-xObject is in early development. A local backend technical spike exists; the web application and a software release are not available yet.
+xObject is in early development. A local backend and first web interface exist; a software release is not available yet.
 
 This roadmap summarizes product goals from the [Product Requirements Document](docs/PRD.md). Operational tasks, dependencies and priorities are managed in OpenProject; this file is a curated public overview, not a duplicate task list or a live implementation-status report. Goals will be reconciled with that planning as implementation is organized.
 
@@ -10,7 +10,7 @@ No delivery dates are committed. An item here is not evidence that its requireme
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
 - Resolve the technical foundation decisions needed for the first implementation slice: backend framework, data access, workspace isolation, authentication and controlled schema changes.
-- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The complete first slice below remains the delivery goal.
+- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The web interface now exercises workspace/object/text-field creation, record search/editing and journals. Complete shared fields and permissions remain necessary for the first slice below.
 
 ## Next — First end-to-end object slice
 

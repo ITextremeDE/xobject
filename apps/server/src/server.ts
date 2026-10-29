@@ -3,6 +3,9 @@ import { fromNodeHeaders } from 'better-auth/node';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { z, ZodError } from 'zod';
+import fastifyStatic from '@fastify/static';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { connect } from './database.js';
 import { createAuth } from './auth.js';
 import { AppError, Application, schemas, type Operation } from './domain.js';
@@ -20,7 +23,8 @@ export function buildServer(config: Config) {
   const application = new Application(db);
   const base = new URL(config.baseURL);
   app.addHook('onClose', async () => { await db.destroy(); });
-  app.addHook('onRequest', async (request) => {
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.url.startsWith('/api/') || request.url.startsWith('/mcp')) reply.header('Cache-Control', 'no-store');
     if (request.headers.host !== base.host) throw new AppError(400, 'Unexpected Host');
     const origin = request.headers.origin;
     if (origin && origin !== base.origin) throw new AppError(403, 'Unexpected Origin');
@@ -98,5 +102,10 @@ export function buildServer(config: Config) {
   app.route({ method: ['GET', 'DELETE'], url: '/mcp', handler: async (_request, reply) => {
     return reply.header('allow', 'POST').code(405).send({ error: 'Only stateless POST requests are supported' });
   } });
+  // One origin for web and auth: no cross-origin proxy or exposed credentials.
+  const webRoot = fileURLToPath(new URL('../../web/dist/', import.meta.url));
+  if (existsSync(webRoot)) {
+    app.register(fastifyStatic, { root: webRoot, prefix: '/', index: ['index.html'] });
+  }
   return { app, db, auth };
 }

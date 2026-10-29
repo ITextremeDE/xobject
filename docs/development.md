@@ -1,4 +1,4 @@
-# Backend technical spike
+# Local development
 
 This is a local experiment, not a software release or the official self-hosting package. Use disposable data. The [PRD](PRD.md) remains the product specification; [ADR 0002](adr/0002-backend-technical-spike.md) explains the experiment's design and limits.
 
@@ -30,10 +30,20 @@ Tests start their own temporary PostgreSQL container on a random loopback port a
    ```
 
 3. Supply `ADMIN_EMAIL`, `ADMIN_NAME` and a strong `ADMIN_PASSWORD` of at least 12 characters in the local process environment, then run `npm run admin:create`. Remove those provisioning variables afterwards. This is a local operator command; there is no public signup endpoint. Repeating it for an existing email fails rather than changing that account's privileges.
-4. Run `npm run dev`. The development server listens on `127.0.0.1:4100`. There is no web interface yet.
+4. Run `npm run dev`. The development server listens on `127.0.0.1:4100`. Open `http://127.0.0.1:4100` for the web interface. The command builds shared contracts and the web client before starting Fastify.
 5. Stop the development database with `docker compose --env-file .env -f deploy/compose.dev.yaml down`. Its named volume is retained. Integration tests use separate disposable containers and do not touch that volume.
 
 The root development commands read `.env` through Node's environment-file support. No credentials or default administrator account are provided in the repository. The database container uses the unmodified official PostgreSQL image.
+
+## Web interface
+
+The React/Vite client uses standard Radix-based shadcn/ui components and Tailwind semantic tokens in `apps/web/src/index.css`. Adjust appearance through those variables and existing component variants. UI strings live in `apps/web/src/lib/i18n.ts`; definition labels come from PostgreSQL. Record contents are never translated.
+
+The server serves `apps/web/dist` and API/auth/MCP from one origin. For frontend iteration, leave `npm run dev` running and run `npm run dev:web` in a second terminal. Vite rebuilds on changes; refresh the browser afterwards. There is deliberately no cross-origin development proxy or relaxed auth origin check. Restart the backend after server changes.
+
+The client covers login/logout, workspace selection/creation, object and text-field creation, Keyword search with 25-row pagination, record creation/editing and record journals. Conflicting versions are rejected by the backend; unsaved record edits prompt before navigation. Language follows the user preference or workspace default. Theme is local to the browser; authentication uses the server session cookie. Business data and credentials are not persisted in browser local storage.
+
+Shared operation schemas and wire types live in `packages/contracts`; all three workspaces build from the root. Browser validation supplements the same backend rules used by HTTP and MCP. The entire experiment still requires an Administrator account; it is not the complete permissions model or version-1 acceptance.
 
 ## HTTP and MCP interface
 
@@ -46,6 +56,8 @@ For this experiment, each application operation is a JSON `POST` to `/api/v1/<op
 | `create_workspace` | `name`, `code`, optional `defaultLanguage` (`en` by default) |
 | `list_workspaces` | Empty object |
 | `create_object_type` | `workspaceId`, `technicalName`, `labels` |
+| `list_object_types` | `workspaceId`; returns localized object names |
+| `list_records` | `objectTypeId`, optional literal Keyword `query`, `limit` (1–100, default 25), `offset` |
 | `create_field` | `objectTypeId`, `technicalName`, `labels`; text only |
 | `get_object_type` | `objectTypeId`; returns labels, resolved names, fields and physical column names |
 | `set_labels` | `kind` (`object_type` or `field`), definition `id`, complete replacement `labels` map |
@@ -92,4 +104,4 @@ Stop the development HTTP process before applying schema changes, then restart i
 
 The tests exercise persisted credential hashes and sessions, identical API/MCP behavior, stable UUIDv7 identities, per-field journal entries, rejected invalid names and writes, two workspaces with the same object name, stale/concurrent edit rejection and full rollback on journal failure, including table/column creation.
 
-It does not deliver the web client, all shared fields, collections, relationships, CRM/PM modules, memberships, Designer/User rights, field/record permissions, complete authentication-event journaling, production migrations, production MCP authorization, pagination or a release package. No product requirement or complete acceptance scenario is marked fulfilled solely by this test.
+It does not deliver all shared fields, collections, relationships, CRM/PM modules, memberships, Designer/User rights, field/record permissions, complete authentication-event journaling, production migrations, production MCP authorization or a release package. No product requirement or complete acceptance scenario is marked fulfilled solely by this test.

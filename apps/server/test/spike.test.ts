@@ -314,3 +314,30 @@ test('upgrading legacy scalar labels preserves identities, records, journal and 
     assert.equal((await application.execute('get_object_type', { objectTypeId: type.id }, user.user.id) as { label: string }).label, 'Original label');
   } finally { await db.destroy(); }
 });
+
+test('object/record lists are scoped, localized, paginated and search literal keywords through API and MCP', async () => {
+  const workspace = await ok('create_workspace', { code: 'lists', name: 'Lists', defaultLanguage: 'de' });
+  const type = await ok('create_object_type', { workspaceId: workspace.id, technicalName: 'items', labels: { de: 'Einträge', en: 'Items' } });
+  const types = await tool('list_object_types', { workspaceId: workspace.id });
+  assert.equal(types.length, 1);
+  assert.equal(types[0].id, type.id);
+  assert.equal(types[0].label, 'Einträge');
+  const first = await ok('create_record', { objectTypeId: type.id, keyword: 'Alpha 100%' });
+  await tool('create_record', { objectTypeId: type.id, keyword: 'Beta' });
+  const page = await tool('list_records', { objectTypeId: type.id, limit: 1, offset: 0 });
+  assert.equal(page.total, 2);
+  assert.equal(page.records.length, 1);
+  const secondPage = await ok('list_records', { objectTypeId: type.id, limit: 1, offset: 1 });
+  assert.equal(secondPage.total, 2);
+  assert.notEqual(page.records[0].id, secondPage.records[0].id);
+  const search = await ok('list_records', { objectTypeId: type.id, query: 'ALPHA 100%' });
+  assert.equal(search.total, 1);
+  assert.equal(search.records[0].id, first.id);
+  assert.equal((await ok('list_records', { objectTypeId: type.id, query: "' OR 1=1 --" })).total, 0);
+  assert.equal((await ok('list_records', { objectTypeId: type.id, offset: 10 })).total, 2);
+  for (const input of [{ limit: 0 }, { limit: 101 }, { offset: -1 }]) {
+    assert.equal((await api('list_records', { objectTypeId: type.id, ...input })).statusCode, 400);
+  }
+  assert.equal((await api('list_object_types', { workspaceId: workspace.id }, userCookie)).statusCode, 403);
+  assert.equal((await api('list_records', { objectTypeId: type.id }, '')).statusCode, 401);
+});

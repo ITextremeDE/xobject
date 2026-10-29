@@ -6,7 +6,7 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 ## Project status
 
-**Early development.** The repository includes the product requirements and a local backend technical spike for PostgreSQL-backed authentication, dynamic text fields, translated definition labels, user/workspace language preferences, API/MCP operations and atomic per-field journaling. There is no web application, installation package or software release yet. See the [development guide](docs/development.md) for the evaluated scope and commands.
+**Early development.** The repository includes the product requirements and a local backend technical spike for PostgreSQL-backed authentication, dynamic text fields, translated definition labels, user/workspace language preferences, API/MCP operations and atomic per-field journaling. A first React web interface supports login, workspace/object/text-field creation, searchable record tables, editing and record journals in German and English. Access remains restricted to Administrators. There is no installation package or software release yet. See the [development guide](docs/development.md) for the evaluated scope and commands.
 
 The [Product Requirements Document](docs/PRD.md) defines the initial scope, 47 requirements, acceptance criteria and remaining design decisions. It describes intended behavior, not implemented features.
 
@@ -43,7 +43,7 @@ Uploads, attachments, import/export, SSO, desktop and mobile clients, offline sy
 
 PostgreSQL will hold application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject will not require a Git account or a user-owned repository.
 
-The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Exact evaluated versions are pinned in the package manifest and lockfile. This does not establish a production migration, authorization or deployment design.
+The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Evaluated versions are recorded in the package manifests and lockfile. This does not establish a production migration, authorization or deployment design.
 
 ## Documentation and development
 
@@ -54,7 +54,7 @@ The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the off
 - [Remaining design decisions](docs/PRD.md#10-remaining-design-decisions)
 - [Initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios)
 
-Development uses small changes, pull requests, review and checks against acceptance criteria. The backend workspace and GitHub checks are defined; a web workspace, release process and contribution guide remain to be implemented.
+Development uses small changes, pull requests, review and checks against acceptance criteria. The backend, shared contracts, web workspace and GitHub checks are defined; a release process and contribution guide remain to be implemented.
 
 ## Licensing and commercial model
 

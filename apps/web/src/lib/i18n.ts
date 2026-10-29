@@ -1,0 +1,63 @@
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+
+const en = {
+  signIn: 'Sign in', signOut: 'Sign out', email: 'Email', password: 'Password', welcome: 'Your data. Connected.',
+  loginDescription: 'Sign in to your xObject workspace.', loginFailed: 'Email or password is incorrect.',
+  workspace: 'Workspace', newWorkspace: 'Create workspace', workspaceName: 'Workspace name', code: 'Code',
+  defaultLanguage: 'Default language', inherited: 'Workspace language', objects: 'Object types', newObject: 'Create object type',
+  selectWorkspace: 'Select a workspace', selectObject: 'Select an object type', noWorkspace: 'Your first workspace',
+  noWorkspaceDescription: 'Create a workspace to define object types and manage records.',
+  noObjects: 'No object types yet', noObjectsDescription: 'Define your first object type to start working with records.',
+  newField: 'Add field', fieldDescription: 'Add a text field to this object type.', objectDescription: 'Define an object type with its own fields and records.',
+  german: 'German', english: 'English', germanLabel: 'German label', englishLabel: 'English label',
+  codeHelp: 'Lowercase letters and digits, starting with a letter. Fixed after creation.', technicalName: 'Technical name', technicalHelp: 'English snake_case. Fixed after creation.', labelsHelp: 'Provide at least one label.',
+  create: 'Create', cancel: 'Cancel', save: 'Save', saving: 'Saving…', saved: 'Changes saved.',
+  newRecord: 'Create record', keyword: 'Keyword', details: 'Details', journal: 'Journal', search: 'Search by keyword',
+  updated: 'Last changed', noRecords: 'No records yet', noMatches: 'No matching records', noMatchesDescription: 'Try another keyword or clear the search.',
+  noRecordsDescription: 'Create the first record for this object type.', count_one: '{{count}} record', count_other: '{{count}} records',
+  previous: 'Previous', next: 'Next', page: 'Page {{page}}', close: 'Close', loading: 'Loading…', retry: 'Try again',
+  errorTitle: 'Something went wrong', invalid: 'Check your input. Technical names and codes must be unique and valid.',
+  duplicate: 'This technical name or code already exists.', conflict: 'This record changed in the meantime. Reload it before saving.',
+  reload: 'Reload record', denied: 'This first development version is available to Administrators only.',
+  sessionExpired: 'Your session expired. Please sign in again.', networkError: 'The server could not be reached. Try again.',
+  unsaved: 'Discard unsaved changes?', unsavedDescription: 'Your changes have not been saved. You can return to the form or discard them.',
+  discard: 'Discard changes', keepEditing: 'Keep editing', noJournal: 'No changes recorded yet',
+  before: 'Before', after: 'After', field: 'Field', changedBy: 'Changed by', changedAt: 'Changed at',
+  theme: 'Appearance', light: 'Light', dark: 'Dark', system: 'System', language: 'Language', menu: 'Navigation',
+  recordDetails: 'Edit the record fields and save your changes.', newRecordDescription: 'Enter a keyword and the values for this record.',
+  workspaceHelp: 'The code prefixes the database tables and is fixed after creation.',
+};
+const de: Record<keyof typeof en, string> = {
+  signIn: 'Anmelden', signOut: 'Abmelden', email: 'E-Mail', password: 'Passwort', welcome: 'Deine Daten. Verbunden.',
+  loginDescription: 'Melde Dich in Deinem xObject-Arbeitsbereich an.', loginFailed: 'E-Mail oder Passwort ist falsch.',
+  workspace: 'Arbeitsbereich', newWorkspace: 'Arbeitsbereich anlegen', workspaceName: 'Name des Arbeitsbereichs', code: 'Kürzel',
+  defaultLanguage: 'Standardsprache', inherited: 'Arbeitsbereichssprache', objects: 'Datenobjekte', newObject: 'Datenobjekt anlegen',
+  selectWorkspace: 'Arbeitsbereich auswählen', selectObject: 'Datenobjekt auswählen', noWorkspace: 'Dein erster Arbeitsbereich',
+  noWorkspaceDescription: 'Lege einen Arbeitsbereich an, um Datenobjekte zu definieren und Datensätze zu verwalten.',
+  noObjects: 'Noch keine Datenobjekte', noObjectsDescription: 'Definiere Dein erstes Datenobjekt und arbeite mit eigenen Datensätzen.',
+  newField: 'Feld hinzufügen', fieldDescription: 'Ergänze ein Textfeld für dieses Datenobjekt.', objectDescription: 'Definiere ein Datenobjekt mit eigenen Feldern und Datensätzen.',
+  german: 'Deutsch', english: 'Englisch', germanLabel: 'Bezeichnung auf Deutsch', englishLabel: 'Bezeichnung auf Englisch',
+  codeHelp: 'Kleinbuchstaben und Ziffern, beginnend mit einem Buchstaben. Nach dem Anlegen unveränderlich.', technicalName: 'Technischer Name', technicalHelp: 'Englisch in snake_case. Nach dem Anlegen unveränderlich.', labelsHelp: 'Gib mindestens eine Bezeichnung ein.',
+  create: 'Anlegen', cancel: 'Abbrechen', save: 'Speichern', saving: 'Wird gespeichert…', saved: 'Änderungen gespeichert.',
+  newRecord: 'Datensatz anlegen', keyword: 'Stichwort', details: 'Details', journal: 'Journal', search: 'Nach Stichwort suchen',
+  updated: 'Geändert am', noRecords: 'Noch keine Datensätze', noMatches: 'Keine passenden Datensätze', noMatchesDescription: 'Versuche ein anderes Stichwort oder leere die Suche.',
+  noRecordsDescription: 'Lege den ersten Datensatz für dieses Datenobjekt an.', count_one: '{{count}} Datensatz', count_other: '{{count}} Datensätze',
+  previous: 'Zurück', next: 'Weiter', page: 'Seite {{page}}', close: 'Schließen', loading: 'Wird geladen…', retry: 'Erneut versuchen',
+  errorTitle: 'Etwas ist schiefgelaufen', invalid: 'Prüfe Deine Eingaben. Technische Namen und Kürzel müssen gültig und eindeutig sein.',
+  duplicate: 'Dieser technische Name oder dieses Kürzel ist bereits vergeben.', conflict: 'Der Datensatz wurde inzwischen geändert. Lade ihn vor dem Speichern neu.',
+  reload: 'Datensatz neu laden', denied: 'Diese erste Entwicklungsversion ist nur für Administratoren verfügbar.',
+  sessionExpired: 'Deine Sitzung ist abgelaufen. Bitte melde Dich erneut an.', networkError: 'Der Server ist nicht erreichbar. Versuche es erneut.',
+  unsaved: 'Ungespeicherte Änderungen verwerfen?', unsavedDescription: 'Deine Änderungen sind noch nicht gespeichert. Du kannst zum Formular zurückkehren oder sie verwerfen.',
+  discard: 'Änderungen verwerfen', keepEditing: 'Weiter bearbeiten', noJournal: 'Noch keine Änderungen erfasst',
+  before: 'Vorher', after: 'Nachher', field: 'Feld', changedBy: 'Geändert von', changedAt: 'Geändert am',
+  theme: 'Darstellung', light: 'Hell', dark: 'Dunkel', system: 'System', language: 'Sprache', menu: 'Navigation',
+  recordDetails: 'Bearbeite die Felder und speichere Deine Änderungen.', newRecordDescription: 'Gib ein Stichwort und die Feldwerte für diesen Datensatz ein.',
+  workspaceHelp: 'Das Kürzel steht vor den Tabellennamen und ist nach dem Anlegen unveränderlich.',
+};
+void i18n.use(initReactI18next).init({
+  lng: navigator.language.startsWith('de') ? 'de' : 'en', fallbackLng: 'en',
+  resources: { en: { translation: en }, de: { translation: de } }, interpolation: { escapeValue: false },
+});
+i18n.on('languageChanged', language => { document.documentElement.lang = language; });
+export default i18n;

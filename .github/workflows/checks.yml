@@ -1,4 +1,4 @@
-name: Backend spike checks
+name: Application checks
 on:
   pull_request:
   push:
