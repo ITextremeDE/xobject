@@ -20,9 +20,14 @@ or runtime dependency on a personal knowledge vault.
 Adopt only needed primitives from the official shadcn/ui registry through its
 CLI. Use `base-nova`, Base UI, Lucide and CSS variables, matching ITextreme's
 component strategy. Astro does not use React Server Components: `rsc` is false.
-Button and Native Select are rendered at build time. The current page needs no
-React hydration; theme behavior stays in small same-origin external scripts.
-Future interactive islands must justify their client boundary and meet CSP.
+Static actions are rendered at build time. The header uses the same real Base UI
+Dropdown Menu and icon-button patterns as ITx for theme and mobile navigation.
+Only this small header root is hydrated. A Vite-bundled same-origin entry calls
+React `hydrateRoot` on markup generated with `renderToString` and the same
+identifier prefix. This preserves the existing CSP without executable inline
+bootstrap code or a broader page/client boundary. The early external theme
+initializer remains the single owner of color-mode application; controls
+publish changes and subscribe to it.
 
 Keep content, primitives, layouts and pages separate. Markdown/MDX content is
 validated through Astro content collections. Canonical/OG metadata and inert
