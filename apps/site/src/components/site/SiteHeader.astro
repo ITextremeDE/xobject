@@ -1,0 +1,30 @@
+---
+import { Menu } from '@lucide/astro';
+import { buttonVariants } from '../ui/button';
+import { cn } from '../../lib/utils';
+import { ThemeControl } from './theme-control';
+import { primaryNavigation, repositoryURL } from '../../config/navigation';
+---
+<header class="site-header">
+  <div class="site-container header-bar">
+    <a class="project-brand" href="/" aria-label="xObject – Startseite">xObject <span>by ITextreme</span></a>
+    <nav class="header-utility" aria-label="Weitere Angebote"><a href="https://itextreme.de/">ITextreme</a><a href={repositoryURL}>GitHub</a></nav>
+    <div class="header-controls">
+      <ThemeControl/>
+      <details class="mobile-navigation" data-mobile-navigation>
+        <summary class={cn(buttonVariants({variant: 'outline', size: 'icon'}))} aria-label="Navigation">
+          <Menu aria-hidden="true"/><span class="sr-only">Navigation</span>
+        </summary>
+        <nav class="mobile-nav-panel" aria-label="Mobile Navigation" data-section-navigation>
+          {primaryNavigation.map(link => <a href={link.href}>{link.label}</a>)}
+          <div class="mobile-related"><a href={repositoryURL}>GitHub</a><a href="https://itextreme.de/">ITextreme</a></div>
+        </nav>
+      </details>
+    </div>
+  </div>
+  <div class="section-navigation">
+    <nav class="site-container" aria-label="Hauptnavigation" data-section-navigation>
+      {primaryNavigation.map(link => <a href={link.href}>{link.label}</a>)}
+    </nav>
+  </div>
+</header>

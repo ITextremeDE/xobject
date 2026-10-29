@@ -103,3 +103,34 @@ No private planning data is imported into public content.
 build; `robots.txt` points to that index. Use Astro image components for future
 raster media; current diagrams/icons/logos remain SVG. Full Starlight
 reference documentation is still a separate planned increment.
+
+## ITextreme page structure
+
+The page frame follows the current public ITextreme website's SiteHeader,
+Container, HomeHero and SiteFooter. The 2026-10-29 review used anonymous live
+1440 × 1000 reference captures and the corresponding source components.
+
+- Header: 72 px sticky brand/control row, then a 48 px desktop section row.
+  Mobile uses a native details/summary navigation styled through the existing
+  Button variants and `cn()`, preserving native keyboard behavior and static
+  output. A small same-origin script closes it on Escape/outside/link clicks,
+  resets it on desktop resize and marks the current fragment location.
+- Containers: the same 90 rem maximum and 16/24/32/48 px responsive side padding.
+- Hero: surface-colored full-width band, equal desktop columns, the shared
+  heading scale and 18 px/32 px intro text. xObject's own copy and object-model
+  diagram remain the product-specific content; no magazine kicker is invented.
+- Footer: brand/description on the left, grouped xObject, project and legal
+  navigation, separated copyright and a working native back-to-top link.
+- Intentional differences: xObject's identity and four real section targets
+  replace magazine categories. Only existing project resources are linked;
+  no empty search, social feeds or third-party consent widget is added.
+  The native theme selector remains. Asset notices stay under `/licenses/`
+  without a visible license link or license label in the page frame.
+
+Reference/render comparison checks header hierarchy, container alignment,
+hero typography and surface, section rhythm, footer group spacing and mobile
+reflow. Above-the-fold product copy and CTA labels remain unchanged; navigation
+labels reflect actual section targets. QA uses isolated Playwright because the
+Browser plugin is not available in this session. The normal acceptance flow now
+also covers Escape/focus return, outside click, fragment navigation, sticky
+anchor clearance, back-to-top and open-menu closure on desktop resize.

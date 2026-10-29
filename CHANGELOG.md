@@ -23,6 +23,10 @@ The project is in early development. No software release is available yet.
 - Localized definition labels in JSONB, user/workspace language preferences and shared API/MCP operations with transactional journaling.
 - Explicit standard-column order for new object tables and a development migration preserving earlier labels, records, identities and historical journal entries.
 
+### Changed
+
+- Align the project website with ITextreme’s page structure: compact sticky header, separate section navigation, accessible mobile navigation, shared container rhythm and grouped footer; remove visible license notices from the footer while retaining distributed attribution files.
+
 ### Fixed
 
 - Database readiness checks use PostgreSQL TCP connections in integration tests and development Compose, avoiding premature success during container initialization.
