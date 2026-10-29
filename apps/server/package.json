@@ -1,0 +1,30 @@
+{
+  "name": "@xobject/server",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "dev": "tsx src/main.ts",
+    "db:migrate": "tsx src/cli.ts migrate",
+    "admin:create": "tsx src/cli.ts create-admin"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "better-auth": "1.7.14",
+    "fastify": "5.12.7",
+    "kysely": "0.29.7",
+    "pg": "8.23.1",
+    "uuid": "14.0.3",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}

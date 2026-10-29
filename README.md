@@ -6,7 +6,7 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 ## Project status
 
-**Specification stage.** This repository currently contains the product requirements and introductory documentation. There is no runnable application, installation package or software release yet.
+**Early development.** The repository includes the product requirements and a local backend technical spike for PostgreSQL-backed authentication, dynamic text fields, translated definition labels, user/workspace language preferences, API/MCP operations and atomic per-field journaling. There is no web application, installation package or software release yet. See the [development guide](docs/development.md) for the evaluated scope and commands.
 
 The [Product Requirements Document](docs/PRD.md) defines the initial scope, 47 requirements, acceptance criteria and remaining design decisions. It describes intended behavior, not implemented features.
 
@@ -43,17 +43,18 @@ Uploads, attachments, import/export, SSO, desktop and mobile clients, offline sy
 
 PostgreSQL will hold application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject will not require a Git account or a user-owned repository.
 
-Concrete framework versions, development commands, installation instructions and supported-host requirements will be documented when the implementation is available.
+The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Exact evaluated versions are pinned in the package manifest and lockfile. This does not establish a production migration, authorization or deployment design.
 
 ## Documentation and development
 
 - [Product requirements](docs/PRD.md)
+- [Local development and technical spike](docs/development.md)
 - [Changelog](CHANGELOG.md)
 - [Roadmap](ROADMAP.md)
 - [Remaining design decisions](docs/PRD.md#10-remaining-design-decisions)
 - [Initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios)
 
-The intended development workflow uses small changes, pull requests, review and checks against acceptance criteria. The application structure, CI and contribution guide have not been set up yet.
+Development uses small changes, pull requests, review and checks against acceptance criteria. The backend workspace and GitHub checks are defined; a web workspace, release process and contribution guide remain to be implemented.
 
 ## Licensing and commercial model
 

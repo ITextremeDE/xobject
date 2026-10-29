@@ -1,0 +1,21 @@
+{
+  "name": "xobject",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "workspaces": [
+    "apps/server"
+  ],
+  "engines": {
+    "node": ">=24 <27"
+  },
+  "scripts": {
+    "build": "npm run build --workspace @xobject/server",
+    "typecheck": "npm run typecheck --workspace @xobject/server",
+    "test": "npm run test --workspace @xobject/server",
+    "dev": "node --env-file-if-exists=.env --import tsx apps/server/src/main.ts",
+    "db:migrate": "node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts migrate",
+    "admin:create": "node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts create-admin"
+  }
+}

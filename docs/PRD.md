@@ -97,6 +97,16 @@ Supported field types: Text, Multiline text with optional formatting, Integer, D
 
 Scalar storage, collections and references must be mapped explicitly in the technical design; a multi-valued field must not be assumed to be one scalar column. Date-only values such as birthdays must retain their date meaning, while timestamps are displayed in the appropriate timezone.
 
+### 3.3 Languages and physical column order
+
+Technical identifiers and stored business contents are language-independent. Translatable definition names are stored in a `labels` JSONB column on their definition table: initially `sys_object_types` and `sys_fields`, and later the definitions for Type, Status, Category and relationship types. For example, a field can store `{"de":"Kennzeichen","en":"Registration"}` while its technical column stays `registration`. At least one supported-language label is required; German and English are supported initially. Adding further languages must not require new per-language columns. Fixed application-interface translations belong in versioned repository resources; this decision does not implement a web translation library.
+
+`sys_users.language` is an optional preference; null inherits the workspace's `sys_workspaces.default_language`, which initially defaults to English. Label resolution tries the explicit user language, workspace default, English, German and finally a preserved label of unknown language. Record names, Keywords and free text are never automatically translated. Changes to labels and language preferences are application operations with the same permissions and journal rules through API and MCP. Historical journal values retain their original representation.
+
+For newly created object data tables, physical columns start with `id`, `keyword` and the other implemented fixed shared fields, followed by `created_at`, `created_by`, `updated_at`, `updated_by` and `version`. Later user-defined fields are appended in creation order. The technical spike currently implements only Keyword and the creation/update/version metadata; the complete shared-field baseline remains required by R-008. Routine application operations and upgrades do not rebuild existing data tables merely to reorder their columns. Physical column order is independent of configurable form/table display order.
+
+See [ADR 0003](adr/0003-localized-labels-and-column-order.md) for the storage and migration decision. These rules elaborate R-001, R-002, R-008, R-012 and R-034–R-036; they do not introduce new requirement IDs.
+
 ## 4. Permissions
 
 Permissions on each object type and optional field overrides are configured for users and groups. User sensitivity is configured on the object type, not on each individual record.

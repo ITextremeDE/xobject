@@ -1,0 +1,20 @@
+# Development database only; this is not the self-hosting release package.
+name: xobject-dev
+services:
+  db:
+    image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    environment:
+      POSTGRES_DB: xobject_dev
+      POSTGRES_USER: xobject
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5410:5432"
+    volumes:
+      - xobject_dev_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U xobject -d xobject_dev"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  xobject_dev_db:
