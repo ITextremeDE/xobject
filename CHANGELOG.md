@@ -1,0 +1,16 @@
+# Changelog
+
+All notable changes to xObject will be documented in this file.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Software releases will use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+The project is at the specification stage. No software release is available yet.
+
+### Added
+
+- Initial product requirements with 47 requirements, acceptance criteria, seven end-to-end acceptance scenarios and remaining design decisions.
+- Project README describing the product idea, planned first-version scope, technology and commercial model.
+- Shared agent instructions in `AGENTS.md`, imported by Claude through `CLAUDE.md`.
+- Public roadmap outlining the first implementation slice, remaining version-one goals and later development areas.

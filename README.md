@@ -1,0 +1,62 @@
+# xObject
+
+A metadata-driven, API-first platform for connected business data.
+
+xObject is being developed by **ITextreme** to bring contacts, projects, cases, tasks and custom data objects into one configurable application. Define object types and fields, connect records, and work with them through domain modules, the web interface, an API or AI assistants using MCP.
+
+## Project status
+
+**Specification stage.** This repository currently contains the product requirements and introductory documentation. There is no runnable application, installation package or software release yet.
+
+The [Product Requirements Document](docs/PRD.md) defines the initial scope, 47 requirements, acceptance criteria and remaining design decisions. It describes intended behavior, not implemented features.
+
+## The idea
+
+Start with a shared object platform and activate the modules you need. An object type can belong to multiple modules, each contributing its own fields and views while using the same records and shared values.
+
+Workspaces keep data and configuration separate. A configurable primary association connects **Contact → Project → Case**, with tasks and other records attached at the appropriate level. Associations are optional by default; required context can be configured per object type.
+
+## Planned first version
+
+| Area | Scope |
+| --- | --- |
+| **CRM** | Contacts with separate kinds for organizations, individual contacts and contact persons; organization relationships and domain roles. |
+| **Project management** | Projects, cases and tasks, including separate responsibility and task assignment. |
+| **Custom data models** | User-defined object types, fields and relationship types alongside protected module definitions. |
+| **Classification** | Configurable types, type-dependent statuses and single- or multiple-choice categories. |
+| **Access control** | User and group permissions, field-level overrides and optional record access lists. Administrators have installation-wide access. |
+| **Views** | Searchable tables, module-specific forms and record details with a relationship tree, dossier and journal. |
+| **History and lifecycle** | One journal entry per field change, relationship history and a recycle bin with controlled permanent deletion. |
+| **API and MCP** | Every application capability available through shared backend rules; agents act with their user's rights. |
+
+Uploads, attachments, import/export, SSO, desktop and mobile clients, offline synchronization, Kanban and calendar views are outside the first-version scope.
+
+## Planned technology
+
+| Layer | Choice |
+| --- | --- |
+| Database | PostgreSQL |
+| Backend, API and MCP | TypeScript on Node.js; modular monolith |
+| Web client | React, TypeScript and Vite |
+| Interface | Tailwind CSS and shadcn/ui, favoring standard components and minimal custom CSS |
+| Self-hosting | Prebuilt container images and Docker Compose on Linux |
+
+PostgreSQL will hold application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject will not require a Git account or a user-owned repository.
+
+Concrete framework versions, development commands, installation instructions and supported-host requirements will be documented when the implementation is available.
+
+## Documentation and development
+
+- [Product requirements](docs/PRD.md)
+- [Changelog](CHANGELOG.md)
+- [Roadmap](ROADMAP.md)
+- [Remaining design decisions](docs/PRD.md#10-remaining-design-decisions)
+- [Initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios)
+
+The intended development workflow uses small changes, pull requests, review and checks against acceptance criteria. The application structure, CI and contribution guide have not been set up yet.
+
+## Licensing and commercial model
+
+**AGPLv3 is the selected open-source license for xObject.** The full license file and contribution terms remain to be added; the licensing declaration is tracked in the PRD.
+
+The planned model combines an independently usable free Community edition with paid Premium activation, support and maintenance. Premium code will also remain open source. A hosted cloud offering may follow later. Feature tiers, pricing and commercial terms are not yet defined.

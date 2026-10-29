@@ -1,0 +1,60 @@
+# Roadmap
+
+xObject is at the specification stage. There is no runnable application or software release yet.
+
+This roadmap summarizes product goals from the [Product Requirements Document](docs/PRD.md). Operational tasks, dependencies and priorities are managed in OpenProject; this file is a curated public overview, not a duplicate task list or a live implementation-status report. Goals will be reconciled with that planning as implementation is organized.
+
+No delivery dates are committed. An item here is not evidence that its requirements have been implemented or accepted.
+
+## In progress — Product definition
+
+- Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
+- Resolve the technical foundation decisions needed for the first implementation slice: backend framework, data access, workspace isolation, authentication and controlled schema changes.
+- Establish the repository's introductory documentation and agent guidance.
+
+## Next — First end-to-end object slice
+
+Deliver a small, working foundation before building the full domain modules:
+
+1. Create a workspace and initial Administrator account.
+2. Define a custom object type and a field.
+3. Create and edit a record with the shared fields and backend validation.
+4. Record each field change in the journal, atomically with the content change.
+5. Exercise the same capabilities through the web interface, API and MCP with the applicable authorization rules.
+
+The outcome is a verified vertical slice, not a completed version-1 release. See the [initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios).
+
+## Next — Complete the version-1 scope
+
+The following goals build on that foundation. Their detailed sequencing and work packages belong in OpenProject.
+
+| Goal | Intended outcome |
+| --- | --- |
+| **Permissions and identity** | Local accounts, installation-wide Administrators, Designers and Users; user/group object and field rights; optional record access lists; user-bound agent access. |
+| **Configurable object platform** | Supported field types, input aids, Type/Status mappings, categories and number sequences; shared types across modules; protected module definitions and safe model changes. |
+| **Relationships and context** | All agreed cardinalities, one direct Primary association, derived ancestor context and configurable required chains. |
+| **CRM and project management** | Contacts with distinct contact kinds and main Organization relationships; Projects, Cases and Tasks with responsibility and assignment. |
+| **Daily work and lifecycle** | Searchable tables, module forms, record details, dossier and relationship tree; per-field journal, recycle bin, restoration and controlled permanent deletion. |
+| **Self-hosting and acceptance** | Versioned container images, Docker Compose installation, controlled migrations, backup/restore instructions and checks against the version-1 acceptance criteria. |
+| **Public documentation** | Astro product website, Astro/Starlight documentation, release notes and versioned documentation published through the planned static hosting setup. |
+
+All version-1 capabilities must remain available through the API and MCP. Security, validation and journal behavior are part of each affected implementation slice, not a final add-on.
+
+## Later — Beyond version 1
+
+These areas are outside the first-version scope. Their detailed requirements and ordering remain open.
+
+- File uploads, attachments and file versioning.
+- Import and export features.
+- SSO with an external identity provider.
+- Kanban, calendar and additional views.
+- Desktop applications for Windows, macOS and Linux; Electron or Tauri remains to be selected.
+- Separate mobile clients for iOS and Android.
+- Offline operation and synchronization.
+- A hosted cloud offering.
+
+Computed fields and general undo are candidates for separate specification, not committed delivery milestones. Premium feature allocation, pricing and service terms also remain to be defined; Premium code will stay open source.
+
+## Keeping this roadmap current
+
+Update this overview when accepted requirements, internal priorities or delivered capabilities materially change. Keep detailed operational status in OpenProject, the requirement baseline in the PRD and actual release changes in the [changelog](CHANGELOG.md). Do not mark a product goal delivered before its acceptance criteria have been verified.
