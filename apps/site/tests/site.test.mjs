@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, extname, join } from "node:path";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 const root = resolve("dist");
@@ -45,7 +45,7 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({
-      viewport: { width: 1024, height: 1536 },
+      viewport: { width: 1440, height: 1000 },
     });
     const page = await context.newPage();
     const failures = [];
@@ -64,6 +64,28 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
       true,
     );
     await page.keyboard.press("Enter");
+    assert.equal(
+      await page
+        .locator("#inhalt")
+        .evaluate((node) => node === document.activeElement),
+      true,
+    );
+    assert.equal(
+      await page.getByRole("link", { name: "Lizenzen", exact: true }).count(),
+      0,
+    );
+    const desktopNavigation = page.getByRole("navigation", {
+      name: "Hauptnavigation",
+      exact: true,
+    });
+    await desktopNavigation
+      .getByRole("link", { name: "Entwicklung", exact: true })
+      .click();
+    await expect(
+      desktopNavigation.getByRole("link", { name: "Entwicklung", exact: true }),
+    ).toHaveAttribute("aria-current", "location");
+    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+
     assert.match(
       await page.locator("main").innerText(),
       /Eine installierbare Version gibt es noch nicht/,
@@ -108,7 +130,13 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
       );
       await page.reload();
       if (theme === "dark" && process.env.QA_SCREENSHOT_DIR) {
-        await page.screenshot({ path: join(process.env.QA_SCREENSHOT_DIR, "xobject-design-system-dark.png"), fullPage: true });
+        await page.screenshot({
+          path: join(
+            process.env.QA_SCREENSHOT_DIR,
+            "xobject-design-system-dark.png",
+          ),
+          fullPage: true,
+        });
       }
       assert.equal(
         await page.getByRole("combobox", { name: "Darstellung" }).inputValue(),
@@ -153,6 +181,24 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
         ),
         fullPage: true,
       });
+    for (const width of [1024, 1023, 768]) {
+      await page.setViewportSize({ width, height: 1000 });
+      assert(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+        `tablet overflow at ${width}`,
+      );
+      for (const heading of await page.locator("h3").all())
+        assert(
+          await heading.evaluate(
+            (node) => node.scrollWidth <= node.clientWidth,
+          ),
+          `heading overflow at ${width}`,
+        );
+    }
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       assert.equal(
@@ -164,14 +210,61 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
         true,
         `overflow at ${width}px`,
       );
-      await page
+      const menu = page.locator("[data-mobile-navigation]");
+      const toggle = menu.locator("summary");
+      await expect(toggle).toBeVisible();
+      assert((await toggle.boundingBox()).height >= 44);
+      await toggle.click();
+      await expect(menu).toHaveJSProperty("open", true);
+      if (width === 390 && process.env.QA_SCREENSHOT_DIR)
+        await page.waitForFunction(
+          () =>
+            !document
+              .getAnimations()
+              .some((animation) => animation.playState === "running"),
+        );
+      await page.screenshot({
+        path: join(
+          process.env.QA_SCREENSHOT_DIR,
+          "xobject-itx-layout-mobile-menu.png",
+        ),
+      });
+      if (width === 390) {
+        const openMenu = await new AxeBuilder({ page })
+          .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+          .analyze();
+        assert.deepEqual(
+          openMenu.violations.map((v) => v.id),
+          [],
+        );
+      }
+      await page.keyboard.press("Escape");
+      await expect(menu).toHaveJSProperty("open", false);
+      await expect(toggle).toBeFocused();
+      await toggle.press("Enter");
+      await expect(menu).toHaveJSProperty("open", true);
+      await page.mouse.click(4, 400);
+      await expect(menu).toHaveJSProperty("open", false);
+      await toggle.click();
+      await menu
         .getByRole("link", { name: "Entwicklung", exact: true })
         .click();
+      await expect(menu).toHaveJSProperty("open", false);
+
       assert.equal(
         await page
           .getByRole("heading", { name: "Offen entwickelt. Von Anfang an." })
           .isVisible(),
         true,
+      );
+      const destination = page.getByRole("heading", {
+        name: "Offen entwickelt. Von Anfang an.",
+      });
+      await expect(destination).toBeInViewport();
+      assert(
+        (await destination.boundingBox()).y >=
+          (await page.locator(".site-header").boundingBox()).height,
+        "sticky header must not cover the destination",
       );
       const result = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -180,6 +273,8 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
         result.violations.map((v) => v.id),
         [],
       );
+      await page.getByRole("link", { name: "Nach oben", exact: true }).click();
+      await page.waitForFunction(() => window.scrollY < 2);
       if (width === 390 && process.env.QA_SCREENSHOT_DIR)
         await page.screenshot({
           path: join(
@@ -189,6 +284,11 @@ test("production homepage remains usable under CSP at desktop/mobile sizes", asy
           fullPage: true,
         });
     }
+    const menu = page.locator("[data-mobile-navigation]");
+    await menu.locator("summary").click();
+    await expect(menu).toHaveJSProperty("open", true);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await expect(menu).toHaveJSProperty("open", false);
     assert.deepEqual(failures, []);
   } finally {
     await browser.close();
