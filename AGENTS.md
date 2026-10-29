@@ -10,7 +10,7 @@ OpenProject is the source for operational tasks, priorities and dependencies. Th
 
 ## Current state and commands
 
-The repository contains a local backend technical spike in `apps/server`, with npm workspaces, a lockfile and a GitHub checks workflow. There is no web client, installation package or software release. The experiment is restricted to authenticated Administrators and scalar text fields; it does not satisfy the complete version-1 scope.
+The repository contains a local backend technical spike in `apps/server`, with npm workspaces, a lockfile and a GitHub checks workflow. A first React/Vite web client in `apps/web` uses shared contracts in `packages/contracts`. There is no installation package or software release. The experiment is restricted to authenticated Administrators and scalar text fields; it does not satisfy the complete version-1 scope.
 
 From the repository root, use `npm ci`, `npm run typecheck`, `npm run build` and `npm test`. Tests require Docker and start an isolated disposable PostgreSQL container. See `docs/development.md` for `npm run db:migrate`, `npm run admin:create` and `npm run dev`; never point experimental initialization at a production database. No lint command is established.
 
@@ -27,7 +27,8 @@ For documentation changes, check Markdown structure, relative links and section 
 - The backend experiment evaluates Fastify, Kysely/pg, Better Auth and the official MCP SDK; see ADR 0002 for scope and outstanding production decisions.
 - Definition labels use JSONB language maps, separate from stable technical names. Follow PRD section 3.3 and ADR 0003 for user/workspace language fallback and physical column order. Preserve existing records and historical journal values during migration; do not automatically rebuild tables solely for ordering. An explicitly authorized development-data rebuild is a separate maintenance operation.
 - Backend, API and MCP use TypeScript on Node.js in a modular monolith. Web uses React, TypeScript and Vite.
-- UI uses Tailwind CSS and shadcn/ui. Prefer standard components, existing variants and composition, with minimal custom CSS and centralized semantic tokens/CSS variables.
+- UI uses Tailwind CSS and shadcn/ui with Base UI (`base-nova`), Neutral and Lucide. The application shell follows official `sidebar-07`; record lists reference the Tasks example. Prefer standard components, existing variants and composition, with minimal custom CSS and centralized semantic tokens/CSS variables.
+- Keyboard actions are centralized in `apps/web/src/lib/keyboard.ts`, exposed through localized help and standard Kbd hints. Preserve native Base UI keyboard navigation, visible focus, focus return, browser shortcuts, input/IME handling and pending/validation guards.
 - UI, API and MCP use the same backend rules. Do not implement a capability exclusively in the UI or rely on UI checks for correctness or authorization.
 - Git stores application source and project documentation, not live business records. Self-hosting must not require a Git account or a user-owned repository.
 - Official self-hosting targets prebuilt images and Docker Compose on Linux. Concrete frameworks, versions, security mechanisms and operational commands remain design decisions until specified.

@@ -1,6 +1,6 @@
 # Roadmap
 
-xObject is in early development. A local backend technical spike exists; the web application and a software release are not available yet.
+xObject is in early development. A local backend and first web interface exist; a software release is not available yet.
 
 This roadmap summarizes product goals from the [Product Requirements Document](docs/PRD.md). Operational tasks, dependencies and priorities are managed in OpenProject; this file is a curated public overview, not a duplicate task list or a live implementation-status report. Goals will be reconciled with that planning as implementation is organized.
 
@@ -10,11 +10,17 @@ No delivery dates are committed. An item here is not evidence that its requireme
 
 - Static Astro project homepage, separate from the application, linking to the canonical requirements and roadmap. Full Starlight documentation and release/version navigation remain later work.
 
+## Delivered — Local Administrator prototype
+
+- PostgreSQL-backed local login, workspace/object/text-field creation, versioned record editing and atomic per-field journals through shared API/MCP rules.
+- React web interface with Dashboard, personal settings, workspace search, sortable paginated record lists, German/English labels and keyboard support.
+- This is a local text-field experiment; complete permissions, shared fields and version-1 acceptance remain open.
+
 ## In progress — Product definition and technical foundation
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
 - Resolve the technical foundation decisions needed for the first implementation slice: backend framework, data access, workspace isolation, authentication and controlled schema changes.
-- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The complete first slice below remains the delivery goal.
+- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The web interface now exercises workspace/object/text-field creation, record search/editing and journals. Complete shared fields and permissions remain necessary for the first slice below.
 
 ## Next — First end-to-end object slice
 
