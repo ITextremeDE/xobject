@@ -28,3 +28,5 @@ The spike API now accepts `labels` objects instead of scalar `label` input for n
 ## Verification
 
 Integration tests cover API/MCP parity, label fallback, preference changes, fixed Keyword labels, invalid language/label input, append-only physical column order, journal rollback and a legacy-schema upgrade preserving records, IDs and historical journal rows. The existing field-conflict and denied-access tests remain applicable.
+
+The optional standard-field decision in ADR 0006 supersedes the initial automatic shared-column baseline for new objects: new tables contain system metadata only, and optional standard fields are appended when installed. Existing physical column order is retained.

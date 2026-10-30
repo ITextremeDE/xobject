@@ -1,6 +1,8 @@
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
 import { getMigrations } from 'better-auth/db/migration';
+import { emptyClassification } from '@xobject/contracts';
+import { v7 } from 'uuid';
 import { authOptions } from './auth.js';
 
 // Dynamic definitions are validated at runtime, not represented as compile-time tables.
@@ -8,7 +10,7 @@ export type Database = Kysely<Record<string, never>>;
 export type Executor = Database | Transaction<Record<string, never>>;
 
 export function connect(connectionString: string) {
-  const pool = new Pool({ connectionString, max: 10, connectionTimeoutMillis: 5000 });
+  const pool = new Pool({ connectionString, max: 10, connectionTimeoutMillis: 5000, types: { getTypeParser: (oid: number, format?: 'text' | 'binary') => oid === 1082 && format !== 'binary' ? (value: string) => value : types.getTypeParser(oid, format) } });
   const db = new Kysely<Record<string, never>>({ dialect: new PostgresDialect({ pool }) });
   return { pool, db };
 }
@@ -23,13 +25,23 @@ export async function migrate(connectionString: string, secret: string, baseURL:
     await authMigration.runMigrations();
     await db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-      await sql`CREATE TABLE IF NOT EXISTS sys_administrators (
-        user_id text PRIMARY KEY REFERENCES sys_users(id)
-      )`.execute(tx);
+      await sql`ALTER TABLE sys_users ADD COLUMN IF NOT EXISTS is_admin boolean NOT NULL DEFAULT false`.execute(tx);
+      await sql`UPDATE sys_users SET is_admin = false WHERE is_admin IS NULL`.execute(tx);
+      await sql`ALTER TABLE sys_users ALTER COLUMN is_admin SET DEFAULT false, ALTER COLUMN is_admin SET NOT NULL`.execute(tx);
+      const legacyAdmins = await sql<{ name: string | null }>`SELECT to_regclass('sys_administrators')::text AS name`.execute(tx);
+      if (legacyAdmins.rows[0].name) {
+        await sql`UPDATE sys_users SET is_admin = true WHERE id IN (SELECT user_id FROM sys_administrators)`.execute(tx);
+        await sql`DROP TABLE sys_administrators`.execute(tx);
+      }
       await sql`CREATE TABLE IF NOT EXISTS sys_workspaces (
         id uuid PRIMARY KEY, code text NOT NULL UNIQUE,
         name text NOT NULL, created_by text NOT NULL REFERENCES sys_users(id),
         default_language text NOT NULL DEFAULT 'en' CHECK (default_language IN ('de', 'en'))
+      )`.execute(tx);
+      await sql`CREATE TABLE IF NOT EXISTS sys_workspace_members (
+        workspace_id uuid NOT NULL REFERENCES sys_workspaces(id),
+        user_id text NOT NULL REFERENCES sys_users(id), role text NOT NULL CHECK (role IN ('user', 'designer')),
+        PRIMARY KEY (workspace_id, user_id)
       )`.execute(tx);
       await sql`CREATE TABLE IF NOT EXISTS sys_object_types (
         id uuid PRIMARY KEY, workspace_id uuid NOT NULL REFERENCES sys_workspaces(id),
@@ -51,6 +63,23 @@ export async function migrate(connectionString: string, secret: string, baseURL:
         actor_id text NOT NULL REFERENCES sys_users(id),
         created_at timestamptz NOT NULL DEFAULT now()
       )`.execute(tx);
+      for (const table of ['sys_object_types', 'sys_fields']) {
+        await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN IF NOT EXISTS state text NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'inactive', 'deleted'))`.execute(tx);
+        await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN IF NOT EXISTS is_protected boolean NOT NULL DEFAULT false`.execute(tx);
+      }
+      await sql`ALTER TABLE sys_object_types DROP CONSTRAINT IF EXISTS sys_object_types_workspace_id_technical_name_key`.execute(tx);
+      await sql`ALTER TABLE sys_fields DROP CONSTRAINT IF EXISTS sys_fields_object_type_id_technical_name_key`.execute(tx);
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS sys_object_types_live_name_idx ON sys_object_types (workspace_id, technical_name) WHERE state <> 'deleted'`.execute(tx);
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS sys_fields_live_name_idx ON sys_fields (object_type_id, technical_name) WHERE state <> 'deleted'`.execute(tx);
+      const requiredColumn = await sql`SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'sys_fields' AND column_name = 'required'`.execute(tx);
+      await sql`ALTER TABLE sys_fields ADD COLUMN IF NOT EXISTS required boolean NOT NULL DEFAULT false`.execute(tx);
+      if (!requiredColumn.rows.length) await sql`UPDATE sys_fields SET required = true WHERE technical_name = 'keyword'`.execute(tx);
+      const legacyClassification = !(await sql`SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'sys_object_types' AND column_name = 'classification'`.execute(tx)).rows.length;
+      await sql`ALTER TABLE sys_object_types ADD COLUMN IF NOT EXISTS classification jsonb NOT NULL DEFAULT ${sql.lit(JSON.stringify(emptyClassification()))}::jsonb`.execute(tx);
+      await sql`ALTER TABLE sys_fields ADD COLUMN IF NOT EXISTS config jsonb NOT NULL DEFAULT '{}'::jsonb`.execute(tx);
+      await sql`CREATE TABLE IF NOT EXISTS sys_groups (id uuid PRIMARY KEY, workspace_id uuid NOT NULL REFERENCES sys_workspaces(id), name text NOT NULL, UNIQUE(workspace_id, name))`.execute(tx);
+      await sql`ALTER TABLE sys_fields DROP CONSTRAINT IF EXISTS sys_fields_kind_check`.execute(tx);
+      await sql`ALTER TABLE sys_fields ADD CONSTRAINT sys_fields_kind_check CHECK (kind IN ('text', 'multiline', 'integer', 'decimal', 'money', 'boolean', 'date', 'datetime', 'single_choice', 'multiple_choice', 'email', 'phone', 'url', 'reference', 'type', 'status', 'category'))`.execute(tx);
       await sql`CREATE INDEX IF NOT EXISTS sys_journal_entity_idx
         ON sys_journal (workspace_id, entity_id, created_at, id)`.execute(tx);
       // Upgrade the earlier local spike without guessing the language of existing labels.
@@ -64,7 +93,9 @@ export async function migrate(connectionString: string, secret: string, baseURL:
         }
       }
       await sql`UPDATE sys_fields SET labels = '{"de":"Stichwort","en":"Keyword"}'::jsonb
-        WHERE technical_name = 'keyword' AND labels = '{"und":"Keyword"}'::jsonb`.execute(tx);
+        WHERE state <> 'deleted' AND technical_name = 'keyword' AND labels = '{"und":"Keyword"}'::jsonb`.execute(tx);
+      const objectTables = (await sql<{ id: string; table_name: string }>`SELECT o.id, w.code || '_' || o.technical_name AS table_name FROM sys_object_types o JOIN sys_workspaces w ON w.id = o.workspace_id`.execute(tx)).rows;
+      if (legacyClassification) for (const type of objectTables) await addClassificationFields(tx, type.id, type.table_name);
       await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS default_language text NOT NULL DEFAULT 'en'`.execute(tx);
       await sql`ALTER TABLE sys_journal ALTER COLUMN workspace_id DROP NOT NULL`.execute(tx);
       const languageCheck = await sql`SELECT 1 FROM pg_constraint
@@ -83,5 +114,19 @@ export async function migrate(connectionString: string, secret: string, baseURL:
   } finally {
     try { await lock.query("SELECT pg_advisory_unlock(hashtext('xobject:migrations'))"); }
     finally { lock.release(); await db.destroy(); }
+  }
+}
+
+
+export async function addClassificationFields(tx: Executor, objectTypeId: string, table: string, names = ['type', 'status', 'category']) {
+  const fields = [
+    { name: 'type', labels: { de: 'Typ', en: 'Type' }, storage: sql`uuid` },
+    { name: 'status', labels: { de: 'Status', en: 'Status' }, storage: sql`uuid` },
+    { name: 'category', labels: { de: 'Kategorie', en: 'Category' }, storage: sql`uuid[] NOT NULL DEFAULT '{}'::uuid[]` },
+  ];
+  for (const field of fields.filter(field => names.includes(field.name))) {
+    await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN IF NOT EXISTS ${sql.ref(field.name)} ${field.storage}`.execute(tx);
+    await sql`INSERT INTO sys_fields (id, object_type_id, technical_name, labels, kind)
+      VALUES (${v7()}::uuid, ${objectTypeId}::uuid, ${field.name}, ${JSON.stringify(field.labels)}::jsonb, ${field.name}) ON CONFLICT (object_type_id, technical_name) WHERE state <> 'deleted' DO UPDATE SET labels = EXCLUDED.labels, kind = EXCLUDED.kind`.execute(tx);
   }
 }

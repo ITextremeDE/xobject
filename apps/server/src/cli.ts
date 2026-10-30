@@ -17,7 +17,7 @@ switch (process.argv[2]) {
       if (!email || !password || !name) throw new Error('ADMIN_EMAIL, ADMIN_PASSWORD and ADMIN_NAME are required');
       const auth = createAuth(pool, config.authSecret, config.baseURL, true);
       const result = await auth.api.signUpEmail({ body: { email, password, name } });
-      await sql`INSERT INTO sys_administrators (user_id) VALUES (${result.user.id})`.execute(db);
+      await sql`UPDATE sys_users SET is_admin = true WHERE id = ${result.user.id}`.execute(db);
       console.log('Administrator created.');
     } finally { await db.destroy(); }
     break;
