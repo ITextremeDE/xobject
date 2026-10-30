@@ -36,7 +36,7 @@ export function installKeyboardShortcuts() {
     if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"]')) return;
     // Search must not steal focus from a menu, dialog or record panel.
     if (Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')).some(element => element.getClientRects().length && !element.hasAttribute('data-ending-style') && !element.hasAttribute('data-closed'))) return;
-    const search = document.getElementById('record-search');
+    const search = Array.from(document.querySelectorAll<HTMLInputElement>('[data-record-search]')).find(input => !input.disabled && input.getClientRects().length);
     if (search instanceof HTMLInputElement && !search.disabled) {
       event.preventDefault(); search.focus(); search.select();
     }

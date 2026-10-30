@@ -1,4 +1,9 @@
+import { listWorkspaceRecords, workspaceDashboard } from './dashboard.js';
+import { managedUsers, createUser, configureUser } from './user-management.js';
+import { configureWorkspaceLanguages, workspaceGroups, configureGroup, createWorkspaceGroup, validateDefinitionLanguages } from './workspace-configuration.js';
+import { normalizePersonalRegional, defaultRegionalSettings, type RegionalSettings, type PersonalRegionalSettings, installedTimeZones, languageCatalog, effectiveWorkspaceLanguage, type Language } from '@xobject/contracts';
 import { sql } from 'kysely';
+import { AccountSecurityService, isAccountSecurityOperation } from './account-security.js';
 import { v7 } from 'uuid';
 import type { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
@@ -7,12 +12,12 @@ import { AppError } from './errors.js';
 export { AppError } from './errors.js';
 import { addClassificationFields } from './database.js';
 import { resolveChoices, validateChoices, validateRules, type Choices } from './classification.js';
-import { schemas, hasReservedStandardFieldLabel, isReservedStandardFieldName, isCustomFieldKind, type FieldConfig, type FieldValue, type ClassificationConfig, type Operation } from '@xobject/contracts';
+import { schemas, hasReservedStandardFieldLabel, isReservedStandardFieldName, isCustomFieldKind, type FieldConfig, type FieldValue, type ClassificationConfig, type WorkspaceAppearance, type Operation } from '@xobject/contracts';
 export { schemas, type Operation } from '@xobject/contracts';
 import type { Database, Executor } from './database.js';
 
 type Labels = Record<string, string>;
-type ObjectType = { id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string; classification: ClassificationConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
+type ObjectType = { id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string; available_languages: Language[]; classification: ClassificationConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type Field = { id: string; technical_name: string; labels: Labels; kind: string; required: boolean; config: FieldConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type DataRecord = Record<string, unknown> & { id: string; version: number; keyword: string };
 const reserved = new Set(['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category', 'business_number', 'access_principals', 'tableoid', 'xmin', 'xmax', 'cmin', 'cmax', 'ctid']);
@@ -33,9 +38,10 @@ export function localizedLabel(labels: Labels, userLanguage: string | null, work
 
 /** Every entry point resolves a real session and calls this shared application layer. */
 export class Application {
+  private accountSecurity = new AccountSecurityService();
   constructor(private db: Database) {}
 
-  async execute(operation: Operation, input: unknown, userId: string): Promise<unknown> {
+  async execute(operation: Operation, input: unknown, userId: string, context?: { sessionId: string }): Promise<unknown> {
     const parsed = schemas[operation].parse(input);
     try {
       return await this.db.transaction().execute(async (tx) => {
@@ -43,38 +49,69 @@ export class Application {
         // This is a spike trade-off, not a scalability claim.
         await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
         const access = await this.authorize(tx, operation, parsed as Record<string, unknown>, userId);
+        if (isAccountSecurityOperation(operation)) return this.accountSecurity.execute(tx, operation, parsed, userId, context?.sessionId, (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
+        await validateDefinitionLanguages(tx, operation, parsed as Record<string, unknown>);
+        const configJournal = (kind: string, id: string, change: string, key: string, before: unknown, after: unknown) => this.journal(tx, userId, (parsed as { workspaceId: string }).workspaceId, null, kind, id, change, key, before, after);
         switch (operation) {
+          case 'get_language_catalog': return languageCatalog;
+          case 'get_time_zone_catalog': return installedTimeZones();
+          case 'configure_user_localization': {
+            const args = schemas.configure_user_localization.parse(parsed);
+            const before = (await sql<{ language: Language | null; time_zone: string | null; regional_preferences: PersonalRegionalSettings | null }>`SELECT language, time_zone, regional_preferences FROM sys_users WHERE id = ${userId} FOR UPDATE`.execute(tx)).rows[0];
+            if (before.language !== args.expectedLanguage || before.time_zone !== args.expectedTimeZone || (args.regional !== undefined && !isDeepStrictEqual(before.regional_preferences, normalizePersonalRegional(args.expectedRegional)))) throw new AppError(409, 'User localization version conflict');
+            const next = { language: args.language, time_zone: args.timeZone, regional_preferences: args.regional === undefined ? before.regional_preferences : normalizePersonalRegional(args.regional) };
+            const keys = (Object.keys(next) as (keyof typeof next)[]).filter(key => !isDeepStrictEqual(before[key], next[key]));
+            if (keys.length) {
+              await sql`UPDATE sys_users SET language = ${next.language}, time_zone = ${next.time_zone}, regional_preferences = ${JSON.stringify(next.regional_preferences)}::jsonb, updated_at = now() WHERE id = ${userId}`.execute(tx);
+              const change = v7();
+              for (const key of keys) {
+                if (key === 'regional_preferences') { for (const property of Object.keys({ ...before.regional_preferences, ...next.regional_preferences }) as (keyof RegionalSettings)[]) if ((before.regional_preferences?.[property] ?? null) !== (next.regional_preferences?.[property] ?? null)) await this.journal(tx, userId, null, null, 'user', userId, change, `regional.${property}`, before.regional_preferences?.[property] ?? null, next.regional_preferences?.[property] ?? null); }
+                else await this.journal(tx, userId, null, null, 'user', userId, change, key, before[key], next[key]);
+              }
+            }
+            return { language: next.language, timeZone: next.time_zone, regional: next.regional_preferences };
+          }
+          case 'configure_workspace_languages': return configureWorkspaceLanguages(tx, schemas.configure_workspace_languages.parse(parsed), configJournal);
+          case 'list_groups': return workspaceGroups(tx, schemas.list_groups.parse(parsed).workspaceId);
+          case 'configure_group': return configureGroup(tx, schemas.configure_group.parse(parsed), configJournal);
+          case 'set_group_members': return configureGroup(tx, schemas.set_group_members.parse(parsed), configJournal);
+          case 'set_group_active': return configureGroup(tx, schemas.set_group_active.parse(parsed), configJournal);
           case 'set_definition_state': return this.setDefinitionState(tx, schemas.set_definition_state.parse(parsed), userId);
           case 'get_definition_journal': { const args = schemas.get_definition_journal.parse(parsed); const type = await this.objectType(tx, args.objectTypeId, true); return (await sql`SELECT id, change_id, field_id, field_key, old_value, new_value, actor_id, created_at FROM sys_journal WHERE object_type_id = ${type.id}::uuid AND entity_kind <> 'record' ORDER BY created_at, id`.execute(tx)).rows; }
           case 'get_access_context': return { isAdmin: access.isAdmin };
+          case 'list_managed_users': return managedUsers(tx);
+          case 'create_user': return createUser(tx, schemas.create_user.parse(parsed), (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
+          case 'configure_user': return configureUser(tx, schemas.configure_user.parse(parsed), userId, (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
+          case 'list_system_journal': {
+            const args = schemas.list_system_journal.parse(parsed);
+            const filter = sql`${args.workspaceId ? sql`j.workspace_id = ${args.workspaceId}::uuid` : sql`true`} AND position(lower(${args.fieldKey}) in lower(j.field_key)) > 0 AND (${args.entityKind} = '' OR j.entity_kind = ${args.entityKind})`;
+            const total = (await sql<{ total: number }>`SELECT count(*)::integer AS total FROM sys_journal j WHERE ${filter}`.execute(tx)).rows[0].total;
+            const entries = (await sql`SELECT j.*, a.name AS actor_name, w.name AS workspace_name, COALESCE(u.name, g.name, CASE WHEN j.entity_kind IN ('workspace', 'workspace_member') THEN w.name END, o.labels->>'en', o.labels->>'de', f.labels->>'en', f.labels->>'de') AS entity_name FROM sys_journal j LEFT JOIN sys_users a ON a.id = j.actor_id LEFT JOIN sys_workspaces w ON w.id = j.workspace_id LEFT JOIN sys_users u ON j.entity_kind IN ('user', 'account_security') AND u.id = j.entity_id::text LEFT JOIN sys_groups g ON j.entity_kind = 'group' AND g.id = j.entity_id LEFT JOIN sys_object_types o ON j.entity_kind = 'object_type' AND o.id = j.entity_id LEFT JOIN sys_fields f ON j.entity_kind IN ('field', 'classification_field') AND f.id = j.entity_id WHERE ${filter} ORDER BY j.created_at DESC, j.id DESC LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
+            return { entries, total, limit: args.limit, offset: args.offset };
+          }
           case 'list_users': return (await sql`SELECT id, name, email, is_admin AS "isAdmin" FROM sys_users ORDER BY name, id`.execute(tx)).rows;
           case 'list_workspace_members': { const args = schemas.list_workspace_members.parse(parsed); if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404, 'Workspace not found'); return (await sql`SELECT u.id, u.name, u.email, CASE WHEN u.is_admin THEN 'administrator' ELSE m.role END AS role FROM sys_users u LEFT JOIN sys_workspace_members m ON m.user_id = u.id AND m.workspace_id = ${args.workspaceId}::uuid WHERE u.is_admin OR m.user_id IS NOT NULL ORDER BY u.name, u.id`.execute(tx)).rows; }
           case 'set_workspace_member': return this.setWorkspaceMember(tx, schemas.set_workspace_member.parse(parsed), userId);
           case 'create_workspace': return this.createWorkspace(tx, schemas.create_workspace.parse(parsed), userId);
-          case 'create_group': {
-            const args = schemas.create_group.parse(parsed);
-            if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404, 'Workspace not found');
-            const id = v7();
-            await sql`INSERT INTO sys_groups (id, workspace_id, name) VALUES (${id}::uuid, ${args.workspaceId}::uuid, ${args.name})`.execute(tx);
-            await this.journal(tx, userId, args.workspaceId, null, 'group', id, v7(), 'name', null, args.name);
-            return { id };
-          }
+          case 'create_group': return createWorkspaceGroup(tx, schemas.create_group.parse(parsed), configJournal);
           case 'list_field_principals': {
             const args = schemas.list_field_principals.parse(parsed);
             if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404, 'Workspace not found');
-            return (await sql`SELECT id, name, 'user' AS kind FROM sys_users WHERE ${access.isAdmin} OR is_admin OR id IN (SELECT user_id FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid) UNION ALL SELECT id::text, name, 'group' AS kind FROM sys_groups WHERE workspace_id = ${args.workspaceId}::uuid ORDER BY name, id`.execute(tx)).rows;
+            return (await sql`SELECT id, name, 'user' AS kind, true AS active FROM sys_users WHERE ${access.isAdmin} OR is_admin OR id IN (SELECT user_id FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid) UNION ALL SELECT id::text, name, 'group' AS kind, active FROM sys_groups WHERE workspace_id = ${args.workspaceId}::uuid ORDER BY name, id`.execute(tx)).rows;
           }
-          case 'list_workspaces': return (await sql`SELECT w.id, w.code, w.name, w.default_language, CASE WHEN ${access.isAdmin} THEN 'administrator' ELSE m.role END AS role FROM sys_workspaces w LEFT JOIN sys_workspace_members m ON m.workspace_id = w.id AND m.user_id = ${userId} WHERE ${access.isAdmin} OR m.user_id IS NOT NULL ORDER BY w.code`.execute(tx)).rows;
+          case 'list_workspaces': return (await sql`SELECT w.id, w.code, w.name, w.default_language, w.available_languages, w.label_languages, w.language_version, w.time_zone, w.regional, w.created_by, u.name AS created_by_name, w.created_at, w.appearance, w.appearance_version, CASE WHEN ${access.isAdmin} THEN 'administrator' ELSE m.role END AS role FROM sys_workspaces w JOIN sys_users u ON u.id = w.created_by LEFT JOIN sys_workspace_members m ON m.workspace_id = w.id AND m.user_id = ${userId} WHERE ${access.isAdmin} OR m.user_id IS NOT NULL ORDER BY w.code`.execute(tx)).rows;
           case 'list_object_types': {
             const args = schemas.list_object_types.parse(parsed);
-            const workspace = (await sql<{ default_language: string }>`SELECT default_language FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
+            const workspace = (await sql<{ default_language: Language; available_languages: Language[] }>`SELECT default_language, available_languages FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
             if (!workspace) throw new AppError(404, 'Workspace not found');
             const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
             const types = (await sql<{ id: string; technical_name: string; labels: Labels; state: string; is_protected: boolean }>`SELECT id, technical_name, labels, state, is_protected FROM sys_object_types WHERE workspace_id = ${args.workspaceId}::uuid AND (state = 'active' OR (${args.includeInactive} AND state = 'inactive') OR (${args.includeDeleted} AND state = 'deleted')) ORDER BY technical_name`.execute(tx)).rows;
             return types.map(type => ({ id: type.id, state: type.state, isProtected: type.is_protected, technicalName: type.technical_name, labels: type.labels,
-              label: localizedLabel(type.labels, user.language, workspace.default_language) }));
+              label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, workspace.available_languages, workspace.default_language), workspace.default_language) }));
           }
           case 'search_workspace': return this.searchWorkspace(tx, schemas.search_workspace.parse(parsed), userId);
+          case 'get_workspace_dashboard': return workspaceDashboard(tx, schemas.get_workspace_dashboard.parse(parsed), userId);
+          case 'list_workspace_records': return listWorkspaceRecords(tx, schemas.list_workspace_records.parse(parsed), userId);
           case 'list_records': {
             const args = schemas.list_records.parse(parsed);
             const type = await this.objectType(tx, args.objectTypeId);
@@ -87,7 +124,7 @@ export class Application {
             if (['type', 'status', 'category'].includes(args.sortBy)) {
               const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
               const options = type.classification.options.filter(option => option.kind === args.sortBy);
-              const cases = options.map(option => sql`WHEN ${option.id}::uuid THEN ${localizedLabel(option.labels, user.language, type.default_language)}`);
+              const cases = options.map(option => sql`WHEN ${option.id}::uuid THEN ${localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language)}`);
               sortExpression = !cases.length ? sql`NULL::text` : args.sortBy === 'category'
                 ? sql`(SELECT string_agg(label, ', ' ORDER BY label) FROM (SELECT CASE selection.id ${sql.join(cases, sql` `)} ELSE NULL END AS label FROM unnest(category) AS selection(id)) AS names)`
                 : sql`CASE ${sql.ref(args.sortBy)} ${sql.join(cases, sql` `)} ELSE NULL END`;
@@ -97,7 +134,7 @@ export class Application {
             if (sortedField?.kind === 'money') sortExpression = sql`CASE WHEN ${sql.ref(args.sortBy)} IS NULL THEN NULL ELSE ROW(${sql.ref(args.sortBy)}->>'currency', (${sql.ref(args.sortBy)}->>'amount')::numeric) END`;
             if (sortedField && ['single_choice', 'multiple_choice'].includes(sortedField.kind)) {
               const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
-              const cases = (sortedField.config.options ?? []).map(option => sql`WHEN ${option.id}::uuid THEN ${localizedLabel(option.labels, user.language, type.default_language)}`);
+              const cases = (sortedField.config.options ?? []).map(option => sql`WHEN ${option.id}::uuid THEN ${localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language)}`);
               sortExpression = !cases.length ? sql`NULL::text` : sortedField.kind === 'multiple_choice'
                 ? sql`(SELECT string_agg(label, ', ' ORDER BY label) FROM (SELECT CASE selection.id ${sql.join(cases, sql` `)} ELSE NULL END AS label FROM unnest(${sql.ref(args.sortBy)}) AS selection(id)) AS names)`
                 : sql`CASE ${sql.ref(args.sortBy)} ${sql.join(cases, sql` `)} ELSE NULL END`;
@@ -118,7 +155,17 @@ export class Application {
           case 'set_field_required': return this.setFieldRequired(tx, schemas.set_field_required.parse(parsed), userId);
           case 'set_labels': return this.setLabels(tx, schemas.set_labels.parse(parsed), userId);
           case 'set_workspace_name': return this.setWorkspaceName(tx, schemas.set_workspace_name.parse(parsed), userId);
+          case 'set_workspace_appearance': return this.setWorkspaceAppearance(tx, schemas.set_workspace_appearance.parse(parsed), userId);
           case 'set_workspace_language': return this.setWorkspaceLanguage(tx, schemas.set_workspace_language.parse(parsed), userId);
+          case 'set_user_profile': {
+            const args = schemas.set_user_profile.parse(parsed);
+            const previous = (await sql<{ name: string }>`SELECT name FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
+            if (previous.name !== args.name) {
+              await sql`UPDATE sys_users SET name = ${args.name}, management_version = management_version + 1, updated_at = now() WHERE id = ${userId}`.execute(tx);
+              await this.journal(tx, userId, null, null, 'user', userId, v7(), 'name', previous.name, args.name);
+            }
+            return { name: args.name };
+          }
           case 'set_user_language': return this.setUserLanguage(tx, schemas.set_user_language.parse(parsed).language, userId);
           case 'configure_classification': return this.configureClassification(tx, schemas.configure_classification.parse(parsed), userId);
           case 'create_record': return this.createRecord(tx, schemas.create_record.parse(parsed), userId);
@@ -144,12 +191,15 @@ export class Application {
   }
 
   private async authorize(tx: Executor, operation: Operation, args: Record<string, unknown>, actor: string) {
-    const user = (await sql<{ is_admin: boolean }>`SELECT is_admin FROM sys_users WHERE id = ${actor}`.execute(tx)).rows[0];
-    if (!user) throw new AppError(403, 'Access denied');
+    const user = (await sql<{ is_admin: boolean; active: boolean; must_change_password: boolean }>`SELECT is_admin, active, must_change_password FROM sys_users WHERE id = ${actor}`.execute(tx)).rows[0];
+    if (!user || !user.active) throw new AppError(403, 'Access denied');
+    if (user.must_change_password && !['get_account_security', 'change_password'].includes(operation)) throw new AppError(403, 'Password change required');
+    if (isAccountSecurityOperation(operation)) return { isAdmin: user.is_admin };
     if (user.is_admin) return { isAdmin: true };
-    if (['get_access_context', 'list_workspaces', 'set_user_language'].includes(operation)) return { isAdmin: false };
+    if (['create_group', 'configure_group'].includes(operation) && Object.hasOwn(args, 'memberIds')) throw new AppError(403, 'Only Administrators manage group memberships');
+    if (['get_time_zone_catalog', 'configure_user_localization', 'get_language_catalog', 'get_access_context', 'list_workspaces', 'set_user_language', 'set_user_profile'].includes(operation)) return { isAdmin: false };
     // Workspace roles do not grant content access; that awaits object/record/field permissions.
-    if (['create_workspace', 'list_users', 'set_workspace_member', 'search_workspace', 'list_records', 'get_record', 'get_journal', 'create_record', 'update_record'].includes(operation)) throw new AppError(403, 'Access denied');
+    if (['get_workspace_dashboard', 'list_workspace_records', 'list_managed_users', 'create_user', 'configure_user', 'list_system_journal', 'set_group_members', 'set_group_active', 'create_workspace', 'list_users', 'set_workspace_member', 'search_workspace', 'list_records', 'get_record', 'get_journal', 'create_record', 'update_record'].includes(operation)) throw new AppError(403, 'Access denied');
     let workspaceId: string | undefined;
     if (typeof args.workspaceId === 'string') workspaceId = args.workspaceId;
     else if (typeof args.objectTypeId === 'string') workspaceId = (await sql<{ workspace_id: string }>`SELECT workspace_id FROM sys_object_types WHERE id = ${args.objectTypeId}::uuid`.execute(tx)).rows[0]?.workspace_id;
@@ -160,8 +210,8 @@ export class Application {
     if (!workspaceId) throw new AppError(403, 'Access denied');
     const member = (await sql<{ role: string }>`SELECT role FROM sys_workspace_members WHERE workspace_id = ${workspaceId}::uuid AND user_id = ${actor}`.execute(tx)).rows[0];
     if (!member) throw new AppError(403, 'Access denied');
-    const reads: Operation[] = ['list_object_types', 'get_object_type', 'list_workspace_members', 'list_field_principals', 'get_definition_journal'];
-    const configuration: Operation[] = ['set_workspace_name', 'set_workspace_language', 'create_object_type', 'create_field', 'add_standard_field', 'configure_field', 'set_field_required', 'set_labels', 'configure_classification', 'create_group', 'set_definition_state'];
+    const reads: Operation[] = ['list_groups', 'list_object_types', 'get_object_type', 'list_workspace_members', 'list_field_principals', 'get_definition_journal'];
+    const configuration: Operation[] = ['configure_group', 'configure_workspace_languages', 'set_workspace_appearance', 'set_workspace_name', 'set_workspace_language', 'create_object_type', 'create_field', 'add_standard_field', 'configure_field', 'set_field_required', 'set_labels', 'configure_classification', 'create_group', 'set_definition_state'];
     if (!reads.includes(operation) && !(member.role === 'designer' && configuration.includes(operation))) throw new AppError(403, 'Access denied');
     return { isAdmin: false };
   }
@@ -174,9 +224,18 @@ export class Application {
     const previous = (await sql<{ role: 'user' | 'designer' }>`SELECT role FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid AND user_id = ${args.userId}`.execute(tx)).rows[0]?.role ?? null;
     if (previous !== args.expectedRole) throw new AppError(409, 'Membership version conflict');
     if (previous !== args.role) {
-      if (args.role === null) await sql`DELETE FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid AND user_id = ${args.userId}`.execute(tx);
+      const change = v7();
+      if (args.role === null) {
+        const groups = (await sql<{ id: string }>`SELECT g.id FROM sys_groups g JOIN sys_group_members m ON m.group_id = g.id WHERE g.workspace_id = ${args.workspaceId}::uuid AND m.user_id = ${args.userId}`.execute(tx)).rows;
+        for (const group of groups) {
+          await sql`DELETE FROM sys_group_members WHERE group_id = ${group.id}::uuid AND user_id = ${args.userId}`.execute(tx);
+          await sql`UPDATE sys_groups SET version = version + 1 WHERE id = ${group.id}::uuid`.execute(tx);
+          await this.journal(tx, actor, args.workspaceId, null, 'group', group.id, change, `member:${args.userId}`, true, false);
+        }
+        await sql`DELETE FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid AND user_id = ${args.userId}`.execute(tx);
+      }
       else await sql`INSERT INTO sys_workspace_members (workspace_id, user_id, role) VALUES (${args.workspaceId}::uuid, ${args.userId}, ${args.role}) ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role`.execute(tx);
-      await this.journal(tx, actor, args.workspaceId, null, 'workspace_member', args.workspaceId, v7(), `member:${args.userId}`, previous, args.role);
+      await this.journal(tx, actor, args.workspaceId, null, 'workspace_member', args.workspaceId, change, `member:${args.userId}`, previous, args.role);
     }
     return { workspaceId: args.workspaceId, userId: args.userId, role: args.role };
   }
@@ -214,7 +273,7 @@ export class Application {
       const record = this.outputRecord(raw, fields);
       for (const field of fields.filter(field => field.state === 'active' && isCustomFieldKind(field.kind))) {
         const value = normalizeFieldValue(field, record[field.technical_name], record[field.technical_name]);
-        await validateReferences(tx, field, value, type.workspace_id);
+        await validateReferences(tx, field, value, type.workspace_id, record[field.technical_name]);
       }
       const choices: Choices = { type: record.type as string | null, status: record.status as string | null, category: record.category as string[] };
       validateChoices(this.effectiveClassification(type.classification, fields), choices, choices);
@@ -267,11 +326,11 @@ export class Application {
   }
 
   private async searchWorkspace(tx: Executor, args: z.infer<typeof schemas.search_workspace>, userId: string) {
-    const workspace = (await sql<{ code: string; default_language: string }>`SELECT code, default_language FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
+    const workspace = (await sql<{ code: string; default_language: Language; available_languages: Language[] }>`SELECT code, default_language, available_languages FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
     if (!workspace) throw new AppError(404, 'Workspace not found');
     const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
     const types = (await sql<{ id: string; technical_name: string; labels: Labels; has_keyword: boolean }>`SELECT o.id, o.technical_name, o.labels, EXISTS (SELECT 1 FROM sys_fields f WHERE f.object_type_id = o.id AND f.technical_name = 'keyword' AND f.state = 'active') AS has_keyword FROM sys_object_types o WHERE workspace_id = ${args.workspaceId}::uuid AND o.state = 'active' ORDER BY technical_name`.execute(tx)).rows;
-    const summaries = types.map(type => ({ id: type.id, technicalName: type.technical_name, labels: type.labels, label: localizedLabel(type.labels, user.language, workspace.default_language) }));
+    const summaries = types.map(type => ({ id: type.id, technicalName: type.technical_name, labels: type.labels, label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, workspace.available_languages, workspace.default_language), workspace.default_language) }));
     const needle = args.query.toLowerCase();
     const matches = summaries.filter(type => type.label.toLowerCase().includes(needle) || type.technicalName.includes(needle));
     // Search only this workspace's metadata-derived tables; user text is always a SQL value.
@@ -286,7 +345,7 @@ export class Application {
   }
 
   private async objectType(tx: Executor, id: string, includeDeleted = false) {
-    const result = await sql<ObjectType>`SELECT o.*, w.code, w.default_language FROM sys_object_types o
+    const result = await sql<ObjectType>`SELECT o.*, w.code, w.default_language, w.available_languages FROM sys_object_types o
       JOIN sys_workspaces w ON w.id = o.workspace_id WHERE o.id = ${id}::uuid`.execute(tx);
     if (!result.rows[0] || (!includeDeleted && result.rows[0].state === 'deleted')) throw new AppError(404, 'Object type not found');
     return result.rows[0];
@@ -316,12 +375,14 @@ export class Application {
   private async createWorkspace(tx: Executor, args: z.infer<typeof schemas.create_workspace>, actor: string) {
     if (args.code === 'sys') throw new AppError(400, 'Reserved workspace code');
     const id = v7();
-    await sql`INSERT INTO sys_workspaces (id, code, name, created_by, default_language)
-      VALUES (${id}::uuid, ${args.code}, ${args.name}, ${actor}, ${args.defaultLanguage})`.execute(tx);
+    await sql`INSERT INTO sys_workspaces (id, code, name, created_by, default_language, time_zone, regional)
+      VALUES (${id}::uuid, ${args.code}, ${args.name}, ${actor}, ${args.defaultLanguage}, ${args.timeZone}, ${JSON.stringify(args.regional ?? { ...defaultRegionalSettings, locale: args.defaultLanguage === 'de' ? 'de-DE' : 'en-US' })}::jsonb)`.execute(tx);
     const change = v7();
-    for (const [key, value] of Object.entries({ name: args.name, code: args.code, default_language: args.defaultLanguage })) {
+    for (const [key, value] of Object.entries({ name: args.name, code: args.code, default_language: args.defaultLanguage, time_zone: args.timeZone })) {
       await this.journal(tx, actor, id, null, 'workspace', id, change, key, null, value);
     }
+    const regional = args.regional ?? { ...defaultRegionalSettings, locale: args.defaultLanguage === 'de' ? 'de-DE' : 'en-US' };
+    for (const [key, value] of Object.entries(regional)) await this.journal(tx, actor, id, null, 'workspace', id, change, `regional.${key}`, null, value);
     return { id, ...args };
   }
 
@@ -403,12 +464,12 @@ export class Application {
     const used = type.state !== 'deleted' && type.classification.options.some(option => option.kind !== 'category') ? await this.usedClassificationIds(tx, type, fields) : new Set<string>();
     return {
       id: type.id, state: type.state, isProtected: type.is_protected || fields.some(field => field.state !== 'deleted' && field.is_protected), canDelete: type.state !== 'deleted' && !type.is_protected && !fields.some(field => field.state !== 'deleted' && field.is_protected) && !(await this.objectUsed(tx, type)), workspaceId: type.workspace_id, technicalName: type.technical_name,
-      classification: { ...type.classification, options: type.classification.options.map(option => ({ ...option, label: localizedLabel(option.labels, user.language, type.default_language), canDelete: option.kind !== 'category' && !used.has(option.id) })) },
-      labels: type.labels, label: localizedLabel(type.labels, user.language, type.default_language),
+      classification: { ...type.classification, options: type.classification.options.map(option => ({ ...option, label: localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language), canDelete: option.kind !== 'category' && !used.has(option.id) })) },
+      labels: type.labels, label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language),
       fields: await Promise.all(fields.filter(f => f.state !== 'deleted').map(async f => ({ id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, isProtected: f.is_protected || fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected),
         canDelete: !fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected) && !(await this.fieldGroupUsed(tx, type, fields.filter(item => item.state !== 'deleted' && this.sameFieldGroup(f, item)))),
-        required: isCustomFieldKind(f.kind) ? f.required : type.classification[f.kind as 'type' | 'status' | 'category'].required, labels: f.labels, label: localizedLabel(f.labels, user.language, type.default_language) }))),
-      historicalFields: fields.filter(f => f.state === 'deleted').map(f => ({ id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, required: f.required, labels: f.labels, label: localizedLabel(f.labels, user.language, type.default_language) })),
+        required: isCustomFieldKind(f.kind) ? f.required : type.classification[f.kind as 'type' | 'status' | 'category'].required, labels: f.labels, label: localizedLabel(f.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language) }))),
+      historicalFields: fields.filter(f => f.state === 'deleted').map(f => ({ id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, required: f.required, labels: f.labels, label: localizedLabel(f.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language) })),
       columns: columns.map(c => c.column_name),
     };
   }
@@ -463,13 +524,25 @@ export class Application {
     return { workspaceId: args.workspaceId, name: args.name };
   }
 
-  private async setWorkspaceLanguage(tx: Executor, args: z.infer<typeof schemas.set_workspace_language>, actor: string) {
-    const workspace = (await sql<{ default_language: string }>`SELECT default_language FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
-    if (!workspace) throw new AppError(404, 'Workspace not found');
-    if (workspace.default_language !== args.language) {
-      await sql`UPDATE sys_workspaces SET default_language = ${args.language} WHERE id = ${args.workspaceId}::uuid`.execute(tx);
-      await this.journal(tx, actor, args.workspaceId, null, 'workspace', args.workspaceId, v7(), 'default_language', workspace.default_language, args.language);
+  private async setWorkspaceAppearance(tx: Executor, args: z.infer<typeof schemas.set_workspace_appearance>, actor: string) {
+    const previous = (await sql<{ appearance: WorkspaceAppearance; appearance_version: number }>`SELECT appearance, appearance_version FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid FOR UPDATE`.execute(tx)).rows[0];
+    if (!previous) throw new AppError(404, 'Workspace not found');
+    if (previous.appearance_version !== args.version) throw new AppError(409, 'Workspace appearance version conflict');
+    const changed = (Object.keys(args.appearance) as (keyof WorkspaceAppearance)[]).filter(key => !isDeepStrictEqual(previous.appearance[key], args.appearance[key]));
+    const version = previous.appearance_version + (changed.length ? 1 : 0);
+    if (changed.length) {
+      await sql`UPDATE sys_workspaces SET appearance = ${JSON.stringify(args.appearance)}::jsonb, appearance_version = ${version} WHERE id = ${args.workspaceId}::uuid`.execute(tx);
+      const change = v7();
+      for (const key of changed) await this.journal(tx, actor, args.workspaceId, null, 'workspace', args.workspaceId, change, `appearance.${key}`, previous.appearance[key], args.appearance[key]);
     }
+    return { workspaceId: args.workspaceId, appearance: args.appearance, version };
+  }
+
+  private async setWorkspaceLanguage(tx: Executor, args: z.infer<typeof schemas.set_workspace_language>, actor: string) {
+    const workspace = (await sql<{ available_languages: Language[]; label_languages: Language[]; language_version: number }>`SELECT available_languages, label_languages, language_version FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
+    if (!workspace) throw new AppError(404, 'Workspace not found');
+    const input = schemas.configure_workspace_languages.parse({ workspaceId: args.workspaceId, version: workspace.language_version, availableLanguages: workspace.available_languages, labelLanguages: workspace.label_languages, defaultLanguage: args.language });
+    await configureWorkspaceLanguages(tx, input, (kind, id, change, key, before, after) => this.journal(tx, actor, args.workspaceId, null, kind, id, change, key, before, after));
     return { workspaceId: args.workspaceId, defaultLanguage: args.language };
   }
 
@@ -541,7 +614,7 @@ export class Application {
     for (const field of fields.filter(field => field.state === 'active' && isCustomFieldKind(field.kind))) {
       const supplied = Object.hasOwn(data, field.technical_name);
       const value = normalizeFieldValue(field, supplied ? data[field.technical_name] : previous?.[field.technical_name], previous?.[field.technical_name]);
-      await validateReferences(tx, field, value, type.workspace_id);
+      await validateReferences(tx, field, value, type.workspace_id, previous?.[field.technical_name]);
       if (supplied) data[field.technical_name] = value;
     }
   }
@@ -574,7 +647,7 @@ export class Application {
         if (error instanceof AppError && error.status === 400) throw new AppError(400, 'Unsafe field conversion');
         throw error;
       }
-      await validateReferences(tx, next, value, type.workspace_id);
+      await validateReferences(tx, next, value, type.workspace_id, row[field.technical_name]);
       converted.push({ row, value });
     }
     const representationChanged = field.kind !== kind || (kind === 'decimal' && field.config.scale !== config.scale);

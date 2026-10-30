@@ -1,4 +1,12 @@
+import { languageSchema as language, workspaceLanguageSchema, type Language, type WorkspaceLanguages } from './languages.js';
+export * from './languages.js';
+export * from './time-zones.js';
+export * from './regional.js';
+import { regionalSchema, personalRegionalSchema, type RegionalSettings, type PersonalRegionalSettings } from './regional.js';
+import { timeZoneSchema } from './time-zones.js';
 import { z } from 'zod';
+import { workspaceAppearanceSchema, type WorkspaceAppearance } from './workspace-appearance.js';
+export * from './workspace-appearance.js';
 import { customFieldKindSchema, fieldConfigSchema, fieldValueSchema, type CustomFieldKind, type FieldConfig, type FieldValue, type FieldPrincipal } from './field-types.js';
 export * from './field-types.js';
 import { classificationRulesSchema, classificationValuesSchema, type ClassificationConfig } from './classification.js';
@@ -6,8 +14,7 @@ export * from './classification.js';
 
 const uuid = z.uuid();
 const label = z.string().trim().min(1).max(200);
-const language = z.enum(['de', 'en']);
-const labels = z.object({ de: label.optional(), en: label.optional() }).strict()
+const labels = z.partialRecord(language, label)
   .refine(value => Object.keys(value).length > 0, 'At least one translated label is required');
 const technicalName = z.string().regex(/^[a-z][a-z0-9_]*$/).max(63);
 const standardField = z.enum(['type_status', 'category', 'keyword']);
@@ -17,18 +24,36 @@ const values = z.record(z.string(), fieldValueSchema).refine(
 const definitionState = z.enum(['active', 'inactive', 'deleted']);
 const workspaceRole = z.enum(['user', 'designer']);
 export const schemas = {
+  get_account_security: z.object({}).strict(),
+  change_password: z.object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(12).max(128), revokeOtherSessions: z.boolean().default(true) }).strict(),
+  revoke_session: z.object({ sessionId: uuid }).strict(),
+  revoke_other_sessions: z.object({}).strict(),
   set_definition_state: z.object({ kind: z.enum(['object_type', 'field']), id: uuid, expectedState: z.enum(['active', 'inactive']), state: definitionState, confirm: z.boolean().default(false) }).strict(),
   get_definition_journal: z.object({ objectTypeId: uuid }).strict(),
   get_access_context: z.object({}).strict(),
   list_users: z.object({}).strict(),
+  list_managed_users: z.object({}).strict(),
+  create_user: z.object({ name: label, email: z.email().max(254).transform(value => value.toLowerCase()), initialPassword: z.string().min(12).max(128) }).strict(),
+  configure_user: z.object({ userId: uuid, version: z.number().int().positive(), name: label, active: z.boolean(), isAdmin: z.boolean() }).strict(),
+  list_system_journal: z.object({ workspaceId: uuid.optional(), fieldKey: z.string().max(200).default(''), entityKind: z.string().max(100).default(''), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(1000000).default(0) }).strict(),
   list_workspace_members: z.object({ workspaceId: uuid }).strict(),
   set_workspace_member: z.object({ workspaceId: uuid, userId: uuid, role: workspaceRole.nullable(), expectedRole: workspaceRole.nullable() }).strict(),
-  create_workspace: z.object({ name: label, code: z.string().regex(/^[a-z][a-z0-9]*$/).max(61), defaultLanguage: language.default('en') }).strict(),
-  create_group: z.object({ workspaceId: uuid, name: label }).strict(),
+  create_workspace: z.object({ name: label, code: z.string().regex(/^[a-z][a-z0-9]*$/).max(61), defaultLanguage: language.default('en'), timeZone: timeZoneSchema.default('UTC'), regional: regionalSchema.optional() }).strict(),
+  get_language_catalog: z.object({}).strict(),
+  get_time_zone_catalog: z.object({}).strict(),
+  configure_user_localization: z.object({ language: language.nullable(), timeZone: timeZoneSchema.nullable(), expectedLanguage: language.nullable(), expectedTimeZone: timeZoneSchema.nullable(), regional: personalRegionalSchema.optional(), expectedRegional: personalRegionalSchema.nullable().optional() }).strict().refine(args => args.regional === undefined || args.expectedRegional !== undefined, 'Expected regional settings required'),
+  configure_workspace_languages: workspaceLanguageSchema.safeExtend({ workspaceId: uuid, version: z.number().int().positive(), timeZone: timeZoneSchema.optional(), regional: regionalSchema.optional() }),
+  list_groups: z.object({ workspaceId: uuid }).strict(),
+  configure_group: z.object({ workspaceId: uuid, groupId: uuid, version: z.number().int().positive(), name: label, memberIds: z.array(uuid).max(1000).refine(ids => new Set(ids).size === ids.length, 'Duplicate members').optional() }).strict(),
+  set_group_members: z.object({ workspaceId: uuid, groupId: uuid, version: z.number().int().positive(), memberIds: z.array(uuid).max(1000).refine(ids => new Set(ids).size === ids.length, 'Duplicate members') }).strict(),
+  set_group_active: z.object({ workspaceId: uuid, groupId: uuid, version: z.number().int().positive(), active: z.boolean() }).strict(),
+  create_group: z.object({ workspaceId: uuid, name: label, memberIds: z.array(uuid).max(1000).refine(ids => new Set(ids).size === ids.length, 'Duplicate members').optional() }).strict(),
   list_field_principals: z.object({ workspaceId: uuid }).strict(),
   list_workspaces: z.object({}).strict(),
   search_workspace: z.object({ workspaceId: uuid, query: z.string().trim().min(2).max(200), limit: z.number().int().min(1).max(50).default(20) }).strict(),
   list_object_types: z.object({ workspaceId: uuid, includeInactive: z.boolean().default(false), includeDeleted: z.boolean().default(false) }).strict(),
+  get_workspace_dashboard: z.object({ workspaceId: uuid, days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(90) }).strict(),
+  list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   list_records: z.object({ objectTypeId: uuid, query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(3).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
   add_standard_field: z.object({ objectTypeId: uuid, field: standardField }).strict(),
@@ -38,7 +63,9 @@ export const schemas = {
   set_field_required: z.object({ fieldId: uuid, required: z.boolean() }).strict(),
   set_labels: z.object({ kind: z.enum(['object_type', 'field']), id: uuid, labels }).strict(),
   set_workspace_name: z.object({ workspaceId: uuid, name: label }).strict(),
+  set_workspace_appearance: z.object({ workspaceId: uuid, version: z.number().int().positive(), appearance: workspaceAppearanceSchema }).strict(),
   set_workspace_language: z.object({ workspaceId: uuid, language }).strict(),
+  set_user_profile: z.object({ name: label }).strict(),
   set_user_language: z.object({ language: language.nullable() }).strict(),
   configure_classification: z.object({ objectTypeId: uuid, version: z.number().int().positive(), config: classificationRulesSchema }).strict(),
   create_record: z.object({ objectTypeId: uuid, keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}) }).strict(),
@@ -48,9 +75,8 @@ export const schemas = {
 };
 export type Operation = keyof typeof schemas;
 
-export type Language = 'de' | 'en';
 export type Labels = Record<string, string>;
-export interface Workspace { id: string; code: string; name: string; default_language: Language; role: 'administrator' | 'designer' | 'user' }
+export interface Workspace { id: string; code: string; name: string; default_language: Language; available_languages: Language[]; label_languages: Language[]; language_version: number; time_zone: string; regional: RegionalSettings; created_by: string; created_by_name: string; created_at: string | null; appearance: WorkspaceAppearance; appearance_version: number; role: 'administrator' | 'designer' | 'user' }
 export type DefinitionState = 'active' | 'inactive' | 'deleted';
 export interface ObjectSummary { state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
 export interface FieldDefinition extends ObjectSummary { kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
@@ -60,11 +86,27 @@ export interface RecordPage { records: DataRecord[]; total: number; limit: numbe
 export interface SearchRecord { id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
 export interface JournalEntry { id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
-export interface AuthUser { id: string; name: string; email: string; language?: Language | null; isAdmin?: boolean }
+export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
 export type Inputs = { [K in Operation]: z.input<(typeof schemas)[K]> };
+export interface WorkspaceGroup { id: string; workspaceId: string; name: string; active: boolean; version: number; memberIds: string[] }
 export interface WorkspaceMember { id: string; name: string; email: string; role: 'administrator' | 'designer' | 'user' }
 export interface UserSummary { id: string; name: string; email: string; isAdmin: boolean }
+export interface AccountSession { id: string; current: boolean; createdAt: string; updatedAt: string; expiresAt: string; ipAddress: string | null; userAgent: string | null }
+export interface AccountSecurity { hasPassword: boolean; sessions: AccountSession[] }
+export interface ManagedUser extends UserSummary { active: boolean; mustChangePassword: boolean; version: number }
+export interface SystemJournalEntry extends JournalEntry { entity_kind: string; entity_id: string; workspace_id: string | null; workspace_name: string | null; actor_name: string; entity_name: string | null }
+export interface WorkspaceRecord { id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
+  get_workspace_dashboard: { total: number; objectTypes: number; created30: number; updated7: number; timeZone: string; activity: { date: string; created: number; updated: number }[] };
+  list_workspace_records: { records: WorkspaceRecord[]; total: number; limit: number; offset: number };
+  list_managed_users: ManagedUser[];
+  create_user: ManagedUser;
+  configure_user: ManagedUser;
+  list_system_journal: { entries: SystemJournalEntry[]; total: number; limit: number; offset: number };
+  get_account_security: AccountSecurity;
+  change_password: { changed: boolean; revokedSessions: number };
+  revoke_session: { revokedSessions: number };
+  revoke_other_sessions: { revokedSessions: number };
   set_definition_state: { id: string; state: DefinitionState };
   get_definition_journal: JournalEntry[];
   get_access_context: { isAdmin: boolean };
@@ -72,6 +114,14 @@ export interface Outputs {
   list_workspace_members: WorkspaceMember[];
   set_workspace_member: { workspaceId: string; userId: string; role: 'user' | 'designer' | null };
   create_workspace: { id: string };
+  get_time_zone_catalog: string[];
+  configure_user_localization: { language: Language | null; timeZone: string | null; regional: PersonalRegionalSettings | null };
+  get_language_catalog: { code: Language; nativeName: string; interfaceAvailable: boolean }[];
+  configure_workspace_languages: WorkspaceLanguages & { workspaceId: string; version: number; timeZone: string; regional: RegionalSettings };
+  list_groups: WorkspaceGroup[];
+  configure_group: WorkspaceGroup;
+  set_group_members: WorkspaceGroup;
+  set_group_active: WorkspaceGroup;
   create_group: { id: string };
   list_field_principals: FieldPrincipal[];
   list_workspaces: Workspace[];
@@ -86,7 +136,9 @@ export interface Outputs {
   set_field_required: ObjectDefinition;
   set_labels: { id: string; kind: string; labels: Labels };
   set_workspace_name: { workspaceId: string; name: string };
+  set_workspace_appearance: { workspaceId: string; appearance: WorkspaceAppearance; version: number };
   set_workspace_language: { workspaceId: string; defaultLanguage: Language };
+  set_user_profile: { name: string };
   set_user_language: { language: Language | null };
   configure_classification: ObjectDefinition;
   create_record: DataRecord;

@@ -1,3 +1,4 @@
+import { useMenuAppearance } from '@/lib/menu-appearance'
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { cn } from "cn"
@@ -17,13 +18,18 @@ import { SearchIcon, CheckIcon } from "lucide-react"
 
 function Command({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive>) {
+  const menu = useMenuAppearance()
   return (
     <CommandPrimitive
       data-slot="command"
+          data-theme-preview={menu.dark ? "dark" : "light"}
+          style={{ ...menu.style, ...style }}
       className={cn(
         "flex size-full flex-col overflow-hidden rounded-xl! bg-popover p-1 text-popover-foreground",
+        menu.dark && "dark",
         className
       )}
       {...props}

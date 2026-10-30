@@ -2,7 +2,7 @@
 
 xObject is in early development. A local backend and first web interface exist; a software release is not available yet.
 
-This roadmap summarizes product goals from the [Product Requirements Document](docs/PRD.md). Operational tasks, dependencies and priorities are managed in OpenProject; this file is a curated public overview, not a duplicate task list or a live implementation-status report. Goals will be reconciled with that planning as implementation is organized.
+This roadmap summarizes product goals from the [Product Requirements Document](docs/PRD.md). Operational tasks, dependencies and priorities are managed in OpenProject; this file is a curated public overview, not a duplicate task list or a live implementation-status report. Local delivery descriptions reflect verified prototype behavior; publication and full product acceptance remain separate.
 
 No delivery dates are committed. An item here is not evidence that its requirements have been implemented or accepted.
 
@@ -14,7 +14,10 @@ No delivery dates are committed. An item here is not evidence that its requireme
 
 - PostgreSQL-backed local login, workspace/object/typed-field creation, versioned record editing and atomic per-field journals through shared API/MCP rules.
 - Shared Type/Status/Category configuration with independent required flags, localized stable choices, defaults, per-Type Status mappings and single/multiple Category selection in the local experiment.
-- React web interface with direct routes, Dashboard, personal/workspace settings, workspace search, sortable paginated record lists, German/English labels and keyboard support.
+- React web interface with direct routes, actual workspace Dashboard statistics/activity, mixed-object and individual record tables, complete pagination, selection, column controls, sidebar command search and keyboard navigation.
+- Personal profile, verified password changes and own-session management; Administrator user provisioning with mandatory initial-password change, reversible activation and a global journal view of recorded changes.
+- Workspace group management, independent interface/definition-language policies for the installed German/English packs, named time zones and regional formats with personal overrides.
+- Shared workspace shadcn appearance with base/theme/chart colors, primary/secondary overrides, fonts, heading fonts, radius and menu previews; light/dark/system mode remains personal.
 - Instance-wide Administrators, explicit workspace User/Designer memberships and role-appropriate configuration views; business-content access remains Administrator-only.
 - Field/object definition deactivation, validated reactivation and confirmed deletion of never-used storage, with retained metadata/journals and read-only inactive values. The record recycle bin remains pending.
 - This is a local typed-field/classification experiment; complete permissions, the remaining shared fields and version-1 acceptance remain open.
@@ -22,7 +25,7 @@ No delivery dates are committed. An item here is not evidence that its requireme
 ## In progress — Product definition and technical foundation
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
-- Resolve the technical foundation decisions needed for the first implementation slice: backend framework, data access, workspace isolation, authentication and controlled schema changes.
+- Resolve the technical foundation decisions needed for the first implementation slice: production migration history, scalable workspace isolation/locking, authentication hardening and controlled schema changes.
 - Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The web interface now exercises workspace/object/typed-field creation, record search/editing and journals. Complete shared fields and permissions remain necessary for the first slice below.
 
 ## Next — First end-to-end object slice
