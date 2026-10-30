@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { DialogActions } from './dialog-actions';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -68,21 +69,21 @@ export function FieldEditorDialog({ onDeleted, readOnly = false, field, definiti
         {owner.isError ? <ErrorNotice error={owner.error} /> : null}
         {saved && !dirty ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
         <TranslatedLabelInput id="field-label" autoFocus={!field} value={labels} readOnly={fixed || readOnly} readOnlyHelp={!fixed ? t('readOnlyLabelHelp') : undefined} disabled={pending} onChange={next => {
-          if (!field && !nameTouched && next.en !== labels.en) setTechnicalName((next.en ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+|_+$/g, ''));
+          if (!field && !nameTouched) setTechnicalName((next.en ?? next.de ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+|_+$/g, ''));
           setLabels(next); setSaved(false);
         }} />
-        <Field><FieldLabel htmlFor="field-technical-name">{t('technicalName')}</FieldLabel><Input id="field-technical-name" value={technicalName} readOnly={Boolean(field)} required maxLength={63} pattern="[a-z][a-z0-9_]*" disabled={pending} onChange={event => { setTechnicalName(event.target.value); setNameTouched(true); }} /><FieldDescription>{t('technicalHelp')}</FieldDescription></Field>
+        <Field data-disabled={pending || undefined}><FieldLabel htmlFor="field-technical-name">{t('technicalName')}</FieldLabel><Input id="field-technical-name" value={technicalName} readOnly={Boolean(field)} required maxLength={63} pattern="[a-z][a-z0-9_]*" disabled={pending} onChange={event => { setTechnicalName(event.target.value); setNameTouched(true); }} /><FieldDescription>{t('technicalHelp')}</FieldDescription></Field>
         <Field><FieldLabel htmlFor="field-kind">{t('fieldType')}</FieldLabel>{fixed ? <Input id="field-kind" value={t(fieldKindKey(kind))} readOnly /> : <Select items={kinds} value={kind} disabled={pending || readOnly} onValueChange={value => {
           if (!value) return;
           const next = value as CustomFieldKind;
           setConfig(['single_choice', 'multiple_choice'].includes(next) && ['single_choice', 'multiple_choice'].includes(kind) ? config : defaultFieldConfig(next)); setKind(next); setPendingChoice(false); setSaved(false);
         }}><SelectTrigger id="field-kind" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{kinds.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>}</Field>
         {!fixed ? <FieldTypeSettings readOnly={readOnly} key={`${kind}:${editorRevision}`} kind={kind as CustomFieldKind} config={config} onChange={next => { setConfig(next); setSaved(false); }} disabled={pending || readOnly} onPendingChange={setPendingChoice} /> : null}
-        <Field orientation="horizontal"><Checkbox id="field-required" checked={required} disabled={pending || readOnly} onCheckedChange={checked => { setRequired(checked === true); setSaved(false); }} /><FieldLabel htmlFor="field-required">{t('requiredField')}</FieldLabel></Field>
+        <Field data-disabled={(pending || readOnly) || undefined} orientation="horizontal"><Checkbox id="field-required" checked={required} disabled={pending || readOnly} onCheckedChange={checked => { setRequired(checked === true); setSaved(false); }} /><FieldLabel htmlFor="field-required">{t('requiredField')}</FieldLabel></Field>
         {field && !fixed && !readOnly ? <FieldDescription>{t('conversionHelp')}</FieldDescription> : null}
       </FieldGroup></form>
       {field && context && !readOnly ? <div className="pt-6"><DefinitionLifecycle label={field.label} kind="field" id={field.id} objectTypeId={context.id} state={field.state} isProtected={field.isProtected} canDelete={field.canDelete} disabled={dirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} onDeleted={onDeleted} /></div> : null}
-      </div><DialogActions onClose={onClose} closeLabel={t(field ? 'close' : 'cancel')} disabled={pending}>{!readOnly ? <>{field ? <Button type="button" variant="outline" disabled={!dirty || pending} onClick={reset}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="field-attributes-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !valid || !context || pending}>{mutation.isPending ? t('saving') : t(field ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
+      </div><DialogActions onClose={onClose} closeLabel={t(field ? 'close' : 'cancel')} disabled={pending}>{!readOnly ? <>{field ? <Button type="button" variant="outline" disabled={!dirty || pending} onClick={reset}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="field-attributes-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !valid || !context || pending}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t(field ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
     </DialogContent>
   </Dialog>;
 }

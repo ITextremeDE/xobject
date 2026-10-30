@@ -107,14 +107,16 @@ export function normalizeFieldValue(field: TypedField, input: unknown, previous?
     }
   }
 }
-export async function validateReferences(tx: Executor, field: TypedField, value: FieldValue, workspaceId: string) {
+export async function validateReferences(tx: Executor, field: TypedField, value: FieldValue, workspaceId: string, previous?: unknown) {
   if (field.kind !== 'reference' || value === null) return;
   const refs = (Array.isArray(value) ? value : [value]) as ReferenceValue[];
   for (const ref of refs) {
     const found = ref.kind === 'user'
       ? await sql`SELECT 1 FROM sys_users WHERE id = ${ref.id}`.execute(tx)
-      : await sql`SELECT 1 FROM sys_groups WHERE id = ${ref.id}::uuid AND workspace_id = ${workspaceId}::uuid`.execute(tx);
+      : await sql<{ active: boolean }>`SELECT active FROM sys_groups WHERE id = ${ref.id}::uuid AND workspace_id = ${workspaceId}::uuid`.execute(tx);
     if (!found.rows.length) fail('Reference not found in allowed scope');
+    const retained = (Array.isArray(previous) ? previous : previous ? [previous] : []).some(old => old && typeof old === 'object' && old.kind === ref.kind && old.id === ref.id);
+    if (ref.kind === 'group' && !(found.rows[0] as { active: boolean }).active && !retained) fail('Group is inactive');
   }
 }
 export function convertFieldValue(previous: TypedField, next: TypedField, input: unknown): FieldValue {

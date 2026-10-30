@@ -1,3 +1,6 @@
+import { TimeZoneField } from './time-zone-field';
+import { languageCatalog } from '@xobject/contracts';
+import { Spinner } from '@/components/ui/spinner';
 import { DialogActions } from './dialog-actions';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
 import { Kbd } from '@/components/ui/kbd';
@@ -23,6 +26,7 @@ export function DefinitionDialog(props: Props) {
 }
 function DefinitionForm({ kind, workspaceId, objectTypeId, onClose, onCreated, onDirtyChange, onBusyChange, finalFocus }: Props) {
   const { t, i18n } = useTranslation();
+  const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
@@ -30,7 +34,7 @@ function DefinitionForm({ kind, workspaceId, objectTypeId, onClose, onCreated, o
   const [language, setLanguage] = useState<Language>(i18n.language === 'de' ? 'de' : 'en');
   const title = t(kind === 'workspace' ? 'newWorkspace' : kind === 'object' ? 'newObject' : 'newField');
   const mutation = useMutation({ mutationFn: async () => {
-    if (kind === 'workspace') return api('create_workspace', { name: name.trim(), code, defaultLanguage: language });
+    if (kind === 'workspace') return api('create_workspace', { name: name.trim(), code, defaultLanguage: language, timeZone });
     const translated = cleanLabels(labels);
     if (!hasLabel(translated)) throw new ApiError(400, 'A label is required');
     if (kind === 'object' && workspaceId) return api('create_object_type', { workspaceId, technicalName: code, labels: translated });
@@ -54,13 +58,14 @@ function DefinitionForm({ kind, workspaceId, objectTypeId, onClose, onCreated, o
       <form data-shortcut-submit id="definition-form" onSubmit={event => { event.preventDefault(); if (valid && !mutation.isPending) mutation.mutate(); }}>
         <FieldGroup>
           {mutation.isError ? <ErrorNotice error={mutation.error} /> : null}
-          {kind === 'workspace' ? <Field><FieldLabel htmlFor="workspace-name">{t('workspaceName')}</FieldLabel><Input id="workspace-name" autoFocus required maxLength={200} value={name} onChange={event => { setName(event.target.value); propose(event.target.value); }} disabled={mutation.isPending} /></Field> : <TranslatedLabelInput autoFocus id="definition-label" value={labels} disabled={mutation.isPending} onChange={next => { if (next.en !== labels.en) propose(next.en ?? ''); setLabels(next); }} />}
+          {kind === 'workspace' ? <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="workspace-name">{t('workspaceName')}</FieldLabel><Input id="workspace-name" autoFocus required maxLength={200} value={name} onChange={event => { setName(event.target.value); propose(event.target.value); }} disabled={mutation.isPending} /></Field> : <TranslatedLabelInput autoFocus id="definition-label" value={labels} disabled={mutation.isPending} onChange={next => { propose(next.en ?? next.de ?? ''); setLabels(next); }} />}
 
-          <Field><FieldLabel htmlFor="technical-name">{t(kind === 'workspace' ? 'code' : 'technicalName')}</FieldLabel><Input id="technical-name" required value={code} maxLength={kind === 'workspace' ? 61 : 63} pattern={kind === 'workspace' ? '[a-z][a-z0-9]*' : '[a-z][a-z0-9_]*'} onChange={event => { setCodeTouched(true); setCode(event.target.value); }} disabled={mutation.isPending} /><FieldDescription>{t(kind === 'workspace' ? 'codeHelp' : 'technicalHelp')}</FieldDescription></Field>
-          {kind === 'workspace' ? <Field><FieldLabel htmlFor="default-language">{t('defaultLanguage')}</FieldLabel><NativeSelect id="default-language" value={language} onChange={event => setLanguage(event.target.value as Language)} disabled={mutation.isPending}><NativeSelectOption value="de">Deutsch</NativeSelectOption><NativeSelectOption value="en">English</NativeSelectOption></NativeSelect></Field> : null}
+          <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="technical-name">{t(kind === 'workspace' ? 'code' : 'technicalName')}</FieldLabel><Input id="technical-name" required value={code} maxLength={kind === 'workspace' ? 61 : 63} pattern={kind === 'workspace' ? '[a-z][a-z0-9]*' : '[a-z][a-z0-9_]*'} onChange={event => { setCodeTouched(true); setCode(event.target.value); }} disabled={mutation.isPending} /><FieldDescription>{t(kind === 'workspace' ? 'codeHelp' : 'technicalHelp')}</FieldDescription></Field>
+          {kind === 'workspace' ? <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="default-language">{t('defaultLanguage')}</FieldLabel><NativeSelect id="default-language" value={language} onChange={event => setLanguage(event.target.value as Language)} disabled={mutation.isPending}>{languageCatalog.map(item => <NativeSelectOption key={item.code} value={item.code}>{item.nativeName}</NativeSelectOption>)}</NativeSelect></Field> : null}
+          {kind === 'workspace' ? <TimeZoneField id="new-workspace-time-zone" value={timeZone} disabled={mutation.isPending} onChange={next => { if (next) setTimeZone(next); }} /> : null}
         </FieldGroup>
       </form>
-      <DialogActions flush={false} onClose={onClose} closeLabel={t('cancel')} disabled={mutation.isPending}><Button form="definition-form" type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!valid || mutation.isPending}>{mutation.isPending ? t('saving') : t('create')}<Kbd>{saveShortcutLabel}</Kbd></Button></DialogActions>
+      <DialogActions flush={false} onClose={onClose} closeLabel={t('cancel')} disabled={mutation.isPending}><Button form="definition-form" type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!valid || mutation.isPending}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('create')}<Kbd>{saveShortcutLabel}</Kbd></Button></DialogActions>
     </DialogContent>
   </Dialog>;
 }

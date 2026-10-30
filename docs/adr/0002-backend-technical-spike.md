@@ -27,8 +27,8 @@ Run schema initialization explicitly, using Better Auth's migration API and idem
 - Dynamic object schemas require runtime validation; TypeScript cannot statically know user-created columns.
 - A global lock is simple for this test but limits throughput. Finer locking remains a design task.
 - Later local slices implement optional Keyword, Type/Status and Category (ADR 0006), typed custom fields (ADR 0007), workspace configuration roles (ADR 0008) and definition lifecycle (ADR 0009). The remaining shared fields and full content permissions are still product work.
-- Schema initialization, local account provisioning and cookie-based MCP access need further design before production use. Account provisioning and session-lifecycle changes are not yet covered by xObject's system journal; the language-preference operations added in ADR 0003 are journaled.
-- Arbitrary relationships/references beyond ADR 0007, full permissions, journal pagination/retention, a stable REST/OpenAPI contract, production migration history and deployment remain open.
+- Schema initialization, local account provisioning and cookie-based MCP access need further design before production use. ADR 0010 journals personal password changes and explicit session revocation. ADR 0015 adds journaled `create_user` provisioning and mandatory initial-password changes; login/sign-out and the separate experimental Administrator CLI lifecycle events remain unjournaled; the language-preference operations added in ADR 0003 are journaled.
+- Arbitrary relationships/references beyond ADR 0007, full permissions, journal retention/erasure, a stable REST/OpenAPI contract, production migration history and deployment remain open.
 - The server is intended for loopback-only development with disposable data. Passing tests does not establish release readiness or completion of PRD acceptance scenario 1.
 
 ## Verification

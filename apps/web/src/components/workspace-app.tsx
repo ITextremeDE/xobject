@@ -1,17 +1,23 @@
-import { lazy, Suspense, useDeferredValue, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { resourceLinks } from '@/lib/resource-links';
+import { RegionalProvider } from '@/lib/regional-context';
+import { effectiveRegionalSettings } from '@xobject/contracts';
+import { TimeZoneProvider } from '@/lib/time-zone-context';
+import { effectiveTimeZone } from '@xobject/contracts';
+import { WorkspaceLanguageProvider } from '@/lib/workspace-languages';
+import { effectiveWorkspaceLanguage, languageCodes } from '@xobject/contracts';
+import { WorkspaceMenuAppearanceProvider } from '@/lib/menu-appearance';
+import { useWorkspaceAppearance } from '@/lib/workspace-appearance';
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link, useBlocker, useLocation, matchPath, useNavigate, useSearchParams } from 'react-router';
-import { ArrowUpIcon, ArrowDownIcon, ArrowUpDownIcon, DatabaseIcon, PlusIcon, SearchIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
-import { isCustomFieldKind, type AuthUser, type ObjectDefinition } from '@xobject/contracts';
+import { Link, useBlocker, useLocation, matchPath, useNavigate } from 'react-router';
+import { DatabaseIcon, PlusIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
+import { type AuthUser } from '@xobject/contracts';
 import { api, signOut } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { InputGroup, InputGroupInput, InputGroupAddon } from '@/components/ui/input-group';
-import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from '@/components/ui/empty';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarRail, useSidebar } from '@/components/ui/sidebar';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -23,12 +29,11 @@ import { UserMenu } from './user-menu';
 import { HeaderSearch } from './header-search';
 import { KeyboardHelp } from './keyboard-help';
 import { ThemeDropdown } from './theme-dropdown';
-import { Kbd } from '@/components/ui/kbd';
-import { keyboardCommands } from '@/lib/keyboard';
-import { Dashboard } from './dashboard';
+import { RecordList } from './record-list';
+const Dashboard = lazy(() => import('./dashboard').then(module => ({ default: module.Dashboard })));
 const SettingsPage = lazy(() => import('./settings-page').then(module => ({ default: module.SettingsPage })));
-import { displayFieldValue } from './custom-field-control';
-import { displayClassification } from './classification-values';
+
+
 
 const narrow = matchMedia('(max-width: 1023px)');
 const subscribeNarrow = (listener: () => void) => { narrow.addEventListener('change', listener); return () => narrow.removeEventListener('change', listener); };
@@ -67,8 +72,9 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const workspaces = useQuery({ queryKey: ['workspaces', user.id], queryFn: () => api('list_workspaces', {}) });
   const workspace = workspaceCode ? workspaces.data?.find(w => w.code === workspaceCode) : workspaces.data?.[0];
+  useWorkspaceAppearance(workspace?.appearance);
   const canManage = Boolean(user.isAdmin || workspace?.role === 'designer');
-  const language = user.language ?? workspace?.default_language ?? 'en';
+  const language = effectiveWorkspaceLanguage(user.language, workspace?.available_languages ?? languageCodes, workspace?.default_language ?? 'en');
   useEffect(() => { void i18n.changeLanguage(language); }, [i18n, language]);
   const types = useQuery({ queryKey: ['types', workspace?.id, user.id, language], queryFn: () => api('list_object_types', { workspaceId: workspace!.id, includeInactive: true }), enabled: Boolean(workspace) });
   const selectedType = view === 'records' ? types.data?.find(type => type.technicalName === objectRoute?.params.name) : undefined;
@@ -111,6 +117,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
       void queryClient.invalidateQueries({ predicate: ({ queryKey }) =>
         (queryKey[0] === 'workspaces' && queryKey[1] === user.id) ||
         (queryKey[0] === 'types' && queryKey[1] === workspace?.id) ||
+        (['dashboard', 'workspace-records'].includes(String(queryKey[0])) && queryKey[1] === workspace?.id) ||
         (selectedType && ['definition', 'records'].includes(String(queryKey[0])) && queryKey[1] === selectedType.id) === true,
       });
     });
@@ -144,7 +151,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
     }
   }
   const panelDefinition = definition.data?.id === selectedType?.id ? definition.data : undefined;
-  return <>
+  return <RegionalProvider value={effectiveRegionalSettings(workspace?.regional, user.regionalPreferences)}><TimeZoneProvider value={effectiveTimeZone(user.timeZone, workspace?.time_zone)}><WorkspaceLanguageProvider languages={workspace?.label_languages}><WorkspaceMenuAppearanceProvider appearance={workspace?.appearance}>
     <Sidebar collapsible="icon" variant="inset" mobileTitle={t('menu')} mobileDescription={t('selectObject')}>
       <SidebarHeader>
         <SidebarMenu><SidebarMenuItem>
@@ -167,6 +174,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
             </DropdownMenuItem></DropdownMenuGroup></> : null}
           </DropdownMenuContent></DropdownMenu>
         </SidebarMenuItem></SidebarMenu>
+          <HeaderSearch key={workspace?.id} workspaceId={workspace?.id} workspaceName={workspace?.name} language={language} disabled={busy} canSearchRecords={Boolean(user.isAdmin)} objectTypes={types.data ?? []} onNavigate={(target) => { if (target === 'settings') showPage('settings'); else if (target === 'keyboard') showKeyboardHelp(null); else if (target === 'dashboard') navigateSidebar(dashboardPath); }} onOpenResult={(id, recordId) => { const selected = types.data?.find(type => type.id === id); if (selected && !busy) void routeNavigate(`${dashboardPath}/objects/${selected.technicalName}${recordId ? `/${recordId}` : ''}`); }} />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem>
@@ -178,8 +186,11 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           </SidebarMenuItem>)}</SidebarMenu>}
           {canManage ? <SidebarMenu className="mt-2"><SidebarMenuItem><SidebarMenuButton data-definition-trigger="object" tooltip={t('newObject')} disabled={!workspace || busy} onClick={() => navigate(() => { setOpenMobile(false); setDialog('object'); })}><PlusIcon /><span>{t('newObject')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu> : null}
         </SidebarGroupContent></SidebarGroup>
+        <SidebarGroup className="mt-auto"><SidebarGroupLabel>{t('resources')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{resourceLinks.map(item => <SidebarMenuItem key={item.label}><SidebarMenuButton tooltip={t('resourceNewTab', { name: t(item.label) })} aria-label={t('resourceNewTab', { name: t(item.label) })} render={<a href={item.href} target="_blank" rel="noopener noreferrer" />} onClick={() => setOpenMobile(false)}><item.icon /><span>{t(item.label)}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
       </SidebarContent>
-      <SidebarFooter><SidebarMenu><SidebarMenuItem><UserMenu placement="sidebar" user={user} busy={busy} signingOut={logout.isPending} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} /></SidebarMenuItem></SidebarMenu></SidebarFooter>
+      <SidebarFooter>
+
+        <SidebarMenu><SidebarMenuItem><UserMenu placement="sidebar" user={user} busy={busy} signingOut={logout.isPending} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} /></SidebarMenuItem></SidebarMenu></SidebarFooter>
       <SidebarRail />
     </Sidebar>
     <SidebarInset className={cn('min-w-0', user.isAdmin && recordId && !detailModal && 'pr-[26rem]')}>
@@ -193,7 +204,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           </BreadcrumbList></Breadcrumb>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-x-2 pr-4 sm:gap-x-3">
-          <HeaderSearch compact={Boolean(recordId)} key={workspace?.id} workspaceId={workspace?.id} workspaceName={workspace?.name} language={language} disabled={busy || !user.isAdmin} onOpenResult={(id, recordId) => { const selected = types.data?.find(type => type.id === id); if (selected && !busy) void routeNavigate(`${dashboardPath}/objects/${selected.technicalName}${recordId ? `/${recordId}` : ''}`); }} />
+
           <Button variant="outline" size="icon-lg" disabled aria-label={t('notificationsSoon')} title={t('notificationsSoon')}><BellIcon /></Button>
           <ThemeDropdown />
           <UserMenu placement="header" user={user} busy={busy} signingOut={logout.isPending} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} />
@@ -205,7 +216,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           : workspaces.isPending ? <Loading /> : workspaces.isError ? <ErrorNotice error={workspaces.error} retry={() => { void workspaces.refetch(); }} />
           : !workspace ? user.isAdmin ? <Welcome title={t('noWorkspace')} description={t('noWorkspaceDescription')} action={t('newWorkspace')} onAction={() => setDialog('workspace')} /> : <Empty><EmptyHeader><EmptyTitle>{t('noWorkspace')}</EmptyTitle><EmptyDescription>{t('noWorkspaceAssigned')}</EmptyDescription></EmptyHeader></Empty>
           : types.isError ? <ErrorNotice error={types.error} /> : types.isPending ? <Loading />
-          : view === 'dashboard' ? <Dashboard canManage={canManage} workspace={workspace} types={types.data.filter(type => !type.state || type.state === 'active')} onOpen={selectType} onCreate={() => setDialog('object')} />
+          : view === 'dashboard' ? <Suspense fallback={<Loading />}><Dashboard canReadContent={Boolean(user.isAdmin)} canManage={canManage} workspace={workspace} types={types.data.filter(type => !type.state || type.state === 'active')} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`); }); }} onCreate={() => setDialog('object')} /></Suspense>
           : !selectedType ? <RouteNotFound onBack={() => showPage('dashboard')} />
           : definition.isPending ? <Loading /> : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
           : !user.isAdmin ? <Empty><EmptyHeader><EmptyTitle>{selectedType.label}</EmptyTitle><EmptyDescription>{t('contentAccessPending')}</EmptyDescription></EmptyHeader></Empty>
@@ -220,7 +231,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
     {dialog ? <DefinitionDialog kind={dialog} workspaceId={workspace?.id} objectTypeId={selectedType?.id} onClose={() => navigate(() => { setDialog(null); setDirty(false); })} onDirtyChange={setDirty} onBusyChange={setBusy} onCreated={id => { setDirty(false); setBusy(false); void created(id); }} /> : null}
     <KeyboardHelp open={helpOpen} onOpenChange={setHelpOpen} finalFocus={() => helpOrigin.current?.isConnected ? helpOrigin.current : document.querySelector<HTMLElement>('[data-user-menu="header"]') ?? true} />
     <AlertDialog open={Boolean(pendingNavigation) || (blocker.state === 'blocked' && !busy)} onOpenChange={open => { if (!open) { setPendingNavigation(null); if (blocker.state === 'blocked') blocker.reset(); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { const action = pendingNavigation; setPendingNavigation(null); setDirty(false); setEditorRevision(value => value + 1); if (blocker.state === 'blocked') blocker.proceed(); else action?.(); }}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-  </>;
+  </WorkspaceMenuAppearanceProvider></WorkspaceLanguageProvider></TimeZoneProvider></RegionalProvider>;
 }
 
 function RouteNotFound({ onBack }: { onBack: () => void }) {
@@ -230,60 +241,4 @@ function RouteNotFound({ onBack }: { onBack: () => void }) {
 
 function Welcome({ title, description, action, onAction, icon: Icon = PlusIcon }: { title: string; description: string; action: string; onAction: () => void; icon?: typeof PlusIcon }) {
   return <Empty className="flex-1"><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader><EmptyContent><Button onClick={onAction}><Icon data-icon="inline-start" />{action}</Button></EmptyContent></Empty>;
-}
-
-function RecordList({ definition, selectedRecord, basePath, disabled }: { definition: ObjectDefinition; selectedRecord: string | null; basePath: string; disabled: boolean }) {
-  const { t, i18n } = useTranslation();
-  const openRecord = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const search = (params.get('q') ?? '').slice(0, 200);
-  const page = Number(params.get('page') ?? '1');
-  const offset = Number.isInteger(page) && page >= 1 && page <= 4001 ? (page - 1) * 25 : 0;
-  const activeFields = definition.fields.filter(field => !field.state || field.state === 'active');
-  const allowed = ['id', 'updated_at', ...activeFields.map(field => field.technicalName)];
-  const sort = { by: allowed.includes(params.get('sort') ?? '') ? params.get('sort')! : 'updated_at', direction: params.get('direction') === 'asc' ? 'asc' as const : 'desc' as const };
-  function changeList(values: Record<string, string | null>, replace = false) {
-    const next = new URLSearchParams(params);
-    for (const [key, value] of Object.entries(values)) { if (value === null || value === '') next.delete(key); else next.set(key, value); }
-    setParams(next, { replace });
-  }
-  const query = useDeferredValue(search);
-  const result = useQuery({ queryKey: ['records', definition.id, i18n.language, query, offset, sort], placeholderData: keepPreviousData, queryFn: () => api('list_records', { objectTypeId: definition.id, query, limit: 25, offset, sortBy: sort.by, sortDirection: sort.direction }) });
-  const fields = activeFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword');
-  const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }), enabled: fields.some(field => field.kind === 'reference') });
-  const hasKeyword = activeFields.some(field => field.technicalName === 'keyword');
-  const classifications = (['type', 'status', 'category'] as const).filter(kind => activeFields.some(field => field.technicalName === kind));
-  const columns = [{ name: hasKeyword ? 'keyword' : 'id', label: t(hasKeyword ? 'keyword' : 'recordIdentity') }, ...classifications.map(kind => ({ name: kind, label: t(kind === 'type' ? 'classificationType' : kind === 'status' ? 'classificationStatus' : 'classificationCategory') })), ...fields.map(field => ({ name: field.technicalName, label: field.label })), { name: 'updated_at', label: t('updated') }];
-
-  const readOnly = Boolean(definition.state && definition.state !== 'active');
-  return <>
-    {readOnly ? <p className="text-muted-foreground">{t('inactiveObjectHelp')}</p> : null}
-    <div className="flex flex-wrap items-center justify-between gap-4 py-2"><h1 className="text-2xl font-semibold tracking-tight">{definition.label}</h1><div className="flex flex-wrap gap-2">{!readOnly ? <Button render={<Link to={`${basePath}/new?${params}`} />} nativeButton={false} disabled={disabled}><PlusIcon data-icon="inline-start" />{t('newRecord')}</Button> : null}</div></div>
-    <Field className="w-full sm:max-w-xs"><FieldLabel htmlFor="record-search" className="sr-only">{t(hasKeyword ? 'search' : 'searchById')}</FieldLabel><InputGroup><InputGroupAddon><SearchIcon /></InputGroupAddon><InputGroupInput aria-keyshortcuts={keyboardCommands.search.aria} id="record-search" placeholder={t(hasKeyword ? 'search' : 'searchById')} value={search} maxLength={200} onChange={event => changeList({ q: event.target.value, page: null }, true)} /><InputGroupAddon align="inline-end"><Kbd>{keyboardCommands.search.key}</Kbd></InputGroupAddon></InputGroup></Field>
-    {result.isPending ? <Loading /> : result.isError ? <ErrorNotice error={result.error} retry={() => { void result.refetch(); }} /> : <>
-      <div className="min-w-0 overflow-hidden rounded-lg border">
-        <Table><TableHeader><TableRow>{columns.map(column => {
-          const active = sort.by === column.name;
-          const Icon = active ? (sort.direction === 'asc' ? ArrowUpIcon : ArrowDownIcon) : ArrowUpDownIcon;
-          return <TableHead key={column.name} aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><Button variant="ghost" className="-ml-2" disabled={disabled} aria-label={t('sortColumn', { column: column.label, direction: t(active && sort.direction === 'asc' ? 'sortDescending' : 'sortAscending') })} onClick={() => changeList({ sort: column.name, direction: active && sort.direction === 'asc' ? 'desc' : 'asc', page: null })}>{column.label}<Icon data-icon="inline-end" /></Button></TableHead>;
-        })}</TableRow></TableHeader>
-          <TableBody>{result.data.records.map(record => <TableRow key={record.id} data-state={record.id === selectedRecord ? 'selected' : undefined} onClick={event => {
-            if (disabled || record.id === selectedRecord || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-            const target = event.target instanceof Element ? event.target : null;
-            // Links and future row controls retain their own actions and keyboard semantics.
-            if (target?.closest('a, button, input, textarea, select, label, [role="button"], [role="link"], [role="checkbox"], [role="menuitem"], [role="switch"], [role="combobox"], [contenteditable], [data-row-action]')) return;
-            if (window.getSelection()?.toString()) return;
-            void openRecord(`${basePath}/${record.id}?${params}`);
-          }}>
-            <TableCell><Button variant="link" className="max-w-80 justify-start truncate px-0 hover:no-underline" render={<Link to={`${basePath}/${record.id}?${params}`} />} nativeButton={false} disabled={disabled}>{record.keyword || record.id}</Button></TableCell>
-            {classifications.map(kind => <TableCell key={kind}>{displayClassification(definition.classification, kind, record[kind])}</TableCell>)}
-            {fields.map(field => <TableCell key={field.id} className="max-w-64 truncate" title={displayFieldValue(field, record[field.technicalName], i18n.language, t, principals.data)}>{displayFieldValue(field, record[field.technicalName], i18n.language, t, principals.data)}</TableCell>)}
-            <TableCell className="text-muted-foreground">{new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(new Date(record.updated_at))}</TableCell>
-          </TableRow>)}</TableBody>
-        </Table>
-        {!result.data.records.length ? <Empty><EmptyHeader><EmptyTitle>{t(search ? 'noMatches' : 'noRecords')}</EmptyTitle><EmptyDescription>{t(search ? 'noMatchesDescription' : 'noRecordsDescription')}</EmptyDescription></EmptyHeader>{!search && !readOnly ? <EmptyContent><Button render={<Link to={`${basePath}/new?${params}`} />} nativeButton={false}><PlusIcon data-icon="inline-start" />{t('newRecord')}</Button></EmptyContent> : null}</Empty> : null}
-      </div>
-      <footer className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"><span>{t('count', { count: result.data.total })}</span>{result.data.total > 25 || offset > 0 ? <div className="flex items-center gap-3"><Button variant="outline" size="sm" disabled={offset === 0} onClick={() => changeList({ page: offset <= 25 ? null : String(offset / 25) })}>{t('previous')}</Button><span>{t('page', { page: offset / 25 + 1 })}</span><Button variant="outline" size="sm" disabled={offset >= 100000 || offset + 25 >= result.data.total} onClick={() => changeList({ page: String(offset / 25 + 2) })}>{t('next')}</Button></div> : null}</footer>
-    </>}
-  </>;
 }

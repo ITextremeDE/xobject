@@ -10,6 +10,18 @@ The project is in early development. No software release is available yet.
 
 ### Added
 
+- Workspace Dashboard based on shadcn dashboard-01 with actual record/object statistics, a 7/30/90-day activity chart and a cross-object standard-field table through shared API/MCP operations. Object-filter sections, column visibility, page selection, row actions and complete pagination also serve individual record lists; growing administration tables and the instance Journal share the pagination footer.
+- Sidebar search placement based on sidebar-02 and a scrollable command menu combining navigation, object definitions, resources and authorized record search, including Command/Ctrl+K and keyboard selection.
+- Administrator-only local user management with initial-password provisioning, mandatory first password change, reversible account activation and session revocation; atomic credential/metadata journals exclude all password material. Instance Journal displays every recorded change with workspace, field/property and entity-kind filters and pagination. Workspace General displays the creator and evidenced creation time.
+- Regional display settings independent of interface language: workspace locale, date/time/number formats and first weekday with per-property personal inheritance, live previews, exact decimal formatting and atomic property journals.
+- Workspace time zones and optional personal overrides in Language & region, shared API/MCP validation, atomic journals and conflict checks. Timestamp display/input follows the effective named zone, including DST gap validation and explicit overlap selection; date-only values remain unchanged.
+- Workspace user-group management with shared create/rename/member/activation API/MCP operations, version checks and atomic property/member journals. Administrators manage memberships and activation; Designers manage names and empty group creation; Users can inspect groups. Deactivation preserves references/history, blocks new assignments and permits reactivation; removing workspace access also removes its group memberships atomically.
+- Central installed German/English language catalog and per-workspace interface/default/definition-language settings, shared versioned API/MCP validation and atomic journals. Unavailable user preferences fall back without being overwritten; disabling a definition language preserves translations and history while blocking edits/new translations in that language.
+- Shared workspace Appearance settings for Administrators/Designers: separate shadcn base colors, themes and chart palettes, optional primary/secondary colors with calculated text contrast, corner radii, normal/inverted and translucent menu surfaces with subtle/bold accents, and all 26 pinned shadcn font choices for the interface and optional separate headings served locally with their license notices. Interactive light/dark menu and selection previews preserve drafts and portal scope; versioned API/MCP writes journal each changed property atomically, and workspace changes apply the saved design including portalled controls. Personal light/dark/system mode stays separate.
+- Prepared Profile picture area with standard Avatar initials and a clearly disabled upload action; image upload/storage and verified email changes remain deferred.
+- Personal Profile settings for the own display name, read-only sign-in email and atomic API/MCP profile journals; refreshed user menus/initials, guarded drafts and Profile-first navigation followed by Account & security, Appearance and Language & region.
+- Personal Account & security settings with verified password changes, own active-session metadata and confirmed revocation of other sessions through shared API/MCP rules; changes and secret-free security events are atomic, with a bounded failed-password guard and no alternate auth-route bypass.
+- Sidebar footer links for Documentation, Changelog and Roadmap under the localized Resources heading directly above the user menu, with standard icons, collapsed-sidebar tooltips and accessible new-tab behavior.
 - Field/object definition lifecycle with deactivation, preflighted reactivation and confirmed deletion of never-used storage through UI/API/MCP; protected definitions, current/historical usage and database dependencies are enforced atomically. Tombstones and definition journals preserve historical identities, inactive values remain readable, and Type/Status fields share one lifecycle.
 - Instance-wide Administrators and per-workspace User/Designer memberships, with Administrator-managed role assignment, version checks and atomic journals through UI/API/MCP. Users can view workspace settings; Designers can edit configuration within their workspace. Content permissions remain separate and business-content access stays Administrator-only for now.
 - Saved manual ordering for Type, Status and Category options, with drag handles, keyboard-accessible move buttons, matching record selection/display order and atomic per-field ordering journals through API/MCP.
@@ -23,10 +35,8 @@ The project is in early development. No software release is available yet.
 - Clicking the exact active Sidebar destination refreshes its data while preserving the document, list parameters, history and unsaved-change guard.
 - Direct web routes for personal settings, workspace Dashboards, object lists and records, with URL-based search/sort/pagination and guarded Back/Forward navigation.
 - Record-table column sorting through shared API/MCP operations, applied before pagination with accessible direction indicators.
-- Workspace search beside the header Breadcrumb, with object/record results, keyboard selection, Command/Ctrl+K toggling and a shared API/MCP search operation.
 - Header actions for the user menu, appearance selection and a disabled placeholder for future notifications.
 - Personal settings form in both user menus for account language and browser appearance, with explicit Save/Reset actions, unsaved-change protection and a workspace Breadcrumb link back to the Dashboard.
-- Dashboard as the first navigation entry and workspace landing page, showing available object types with direct access and creation.
 - Central keyboard shortcuts for focused-form submission and record search, with localized keyboard help, visible key hints and preserved native widget navigation.
 - First Administrator web interface using React, Vite, standard shadcn/ui and semantic theme variables, with German/English labels and light/dark/system appearance.
 - Browser login/logout, workspace/object/text-field creation, searchable paginated record tables, versioned editing, unsaved-change protection and per-field record journals.
@@ -46,6 +56,8 @@ The project is in early development. No software release is available yet.
 
 ### Changed
 
+- Muted table headers and example-aligned user-menu profile spacing; resource links sit above the separate sidebar user footer.
+- Consistent shadcn form disabled/validation states and inline account/profile errors, standard pending-action spinners, matching empty journal views and keyboard-accessible collapsible definition details.
 - Dialog action footers consistently place Close/Cancel left and Reset then Save/Create right, with shared neutral/primary styling, read-only dismissal, invalid-draft reset and pending guards; destructive confirmations use a destructive action.
 - Definition journal entries use localized attribute/value labels, aligned Before/After columns, compact actor/time metadata and expandable structured values.
 - Settings dialog offers a larger 960 × 640 px desktop layout while remaining constrained to the viewport; the deleted-definition toggle appears below the object selector.
@@ -63,6 +75,10 @@ The project is in early development. No software release is available yet.
 
 ### Fixed
 
+- Keep content-hashed assets across local web rebuilds so open clients can still load settings and other lazy views; CI/explicit clean builds remain clean. Module-load failures offer an accurate reload message.
+- Open user editing from the whole row, preserve the expected version of unsaved drafts across refetches, and recover conflicts with Reset. Save exposes the common keyboard shortcut.
+- Apply the local-search keyboard shortcut and hint on the Dashboard; distinguish group, membership/role and user navigation icons; restore dashboard-01 card and SVG area gradients using workspace colors.
+- Close the user-group editor after successful save while retaining drafts on errors and returning keyboard focus to the group.
 - Empty classification-only records retain an atomic creation event; historical usage still blocks object deletion after a current row is gone. Definition filters preserve unsaved drafts, and deleted standard fields show their own historical attributes instead of a replacement field’s live classification.
 - Normal dialogs consistently offer a localized top-right close button, with room reserved in their headers and existing pending/unsaved-change guards preserved; confirmation dialogs retain explicit decision actions.
 - Keyboard help uses the shared dialog layout with a consistent width, fixed header/footer and a scrollable body that preserves rounded corners.

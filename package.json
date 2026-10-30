@@ -15,7 +15,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run build --workspace @xobject/contracts && npm run typecheck --workspaces --if-present",
-    "test": "npm run build --workspace @xobject/contracts && npm run test --workspace @xobject/server",
+    "test": "npm run build --workspace @xobject/contracts && npm run test --workspace @xobject/server && npm run test --workspace @xobject/web",
     "dev": "npm run build --workspace @xobject/contracts && npm run build --workspace @xobject/web && node --env-file-if-exists=.env --import tsx apps/server/src/main.ts",
     "db:migrate": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts migrate",
     "admin:create": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts create-admin",

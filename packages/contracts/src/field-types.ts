@@ -19,7 +19,7 @@ export const fieldValueSchema = z.union([z.string().max(10000), z.boolean(), mon
 export type FieldValue = z.infer<typeof fieldValueSchema>;
 export type ReferenceValue = z.infer<typeof referenceValueSchema>;
 export type MoneyValue = z.infer<typeof moneyValueSchema>;
-export interface FieldPrincipal { id: string; kind: 'user' | 'group'; name: string }
+export interface FieldPrincipal { id: string; kind: 'user' | 'group'; name: string; active?: boolean }
 export function isCustomFieldKind(kind: string): kind is CustomFieldKind { return (customFieldKinds as readonly string[]).includes(kind); }
 export function defaultFieldConfig(kind: CustomFieldKind): FieldConfig {
   switch (kind) {

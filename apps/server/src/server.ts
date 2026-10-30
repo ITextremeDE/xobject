@@ -42,6 +42,9 @@ export function buildServer(config: Config) {
   app.route({
     method: ['GET', 'POST'], url: '/api/auth/*',
     handler: async (request, reply) => {
+      // Security/profile mutations use the common journaled API/MCP operations, not alternate auth routes.
+      const authPath = new URL(request.url, base).pathname.replace(/\/+$/, '');
+      if (!['/api/auth/sign-in/email', '/api/auth/sign-out', '/api/auth/get-session'].includes(authPath)) throw new AppError(404, 'Not found');
       const response = await auth.handler(new Request(new URL(request.url, base), {
         method: request.method, headers: fromNodeHeaders(request.headers),
         ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
@@ -59,17 +62,20 @@ export function buildServer(config: Config) {
     if (headers['x-xobject-request'] !== '1') throw new AppError(400, 'X-XObject-Request: 1 is required');
     const session = await auth.api.getSession({ headers: fromNodeHeaders(headers) });
     if (!session) throw new AppError(401, 'Authentication required');
-    return session.user.id;
+    return { userId: session.user.id, sessionId: session.session.id };
   };
 
   for (const operation of Object.keys(schemas) as Operation[]) {
     app.post(`/api/v1/${operation}`, {
       schema: { body: z.toJSONSchema(schemas[operation], { target: 'draft-7', io: 'input' }) },
-    }, async (request) => application.execute(operation, request.body, await authenticate(request.headers)));
+    }, async (request) => {
+      const context = await authenticate(request.headers);
+      return application.execute(operation, request.body, context.userId, context);
+    });
   }
 
   app.post('/mcp', async (request, reply) => {
-    const userId = await authenticate(request.headers);
+    const context = await authenticate(request.headers);
     const server = new McpServer({ name: 'xobject-spike', version: '0.0.0' });
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined, enableJsonResponse: true,
@@ -81,7 +87,7 @@ export function buildServer(config: Config) {
         annotations: { readOnlyHint: operation.startsWith('get_') || operation.startsWith('list_'), openWorldHint: false },
       }, async (input: unknown) => {
         try {
-          const result = await application.execute(operation, input, userId);
+          const result = await application.execute(operation, input, context.userId, context);
           return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
         } catch (error) {
           const message = error instanceof AppError || error instanceof ZodError ? error.message : 'Internal server error';

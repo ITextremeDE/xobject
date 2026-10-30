@@ -12,7 +12,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { buildServer } from '../src/server.js';
 import { migrate } from '../src/database.js';
 import { createAuth } from '../src/auth.js';
-import { moveClassificationOption, type ClassificationRules } from '@xobject/contracts';
+import { defaultRegionalSettings, defaultWorkspaceAppearance, moveClassificationOption, type ClassificationRules } from '@xobject/contracts';
 import type { Operation } from '../src/domain.js';
 
 process.env.LOG_LEVEL ??= 'silent';
@@ -578,7 +578,11 @@ test('workspace name changes share API/MCP validation and atomic journals withou
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Preserved record' });
   assert.deepEqual(await tool('set_workspace_name', { workspaceId: ws.id, name: '  Renamed workspace  ' }), { workspaceId: ws.id, name: 'Renamed workspace' });
   const updated = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
-  assert.deepEqual(updated, { id: ws.id, code: 'workspaceprefs', name: 'Renamed workspace', default_language: 'de', role: 'administrator' });
+  assert.equal(updated.created_by, adminId);
+  assert.equal(updated.created_by_name, 'Test Administrator');
+  assert.ok(Number.isFinite(Date.parse(updated.created_at)));
+  const { created_by, created_by_name, created_at, ...withoutCreation } = updated;
+  assert.deepEqual(withoutCreation, { id: ws.id, code: 'workspaceprefs', name: 'Renamed workspace', default_language: 'de', available_languages: ['de', 'en'], label_languages: ['de', 'en'], language_version: 1, time_zone: 'UTC', regional: { ...defaultRegionalSettings, locale: 'de-DE' }, appearance: defaultWorkspaceAppearance, appearance_version: 1, role: 'administrator' });
   assert.equal((await ok('get_record', { objectTypeId: type.id, recordId: record.id })).keyword, 'Preserved record');
   const journal = await sql<{ old_value: string; new_value: string; actor_id: string }>`SELECT old_value, new_value, actor_id FROM sys_journal WHERE entity_id = ${ws.id}::uuid AND field_key = 'name' ORDER BY id`.execute(runtime.db);
   assert.equal(journal.rows.length, 2);
@@ -750,8 +754,8 @@ test('administrator flags cannot be set by profile input and authorization reads
   const ordinary = (await sql<{ id: string; is_admin: boolean }>`SELECT id, is_admin FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
   assert.equal(ordinary.is_admin, false);
   for (const flags of [{ isAdmin: true }, { is_admin: true }, { isAdmin: true, is_admin: true }]) {
-    const response = await runtime.app.inject({ method: 'POST', url: '/api/auth/update-user', headers: { host: '127.0.0.1:4100', origin: baseURL, cookie: userCookie }, payload: { name: 'Test User', ...flags } });
-    assert.ok([200, 400].includes(response.statusCode), response.body);
+    const response = await api('set_user_profile', { name: 'Test User', ...flags }, userCookie);
+    assert.equal(response.statusCode, 400, response.body);
     assert.equal((await sql<{ is_admin: boolean }>`SELECT is_admin FROM sys_users WHERE id = ${ordinary.id}`.execute(runtime.db)).rows[0].is_admin, false);
     assert.deepEqual((await api('list_workspaces', {}, userCookie)).json(), []);
     assert.deepEqual((await api('get_access_context', {}, userCookie)).json(), { isAdmin: false });
@@ -1086,4 +1090,522 @@ test('empty classification-only records retain creation history through API/MCP 
     assert.equal((await api('set_definition_state', { kind: 'object_type', id: type.id, expectedState: 'active', state: 'deleted', confirm: true })).statusCode, 400);
     assert.equal((await ok('get_object_type', { objectTypeId: type.id })).canDelete, false);
   }
+});
+
+test('account security exposes only own active session metadata without credentials through API/MCP', async () => {
+  const own = await ok('get_account_security', {});
+  assert.equal(own.hasPassword, true);
+  assert.equal(own.sessions.filter((session: { current: boolean }) => session.current).length, 1);
+  assert.deepEqual(await tool('get_account_security', {}), own);
+  const regular = (await api('get_account_security', {}, userCookie)).json();
+  assert.ok(regular.sessions.length > 0);
+  assert.ok(regular.sessions.every((session: { id: string }) => !own.sessions.some((other: { id: string }) => other.id === session.id)));
+  const allowed = ['id', 'current', 'createdAt', 'updatedAt', 'expiresAt', 'ipAddress', 'userAgent'].sort();
+  for (const session of own.sessions) assert.deepEqual(Object.keys(session).sort(), allowed);
+  assert.equal((await api('get_account_security', { userId: adminId }, userCookie)).statusCode, 400);
+  assert.equal((await api('get_account_security', {}, '')).statusCode, 401);
+  const expiredCookie = await login('admin@example.test', 'test-password-administrator');
+  const expiredId = (await api('get_account_security', {}, expiredCookie)).json().sessions.find((session: { current: boolean }) => session.current).id;
+  await sql`UPDATE sys_sessions SET expires_at = now() - interval '1 minute' WHERE id = ${expiredId}`.execute(runtime.db);
+  assert.ok(!(await ok('get_account_security', {})).sessions.some((session: { id: string }) => session.id === expiredId));
+  assert.equal((await api('get_account_security', {}, expiredCookie)).statusCode, 401);
+
+  for (const path of ['update-user', 'list-sessions', 'list-accounts', 'change-password', 'revoke-session', 'revoke-sessions', 'revoke-other-sessions', 'change-password/']) {
+    const response = await runtime.app.inject({ method: path.startsWith('list-') ? 'GET' : 'POST', url: `/api/auth/${path}`, headers: { host: '127.0.0.1:4100', cookie: adminCookie, origin: baseURL }, payload: path.startsWith('list-') ? undefined : {} });
+    assert.equal(response.statusCode, 404, path);
+  }
+});
+
+test('session revocation is owner-scoped, excludes the current session and journals atomically', async () => {
+  const second = await login('admin@example.test', 'test-password-administrator');
+  const own = await ok('get_account_security', {});
+  const secondId = (await api('get_account_security', {}, second)).json().sessions.find((session: { current: boolean }) => session.current).id;
+  const foreignId = (await api('get_account_security', {}, userCookie)).json().sessions.find((session: { current: boolean }) => session.current).id;
+  assert.equal((await api('revoke_session', { sessionId: foreignId })).statusCode, 404);
+  assert.equal((await client.callTool({ name: 'revoke_session', arguments: { sessionId: foreignId } })).isError, true);
+
+  assert.equal((await api('revoke_session', { sessionId: own.sessions.find((session: { current: boolean }) => session.current).id })).statusCode, 400);
+  await sql`CREATE FUNCTION reject_session_security_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.entity_kind = 'session' AND NEW.field_key = 'revoked' THEN RAISE EXCEPTION 'test security journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_session_security_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_session_security_journal()`.execute(runtime.db);
+  try { assert.equal((await api('revoke_session', { sessionId: secondId })).statusCode, 500); }
+  finally { await sql`DROP TRIGGER reject_session_security_journal ON sys_journal`.execute(runtime.db); }
+  assert.equal((await api('get_account_security', {}, second)).statusCode, 200);
+  assert.equal((await tool('revoke_session', { sessionId: secondId })).revokedSessions, 1);
+  assert.equal((await api('get_account_security', {}, second)).statusCode, 401);
+  assert.equal((await api('get_account_security', {}, userCookie)).statusCode, 200);
+  assert.equal((await api('revoke_session', { sessionId: secondId })).statusCode, 404);
+  const bulk = await tool('revoke_other_sessions', {});
+  assert.ok(bulk.revokedSessions >= 0);
+  assert.equal((await ok('get_account_security', {})).sessions.length, 1);
+  assert.equal((await ok('revoke_other_sessions', {})).revokedSessions, 0);
+  const event = (await sql<{ old_value: unknown; new_value: unknown }>`SELECT old_value, new_value FROM sys_journal WHERE entity_id = ${secondId}::uuid AND field_key = 'revoked'`.execute(runtime.db)).rows;
+  assert.deepEqual(event, [{ old_value: false, new_value: true }]);
+});
+
+test('password changes verify credentials, preserve current authentication and roll back credentials/revocation with journal failures', async () => {
+  const original = 'test-password-administrator';
+  const next = 'replacement-password-administrator';
+  const second = await login('admin@example.test', original);
+  const hash = (await sql<{ password: string }>`SELECT password FROM sys_accounts WHERE user_id = ${adminId} AND provider_id = 'credential'`.execute(runtime.db)).rows[0].password;
+  assert.equal((await api('change_password', { currentPassword: 'incorrect', newPassword: next })).statusCode, 400);
+  assert.equal((await api('change_password', { currentPassword: original, newPassword: 'short' })).statusCode, 400);
+  assert.equal((await api('change_password', { currentPassword: original, newPassword: original })).statusCode, 400);
+  await sql`CREATE FUNCTION reject_password_security_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key = 'password_changed' THEN RAISE EXCEPTION 'test password journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_password_security_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_password_security_journal()`.execute(runtime.db);
+  try { assert.equal((await api('change_password', { currentPassword: original, newPassword: next })).statusCode, 500); }
+  finally { await sql`DROP TRIGGER reject_password_security_journal ON sys_journal`.execute(runtime.db); }
+  assert.equal((await sql<{ password: string }>`SELECT password FROM sys_accounts WHERE user_id = ${adminId} AND provider_id = 'credential'`.execute(runtime.db)).rows[0].password, hash);
+  assert.equal((await api('get_account_security', {}, second)).statusCode, 200);
+  const changed = await tool('change_password', { currentPassword: original, newPassword: next });
+  assert.equal(changed.changed, true);
+  assert.ok(changed.revokedSessions >= 1);
+  assert.equal((await api('get_account_security', {}, second)).statusCode, 401);
+  assert.equal((await api('get_account_security', {})).statusCode, 200);
+  const denied = await runtime.app.inject({ method: 'POST', url: '/api/auth/sign-in/email', headers: { host: '127.0.0.1:4100', origin: baseURL }, payload: { email: 'admin@example.test', password: original } });
+  assert.notEqual(denied.statusCode, 200);
+  const nextCookie = await login('admin@example.test', next);
+  assert.equal((await ok('change_password', { currentPassword: next, newPassword: original, revokeOtherSessions: false })).revokedSessions, 0);
+  assert.equal((await api('get_account_security', {}, nextCookie)).statusCode, 200);
+  const events = (await sql<{ old_value: unknown; new_value: unknown }>`SELECT old_value, new_value FROM sys_journal WHERE entity_kind = 'account_security' AND entity_id = ${adminId}::uuid AND field_key = 'password_changed'`.execute(runtime.db)).rows;
+  assert.deepEqual(events, [{ old_value: null, new_value: true }, { old_value: null, new_value: true }]);
+  assert.equal(JSON.stringify(events).includes(original), false);
+  assert.equal(JSON.stringify(events).includes(hash), false);
+});
+
+test('incorrect password attempts are bounded per account across API/MCP', async () => {
+  for (let attempt = 0; attempt < 5; attempt++) assert.equal((await api('change_password', { currentPassword: 'incorrect', newPassword: 'new-regular-user-password' }, userCookie)).statusCode, 400);
+  assert.equal((await api('change_password', { currentPassword: 'test-password-regular-user', newPassword: 'new-regular-user-password' }, userCookie)).statusCode, 429);
+  assert.equal((await api('get_account_security', {}, userCookie)).statusCode, 200);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const response = await client.callTool({ name: 'change_password', arguments: { currentPassword: 'incorrect', newPassword: 'new-administrator-password' } });
+    assert.equal(response.isError, true);
+  }
+  assert.equal((await api('change_password', { currentPassword: 'test-password-administrator', newPassword: 'new-administrator-password' })).statusCode, 429);
+  assert.equal((await tool('get_account_security', {})).hasPassword, true);
+});
+
+
+test('personal profile names are owner-scoped, journaled atomically and reflected by auth sessions through API/MCP', async () => {
+  const userBefore = (await sql<{ id: string; name: string; email: string; is_admin: boolean }>`SELECT id, name, email, is_admin FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
+  const adminBefore = (await sql<{ name: string }>`SELECT name FROM sys_users WHERE id = ${adminId}`.execute(runtime.db)).rows[0].name;
+  const renamed = await api('set_user_profile', { name: '  Own display name  ' }, userCookie);
+  assert.equal(renamed.statusCode, 200);
+  assert.deepEqual(renamed.json(), { name: 'Own display name' });
+  const userAfter = (await sql`SELECT id, name, email, is_admin FROM sys_users WHERE id = ${userBefore.id}`.execute(runtime.db)).rows[0];
+  assert.deepEqual(userAfter, { ...userBefore, name: 'Own display name' });
+  const lookup = await runtime.app.inject({ method: 'GET', url: '/api/auth/get-session', headers: { host: '127.0.0.1:4100', cookie: userCookie } });
+  assert.equal(lookup.json().user.name, 'Own display name');
+  const history = (await sql<{ new_value: string }>`SELECT * FROM sys_journal WHERE entity_kind = 'user' AND entity_id = ${userBefore.id}::uuid AND field_key = 'name'`.execute(runtime.db)).rows;
+  assert.equal(history.length, 1);
+  assert.equal(history[0].new_value, 'Own display name');
+  assert.equal((await api('set_user_profile', { name: 'Own display name' }, userCookie)).statusCode, 200);
+  assert.deepEqual((await sql`SELECT * FROM sys_journal WHERE entity_kind = 'user' AND entity_id = ${userBefore.id}::uuid AND field_key = 'name'`.execute(runtime.db)).rows, history);
+  for (const payload of [{ name: '' }, { name: '   ' }, { name: 'x'.repeat(201) }, { name: 'Foreign', userId: adminId }, { name: 'Foreign', email: 'other@example.test' }, { name: 'Foreign', isAdmin: true }]) assert.equal((await api('set_user_profile', payload, userCookie)).statusCode, 400);
+  assert.equal((await api('set_user_profile', { name: 'Denied' }, '')).statusCode, 401);
+  await sql`CREATE FUNCTION reject_profile_name_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.entity_kind = 'user' AND NEW.field_key = 'name' THEN RAISE EXCEPTION 'test profile journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_profile_name_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_profile_name_journal()`.execute(runtime.db);
+  try { assert.equal((await api('set_user_profile', { name: 'Must roll back' }, userCookie)).statusCode, 500); }
+  finally { await sql`DROP TRIGGER reject_profile_name_journal ON sys_journal`.execute(runtime.db); }
+  assert.equal((await sql<{ name: string }>`SELECT name FROM sys_users WHERE id = ${userBefore.id}`.execute(runtime.db)).rows[0].name, 'Own display name');
+  assert.deepEqual(await tool('set_user_profile', { name: '  Updated Administrator  ' }), { name: 'Updated Administrator' });
+  assert.equal((await sql<{ name: string }>`SELECT name FROM sys_users WHERE id = ${userBefore.id}`.execute(runtime.db)).rows[0].name, 'Own display name');
+  assert.equal((await ok('set_user_profile', { name: adminBefore })).name, adminBefore);
+});
+
+test('workspace appearance is shared, versioned and journaled per property through API/MCP with workspace role boundaries', async () => {
+  const { defaultWorkspaceAppearance, workspaceFonts } = await import('@xobject/contracts');
+  const ordinary = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
+  const ws = await ok('create_workspace', { name: 'Shared appearance', code: 'appearance' });
+  const other = await ok('create_workspace', { name: 'Other appearance', code: 'appearanceother' });
+  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'mauve', font: 'inter', primaryColor: '#2563eb', secondaryColor: '#facc15', radius: 'large' };
+  const payload = { workspaceId: ws.id, version: 1, appearance };
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });
+  const own = (await api('list_workspaces', {}, userCookie)).json().find((item: { id: string }) => item.id === ws.id);
+  assert.deepEqual(own.appearance, defaultWorkspaceAppearance);
+  assert.equal(own.appearance_version, 1);
+  assert.equal((await api('set_workspace_appearance', payload, userCookie)).statusCode, 403);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'user' });
+  assert.equal((await api('set_workspace_appearance', { ...payload, workspaceId: other.id }, userCookie)).statusCode, 403);
+  for (const invalid of [{ ...appearance, font: 'custom-font' }, { ...appearance, primaryColor: 'url(https://example.test)' }, { ...appearance, extraCSS: 'body{}' }, { ...appearance, radius: 'arbitrary' }]) {
+    assert.equal((await api('set_workspace_appearance', { ...payload, appearance: invalid }, userCookie)).statusCode, 400);
+  }
+  const saved = await api('set_workspace_appearance', payload, userCookie);
+  assert.equal(saved.statusCode, 200, saved.body);
+  assert.equal(saved.json().version, 2);
+  const updated = (await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.deepEqual(updated.appearance, appearance);
+  assert.equal(updated.appearance_version, 2);
+  const journals = (await sql<{ field_key: string; change_id: string; actor_id: string }>`SELECT field_key, change_id, actor_id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%'`.execute(runtime.db)).rows;
+  assert.equal(journals.length, 5);
+  assert.equal(new Set(journals.map(item => item.change_id)).size, 1);
+  assert.ok(journals.every(item => item.actor_id === ordinary.id));
+  assert.equal((await api('set_workspace_appearance', payload)).statusCode, 409);
+  assert.equal((await tool('set_workspace_appearance', { ...payload, version: 2 })).version, 2);
+  assert.equal((await sql<{ count: number }>`SELECT count(*)::int AS count FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%'`.execute(runtime.db)).rows[0].count, 5);
+  assert.equal(workspaceFonts.length, 26);
+  for (const font of workspaceFonts) {
+    const result = await tool('set_workspace_appearance', { workspaceId: other.id, version: (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === other.id).appearance_version, appearance: { ...defaultWorkspaceAppearance, font } });
+    assert.equal(result.appearance.font, font);
+  }
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'designer' });
+});
+
+test('appearance persistence rolls back with its journal, survives repeat migration and rejects concurrent stale writes', async () => {
+  const { defaultWorkspaceAppearance } = await import('@xobject/contracts');
+  const ws = await ok('create_workspace', { name: 'Atomic appearance', code: 'atomicappearance' });
+  const appearance = { ...defaultWorkspaceAppearance, font: 'lora', primaryColor: '#ffffff' };
+  await sql`CREATE FUNCTION reject_appearance_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key LIKE 'appearance.%' THEN RAISE EXCEPTION 'test appearance journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_appearance_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_appearance_journal()`.execute(runtime.db);
+  try { assert.equal((await api('set_workspace_appearance', { workspaceId: ws.id, version: 1, appearance })).statusCode, 500); }
+  finally { await sql`DROP TRIGGER reject_appearance_journal ON sys_journal`.execute(runtime.db); }
+  let stored = (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === ws.id);
+  assert.deepEqual(stored.appearance, defaultWorkspaceAppearance);
+  assert.equal(stored.appearance_version, 1);
+  const parallel = await Promise.all([api('set_workspace_appearance', { workspaceId: ws.id, version: 1, appearance }), api('set_workspace_appearance', { workspaceId: ws.id, version: 1, appearance: { ...appearance, font: 'inter' } })]);
+  assert.deepEqual(parallel.map(response => response.statusCode).sort(), [200, 409]);
+  stored = (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === ws.id);
+  await migrate(databaseURL, secret, baseURL);
+  const migrated = (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === ws.id);
+  assert.deepEqual(migrated.appearance, stored.appearance);
+  assert.equal(migrated.appearance_version, stored.appearance_version);
+});
+
+test('custom color foregrounds provide at least 4.5:1 contrast for solid sRGB fills', async () => {
+  const { colorForeground } = await import('@xobject/contracts');
+  for (let red = 0; red < 256; red += 17) for (let green = 0; green < 256; green += 17) for (let blue = 0; blue < 256; blue += 17) {
+    const hex = '#' + [red, green, blue].map(value => value.toString(16).padStart(2, '0')).join('');
+    const rgb = [red, green, blue].map(value => value / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    const luminance = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    const ratio = colorForeground(hex) === '#000000' ? (luminance + 0.05) / 0.05 : 1.05 / (luminance + 0.05);
+    assert.ok(ratio >= 4.5, `${hex} contrast ${ratio}`);
+  }
+});
+
+test('theme, chart palette and heading font share versioned API/MCP configuration and per-property journals', async () => {
+  const ws = await ok('create_workspace', { name: 'Independent design choices', code: 'designchoices' });
+  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'taupe', theme: 'blue', chartColor: 'amber', fontHeading: 'lora' };
+  const saved = await tool('set_workspace_appearance', { workspaceId: ws.id, version: 1, appearance });
+  assert.equal(saved.version, 2);
+  const stored = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.deepEqual(stored.appearance, appearance);
+  const entries = (await sql<{ field_key: string; new_value: string; change_id: string }>`SELECT field_key, new_value, change_id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%' ORDER BY field_key`.execute(runtime.db)).rows;
+  assert.deepEqual(entries.map(entry => [entry.field_key, entry.new_value]), [['appearance.baseColor', 'taupe'], ['appearance.chartColor', 'amber'], ['appearance.fontHeading', 'lora'], ['appearance.theme', 'blue']]);
+  assert.equal(new Set(entries.map(entry => entry.change_id)).size, 1);
+  for (const invalid of [{ ...appearance, theme: 'unknown' }, { ...appearance, chartColor: 'url(https://example.test)' }, { ...appearance, fontHeading: 'custom-font' }]) assert.equal((await api('set_workspace_appearance', { workspaceId: ws.id, version: 2, appearance: invalid })).statusCode, 400);
+  assert.equal((await tool('set_workspace_appearance', { workspaceId: ws.id, version: 2, appearance })).version, 2);
+});
+
+test('older workspace designs gain independent theme/chart and inherited headings without losing their saved choices', async () => {
+  const ws = await ok('create_workspace', { name: 'Older saved design', code: 'olderdesign' });
+  const old = { baseColor: 'mauve', primaryColor: '#2563eb', secondaryColor: null, radius: 'large', font: 'inter' };
+  await sql`UPDATE sys_workspaces SET appearance = ${JSON.stringify(old)}::jsonb, appearance_version = 7 WHERE id = ${ws.id}::uuid`.execute(runtime.db);
+  await migrate(databaseURL, secret, baseURL);
+  const updated = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.deepEqual(updated.appearance, { ...old, theme: 'mauve', chartColor: 'mauve', fontHeading: 'inherit', menuColor: 'default', menuAccent: 'subtle' });
+  assert.equal(updated.appearance_version, 7);
+  await tool('set_workspace_appearance', { workspaceId: ws.id, version: 7, appearance: { ...updated.appearance, theme: 'green', chartColor: 'violet', fontHeading: 'playfair-display' } });
+  await migrate(databaseURL, secret, baseURL);
+  const retained = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.equal(retained.appearance.theme, 'green');
+  assert.equal(retained.appearance.chartColor, 'violet');
+  assert.equal(retained.appearance.fontHeading, 'playfair-display');
+  assert.equal(retained.appearance.primaryColor, old.primaryColor);
+});
+
+test('menu choices share strict API/MCP validation, workspace authorization, version checks and property journals', async () => {
+  const ws = await ok('create_workspace', { name: 'Shared menus', code: 'sharedmenus' });
+  const appearance = { ...defaultWorkspaceAppearance, menuColor: 'inverted-translucent', menuAccent: 'bold' };
+  const request = { workspaceId: ws.id, version: 1, appearance };
+  assert.equal((await api('set_workspace_appearance', request, userCookie)).statusCode, 403);
+  for (const invalid of [{ ...appearance, menuColor: 'custom-css' }, { ...appearance, menuAccent: 'url(https://example.test)' }]) assert.equal((await api('set_workspace_appearance', { ...request, appearance: invalid })).statusCode, 400);
+  const result = await tool('set_workspace_appearance', request);
+  assert.equal(result.version, 2);
+  assert.equal((await api('set_workspace_appearance', request)).statusCode, 409);
+  const read = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.deepEqual(read.appearance, appearance);
+  const events = (await sql<{ field_key: string; new_value: string; change_id: string }>`SELECT field_key, new_value, change_id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%' ORDER BY field_key`.execute(runtime.db)).rows;
+  assert.deepEqual(events.map(event => [event.field_key, event.new_value]), [['appearance.menuAccent', 'bold'], ['appearance.menuColor', 'inverted-translucent']]);
+  assert.equal(new Set(events.map(event => event.change_id)).size, 1);
+  await migrate(databaseURL, secret, baseURL);
+  const retained = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.deepEqual(retained.appearance, appearance);
+});
+
+test('workspace language availability has independent label languages, effective fallback and retained preferences/translations through API/MCP', async () => {
+  const ordinary = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
+  const ws = await ok('create_workspace', { name: 'Language availability', code: 'languagepolicy' });
+  const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'items', labels: { de: 'Einträge', en: 'Items' }, standardFields: ['category'] });
+  assert.deepEqual((await tool('get_language_catalog', {})).map((item: { code: string }) => item.code), ['de', 'en']);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });
+  const input = { workspaceId: ws.id, version: 1, availableLanguages: ['de'], defaultLanguage: 'de', labelLanguages: ['de'] };
+  assert.equal((await api('configure_workspace_languages', input, userCookie)).statusCode, 403);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'user' });
+  const configured = await api('configure_workspace_languages', input, userCookie);
+  assert.equal(configured.statusCode, 200, configured.body);
+  assert.equal(configured.json().version, 2);
+  await api('set_user_language', { language: 'en' }, userCookie);
+  const types = (await api('list_object_types', { workspaceId: ws.id }, userCookie)).json();
+  assert.equal(types[0].label, 'Einträge');
+  assert.equal((await sql<{ language: string }>`SELECT language FROM sys_users WHERE id = ${ordinary.id}`.execute(runtime.db)).rows[0].language, 'en');
+  const definition = (await api('get_object_type', { objectTypeId: type.id }, userCookie)).json();
+  assert.equal(definition.label, 'Einträge');
+  assert.deepEqual(definition.labels, { de: 'Einträge', en: 'Items' });
+  assert.equal((await api('set_labels', { kind: 'object_type', id: type.id, labels: { de: 'Neu', en: 'Changed' } }, userCookie)).statusCode, 400);
+  assert.equal((await api('set_labels', { kind: 'object_type', id: type.id, labels: { de: 'Neu', en: 'Items' } }, userCookie)).statusCode, 200);
+  assert.equal((await api('create_object_type', { workspaceId: ws.id, technicalName: 'blocked', labels: { en: 'Blocked' } }, userCookie)).statusCode, 400);
+  assert.equal((await api('create_field', { objectTypeId: type.id, technicalName: 'blocked', labels: { de: 'Gültig' }, kind: 'single_choice', config: { options: [{ id: randomUUID(), labels: { en: 'Blocked' }, active: true }] } }, userCookie)).statusCode, 400);
+  const blockedClassification = await api('configure_classification', { objectTypeId: type.id, version: definition.classification.version, config: { type: definition.classification.type, status: definition.classification.status, category: definition.classification.category, options: [{ id: randomUUID(), kind: 'category', typeId: null, labels: { en: 'Blocked' }, active: true }] } }, userCookie);
+  assert.equal(blockedClassification.statusCode, 400);
+  assert.equal(blockedClassification.json().error, 'Definition language is unavailable');
+  assert.equal((await api('set_workspace_language', { workspaceId: ws.id, language: 'en' })).statusCode, 400);
+  for (const invalid of [{ ...input, version: 2, availableLanguages: [] }, { ...input, version: 2, defaultLanguage: 'en' }, { ...input, version: 2, labelLanguages: [] }, { ...input, version: 2, availableLanguages: ['fr'] }]) assert.equal((await api('configure_workspace_languages', invalid)).statusCode, 400);
+  assert.equal((await api('configure_workspace_languages', input)).statusCode, 409);
+  const eventsBefore = (await sql`SELECT id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid`.execute(runtime.db)).rows.length;
+  assert.equal((await tool('configure_workspace_languages', { ...input, version: 2 })).version, 2);
+  assert.equal((await sql`SELECT id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid`.execute(runtime.db)).rows.length, eventsBefore);
+  await migrate(databaseURL, secret, baseURL);
+  const retained = (await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.deepEqual(retained.available_languages, ['de']);
+  assert.deepEqual(retained.label_languages, ['de']);
+  assert.equal(retained.default_language, 'de');
+  assert.equal(retained.language_version, 2);
+  const independent = await tool('configure_workspace_languages', { ...input, version: 2, labelLanguages: ['en'] });
+  assert.deepEqual(independent.availableLanguages, ['de']);
+  assert.deepEqual(independent.labelLanguages, ['en']);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'designer' });
+});
+
+test('language configuration rolls back atomically when its journal fails', async () => {
+  const ws = await ok('create_workspace', { name: 'Atomic languages', code: 'atomiclanguages' });
+  await sql`CREATE FUNCTION reject_language_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key = 'available_languages' THEN RAISE EXCEPTION 'test language journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_language_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_language_journal()`.execute(runtime.db);
+  try { assert.equal((await api('configure_workspace_languages', { workspaceId: ws.id, version: 1, availableLanguages: ['de'], defaultLanguage: 'de', labelLanguages: ['de'] })).statusCode, 500); }
+  finally { await sql`DROP TRIGGER reject_language_journal ON sys_journal`.execute(runtime.db); }
+  const after = (await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.equal(after.default_language, 'en');
+  assert.deepEqual(after.available_languages, ['de', 'en']);
+  assert.deepEqual(after.label_languages, ['de', 'en']);
+  assert.equal(after.language_version, 1);
+});
+
+test('workspace groups enforce definition/member roles, scoped users and versions; removal of workspace membership cleans groups atomically', async () => {
+  const ordinary = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
+  const ws = await ok('create_workspace', { name: 'Managed groups', code: 'managedgroups' });
+  const other = await ok('create_workspace', { name: 'Other groups', code: 'othergroups' });
+  assert.equal((await api('create_group', { workspaceId: other.id, name: 'Out of scope', memberIds: [ordinary.id] })).statusCode, 400);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });
+  assert.equal((await api('create_group', { workspaceId: ws.id, name: 'Not allowed' }, userCookie)).statusCode, 403);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'user' });
+  const group = (await api('create_group', { workspaceId: ws.id, name: 'Design team' }, userCookie)).json();
+  let current = (await tool('list_groups', { workspaceId: ws.id }))[0];
+  assert.equal(current.id, group.id);
+  assert.equal(current.version, 1);
+  assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 1, name: 'Team', memberIds: [ordinary.id] }, userCookie)).statusCode, 403);
+  assert.equal((await api('set_group_members', { workspaceId: ws.id, groupId: group.id, version: 1, memberIds: [ordinary.id] }, userCookie)).statusCode, 403);
+  assert.equal((await api('set_group_active', { workspaceId: ws.id, groupId: group.id, version: 1, active: false }, userCookie)).statusCode, 403);
+  assert.equal((await api('configure_group', { workspaceId: other.id, groupId: group.id, version: 1, name: 'Foreign' })).statusCode, 404);
+  assert.equal((await api('list_groups', { workspaceId: other.id }, userCookie)).statusCode, 403);
+  assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 1, name: 'Team' }, userCookie)).statusCode, 200);
+  current = await tool('configure_group', { workspaceId: ws.id, groupId: group.id, version: 2, name: 'Delivery team', memberIds: [ordinary.id] });
+  assert.equal(current.version, 3);
+  assert.deepEqual(current.memberIds, [ordinary.id]);
+  assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 2, name: 'Stale' })).statusCode, 409);
+  await sql`CREATE FUNCTION reject_group_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.entity_kind = 'group' THEN RAISE EXCEPTION 'test group journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_group_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_group_journal()`.execute(runtime.db);
+  try {
+    assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 3, name: 'Rollback', memberIds: [] })).statusCode, 500);
+    assert.equal((await api('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'designer' })).statusCode, 500);
+  } finally { await sql`DROP TRIGGER reject_group_journal ON sys_journal`.execute(runtime.db); }
+  assert.deepEqual((await tool('list_groups', { workspaceId: ws.id }))[0], current);
+  assert.equal((await api('list_groups', { workspaceId: ws.id }, userCookie)).statusCode, 200);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'designer' });
+  const cleaned = (await tool('list_groups', { workspaceId: ws.id }))[0];
+  assert.deepEqual(cleaned.memberIds, []);
+  assert.equal(cleaned.version, 4);
+  const events = (await sql<{ old_value: boolean; new_value: boolean }>`SELECT old_value, new_value FROM sys_journal WHERE entity_id = ${group.id}::uuid AND field_key = ${`member:${ordinary.id}`} ORDER BY id`.execute(runtime.db)).rows;
+  assert.deepEqual(events, [{ old_value: false, new_value: true }, { old_value: true, new_value: false }]);
+});
+
+test('inactive groups retain records, member identities and journals while preventing new assignments', async () => {
+  const ws = await ok('create_workspace', { name: 'Inactive groups', code: 'inactivegroups' });
+  const group = await tool('create_group', { workspaceId: ws.id, name: 'Retained group', memberIds: [adminId] });
+  const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'items', labels: { en: 'Items' }, standardFields: ['keyword'] });
+  await ok('create_field', { objectTypeId: type.id, technicalName: 'team', labels: { en: 'Team' }, kind: 'reference', config: { referenceTarget: 'group', multiple: false } });
+  const reference = { kind: 'group', id: group.id };
+  const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Retained', values: { team: reference } });
+  const inactive = await tool('set_group_active', { workspaceId: ws.id, groupId: group.id, version: 1, active: false });
+  assert.deepEqual(inactive.memberIds, [adminId]);
+  const principals = await tool('list_field_principals', { workspaceId: ws.id });
+  assert.equal(principals.find((item: { id: string }) => item.id === group.id).active, false);
+  assert.equal((await api('create_record', { objectTypeId: type.id, keyword: 'Blocked', values: { team: reference } })).statusCode, 400);
+  assert.equal((await api('set_group_members', { workspaceId: ws.id, groupId: group.id, version: 2, memberIds: [] })).statusCode, 400);
+  const updated = await ok('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Still retained' });
+  assert.deepEqual(updated.team, reference);
+  const history = await tool('get_journal', { objectTypeId: type.id, recordId: record.id });
+  assert.deepEqual(history.find((event: { field_key: string }) => event.field_key === 'team').new_value, reference);
+  await tool('set_group_active', { workspaceId: ws.id, groupId: group.id, version: 2, active: true });
+  assert.equal((await api('create_record', { objectTypeId: type.id, keyword: 'Allowed again', values: { team: reference } })).statusCode, 200);
+});
+
+test('time zones share API/MCP policy, user ownership, workspace roles, versions and migration retention', async () => {
+  const ordinary = (await sql<{ id: string; language: 'de' | 'en' | null }>`SELECT id, language FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
+  const ws = await tool('create_workspace', { name: 'Time zones', code: 'timezones', timeZone: 'Europe/Berlin' });
+  const catalog = await tool('get_time_zone_catalog', {});
+  assert.ok(catalog.includes('Europe/Berlin') && catalog.includes('UTC'));
+  const input = { workspaceId: ws.id, version: 1, availableLanguages: ['de', 'en'], labelLanguages: ['de', 'en'], defaultLanguage: 'en', timeZone: 'America/New_York' };
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, expectedRole: null, role: 'user' });
+  assert.equal((await api('configure_workspace_languages', input, userCookie)).statusCode, 403);
+  await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, expectedRole: 'user', role: 'designer' });
+  assert.equal((await api('configure_workspace_languages', input, userCookie)).json().timeZone, 'America/New_York');
+  assert.equal((await api('configure_workspace_languages', input)).statusCode, 409);
+  const events = (await sql`SELECT id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid`.execute(runtime.db)).rows.length;
+  assert.equal((await tool('configure_workspace_languages', { ...input, version: 2 })).version, 2);
+  assert.equal((await sql`SELECT id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid`.execute(runtime.db)).rows.length, events);
+  for (const timeZone of ['+01:00', 'UTC+1', 'Unknown/Zone', '']) assert.equal((await api('configure_workspace_languages', { ...input, version: 2, timeZone })).statusCode, 400);
+  // Legacy language-only requests preserve the configured zone.
+  await ok('set_workspace_language', { workspaceId: ws.id, language: 'de' });
+  const pref = { language: 'de', timeZone: 'Asia/Tokyo', expectedLanguage: ordinary.language, expectedTimeZone: null };
+  const own = await api('configure_user_localization', pref, userCookie);
+  assert.equal(own.statusCode, 200, own.body);
+  assert.deepEqual(own.json(), { language: 'de', timeZone: 'Asia/Tokyo', regional: null });
+  assert.equal((await api('configure_user_localization', { ...pref, userId: adminId }, userCookie)).statusCode, 400);
+  assert.equal((await api('configure_user_localization', pref, userCookie)).statusCode, 409);
+  const session = await runtime.app.inject({ method: 'GET', url: '/api/auth/get-session', headers: { host: '127.0.0.1:4100', cookie: userCookie } });
+  assert.equal(session.json().user.timeZone, 'Asia/Tokyo');
+  assert.equal((await sql<{ time_zone: string | null }>`SELECT time_zone FROM sys_users WHERE id = ${adminId}`.execute(runtime.db)).rows[0].time_zone, null);
+  const personalEvents = (await sql`SELECT id FROM sys_journal WHERE entity_id = ${ordinary.id}::uuid AND field_key = 'time_zone'`.execute(runtime.db)).rows.length;
+  assert.equal((await api('configure_user_localization', { ...pref, expectedLanguage: 'de', expectedTimeZone: 'Asia/Tokyo' }, userCookie)).statusCode, 200);
+  assert.equal((await sql`SELECT id FROM sys_journal WHERE entity_id = ${ordinary.id}::uuid AND field_key = 'time_zone'`.execute(runtime.db)).rows.length, personalEvents);
+  await migrate(databaseURL, secret, baseURL);
+  const retained = (await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.equal(retained.time_zone, 'America/New_York');
+  assert.equal((await sql<{ time_zone: string }>`SELECT time_zone FROM sys_users WHERE id = ${ordinary.id}`.execute(runtime.db)).rows[0].time_zone, 'Asia/Tokyo');
+  assert.equal((await api('configure_user_localization', { language: null, timeZone: null, expectedLanguage: 'de', expectedTimeZone: 'Asia/Tokyo' }, userCookie)).statusCode, 200);
+});
+
+test('time zone journal failure rolls back personal and workspace localization atomically', async () => {
+  const ws = await ok('create_workspace', { name: 'Atomic time zones', code: 'atomictimezones' });
+  const before = (await sql<{ language: 'de' | 'en' | null }>`SELECT language FROM sys_users WHERE id = ${adminId}`.execute(runtime.db)).rows[0];
+  await sql`CREATE FUNCTION reject_zone_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key = 'time_zone' THEN RAISE EXCEPTION 'test time zone journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_zone_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_zone_journal()`.execute(runtime.db);
+  try {
+    assert.equal((await api('configure_user_localization', { language: before.language === 'de' ? 'en' : 'de', timeZone: 'Europe/Berlin', expectedLanguage: before.language, expectedTimeZone: null })).statusCode, 500);
+    assert.equal((await api('configure_workspace_languages', { workspaceId: ws.id, version: 1, availableLanguages: ['de'], labelLanguages: ['de'], defaultLanguage: 'de', timeZone: 'Europe/Berlin' })).statusCode, 500);
+  } finally { await sql`DROP TRIGGER reject_zone_journal ON sys_journal`.execute(runtime.db); }
+  assert.deepEqual((await sql`SELECT language, time_zone FROM sys_users WHERE id = ${adminId}`.execute(runtime.db)).rows[0], { language: before.language, time_zone: null });
+  const retained = (await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
+  assert.equal(retained.default_language, 'en'); assert.equal(retained.time_zone, 'UTC'); assert.equal(retained.language_version, 1);
+});
+
+test('regional policies use shared versions, independent personal overrides and property journals without rewriting records', async () => {
+  const ws = await ok('create_workspace', { name: 'Regional formats', code: 'regional', defaultLanguage: 'de' });
+  const input = { workspaceId: ws.id, version: 1, availableLanguages: ['de', 'en'], labelLanguages: ['de', 'en'], defaultLanguage: 'de', regional: { ...defaultRegionalSettings, locale: 'de-CH', weekStart: 'sunday' } };
+  assert.equal((await api('configure_workspace_languages', input, userCookie)).statusCode, 403);
+  const changed = await tool('configure_workspace_languages', input);
+  assert.equal(changed.version, 2); assert.equal(changed.regional.locale, 'de-CH');
+  const events = (await sql<{ field_key: string; change_id: string }>`SELECT field_key, change_id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND old_value <> 'null'::jsonb`.execute(runtime.db)).rows;
+  assert.deepEqual(events.map(item => item.field_key).sort(), ['regional.locale', 'regional.weekStart']); assert.equal(new Set(events.map(item => item.change_id)).size, 1);
+  const pref = { locale: null, dateFormat: 'iso', hourCycle: null, numberFormat: null, weekStart: null };
+  const user = (await sql<{ language: 'de' | 'en' | null }>`SELECT language FROM sys_users WHERE id = ${adminId}`.execute(runtime.db)).rows[0];
+  const personal = { language: user.language, timeZone: null, expectedLanguage: user.language, expectedTimeZone: null, regional: pref, expectedRegional: null };
+  assert.equal((await tool('configure_user_localization', personal)).regional.dateFormat, 'iso');
+  assert.equal((await api('configure_user_localization', personal)).statusCode, 409);
+  assert.equal((await api('configure_user_localization', { ...personal, regional: { ...pref, locale: 'unsupported' } })).statusCode, 400);
+  await migrate(databaseURL, secret, baseURL);
+  assert.equal((await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id).regional.locale, 'de-CH');
+  await tool('configure_user_localization', { ...personal, expectedRegional: pref, regional: { locale: null, dateFormat: null, hourCycle: null, numberFormat: null, weekStart: null } });
+});
+
+test('managed users require a first password change, enforce Administrator management and never expose credentials in journals', async () => {
+  const password = 'initial-test-user-only';
+  const created = await tool('create_user', { name: 'Provisioned user', email: 'provisioned@example.test', initialPassword: password });
+  assert.equal(created.mustChangePassword, true); assert.equal(created.isAdmin, false);
+  assert.equal((await api('list_managed_users', {}, userCookie)).statusCode, 403);
+  assert.equal((await api('create_user', { name: 'Denied', email: 'denied@example.test', initialPassword: password }, userCookie)).statusCode, 403);
+  const initialCookie = await login('provisioned@example.test', password);
+  const gate = await api('list_workspaces', {}, initialCookie); assert.equal(gate.statusCode, 403); assert.equal(gate.json().error, 'Password change required');
+  const session = await runtime.app.inject({ method: 'GET', url: '/api/auth/get-session', headers: { host: '127.0.0.1:4100', cookie: initialCookie } }); assert.equal(session.json().user.mustChangePassword, true);
+  const credential = (await sql<{ password: string }>`SELECT password FROM sys_accounts WHERE user_id = ${created.id}`.execute(runtime.db)).rows[0];
+  assert.notEqual(credential.password, password);
+  assert.equal((await api('change_password', { currentPassword: password, newPassword: 'changed-test-user-only', revokeOtherSessions: true }, initialCookie)).statusCode, 200);
+  assert.equal((await api('list_workspaces', {}, initialCookie)).statusCode, 200);
+  const fresh = (await tool('list_managed_users', {})).find((item: { id: string }) => item.id === created.id); assert.equal(fresh.mustChangePassword, false);
+  const configured = await tool('configure_user', { userId: created.id, version: fresh.version, name: 'Renamed provisioned user', isAdmin: false, active: false });
+  assert.equal(configured.active, false);
+  assert.equal((await api('list_workspaces', {}, initialCookie)).statusCode, 401);
+  const deniedLogin = await runtime.app.inject({ method: 'POST', url: '/api/auth/sign-in/email', headers: { host: '127.0.0.1:4100', origin: baseURL }, payload: { email: 'provisioned@example.test', password: 'changed-test-user-only' } });
+  assert.notEqual(deniedLogin.statusCode, 200);
+  assert.equal((await api('configure_user', { userId: created.id, version: fresh.version, name: 'Stale', isAdmin: false, active: true })).statusCode, 409);
+  const self = (await tool('list_managed_users', {})).find((item: { id: string }) => item.id === adminId);
+  assert.equal((await api('configure_user', { userId: adminId, version: self.version, name: self.name, isAdmin: false, active: true })).statusCode, 400);
+  const journal = await tool('list_system_journal', { fieldKey: '', limit: 100 });
+  assert.ok(journal.entries.some((entry: { entity_id: string }) => entry.entity_id === created.id));
+  assert.equal((await api('list_system_journal', {}, userCookie)).statusCode, 403);
+  const raw = JSON.stringify((await sql`SELECT * FROM sys_journal WHERE entity_id = ${created.id}::uuid`.execute(runtime.db)).rows);
+  assert.ok(!raw.includes(password) && !raw.includes(credential.password) && !raw.includes('changed-test-user-only'));
+  const page = await tool('list_system_journal', { entityKind: 'user', fieldKey: 'must_change_password', limit: 1 });
+  assert.ok(page.total >= 2); assert.equal(page.entries.length, 1);
+});
+
+test('user creation and mandatory password flags roll back with journals; all-inherited regional settings are a no-op', async () => {
+  await sql`CREATE FUNCTION reject_user_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.entity_kind = 'user' AND NEW.field_key = 'name' THEN RAISE EXCEPTION 'test user journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_user_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_user_journal()`.execute(runtime.db);
+  try { assert.equal((await api('create_user', { name: 'Rollback user', email: 'rollback-user@example.test', initialPassword: 'test-rollback-user-only' })).statusCode, 500); }
+  finally { await sql`DROP TRIGGER reject_user_journal ON sys_journal`.execute(runtime.db); }
+  assert.equal((await sql`SELECT id FROM sys_users WHERE email = 'rollback-user@example.test'`.execute(runtime.db)).rows.length, 0);
+  const created = await tool('create_user', { name: 'First password rollback', email: 'first-password-rollback@example.test', initialPassword: 'test-initial-password-only' });
+  const first = await login(created.email, 'test-initial-password-only');
+  const other = await login(created.email, 'test-initial-password-only');
+  await sql`CREATE FUNCTION reject_initial_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key = 'must_change_password' AND NEW.old_value = 'true'::jsonb THEN RAISE EXCEPTION 'test initial password journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_initial_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_initial_journal()`.execute(runtime.db);
+  try { assert.equal((await api('change_password', { currentPassword: 'test-initial-password-only', newPassword: 'test-new-password-only', revokeOtherSessions: false }, first)).statusCode, 500); }
+  finally { await sql`DROP TRIGGER reject_initial_journal ON sys_journal`.execute(runtime.db); }
+  assert.equal((await sql<{ must_change_password: boolean }>`SELECT must_change_password FROM sys_users WHERE id = ${created.id}`.execute(runtime.db)).rows[0].must_change_password, true);
+  assert.equal((await api('change_password', { currentPassword: 'test-initial-password-only', newPassword: 'test-new-password-only', revokeOtherSessions: false }, first)).statusCode, 200);
+  assert.equal((await api('get_account_security', {}, other)).statusCode, 401);
+  const current = (await sql<{ language: 'de' | 'en' | null; time_zone: string | null; regional_preferences: unknown }>`SELECT language, time_zone, regional_preferences FROM sys_users WHERE id = ${adminId}`.execute(runtime.db)).rows[0];
+  const count = (await sql`SELECT id FROM sys_journal WHERE entity_id = ${adminId}::uuid`.execute(runtime.db)).rows.length;
+  const response = await tool('configure_user_localization', { language: current.language, timeZone: current.time_zone, expectedLanguage: current.language, expectedTimeZone: current.time_zone, regional: { locale: null, dateFormat: null, hourCycle: null, numberFormat: null, weekStart: null }, expectedRegional: current.regional_preferences });
+  assert.equal(response.regional, null);
+  assert.equal((await sql`SELECT id FROM sys_journal WHERE entity_id = ${adminId}::uuid`.execute(runtime.db)).rows.length, count);
+});
+
+test('dashboard aggregates actual workspace records and journal activity across heterogeneous active objects through API/MCP', async () => {
+  const ws = await ok('create_workspace', { name: 'Dashboard', code: 'dashboard', defaultLanguage: 'de', timeZone: 'Europe/Berlin' });
+  const other = await ok('create_workspace', { name: 'Other dashboard', code: 'otherdashboard' });
+  const bare = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'bare', labels: { de: 'Ohne Standardfelder', en: 'Bare' } });
+  const contacts = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'contacts', labels: { de: 'Kontakte', en: 'Contacts' }, standardFields: ['keyword', 'type_status', 'category'] });
+  const hidden = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'hidden', labels: { en: 'Inactive' }, standardFields: ['keyword'] });
+  const foreign = await ok('create_object_type', { workspaceId: other.id, technicalName: 'foreign_items', labels: { en: 'Foreign' }, standardFields: ['keyword'] });
+  const empty = await ok('create_record', { objectTypeId: bare.id });
+  const model = await ok('get_object_type', { objectTypeId: contacts.id });
+  const typeId = randomUUID(), statusId = randomUUID(), catA = randomUUID(), catB = randomUUID();
+  await ok('configure_classification', { objectTypeId: contacts.id, version: model.classification.version, config: { type: model.classification.type, status: model.classification.status, category: { ...model.classification.category, multiple: true }, options: [{ id: typeId, kind: 'type', typeId: null, labels: { en: 'Standard', de: 'Standard' }, active: true }, { id: statusId, kind: 'status', typeId, labels: { en: 'Open', de: 'Open' }, active: true }, { id: catA, kind: 'category', typeId: null, labels: { en: 'A', de: 'A' }, active: true }, { id: catB, kind: 'category', typeId: null, labels: { en: 'B', de: 'B' }, active: true }] } });
+  const first = await ok('create_record', { objectTypeId: contacts.id, keyword: 'Alpha', classification: { type: typeId, status: statusId, category: [catA, catB] } });
+  await ok('create_record', { objectTypeId: contacts.id, keyword: 'Zulu' });
+  await ok('create_record', { objectTypeId: hidden.id, keyword: 'Hidden row' });
+  await ok('create_record', { objectTypeId: foreign.id, keyword: 'Foreign row' });
+  await ok('set_definition_state', { kind: 'object_type', id: hidden.id, expectedState: 'active', state: 'inactive' });
+  await ok('update_record', { objectTypeId: contacts.id, recordId: first.id, version: 1, keyword: 'Alpha updated' });
+  const dashboard = await tool('get_workspace_dashboard', { workspaceId: ws.id, days: 7 });
+  assert.equal(dashboard.total, 3); assert.equal(dashboard.objectTypes, 2); assert.equal(dashboard.created30, 3); assert.equal(dashboard.updated7, 1);
+  assert.equal(dashboard.activity.length, 7); assert.equal(dashboard.timeZone, 'Europe/Berlin');
+  assert.equal(dashboard.activity.reduce((sum: number, day: { created: number }) => sum + day.created, 0), 3);
+  assert.equal(dashboard.activity.reduce((sum: number, day: { updated: number }) => sum + day.updated, 0), 1);
+  const page = await tool('list_workspace_records', { workspaceId: ws.id, sortBy: 'keyword', sortDirection: 'asc', limit: 1 });
+  assert.equal(page.total, 3); assert.equal(page.records[0].keyword, 'Alpha updated'); assert.equal(page.records[0].objectTypeId, contacts.id);
+  assert.equal(page.records[0].type, 'Standard'); assert.equal(page.records[0].status, 'Open'); assert.equal(page.records[0].category, 'A, B');
+  assert.equal(page.records[0].createdByName, 'Test Administrator');
+  const next = await tool('list_workspace_records', { workspaceId: ws.id, sortBy: 'keyword', sortDirection: 'asc', limit: 1, offset: 1 });
+  assert.equal(next.records[0].keyword, 'Zulu');
+  const standardless = await tool('list_workspace_records', { workspaceId: ws.id, objectTypeId: bare.id });
+  assert.equal(standardless.records[0].id, empty.id); assert.equal(standardless.records[0].keyword, null); assert.equal(standardless.records[0].status, null); assert.equal(standardless.records[0].category, null);
+  assert.equal((await tool('list_workspace_records', { workspaceId: ws.id, query: 'Alpha' })).total, 1);
+  assert.equal((await tool('list_workspace_records', { workspaceId: ws.id, objectTypeId: foreign.id })).total, 0);
+  assert.equal((await api('get_workspace_dashboard', { workspaceId: ws.id }, userCookie)).statusCode, 403);
+  assert.equal((await api('list_workspace_records', { workspaceId: ws.id }, userCookie)).statusCode, 403);
+  assert.equal((await api('list_workspace_records', { workspaceId: ws.id, sortBy: 'password' })).statusCode, 400);
+  const blank = await ok('create_workspace', { name: 'Empty dashboard', code: 'emptydashboard' });
+  const zero = await tool('get_workspace_dashboard', { workspaceId: blank.id, days: 30 });
+  assert.equal(zero.total, 0); assert.equal(zero.activity.length, 30); assert.ok(zero.activity.every((day: { created: number; updated: number }) => !day.created && !day.updated));
 });

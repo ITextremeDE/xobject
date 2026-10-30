@@ -1,7 +1,7 @@
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import { Pool, types } from 'pg';
 import { getMigrations } from 'better-auth/db/migration';
-import { emptyClassification } from '@xobject/contracts';
+import { defaultWorkspaceAppearance, emptyClassification, defaultRegionalSettings } from '@xobject/contracts';
 import { v7 } from 'uuid';
 import { authOptions } from './auth.js';
 
@@ -25,6 +25,11 @@ export async function migrate(connectionString: string, secret: string, baseURL:
     await authMigration.runMigrations();
     await db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
+      await sql`ALTER TABLE sys_users ADD COLUMN IF NOT EXISTS regional_preferences jsonb`.execute(tx);
+      await sql`ALTER TABLE sys_users ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false`.execute(tx);
+      await sql`ALTER TABLE sys_users ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true`.execute(tx);
+      await sql`ALTER TABLE sys_users ADD COLUMN IF NOT EXISTS management_version integer NOT NULL DEFAULT 1`.execute(tx);
+      await sql`ALTER TABLE sys_users ADD COLUMN IF NOT EXISTS time_zone text`.execute(tx);
       await sql`ALTER TABLE sys_users ADD COLUMN IF NOT EXISTS is_admin boolean NOT NULL DEFAULT false`.execute(tx);
       await sql`UPDATE sys_users SET is_admin = false WHERE is_admin IS NULL`.execute(tx);
       await sql`ALTER TABLE sys_users ALTER COLUMN is_admin SET DEFAULT false, ALTER COLUMN is_admin SET NOT NULL`.execute(tx);
@@ -38,6 +43,20 @@ export async function migrate(connectionString: string, secret: string, baseURL:
         name text NOT NULL, created_by text NOT NULL REFERENCES sys_users(id),
         default_language text NOT NULL DEFAULT 'en' CHECK (default_language IN ('de', 'en'))
       )`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS appearance jsonb NOT NULL DEFAULT ${sql.lit(JSON.stringify(defaultWorkspaceAppearance))}::jsonb`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS appearance_version integer NOT NULL DEFAULT 1 CHECK (appearance_version > 0)`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ALTER COLUMN appearance SET DEFAULT ${sql.lit(JSON.stringify(defaultWorkspaceAppearance))}::jsonb`.execute(tx);
+      // Older workspace designs inherit their previous base palette and body font.
+      await sql`UPDATE sys_workspaces SET appearance = jsonb_build_object('theme', COALESCE(appearance->>'baseColor', 'neutral'), 'chartColor', COALESCE(appearance->>'baseColor', 'neutral'), 'fontHeading', 'inherit', 'menuColor', 'default', 'menuAccent', 'subtle') || appearance WHERE NOT (appearance ?& ARRAY['theme', 'chartColor', 'fontHeading', 'menuColor', 'menuAccent'])`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS available_languages text[] NOT NULL DEFAULT ARRAY['de', 'en'] CHECK (cardinality(available_languages) > 0 AND available_languages <@ ARRAY['de', 'en']::text[] AND default_language = ANY(available_languages))`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS label_languages text[] NOT NULL DEFAULT ARRAY['de', 'en'] CHECK (cardinality(label_languages) > 0 AND label_languages <@ ARRAY['de', 'en']::text[])`.execute(tx);
+      const regionalColumn = await sql`SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'sys_workspaces' AND column_name = 'regional'`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS regional jsonb NOT NULL DEFAULT ${sql.lit(JSON.stringify(defaultRegionalSettings))}::jsonb`.execute(tx);
+      if (!regionalColumn.rows.length) await sql`UPDATE sys_workspaces SET regional = jsonb_set(regional, '{locale}', to_jsonb(CASE WHEN default_language = 'de' THEN 'de-DE' ELSE 'en-US' END))`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS created_at timestamptz`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ALTER COLUMN created_at SET DEFAULT now()`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS time_zone text NOT NULL DEFAULT 'UTC'`.execute(tx);
+      await sql`ALTER TABLE sys_workspaces ADD COLUMN IF NOT EXISTS language_version integer NOT NULL DEFAULT 1 CHECK (language_version > 0)`.execute(tx);
       await sql`CREATE TABLE IF NOT EXISTS sys_workspace_members (
         workspace_id uuid NOT NULL REFERENCES sys_workspaces(id),
         user_id text NOT NULL REFERENCES sys_users(id), role text NOT NULL CHECK (role IN ('user', 'designer')),
@@ -63,6 +82,7 @@ export async function migrate(connectionString: string, secret: string, baseURL:
         actor_id text NOT NULL REFERENCES sys_users(id),
         created_at timestamptz NOT NULL DEFAULT now()
       )`.execute(tx);
+      await sql`UPDATE sys_workspaces w SET created_at = (SELECT min(j.created_at) FROM sys_journal j WHERE j.entity_id = w.id AND j.entity_kind = 'workspace' AND j.field_key = 'code' AND j.old_value = 'null'::jsonb) WHERE w.created_at IS NULL`.execute(tx);
       for (const table of ['sys_object_types', 'sys_fields']) {
         await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN IF NOT EXISTS state text NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'inactive', 'deleted'))`.execute(tx);
         await sql`ALTER TABLE ${sql.table(table)} ADD COLUMN IF NOT EXISTS is_protected boolean NOT NULL DEFAULT false`.execute(tx);
@@ -78,6 +98,9 @@ export async function migrate(connectionString: string, secret: string, baseURL:
       await sql`ALTER TABLE sys_object_types ADD COLUMN IF NOT EXISTS classification jsonb NOT NULL DEFAULT ${sql.lit(JSON.stringify(emptyClassification()))}::jsonb`.execute(tx);
       await sql`ALTER TABLE sys_fields ADD COLUMN IF NOT EXISTS config jsonb NOT NULL DEFAULT '{}'::jsonb`.execute(tx);
       await sql`CREATE TABLE IF NOT EXISTS sys_groups (id uuid PRIMARY KEY, workspace_id uuid NOT NULL REFERENCES sys_workspaces(id), name text NOT NULL, UNIQUE(workspace_id, name))`.execute(tx);
+      await sql`ALTER TABLE sys_groups ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true`.execute(tx);
+      await sql`ALTER TABLE sys_groups ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1 CHECK (version > 0)`.execute(tx);
+      await sql`CREATE TABLE IF NOT EXISTS sys_group_members (group_id uuid NOT NULL REFERENCES sys_groups(id), user_id text NOT NULL REFERENCES sys_users(id), PRIMARY KEY(group_id, user_id))`.execute(tx);
       await sql`ALTER TABLE sys_fields DROP CONSTRAINT IF EXISTS sys_fields_kind_check`.execute(tx);
       await sql`ALTER TABLE sys_fields ADD CONSTRAINT sys_fields_kind_check CHECK (kind IN ('text', 'multiline', 'integer', 'decimal', 'money', 'boolean', 'date', 'datetime', 'single_choice', 'multiple_choice', 'email', 'phone', 'url', 'reference', 'type', 'status', 'category'))`.execute(tx);
       await sql`CREATE INDEX IF NOT EXISTS sys_journal_entity_idx
