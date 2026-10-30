@@ -4,8 +4,8 @@ import type { Workspace, ObjectSummary } from '@xobject/contracts';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-export function Dashboard({ workspace, types, onOpen, onCreate }: {
-  workspace: Workspace; types: ObjectSummary[]; onOpen: (id: string) => void; onCreate: () => void;
+export function Dashboard({ canManage, workspace, types, onOpen, onCreate }: {
+  canManage: boolean; workspace: Workspace; types: ObjectSummary[]; onOpen: (id: string) => void; onCreate: () => void;
 }) {
   const { t } = useTranslation();
   return <>
@@ -15,7 +15,7 @@ export function Dashboard({ workspace, types, onOpen, onCreate }: {
       <CardContent>
         {types.length ? <div className="flex flex-wrap gap-2">{types.map(type => <Button key={type.id} variant="outline" onClick={() => onOpen(type.id)}><DatabaseIcon data-icon="inline-start" />{type.label}</Button>)}</div> : <p className="text-muted-foreground">{t('dashboardEmpty')}</p>}
       </CardContent>
-      <CardFooter><Button variant="outline" onClick={onCreate}><PlusIcon data-icon="inline-start" />{t('newObject')}</Button></CardFooter>
+      {canManage ? <CardFooter><Button variant="outline" onClick={onCreate}><PlusIcon data-icon="inline-start" />{t('newObject')}</Button></CardFooter> : null}
     </Card>
   </>;
 }

@@ -13,7 +13,10 @@ export function authOptions(pool: Pool, secret: string, baseURL: string, allowLo
     user: {
       modelName: 'sys_users',
       fields: { emailVerified: 'email_verified', createdAt: 'created_at', updatedAt: 'updated_at' },
-      additionalFields: { language: { type: 'string', required: false, input: false } },
+      additionalFields: {
+        language: { type: 'string', required: false, input: false },
+        isAdmin: { type: 'boolean', fieldName: 'is_admin', required: true, defaultValue: false, input: false, returned: false },
+      },
     },
     session: {
       modelName: 'sys_sessions', cookieCache: { enabled: false },

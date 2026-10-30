@@ -28,7 +28,7 @@ A paid cloud service is a later offering. The official initial installation targ
 | Object type | A metadata definition such as Contact, Project or Task. |
 | Record | One instance of an object type. |
 | Field | An attribute defined for an object type. |
-| Type | A record classification that determines its permitted status values; distinct from object type. |
+| Type | Optional standard field, added together with Status. A record classification that determines its permitted status values; distinct from object type. |
 | Contact kind | Organization, Individual contact or Contact person; separate from Type and mutually exclusive per contact record. |
 | Workspace | A boundary containing records, relationships, object types, groups, module activations and number sequences. |
 | Module | An independently activated domain package supplying protected definitions and configurable input aids. |
@@ -40,11 +40,11 @@ A paid cloud service is a later offering. The official initial installation targ
 | Role | Responsibility |
 | --- | --- |
 | Administrator | Installation-wide administration and full access to all workspaces and contents, including restricted fields and user-sensitive records. |
-| Designer | Configure user-defined types, fields, relationships and their input aids; configure the intended input aids of module fields while preserving protected definitions. |
-| User | Use records according to effective permissions. |
+| Designer | Assigned per workspace. Configure user-defined types, fields, relationships and their input aids; configure the intended input aids of module fields while preserving protected definitions. |
+| User | Assigned per workspace. View workspace settings read-only and use records according to effective permissions. |
 | Agent | Act for an authenticated user with that user's effective rights, never a separate privilege grant. |
 
-Role assignment details for Designers and Users remain to be specified. Administrator scope is installation-wide and is not an open decision.
+Administrators assign User or Designer roles through workspace membership. Users can view the entire Workspace settings section, while Designers and Administrators can change workspace configuration. Membership/role assignment remains Administrator-only. Designer status does not grant content permissions. Administrator scope is installation-wide.
 
 ## 3. Object platform and modules
 
@@ -56,7 +56,7 @@ Role assignment details for Designers and Users remain to be specified. Administ
 | R-004 | An object type can belong to multiple modules. Modules can contribute different fields and field selections. | Editing a shared record from either module preserves the same record ID and shared values. There is one underlying record rather than a copy per module. |
 | R-005 | Module-supplied definitions are protected; Designers can add their own fields and configure input aids. | A protected module field cannot be structurally modified through UI, API or MCP. Its intended configurable options can be changed by a Designer without editing code. |
 | R-006 | A record must satisfy required fields across its shared object type, including fields absent from the current module form. | Saving incomplete input reveals the missing fields for direct completion. If field permissions prevent completion, saving is refused with an actionable error without revealing restricted values. |
-| R-007 | User-defined fields containing data are deactivated rather than deleted in version 1. Field type changes require safe conversion of all existing values. | Deactivation retains stored values. A proposed type change containing even one unconvertible value is rejected without partial conversion or data loss. Protected module fields remain protected. |
+| R-007 | User-defined fields containing data are deactivated rather than deleted in version 1. Field type changes require safe conversion of all existing values. | Deactivation retains stored values and allows reactivation after compatibility checks. Never-used definitions can be explicitly deleted after dependency checks; a historical metadata tombstone and journal remain. Used object types are deactivated rather than deleted. Type and Status fields share their lifecycle. A proposed type change containing even one unconvertible value is rejected without partial conversion or data loss. Protected module fields remain protected. |
 
 ### 3.1 Workspace codes and technical names
 
@@ -68,7 +68,7 @@ An object type's data table is named `<workspace_code>_<object_name>`, for examp
 
 Creation rejects reserved/conflicting names and names exceeding PostgreSQL identifier limits, including the complete generated table name. System-managed field names are reserved within object types. Display-label changes never rename tables or columns. UUIDs remain the references for definition identity, relationships and journal entries; authorization uses workspace/type identities and permissions rather than table-name prefixes. The backend applies the same naming validation through UI, API and MCP.
 
-See [ADR 0001](adr/0001-readable-workspace-table-names.md) for the naming decision and its consequences. Physical access isolation, schema-change execution and collection/reference storage still require technical design.
+See [ADR 0001](adr/0001-readable-workspace-table-names.md) for the naming decision and its consequences. Production access isolation and migration execution, and references beyond the field types mapped in ADR 0007, still require technical design.
 
 ### 3.2 Shared fields
 
@@ -78,18 +78,18 @@ See [ADR 0001](adr/0001-readable-workspace-table-names.md) for the naming decisi
 | `created_at`, `created_by` | System-managed creation metadata. |
 | `updated_at`, `updated_by` | System-managed last-change metadata. |
 | `version` | System-managed increasing version for detecting concurrent edits. |
-| Keyword | Required display name. German label: Stichwort; English label: Keyword. Free input except on Contacts. |
-| Type | Required single choice, with a configured default for the object type. |
-| Status | Required single choice from the selected Type's permitted values, with an initial status for each Type. |
-| Category | Optional configurable options, using either single or multiple selection per object type. |
+| Keyword | Optional standard field providing a display name; when installed, required/optional configurable per object type, initially optional. German label: Stichwort; English label: Keyword. Free input except on Contacts. |
+| Type | Optional standard field, added together with Status. Single choice; required/optional and default value configurable per object type. |
+| Status | Optional standard field, added together with Type. Single choice from the selected Type’s permitted values; required/optional and initial status configurable. An empty Type has its own configured Status values. |
+| Category | Optional standard field. Configurable options; required/optional, defaults and single/multiple selection configurable per object type. |
 | Business number | Optional configurable number sequence per object type and workspace. |
 | Access principals | Present for user-sensitive object types; rules are specified in section 4. |
 
 | ID | Requirement | Acceptance criterion |
 | --- | --- | --- |
-| R-008 | Shared fields and system metadata apply to both supplied and user-defined object types. | New types receive the shared baseline. Clients cannot replace system-managed IDs or bypass version checks. Two edits based on the same previous version cannot silently overwrite each other. |
-| R-009 | Designers configure all input aids: options, Type/Status mappings, categories, priorities, defaults, helper text and supported validation aids. | A changed configuration applies through UI, API and MCP without a code change. Existing option identities survive renaming and deactivation. |
-| R-010 | Type determines available Status values using a simple mapping, not an implied workflow engine. | A Type change retains a still-valid Status; otherwise the caller must supply a valid replacement. Invalid combinations cannot be persisted through any access channel. |
+| R-008 | Shared fields and system metadata apply to both supplied and user-defined object types. | Standard field technical names and their German/English display names are reserved for standard fields, including when these fields are absent. New types receive system metadata. Keyword, the Type/Status pair and Category are optional standard field definitions that can be added later; absent fields are neither physical business columns nor editable record inputs. Existing definitions and contents are retained. Without Keyword, clients use the record ID for identification. Clients cannot replace system-managed IDs or bypass version checks. Two edits based on the same previous version cannot silently overwrite each other. |
+| R-009 | Designers configure all input aids: options, Type/Status mappings, categories, priorities, defaults, helper text and supported validation aids. | A changed configuration applies through UI, API and MCP without a code change. Existing option identities survive renaming and deactivation. Unused Types and Statuses may be deleted when no current or historical record references remain; retained Statuses must keep a valid Type. Deletions are journaled and deleted identities cannot be reused. |
+| R-010 | Type determines available Status values using a simple mapping, not an implied workflow engine. | A Type change retains a still-valid Status; otherwise the caller must supply a valid replacement or clear an optional Status. An empty Type only permits Status values explicitly configured for Without Type. Required/optional rules are independently configurable per object type and enforced through every access channel. |
 | R-011 | Number sequences support prefix, suffix, starting value, increment, padding and configurable restart rules. | Concurrent creations cannot obtain the same business number within the configured sequence. IDs do not change when number-format configuration changes. Detailed restart and migration behavior requires specification before implementation. |
 | R-012 | Field configuration supports German/English labels, helper text, ordering, required/default values, applicable validation and uniqueness within type/workspace. | Invalid input is rejected by backend validation. Duplicate values in an enabled uniqueness rule cannot be accepted through concurrent writes. |
 
@@ -99,11 +99,11 @@ Scalar storage, collections and references must be mapped explicitly in the tech
 
 ### 3.3 Languages and physical column order
 
-Technical identifiers and stored business contents are language-independent. Translatable definition names are stored in a `labels` JSONB column on their definition table: initially `sys_object_types` and `sys_fields`, and later the definitions for Type, Status, Category and relationship types. For example, a field can store `{"de":"Kennzeichen","en":"Registration"}` while its technical column stays `registration`. At least one supported-language label is required; German and English are supported initially. Adding further languages must not require new per-language columns. Fixed application-interface translations belong in versioned repository resources; this decision does not implement a web translation library.
+Technical identifiers and stored business contents are language-independent. Translatable definition names are stored in a `labels` JSONB column on their definition table: `sys_object_types` and `sys_fields`, with Type/Status/Category option labels in the classification JSONB configuration described in ADR 0006. Relationship-type definitions follow the same language-map principle. For example, a field can store `{"de":"Kennzeichen","en":"Registration"}` while its technical column stays `registration`. Definition-label forms show one input with a language selector and per-language translation status; switching language preserves all draft translations until they are saved together. At least one supported-language label is required; German and English are supported initially. Adding further languages must not require new per-language columns. Fixed application-interface translations belong in versioned repository resources; this decision does not implement a web translation library.
 
 `sys_users.language` is an optional preference; null inherits the workspace's `sys_workspaces.default_language`, which initially defaults to English. Label resolution tries the explicit user language, workspace default, English, German and finally a preserved label of unknown language. Record names, Keywords and free text are never automatically translated. Changes to labels and language preferences are application operations with the same permissions and journal rules through API and MCP. Historical journal values retain their original representation.
 
-For newly created object data tables, physical columns start with `id`, `keyword` and the other implemented fixed shared fields, followed by `created_at`, `created_by`, `updated_at`, `updated_by` and `version`. Later user-defined fields are appended in creation order. The technical spike currently implements only Keyword and the creation/update/version metadata; the complete shared-field baseline remains required by R-008. Routine application operations and upgrades do not rebuild existing data tables merely to reorder their columns. Physical column order is independent of configurable form/table display order.
+For newly created object data tables, physical columns start with `id`, `created_at`, `created_by`, `updated_at`, `updated_by` and `version`. Optional standard fields (Keyword, the Type/Status pair and Category) and user-defined fields are appended when created. They are listed only when installed in the object's field metadata. Routine application operations and upgrades retain existing columns and do not rebuild data tables merely to reorder them or add missing optional fields. Physical column order is independent of form/table display order.
 
 See [ADR 0003](adr/0003-localized-labels-and-column-order.md) for the storage and migration decision. These rules elaborate R-001, R-002, R-008, R-012 and R-034–R-036; they do not introduce new requirement IDs.
 
@@ -233,8 +233,8 @@ These items require elaboration, not additional feature discovery. They must be 
 
 | Area | Decision / affected requirements |
 | --- | --- |
-| Workspace and security | Physical isolation, Designer/User role scope, account/session management, user-bound API/MCP credentials, definition/relationship privileges and changed group memberships or sensitivity settings. R-001, R-013–R-018, R-042. |
-| Data representation | Collection/reference mapping, exact field validations, formatted text, safe conversions, disabled-field presentation and unused-definition deletion. R-002, R-007–R-012. |
+| Workspace and security | Physical isolation, account/session management, user-bound API/MCP credentials, definition/relationship privileges and changed group memberships or sensitivity settings. R-001, R-013–R-018, R-042. |
+| Data representation | Production migration execution, references beyond user/group fields, remaining relationship/reference lifecycle rules; field/object definition lifecycle is specified in ADR 0009. Current typed storage, validation, Markdown and conversion rules are specified in ADR 0007. R-002, R-007–R-012. |
 | Input aids | Supplied defaults, configuration screens and behavior when previously used options are deactivated or changed, particularly structural Contact kind values. R-009, R-010, R-024. |
 | Contacts | Contact-kind conversion, change/loss of main Organization, missing-first-name formatting, role dictionaries, multiple roles and validity intervals. R-024–R-027. |
 | Relationships and modules | Minimum cardinalities, hierarchy cycle prevention, consistent preflight/activation with concurrent changes, shared-definition ownership, module updates/deactivation and UI for cross-module required fields. R-003–R-007, R-019–R-023. |

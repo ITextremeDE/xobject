@@ -12,15 +12,18 @@ No delivery dates are committed. An item here is not evidence that its requireme
 
 ## Delivered — Local Administrator prototype
 
-- PostgreSQL-backed local login, workspace/object/text-field creation, versioned record editing and atomic per-field journals through shared API/MCP rules.
-- React web interface with Dashboard, personal settings, workspace search, sortable paginated record lists, German/English labels and keyboard support.
-- This is a local text-field experiment; complete permissions, shared fields and version-1 acceptance remain open.
+- PostgreSQL-backed local login, workspace/object/typed-field creation, versioned record editing and atomic per-field journals through shared API/MCP rules.
+- Shared Type/Status/Category configuration with independent required flags, localized stable choices, defaults, per-Type Status mappings and single/multiple Category selection in the local experiment.
+- React web interface with direct routes, Dashboard, personal/workspace settings, workspace search, sortable paginated record lists, German/English labels and keyboard support.
+- Instance-wide Administrators, explicit workspace User/Designer memberships and role-appropriate configuration views; business-content access remains Administrator-only.
+- Field/object definition deactivation, validated reactivation and confirmed deletion of never-used storage, with retained metadata/journals and read-only inactive values. The record recycle bin remains pending.
+- This is a local typed-field/classification experiment; complete permissions, the remaining shared fields and version-1 acceptance remain open.
 
 ## In progress — Product definition and technical foundation
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
 - Resolve the technical foundation decisions needed for the first implementation slice: backend framework, data access, workspace isolation, authentication and controlled schema changes.
-- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The web interface now exercises workspace/object/text-field creation, record search/editing and journals. Complete shared fields and permissions remain necessary for the first slice below.
+- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The web interface now exercises workspace/object/typed-field creation, record search/editing and journals. Complete shared fields and permissions remain necessary for the first slice below.
 
 ## Next — First end-to-end object slice
 
