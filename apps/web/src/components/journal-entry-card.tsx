@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 
-export function JournalEntryCard({ entry, memberName }: { entry: SystemJournalEntry; memberName?: string }) {
+export function JournalEntryCard({ entry, memberName, renderValue }: { entry: SystemJournalEntry; memberName?: string; renderValue?: (value: unknown) => ReactNode }) {
   const { t, i18n } = useTranslation();
   const regional = useRegional(), timeZone = useTimeZone();
   function value(item: unknown, key = entry.field_key, depth = 0): ReactNode {
@@ -30,8 +30,8 @@ export function JournalEntryCard({ entry, memberName }: { entry: SystemJournalEn
     if (depth >= 6) return JSON.stringify(item);
     const content = Array.isArray(item)
       ? <ol className="flex flex-col gap-2">{item.map((child, index) => <li key={index}>{value(child, key, depth + 1)}</li>)}</ol>
-      : <dl className="flex flex-col gap-3">{entries.map(([name, child]) => <div key={name}><dt className="text-xs text-muted-foreground">{key === 'labels' ? name === 'root' ? t('journalOriginalLabel') : new Intl.DisplayNames([i18n.language], { type: 'language' }).of(name) ?? name : journalPropertyLabel(name, t, true)}</dt><dd>{value(child, name, depth + 1)}</dd></div>)}</dl>;
-    if (key === 'labels' || depth > 0) return content;
+      : <dl className="flex flex-col gap-3">{entries.map(([name, child]) => <div key={name}><dt className="text-xs text-muted-foreground">{(key === 'labels' || key === 'leftLabels' || key === 'rightLabels') ? name === 'root' ? t('journalOriginalLabel') : new Intl.DisplayNames([i18n.language], { type: 'language' }).of(name) ?? name : journalPropertyLabel(name, t, true)}</dt><dd>{value(child, name, depth + 1)}</dd></div>)}</dl>;
+    if ((key === 'labels' || key === 'leftLabels' || key === 'rightLabels') || depth > 0) return content;
     return <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/value" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-3 py-2" />}>{t('journalShowDetails')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/value:rotate-180" /></CollapsibleTrigger><CollapsibleContent><div className="border-t p-3">{content}</div></CollapsibleContent></Collapsible>;
   }
   const details = [
@@ -63,7 +63,7 @@ export function JournalEntryCard({ entry, memberName }: { entry: SystemJournalEn
       </CardHeader>
       <CardContent>
         <dl className="grid min-w-0 grid-cols-1 divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere">{value(item)}</dd></div>)}
+          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere">{renderValue ? renderValue(item) : value(item)}</dd></div>)}
         </dl>
       </CardContent>
       <CardFooter className="block p-0">

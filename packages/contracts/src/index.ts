@@ -1,3 +1,5 @@
+import { relationshipConfigurationSchema, type RelationshipType } from './relationship-types.js';
+export * from './relationship-types.js';
 import { languageSchema as language, workspaceLanguageSchema, type Language, type WorkspaceLanguages } from './languages.js';
 export * from './languages.js';
 export * from './time-zones.js';
@@ -24,6 +26,9 @@ const values = z.record(z.string(), fieldValueSchema).refine(
 const definitionState = z.enum(['active', 'inactive', 'deleted']);
 const workspaceRole = z.enum(['user', 'designer']);
 export const schemas = {
+  list_relationship_types: z.object({ workspaceId: uuid }).strict(),
+  create_relationship_type: z.object({ workspaceId: uuid, technicalName, configuration: relationshipConfigurationSchema }).strict(),
+  configure_relationship_type: z.object({ workspaceId: uuid, relationshipTypeId: uuid, version: z.number().int().positive(), configuration: relationshipConfigurationSchema }).strict(),
   get_account_security: z.object({}).strict(),
   change_password: z.object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(12).max(128), revokeOtherSessions: z.boolean().default(true) }).strict(),
   revoke_session: z.object({ sessionId: uuid }).strict(),
@@ -97,6 +102,9 @@ export interface ManagedUser extends UserSummary { active: boolean; mustChangePa
 export interface SystemJournalEntry extends JournalEntry { entity_kind: string; entity_id: string; workspace_id: string | null; workspace_name: string | null; actor_name: string; entity_name: string | null }
 export interface WorkspaceRecord { id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
+  list_relationship_types: RelationshipType[];
+  create_relationship_type: RelationshipType;
+  configure_relationship_type: RelationshipType;
   get_workspace_dashboard: { total: number; objectTypes: number; created30: number; updated7: number; timeZone: string; activity: { date: string; created: number; updated: number }[] };
   list_workspace_records: { records: WorkspaceRecord[]; total: number; limit: number; offset: number };
   list_managed_users: ManagedUser[];

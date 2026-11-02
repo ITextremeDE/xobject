@@ -137,6 +137,10 @@ Object-level Full access does not override field restrictions, workspace boundar
 
 General relationship types support 1:1, 1:n, n:1 and n:m. Each side's maximum cardinality controls display: at most one partner uses a selection field; multiple possible partners use a list. Minimum cardinality determines whether a relationship is required.
 
+The General relationship belongs to the application core. The CRM module will supply the Contact-person / main Organization relationship; the Project Management module will supply Primary association. These are distinct relationships: a Contact person’s main Organization does not count as its Primary association. Module activation, supplied-definition ownership/protection and conflict-safe adoption of existing definitions remain to be implemented; a matching technical name alone must never convert a custom definition into a module-owned one.
+
+The prototype currently supplies two system defaults independently of module activation: Primary association (directed, at most one direct parent) and General relationship (undirected, optional/unlimited). Custom types may be directed or undirected, with names for both sides and per-side minimum/maximum cardinality. For symmetric undirected endpoints, both sides use identical labels and cardinalities. [ADR 0018](adr/0018-relationship-type-definitions.md) implements the definition/configuration baseline as staged rules; record linking, enforcement/preflight, Primary selectors and required-chain activation remain separate work.
+
 | ID | Requirement | Acceptance criterion |
 | --- | --- | --- |
 | R-019 | Relationship cardinalities are enforced on every mutation. | A second partner cannot be added on a side whose maximum is one, including through concurrent writes. For Organization-to-Projects, the Organization displays a project list and the Project a single Organization selector. |

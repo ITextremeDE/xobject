@@ -1,3 +1,4 @@
+import { installRelationshipSchema } from './relationship-types.js';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import { Pool, types } from 'pg';
 import { getMigrations } from 'better-auth/db/migration';
@@ -133,6 +134,7 @@ export async function migrate(connectionString: string, secret: string, baseURL:
         await sql`ALTER TABLE sys_workspaces ADD CONSTRAINT sys_workspaces_default_language_check
           CHECK (default_language IN ('de', 'en'))`.execute(tx);
       }
+      await installRelationshipSchema(tx);
     });
   } finally {
     try { await lock.query("SELECT pg_advisory_unlock(hashtext('xobject:migrations'))"); }

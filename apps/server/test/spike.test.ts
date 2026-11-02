@@ -1676,3 +1676,86 @@ test('journal read context resolves current localized names without exposing rec
   const deletedHistory = await ok('get_definition_journal', { objectTypeId: type.id });
   assert.ok(deletedHistory.some((entry: { field_id: string; field_label: string }) => entry.field_id === unusedId && entry.field_label === 'Unbenutzt'));
 });
+
+test('fictional demo fixtures use validated fields, canonical field order and unambiguous future relationship plans', async () => {
+  const { seedDemoData } = await import('../src/demo-data.js');
+  const result = await seedDemoData(runtime.db, adminId, 'demofixture');
+  assert.deepEqual(Object.keys(result.objects), ['contacts', 'projects', 'cases', 'tasks', 'vehicles']);
+  assert.equal(Object.values(result.records).flat().length, 54);
+  for (const [name, model] of Object.entries(result.objects)) {
+    const definition = await ok('get_object_type', { objectTypeId: model.id });
+    assert.deepEqual(definition.columns.slice(0, 10), ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category']);
+    assert.ok(definition.fields.find((field: { technicalName: string; required: boolean }) => field.technicalName === 'keyword').required);
+    assert.equal((await ok('list_records', { objectTypeId: model.id, limit: 100 })).total, result.records[name].length);
+  }
+  const identities = new Map(Object.entries(result.records).flatMap(([name, rows]) => rows.map(row => [row.id, result.objects[name].id])));
+  const primaryChildren = new Set<string>();
+  for (const link of result.links) {
+    assert.equal(identities.get(link.from.recordId), link.from.objectTypeId);
+    assert.equal(identities.get(link.to.recordId), link.to.objectTypeId);
+    if (link.relation === 'primary') { assert.ok(!primaryChildren.has(link.to.recordId)); primaryChildren.add(link.to.recordId); }
+  }
+  assert.ok(result.records.tasks.some(row => !primaryChildren.has(row.id)), 'Standalone task is retained');
+  assert.ok(result.records.projects.some(row => !primaryChildren.has(row.id)), 'Project without a contact is retained');
+  assert.ok((await ok('get_journal', { objectTypeId: result.objects.tasks.id, recordId: result.records.tasks[0].id })).some((entry: { old_value: unknown; new_value: unknown }) => entry.old_value === '1' && entry.new_value === '2.5'));
+  await assert.rejects(seedDemoData(runtime.db, adminId, 'demofixture'), /already exists/);
+  assert.equal((await api('list_records', { objectTypeId: result.objects.contacts.id }, userCookie)).statusCode, 403);
+});
+
+test('relationship definitions share API/MCP rules, protected system defaults, workspace rights, cardinalities and atomic journals', async () => {
+  const ws=await ok('create_workspace',{name:'Relationship definitions',code:'relations'});
+  const other=await ok('create_workspace',{name:'Other relations',code:'otherrelations'});
+  const a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'parents',labels:{en:'Parents'}});
+  const b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'}});
+  const foreign=await ok('create_object_type',{workspaceId:other.id,technicalName:'foreign_items',labels:{en:'Foreign'}});
+  const system=await tool('list_relationship_types',{workspaceId:ws.id});
+  assert.equal(system.length,2);
+  const primary=system.find((row:any)=>row.kind==='primary'),general=system.find((row:any)=>row.kind==='general');
+  const config=(row:any)=>Object.fromEntries(['labels','leftLabels','rightLabels','directed','leftMin','leftMax','rightMin','rightMax','allowAll','pairs','active'].map(key=>[key,row[key]]));
+  assert.equal(primary.rightMax,1);assert.equal(primary.directed,true);assert.equal(general.allowAll,true);assert.equal(general.directed,false);
+  assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:primary.id,version:1,configuration:{...config(primary),rightMax:null}})).statusCode,400);
+  assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:general.id,version:1,configuration:{...config(general),directed:true}})).statusCode,400);
+  const base={labels:{en:'Project work'},leftLabels:{en:'Tasks'},rightLabels:{en:'Project'},directed:true,leftMin:0,leftMax:null,rightMin:0,rightMax:1,allowAll:false,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:b.id}],active:true};
+  const ordinary=(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0];
+  assert.equal((await api('list_relationship_types',{workspaceId:ws.id},userCookie)).statusCode,403);
+  await ok('set_workspace_member',{workspaceId:ws.id,userId:ordinary.id,role:'user',expectedRole:null});
+  assert.equal((await api('list_relationship_types',{workspaceId:ws.id},userCookie)).statusCode,200);
+  assert.equal((await api('create_relationship_type',{workspaceId:ws.id,technicalName:'work',configuration:base},userCookie)).statusCode,403);
+  await ok('set_workspace_member',{workspaceId:ws.id,userId:ordinary.id,role:'designer',expectedRole:'user'});
+  const response=await api('create_relationship_type',{workspaceId:ws.id,technicalName:'work',configuration:base},userCookie);assert.equal(response.statusCode,200,response.body);const created=response.json();
+  const journals=(await sql<{change_id:string;field_key:string}>`SELECT change_id,field_key FROM sys_journal WHERE entity_id=${created.id}::uuid`.execute(runtime.db)).rows;
+  assert.equal(journals.length,Object.keys(base).length);assert.equal(new Set(journals.map(row=>row.change_id)).size,1);assert.equal(new Set(journals.map(row=>row.field_key)).size,journals.length);
+  const count=await sql`SELECT id FROM sys_journal WHERE entity_id=${created.id}::uuid`.execute(runtime.db);
+  await tool('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:created.id,version:1,configuration:base});
+  assert.equal((await sql`SELECT id FROM sys_journal WHERE entity_id=${created.id}::uuid`.execute(runtime.db)).rows.length,count.rows.length);
+  const updated=await tool('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:created.id,version:1,configuration:{...base,active:false}});assert.equal(updated.version,2);
+  assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:created.id,version:1,configuration:base})).statusCode,409);
+  assert.equal((await api('configure_relationship_type',{workspaceId:other.id,relationshipTypeId:created.id,version:2,configuration:base})).statusCode,404);
+  for(const configuration of [
+    {...base,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:foreign.id}]},
+    {...base,pairs:[base.pairs[0],base.pairs[0]]},
+    {...base,directed:false,allowAll:true,pairs:[]},
+    {...base,directed:false,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:a.id}]},
+    {...base,directed:false,leftMax:1,pairs:[base.pairs[0],{leftObjectTypeId:b.id,rightObjectTypeId:a.id}]},
+  ]) assert.equal((await api('create_relationship_type',{workspaceId:ws.id,technicalName:'invalid',configuration})).statusCode,400);
+  const distinctSides=await tool('create_relationship_type',{workspaceId:ws.id,technicalName:'undirected_roles',configuration:{...base,directed:false}});assert.equal(distinctSides.leftMax,null);assert.equal(distinctSides.rightMax,1);
+  const undirected=await tool('create_relationship_type',{workspaceId:ws.id,technicalName:'partners',configuration:{...base,leftLabels:{en:'Partners'},rightLabels:{en:'Partners'},directed:false,leftMax:1,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:a.id}]}});assert.equal(undirected.directed,false);
+  assert.equal((await api('create_relationship_type',{workspaceId:ws.id,technicalName:'primary_association',configuration:base})).statusCode,400);
+  assert.equal((await api('create_relationship_type',{workspaceId:ws.id,technicalName:'reserved_label',configuration:{...base,labels:{en:'Primary association'}}})).statusCode,400);
+  await assert.rejects(sql`INSERT INTO sys_relationship_type_pairs VALUES(${created.id}::uuid,${ws.id}::uuid,${a.id}::uuid,${foreign.id}::uuid)`.execute(runtime.db), /foreign key/i);
+  assert.equal((await api('set_definition_state',{kind:'object_type',id:a.id,expectedState:'active',state:'deleted',confirm:true})).statusCode,409);
+  assert.equal((await ok('get_object_type',{objectTypeId:a.id})).canDelete,false);
+  const before=JSON.stringify(await ok('list_relationship_types',{workspaceId:ws.id}));
+  await sql`CREATE FUNCTION reject_relationship_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.entity_kind='relationship_type' AND NEW.field_key='rightLabels' THEN RAISE EXCEPTION 'test relationship journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER reject_relationship_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_relationship_journal()`.execute(runtime.db);
+  try {assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:created.id,version:2,configuration:{...base,rightLabels:{en:'Changed'},pairs:[]}})).statusCode,500);}finally{await sql`DROP TRIGGER reject_relationship_journal ON sys_journal`.execute(runtime.db);}
+  assert.equal(JSON.stringify(await ok('list_relationship_types',{workspaceId:ws.id})),before);
+  await migrate(databaseURL,secret,baseURL);await migrate(databaseURL,secret,baseURL);
+  assert.equal(JSON.stringify(await ok('list_relationship_types',{workspaceId:ws.id})),before);
+  assert.ok((await ok('list_system_journal',{workspaceId:ws.id,entityKind:'relationship_type'})).entries.some((entry:any)=>entry.entity_name==='Project work'));
+  await ok('configure_workspace_languages',{workspaceId:ws.id,version:1,availableLanguages:['de','en'],defaultLanguage:'en',labelLanguages:['de']});
+  assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:created.id,version:2,configuration:{...base,labels:{en:'Unavailable edit'},active:false}})).statusCode,400);
+  await tool('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:created.id,version:2,configuration:{...base,labels:{...base.labels,de:'Projektarbeit'},active:false}});
+  assert.equal((await api('list_records',{objectTypeId:a.id},userCookie)).statusCode,403);
+  await ok('set_workspace_member',{workspaceId:ws.id,userId:ordinary.id,role:null,expectedRole:'designer'});
+});
