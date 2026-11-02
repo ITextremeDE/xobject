@@ -52,7 +52,7 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
   useEffect(() => { if (records.data && !records.isPlaceholderData && page > 1 && (page - 1) * pageSize >= records.data.total) change({ page: String(Math.max(1, Math.ceil(records.data.total / pageSize))) }, true); }, [records.data, records.isPlaceholderData, page, pageSize]);
   const count = (value: number) => formatRegionalNumber(String(value), regional, 0);
   const columns: RecordColumn<WorkspaceRecord>[] = [
-    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0 hover:no-underline" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} />} nativeButton={false}>{row.keyword || row.id}</Button> },
+    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0 hover:no-underline" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}>{row.keyword || row.id}</Button> },
     { key: 'objectLabel', label: t('objectType'), cell: row => row.objectLabel },
     ...(['type', 'status', 'category'] as const).map(key => ({ key, label: t(key === 'type' ? 'classificationType' : key === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: WorkspaceRecord) => row[key] ?? '—' })),
     { key: 'created_at', label: t('createdAt'), cell: row => formatRegionalDate(row.created_at, regional, timeZone) },

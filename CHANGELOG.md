@@ -56,6 +56,8 @@ The project is in early development. No software release is available yet.
 
 ### Changed
 
+- Rename the Dashboard action to Add filter and give shared record-action menus enough room for single-line labels, consistent icons and a separate copy-ID group.
+- Compact settings forms with keyboard-accessible expandable explanations, a field-first object editor and a separate technical/administration section. Account, group, membership and field tables wrap long values within the settings pane; mobile section titles and choices retain their personal/workspace/instance scope.
 - Muted table headers and example-aligned user-menu profile spacing; resource links sit above the separate sidebar user footer.
 - Consistent shadcn form disabled/validation states and inline account/profile errors, standard pending-action spinners, matching empty journal views and keyboard-accessible collapsible definition details.
 - Dialog action footers consistently place Close/Cancel left and Reset then Save/Create right, with shared neutral/primary styling, read-only dismissal, invalid-draft reset and pending guards; destructive confirmations use a destructive action.
@@ -75,6 +77,7 @@ The project is in early development. No software release is available yet.
 
 ### Fixed
 
+- Closing record details returns to the originating Dashboard or object-list URL, retaining its filters and restoring keyboard focus to the record. Direct record links fall back to their own object list; unrelated history-state destinations are ignored.
 - Keep content-hashed assets across local web rebuilds so open clients can still load settings and other lazy views; CI/explicit clean builds remain clean. Module-load failures offer an accurate reload message.
 - Open user editing from the whole row, preserve the expected version of unsaved drafts across refetches, and recover conflicts with Reset. Save exposes the common keyboard shortcut.
 - Apply the local-search keyboard shortcut and hint on the Dashboard; distinguish group, membership/role and user navigation icons; restore dashboard-01 card and SVG area gradients using workspace colors.

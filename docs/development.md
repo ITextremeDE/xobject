@@ -70,6 +70,8 @@ Back/Forward and internal navigation use the same unsaved-change confirmation as
 
 Clicking the exact active Dashboard or object-list destination in the Sidebar re-fetches the current view’s workspace/type metadata and, for object lists, definition and record queries. It preserves the document, URL parameters and history entry. Other Sidebar targets navigate normally, including returning from record details to their list. Busy writes and unsaved-change confirmation remain in effect; the Breadcrumb has no special refresh action.
 
+Record links and row actions retain their originating Dashboard or object-list URL in navigation state. Closing details restores that URL and focuses the record link after the destination table renders. Direct links without a valid same-workspace origin return to their own object list. New-record saves retain the origin; unrelated history-state targets are ignored. This changes navigation, not the draft Dashboard metrics/design.
+
 Record-table rows open details when a non-interactive cell is clicked. They retain the standard cursor without an application override. The Keyword remains a real link for keyboard access and native link actions. Interactive child controls, modified clicks and selected text do not trigger row navigation. The application retains shadcn’s existing cursor styles elsewhere; there is no global pointer override.
 
 ## Sidebar search and command navigation
@@ -256,3 +258,9 @@ The account/security, workspace configuration and Dashboard batch passed 54 disp
 Chrome acceptance used isolated synthetic accounts and records for password/session presentation, workspace settings, groups, user administration, mandatory initial-password presentation, command navigation, table selection/pagination, draft conflicts and light/dark Dashboard gradients. Password mutation and role boundaries were verified through application tests. The operator's real account credentials were not changed. ADRs 0010–0016 contain the feature-specific evidence and limits.
 
 This is local validation, not CI evidence for an unpublished worktree, a software release or a complete version-1 acceptance. The separate public website was unchanged in this batch. Content permissions, record lifecycle, domain modules, relationships, production migration/authentication and the installation package remain outstanding. Login/sign-out and the experimental `admin:create` CLI are not yet journaled. Public resource destinations are planned links, not evidence of published documentation pages.
+
+## Settings layout
+
+Settings retain the Sidebar 13 dialog. The object chooser and create action share a compact header; the label editor and field table come first. Technical names, physical table names, lifecycle actions and the definition journal live in the keyboard-accessible **Technical details & administration** section below the fields. Existing pending, version and unsaved-draft guards remain authoritative. Long explanations use standard Collapsible controls; validation errors and restrictions such as unavailable translations remain directly visible.
+
+Account, group, membership and field tables use the standard Table with a fixed layout and wrapping values scoped to settings. The mobile account list places the email beneath the name. Record-table scrolling and column behavior are separate. Mobile settings headings and section choices include their personal/workspace/instance scope, including the two Language & region pages. No new global CSS or component style is introduced.

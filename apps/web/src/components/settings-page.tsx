@@ -1,3 +1,4 @@
+import { SettingsHelp } from './settings-help';
 import { SystemJournal } from './system-journal';
 import { UserManagement } from './user-management';
 import { RegionalFields } from './regional-fields';
@@ -50,6 +51,7 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
   const workspaceSection = section.startsWith('workspace');
   const canManage = Boolean(user.isAdmin || workspace?.role === 'designer');
   const title = [...sections, ...workspaceSections, ...instanceSections].find(item => item.id === section)!.label;
+  const scope = workspaceSection ? workspace?.name ?? t('workspace') : section.startsWith('system') ? t('instance') : t('personal');
   const client = useQueryClient();
   const { theme, setTheme } = useAppearance();
   const [baselineProfileName, setBaselineProfileName] = useState(user.name);
@@ -133,7 +135,7 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
   }
   return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending && !objectBusy && !memberBusy && !securityBusy && !groupBusy && !userBusy) onClose(); }}>
     <DialogContent closeButtonDisabled={mutation.isPending || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} className="h-[640px] max-h-[calc(100svh-4rem)] overflow-hidden p-0 md:max-w-[880px] lg:max-w-[960px]" finalFocus={() => document.querySelector<HTMLElement>('[data-user-menu="header"]') ?? true}>
-      <DialogTitle className="sr-only">{t('settings')}</DialogTitle>
+      <DialogTitle className="sr-only">{t('settings')} — {scope} — {title}</DialogTitle>
       <DialogDescription className="sr-only">{t('settingsDescription')}</DialogDescription>
       <SidebarProvider className="h-full min-h-0 items-stretch">
         <Sidebar collapsible="none" className="hidden h-full shrink-0 md:flex">
@@ -148,11 +150,11 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <header className="flex h-16 shrink-0 items-center gap-2 px-4 pr-12"><Breadcrumb><BreadcrumbList>
             <BreadcrumbItem className="hidden md:block">{t('settings')}</BreadcrumbItem><BreadcrumbSeparator className="hidden md:block" />
-            <BreadcrumbItem className="hidden md:block">{workspaceSection ? workspace?.name ?? t('workspace') : section.startsWith('system') ? t('instance') : t('personal')}</BreadcrumbItem><BreadcrumbSeparator className="hidden md:block" /><BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem>
+            <BreadcrumbItem>{scope}</BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem>
           </BreadcrumbList></Breadcrumb></header>
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex-1 overflow-y-auto p-4 pt-0"><FieldGroup>
-              <Field data-disabled={(mutation.isPending || objectBusy || memberBusy || securityBusy || groupBusy || userBusy) || undefined} className="md:hidden"><FieldLabel htmlFor="settings-section">{t('settings')}</FieldLabel><NativeSelect id="settings-section" className="w-full" value={section} disabled={mutation.isPending || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onChange={event => selectSection(event.target.value as typeof section)}><optgroup label={t('personal')}>{sections.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.label}</NativeSelectOption>)}</optgroup><optgroup label={t('workspace')} disabled={!workspace}>{workspaceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.label}</NativeSelectOption>)}</optgroup>{instanceSections.length ? <optgroup label={t('instance')}>{instanceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.label}</NativeSelectOption>)}</optgroup> : null}</NativeSelect></Field>
+              <Field data-disabled={(mutation.isPending || objectBusy || memberBusy || securityBusy || groupBusy || userBusy) || undefined} className="md:hidden"><FieldLabel htmlFor="settings-section">{t('settings')}</FieldLabel><NativeSelect id="settings-section" className="w-full" value={section} disabled={mutation.isPending || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onChange={event => selectSection(event.target.value as typeof section)}><optgroup label={t('personal')}>{sections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('personal')} · {item.label}</NativeSelectOption>)}</optgroup><optgroup label={t('workspace')} disabled={!workspace}>{workspaceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('workspace')} · {item.label}</NativeSelectOption>)}</optgroup>{instanceSections.length ? <optgroup label={t('instance')}>{instanceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('instance')} · {item.label}</NativeSelectOption>)}</optgroup> : null}</NativeSelect></Field>
               {workspaceSection && !canManage ? <FieldDescription>{t('workspaceReadOnly')}</FieldDescription> : null}
               {!specialSection ? <>
               <form id="settings-form" className="min-w-0" aria-label={t(workspaceSection ? 'workspacePreferences' : 'personalPreferences')} data-shortcut-submit onSubmit={event => { event.preventDefault(); if ((!workspaceSection || canManage) && sectionDirty && valid && !mutation.isPending) mutation.mutate(); }}>
@@ -163,7 +165,7 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
               {section === 'profile' ? <>
                 <Field><FieldLabel id="profile-picture-label">{t('profilePicture')}</FieldLabel><div className="flex flex-wrap items-center gap-4"><Avatar size="lg" role="img" aria-label={t('profilePictureInitials', { name: user.name })}><AvatarFallback>{user.name.trim().split(/\s+/).map(part => Array.from(part)[0]).slice(0, 2).join('').toUpperCase() || '?'}</AvatarFallback></Avatar><Button type="button" variant="outline" disabled aria-describedby="profile-picture-help"><UploadIcon data-icon="inline-start" />{t('uploadProfilePicture')}</Button></div><FieldDescription id="profile-picture-help">{t('profilePictureHelp')}</FieldDescription></Field>
                 <Field data-disabled={mutation.isPending || undefined} data-invalid={!profileName.trim()}><FieldLabel htmlFor="profile-name">{t('displayName')}</FieldLabel><Input id="profile-name" aria-invalid={!profileName.trim()} aria-describedby={!profileName.trim() ? 'profile-name-help profile-name-error' : 'profile-name-help'} value={profileName} required maxLength={200} disabled={mutation.isPending} autoComplete="name" onChange={event => { setProfileName(event.target.value); setSaved(false); }} /><FieldDescription id="profile-name-help">{t('displayNameHelp')}</FieldDescription>{!profileName.trim() ? <FieldError id="profile-name-error">{t('nameRequired')}</FieldError> : null}</Field>
-                <Field><FieldLabel htmlFor="profile-email">{t('email')}</FieldLabel><Input id="profile-email" type="email" value={user.email} readOnly autoComplete="email" aria-describedby="profile-email-help" /><FieldDescription id="profile-email-help">{t('profileEmailHelp')}</FieldDescription></Field>
+                <Field><FieldLabel htmlFor="profile-email">{t('email')}</FieldLabel><Input id="profile-email" type="email" value={user.email} readOnly autoComplete="email" aria-describedby="profile-email-help" /><FieldDescription id="profile-email-help">{t('profileEmailReadOnly')}</FieldDescription><SettingsHelp title={t('emailChangeDetails')}>{t('profileEmailHelp')}</SettingsHelp></Field>
               </> : section === 'workspaceGeneral' ? <>
                 <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="workspace-name">{t('workspaceName')}</FieldLabel><Input id="workspace-name" readOnly={!canManage} value={workspaceName} required maxLength={200} disabled={mutation.isPending} onChange={event => { setWorkspaceName(event.target.value); setSaved(false); }} /></Field>
                 <Field><FieldLabel htmlFor="workspace-code">{t('code')}</FieldLabel><Input id="workspace-code" value={workspace?.code ?? ''} readOnly aria-describedby="workspace-code-help" /><FieldDescription id="workspace-code-help">{t('workspaceCodeFixed')}</FieldDescription></Field><Field><FieldLabel>{t('createdBy')}</FieldLabel><FieldDescription>{workspace?.created_by_name ?? workspace?.created_by ?? '—'}</FieldDescription></Field><Field><FieldLabel>{t('createdAt')}</FieldLabel><FieldDescription>{workspace?.created_at ? formatRegionalDate(workspace.created_at, regional, timeZone, true) : t('creationTimeUnknown')}</FieldDescription></Field>

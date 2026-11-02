@@ -1,3 +1,4 @@
+import { SettingsHelp } from './settings-help';
 import { useTranslation } from 'react-i18next';
 import { regionalLocales, effectiveRegionalSettings, type RegionalSettings, type PersonalRegionalSettings } from '@xobject/contracts';
 import { useTimeZone } from '@/lib/time-zone-context';
@@ -18,9 +19,9 @@ export function RegionalFields({ value, inherited, disabled, onChange }: Props) 
     { key: 'weekStart', label: 'weekStart', items: ['locale', 'monday', 'sunday'].map(item => ({ value: item, label: t(`weekStart_${item}`) })) },
   ] as const;
   const preview = formatRegionalDate('2026-07-15T13:45:00Z', effective, timeZone, true);
-  return <FieldGroup>{fields.map(field => {
+  return <FieldGroup className="grid sm:grid-cols-2">{fields.map(field => {
     const id = `${inherited ? 'personal' : 'workspace'}-region-${field.key}`;
     const items = [...(inherited ? [{ value: 'inherit', label: t('inheritWorkspace') }] : []), ...field.items];
-    return <Field key={field.key} data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(field.label)}</FieldLabel><Select items={items} value={value[field.key] ?? 'inherit'} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [field.key]: next === 'inherit' ? null : next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>;
-  })}<Field><FieldLabel>{t('preview')}</FieldLabel><FieldDescription>{preview} · {formatRegionalNumber('1234567.89', effective, 2)} · {t('weekStartsOn', { day: t(regionalWeekStart(effective) === 1 ? 'weekStart_monday' : 'weekStart_sunday') })}</FieldDescription><FieldDescription>{t('regionalInputHelp')}</FieldDescription></Field></FieldGroup>;
+    return <Field className={field.key === 'locale' ? 'sm:col-span-2' : undefined} key={field.key} data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(field.label)}</FieldLabel><Select items={items} value={value[field.key] ?? 'inherit'} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [field.key]: next === 'inherit' ? null : next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>;
+  })}<Field className="sm:col-span-2"><FieldLabel>{t('preview')}</FieldLabel><FieldDescription>{preview} · {formatRegionalNumber('1234567.89', effective, 2)} · {t('weekStartsOn', { day: t(regionalWeekStart(effective) === 1 ? 'weekStart_monday' : 'weekStart_sunday') })}</FieldDescription><SettingsHelp title={t('regionalInputDetails')}>{t('regionalInputHelp')}</SettingsHelp></Field></FieldGroup>;
 }

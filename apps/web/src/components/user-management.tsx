@@ -1,3 +1,4 @@
+import { SettingsTable } from './settings-table';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
 import { Kbd } from '@/components/ui/kbd';
 import { ClientTablePagination, useClientPagination } from './client-table-pagination';
@@ -12,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { DialogActions } from './dialog-actions';
@@ -27,11 +28,11 @@ export function UserManagement({ ownId, onDirtyChange, onBusyChange }: { ownId: 
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
   const current = users.data?.find(user => user.id === selected);
   function close() { if (!busy) { if (dirty) setConfirm(true); else setSelected(null); } }
-  return <FieldGroup><FieldDescription>{t('userManagementHelp')}</FieldDescription><div className="flex justify-end"><Button type="button" variant="outline" data-user-create onClick={() => setSelected('new')}><PlusIcon data-icon="inline-start" />{t('createUser')}</Button></div>{users.isPending ? <Loading /> : users.isError ? <ErrorNotice error={users.error} retry={() => { void users.refetch(); }} /> : <><Table><TableHeader><TableRow><TableHead>{t('displayName')}</TableHead><TableHead>{t('email')}</TableHead><TableHead>{t('role')}</TableHead><TableHead>{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>{pagination.rows.map(user => <TableRow key={user.id} onClick={event => {
+  return <FieldGroup><FieldDescription>{t('userManagementHelp')}</FieldDescription><div className="flex justify-end"><Button type="button" variant="outline" data-user-create onClick={() => setSelected('new')}><PlusIcon data-icon="inline-start" />{t('createUser')}</Button></div>{users.isPending ? <Loading /> : users.isError ? <ErrorNotice error={users.error} retry={() => { void users.refetch(); }} /> : <><SettingsTable><TableHeader><TableRow><TableHead className="w-[45%] sm:w-[28%]">{t('displayName')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[30%]">{t('email')}</TableHead><TableHead className="w-[30%] sm:w-[24%]">{t('role')}</TableHead><TableHead className="w-[25%] sm:w-[18%]">{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>{pagination.rows.map(user => <TableRow key={user.id} onClick={event => {
     if (busy || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString()) return;
     if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label, [role="checkbox"], [role="combobox"], [contenteditable]')) return;
     setSelected(user.id);
-  }}><TableCell><Button type="button" variant="link" data-managed-user={user.id} className="justify-start px-0 hover:no-underline" onClick={() => setSelected(user.id)}>{user.name}</Button></TableCell><TableCell>{user.email}</TableCell><TableCell>{t(user.isAdmin ? 'roleAdministrator' : 'roleUser')}</TableCell><TableCell>{t(user.active ? 'definition_active' : 'definition_inactive')}{user.mustChangePassword ? ` · ${t('initialPasswordPending')}` : ''}</TableCell></TableRow>)}</TableBody></Table><ClientTablePagination pagination={pagination} disabled={busy} /></>}
+  }}><TableCell><Button type="button" variant="link" data-managed-user={user.id} className="h-auto w-full justify-start whitespace-normal px-0 text-left [overflow-wrap:anywhere] hover:no-underline" onClick={() => setSelected(user.id)}>{user.name}</Button><div className="sm:hidden">{user.email}</div></TableCell><TableCell className="hidden sm:table-cell">{user.email}</TableCell><TableCell>{t(user.isAdmin ? 'roleAdministrator' : 'roleUser')}</TableCell><TableCell>{t(user.active ? 'definition_active' : 'definition_inactive')}{user.mustChangePassword ? ` · ${t('initialPasswordPending')}` : ''}</TableCell></TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} disabled={busy} /></>}
     {selected === 'new' || current ? <UserEditor key={selected} ownId={ownId} user={current} onClose={close} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={() => { setDirty(false); setBusy(false); setSelected(null); }} /> : null}
     <AlertDialog open={confirm} onOpenChange={setConfirm}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { setDirty(false); setSelected(null); setConfirm(false); }}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </FieldGroup>;

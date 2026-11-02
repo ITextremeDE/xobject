@@ -1,3 +1,4 @@
+import { SettingsTable } from './settings-table';
 import { ClientTablePagination, useClientPagination } from './client-table-pagination';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +13,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldGroup, FieldLabel, FieldSet, FieldLegend, FieldDescription } from '@/components/ui/field';
-import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from '@/components/ui/table';
+import { TableHeader, TableHead, TableRow, TableBody, TableCell } from '@/components/ui/table';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
@@ -34,10 +35,10 @@ export function WorkspaceGroups({ workspaceId, isAdmin, canManage, onDirtyChange
   const group = groups.data?.find(item => item.id === selected);
   return <FieldGroup><FieldDescription>{t('groupsHelp')}</FieldDescription>
     {canManage ? <div className="flex justify-end"><Button type="button" variant="outline" data-group-create onClick={() => setSelected('new')}><PlusIcon data-icon="inline-start" />{t('createGroup')}</Button></div> : null}
-    {groups.isPending || members.isPending ? <Loading /> : groups.isError ? <ErrorNotice error={groups.error} /> : members.isError ? <ErrorNotice error={members.error} /> : !groups.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('noGroups')}</EmptyTitle></EmptyHeader></Empty> : <><Table aria-label={t('userGroups')}><TableHeader><TableRow><TableHead>{t('objectName')}</TableHead><TableHead>{t('groupMembers')}</TableHead><TableHead>{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>{pagination.rows.map(item => <TableRow key={item.id} onClick={event => {
+    {groups.isPending || members.isPending ? <Loading /> : groups.isError ? <ErrorNotice error={groups.error} /> : members.isError ? <ErrorNotice error={members.error} /> : !groups.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('noGroups')}</EmptyTitle></EmptyHeader></Empty> : <><SettingsTable aria-label={t('userGroups')}><TableHeader><TableRow><TableHead>{t('objectName')}</TableHead><TableHead>{t('groupMembers')}</TableHead><TableHead>{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>{pagination.rows.map(item => <TableRow key={item.id} onClick={event => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString() || (event.target instanceof Element && event.target.closest('button, a, input'))) return;
       setSelected(item.id);
-    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} className="justify-start px-0 hover:no-underline" onClick={() => setSelected(item.id)}>{item.name}</Button></TableCell><TableCell>{item.memberIds.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell></TableRow>)}</TableBody></Table><ClientTablePagination pagination={pagination} disabled={busy} /></>}
+    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} className="h-auto w-full justify-start whitespace-normal px-0 text-left [overflow-wrap:anywhere] hover:no-underline" onClick={() => setSelected(item.id)}>{item.name}</Button></TableCell><TableCell>{item.memberIds.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell></TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} disabled={busy} /></>}
     {selected && (selected === 'new' || group) && members.data ? <GroupEditor key={selected} workspaceId={workspaceId} group={group} members={members.data} isAdmin={isAdmin} canManage={canManage} onClose={close} onCreated={() => { setDirty(false); setSelected(null); }} onDirtyChange={setDirty} onBusyChange={setBusy} /> : null}
     <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { setDirty(false); setSelected(null); setConfirmClose(false); }}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </FieldGroup>;

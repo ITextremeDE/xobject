@@ -1,3 +1,4 @@
+import { recordReturnPath } from '@/lib/record-navigation';
 import { resourceLinks } from '@/lib/resource-links';
 import { RegionalProvider } from '@/lib/regional-context';
 import { effectiveRegionalSettings } from '@xobject/contracts';
@@ -88,10 +89,10 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   useEffect(() => { setOpenMobile(false); setDialog(null); }, [location.pathname, setOpenMobile]);
   useEffect(() => {
     if (savedRecordId && !busy && !dirty) {
-      if (recordId === 'new') void routeNavigate(`${objectPath}/${savedRecordId}${location.search}`, { replace: true });
+      if (recordId === 'new') void routeNavigate(`${objectPath}/${savedRecordId}${location.search}`, { replace: true, state: location.state });
       setSavedRecordId(null);
     }
-  }, [savedRecordId, busy, dirty, recordId, objectPath, location.search, routeNavigate]);
+  }, [savedRecordId, busy, dirty, recordId, objectPath, location.search, location.state, routeNavigate]);
 
 
   useEffect(() => {
@@ -125,7 +126,9 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   function showPage(page: 'dashboard' | 'settings') {
     if (!busy) void routeNavigate(page === 'settings' ? '/settings' : dashboardPath, { state: page === 'settings' ? { workspaceCode: workspace?.code, backgroundPath: `${location.pathname}${location.search}` } : null });
   }
-  function closeRecord() { if (!busy) void routeNavigate(`${objectPath}${location.search}`); }
+  function closeRecord() {
+    if (!busy) void routeNavigate(recordReturnPath(location.state?.recordOrigin, dashboardPath, objectPath, location.search), { state: { focusRecordId: recordId } });
+  }
   function selectWorkspace(id: string) {
     const selected = workspaces.data?.find(item => item.id === id);
     if (selected && !busy) void routeNavigate(`/w/${selected.code}`);
@@ -216,7 +219,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           : workspaces.isPending ? <Loading /> : workspaces.isError ? <ErrorNotice error={workspaces.error} retry={() => { void workspaces.refetch(); }} />
           : !workspace ? user.isAdmin ? <Welcome title={t('noWorkspace')} description={t('noWorkspaceDescription')} action={t('newWorkspace')} onAction={() => setDialog('workspace')} /> : <Empty><EmptyHeader><EmptyTitle>{t('noWorkspace')}</EmptyTitle><EmptyDescription>{t('noWorkspaceAssigned')}</EmptyDescription></EmptyHeader></Empty>
           : types.isError ? <ErrorNotice error={types.error} /> : types.isPending ? <Loading />
-          : view === 'dashboard' ? <Suspense fallback={<Loading />}><Dashboard canReadContent={Boolean(user.isAdmin)} canManage={canManage} workspace={workspace} types={types.data.filter(type => !type.state || type.state === 'active')} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`); }); }} onCreate={() => setDialog('object')} /></Suspense>
+          : view === 'dashboard' ? <Suspense fallback={<Loading />}><Dashboard canReadContent={Boolean(user.isAdmin)} canManage={canManage} workspace={workspace} types={types.data.filter(type => !type.state || type.state === 'active')} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`, { state: recordId ? { recordOrigin: `${location.pathname}${location.search}` } : null }); }); }} onCreate={() => setDialog('object')} /></Suspense>
           : !selectedType ? <RouteNotFound onBack={() => showPage('dashboard')} />
           : definition.isPending ? <Loading /> : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
           : !user.isAdmin ? <Empty><EmptyHeader><EmptyTitle>{selectedType.label}</EmptyTitle><EmptyDescription>{t('contentAccessPending')}</EmptyDescription></EmptyHeader></Empty>
