@@ -5,3 +5,6 @@ dist/
 !.env.example
 coverage/
 .DS_Store
+
+# Local development fixtures, relationship plans and private recovery artifacts.
+.local/

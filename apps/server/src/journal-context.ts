@@ -20,6 +20,12 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     const effective = effectiveWorkspaceLanguage(language, type.available_languages, type.default_language);
     return labels[effective] ?? labels[type.default_language] ?? labels.en ?? labels.de ?? Object.values(labels)[0];
   };
+  const relationshipIds = [...new Set(rows.filter(row => row.entity_kind === 'relationship_type').map(row => String(row.entity_id)))];
+  const relationshipNames = new Map<string, string>();
+  if (relationshipIds.length) {
+    const relationshipTypes = (await sql<Context>`SELECT r.id, r.technical_name, r.labels, 'active' AS state, w.code, w.default_language, w.available_languages FROM sys_relationship_types r JOIN sys_workspaces w ON w.id=r.workspace_id WHERE r.id=ANY(${relationshipIds}::uuid[])`.execute(tx)).rows;
+    for (const relation of relationshipTypes) relationshipNames.set(relation.id, label(relation.labels, relation));
+  }
   const names = new Map<string, string>();
   if (includeRecords) for (const type of types) {
     const ids = [...new Set(rows.filter(row => row.entity_kind === 'record' && row.object_type_id === type.id).map(row => String(row.entity_id)))];
@@ -35,9 +41,9 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     return { ...row,
       object_type_name: type ? label(type.labels, type) : null,
       field_label: type && field ? label(field.labels, type) : null,
-      entity_name: type && row.entity_kind === 'object_type' ? label(type.labels, type)
+      entity_name: (row.entity_kind === 'relationship_type' ? relationshipNames.get(String(row.entity_id)) : undefined) ?? (type && row.entity_kind === 'object_type' ? label(type.labels, type)
         : type && field && ['field', 'classification_field'].includes(String(row.entity_kind)) ? label(field.labels, type)
-        : names.get(`${row.object_type_id}:${row.entity_id}`) ?? row.entity_name ?? null,
+        : names.get(`${row.object_type_id}:${row.entity_id}`) ?? row.entity_name ?? null),
     };
   });
 }

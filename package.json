@@ -19,6 +19,7 @@
     "dev": "npm run build --workspace @xobject/contracts && npm run build --workspace @xobject/web && node --env-file-if-exists=.env --import tsx apps/server/src/main.ts",
     "db:migrate": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts migrate",
     "admin:create": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts create-admin",
-    "dev:web": "npm run dev --workspace @xobject/web"
+    "dev:web": "npm run dev --workspace @xobject/web",
+    "dev:seed": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts seed-demo --confirm-local-demo"
   }
 }

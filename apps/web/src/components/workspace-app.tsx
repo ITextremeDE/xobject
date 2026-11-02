@@ -8,14 +8,13 @@ import { WorkspaceLanguageProvider } from '@/lib/workspace-languages';
 import { effectiveWorkspaceLanguage, languageCodes } from '@xobject/contracts';
 import { WorkspaceMenuAppearanceProvider } from '@/lib/menu-appearance';
 import { useWorkspaceAppearance } from '@/lib/workspace-appearance';
-import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useBlocker, useLocation, matchPath, useNavigate } from 'react-router';
 import { DatabaseIcon, PlusIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
 import { type AuthUser } from '@xobject/contracts';
 import { api, signOut } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
@@ -24,7 +23,7 @@ import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarGroup, 
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { DefinitionDialog } from './definition-dialog';
-import { RecordPanel } from './record-panel';
+import { RecordPage } from './record-page';
 import { ErrorNotice, Loading } from './feedback';
 import { UserMenu } from './user-menu';
 import { HeaderSearch } from './header-search';
@@ -35,9 +34,6 @@ const Dashboard = lazy(() => import('./dashboard').then(module => ({ default: mo
 const SettingsPage = lazy(() => import('./settings-page').then(module => ({ default: module.SettingsPage })));
 
 
-
-const narrow = matchMedia('(max-width: 1023px)');
-const subscribeNarrow = (listener: () => void) => { narrow.addEventListener('change', listener); return () => narrow.removeEventListener('change', listener); };
 
 export function WorkspaceApp({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const access = useQuery({ queryKey: ['access-context', user.id], queryFn: () => api('get_access_context', {}) });
@@ -50,7 +46,6 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { setOpenMobile, isMobile } = useSidebar();
-  const detailModal = useSyncExternalStore(subscribeNarrow, () => narrow.matches);
   const [editorRevision, setEditorRevision] = useState(0);
   const location = useLocation();
   const routeNavigate = useNavigate();
@@ -196,14 +191,14 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
         <SidebarMenu><SidebarMenuItem><UserMenu placement="sidebar" user={user} busy={busy} signingOut={logout.isPending} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} /></SidebarMenuItem></SidebarMenu></SidebarFooter>
       <SidebarRail />
     </Sidebar>
-    <SidebarInset className={cn('min-w-0', user.isAdmin && recordId && !detailModal && 'pr-[26rem]')}>
+    <SidebarInset className="min-w-0">
       <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" aria-label={t('menu')} />
           <Separator orientation="vertical" className="mr-2 data-vertical:h-4 data-vertical:self-auto" />
           <Breadcrumb className="min-w-0" aria-label={t('menu')}><BreadcrumbList className="flex-nowrap">
             {workspace ? <><BreadcrumbItem className="min-w-0"><BreadcrumbLink className="max-w-40 truncate" render={<Link to={dashboardPath} />} aria-disabled={busy || undefined} onClick={event => { if (busy) event.preventDefault(); }}>{workspace.name}</BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator className="hidden sm:block" /></> : null}
-            <BreadcrumbItem className="hidden min-w-0 sm:inline-flex"><BreadcrumbPage className="truncate">{view === 'dashboard' ? t('dashboard') : selectedType?.label ?? workspace?.name ?? 'xObject'}</BreadcrumbPage></BreadcrumbItem>
+            <BreadcrumbItem className="hidden min-w-0 sm:inline-flex">{recordId && selectedType ? <BreadcrumbLink className="max-w-48 truncate" render={<Link to={objectPath} />} onClick={event => { if (busy) event.preventDefault(); }}>{selectedType.label}</BreadcrumbLink> : <BreadcrumbPage className="truncate">{view === 'dashboard' ? t('dashboard') : selectedType?.label ?? workspace?.name ?? 'xObject'}</BreadcrumbPage>}</BreadcrumbItem>{recordId ? <><BreadcrumbSeparator className="hidden md:block" /><BreadcrumbItem className="hidden min-w-0 md:inline-flex"><BreadcrumbPage className="truncate">{t(recordId === 'new' ? 'newRecord' : 'details')}</BreadcrumbPage></BreadcrumbItem></> : null}
           </BreadcrumbList></Breadcrumb>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-x-2 pr-4 sm:gap-x-3">
@@ -223,13 +218,12 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           : !selectedType ? <RouteNotFound onBack={() => showPage('dashboard')} />
           : definition.isPending ? <Loading /> : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
           : !user.isAdmin ? <Empty><EmptyHeader><EmptyTitle>{selectedType.label}</EmptyTitle><EmptyDescription>{t('contentAccessPending')}</EmptyDescription></EmptyHeader></Empty>
+          : recordId && panelDefinition ? recordId === 'new' && panelDefinition.state && panelDefinition.state !== 'active' ? <RouteNotFound onBack={closeRecord} /> : <RecordPage key={`${panelDefinition.id}:${recordId}:${editorRevision}`} definition={panelDefinition} recordId={recordId} user={user} workspaceName={workspace.name} onClose={closeRecord} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={record => { setSavedRecordId(record.id); setDirty(false); }} />
           : panelDefinition ? <RecordList key={panelDefinition.id} definition={panelDefinition} selectedRecord={recordId}
             basePath={objectPath}
             disabled={busy} /> : null}
       </main>
     </SidebarInset>
-    {user.isAdmin && !settingsOpen && validRoute && recordId && panelDefinition && (recordId !== 'new' || !panelDefinition.state || panelDefinition.state === 'active') ? <RecordPanel key={`${panelDefinition.id}:${recordId}:${editorRevision}`} definition={panelDefinition} recordId={recordId} user={user} mobile={detailModal}
-      onClose={closeRecord} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={record => { setSavedRecordId(record.id); setDirty(false); }} /> : null}
     {settingsOpen ? <Suspense fallback={<span role="status" className="sr-only">{t('loading')}</span>}><SettingsPage key={editorRevision} user={user} workspace={workspace} onDirtyChange={setDirty} onBusyChange={setBusy} onClose={() => { if (busy) return; if (settingsBackground) void routeNavigate(-1); else void routeNavigate(dashboardPath, { replace: true }); }} /></Suspense> : null}
     {dialog ? <DefinitionDialog kind={dialog} workspaceId={workspace?.id} objectTypeId={selectedType?.id} onClose={() => navigate(() => { setDialog(null); setDirty(false); })} onDirtyChange={setDirty} onBusyChange={setBusy} onCreated={id => { setDirty(false); setBusy(false); void created(id); }} /> : null}
     <KeyboardHelp open={helpOpen} onOpenChange={setHelpOpen} finalFocus={() => helpOrigin.current?.isConnected ? helpOrigin.current : document.querySelector<HTMLElement>('[data-user-menu="header"]') ?? true} />
