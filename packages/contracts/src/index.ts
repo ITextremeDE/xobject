@@ -56,7 +56,7 @@ export const schemas = {
   list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   list_records: z.object({ objectTypeId: uuid, query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(3).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
-  add_standard_field: z.object({ objectTypeId: uuid, field: standardField }).strict(),
+  add_standard_field: z.object({ objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => args.field === 'keyword' ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
   create_field: z.object({ objectTypeId: uuid, technicalName, labels, kind: customFieldKindSchema.default('text'), config: fieldConfigSchema.optional(), required: z.boolean().default(false) }).strict(),
   get_object_type: z.object({ objectTypeId: uuid }).strict(),
   configure_field: z.object({ fieldId: uuid, labels: labels.optional(), kind: customFieldKindSchema.optional(), config: fieldConfigSchema.optional(), required: z.boolean() }).strict(),
@@ -85,7 +85,7 @@ export interface DataRecord { id: string; keyword: string; version: number; crea
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
 export interface SearchRecord { id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
-export interface JournalEntry { id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
+export interface JournalEntry { field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
 export type Inputs = { [K in Operation]: z.input<(typeof schemas)[K]> };
 export interface WorkspaceGroup { id: string; workspaceId: string; name: string; active: boolean; version: number; memberIds: string[] }

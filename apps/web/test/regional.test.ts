@@ -17,3 +17,14 @@ test('regional date and time presentation remains independent of date-only meani
   assert.equal(formatRegionalDate('2026-07-15', settings, 'Asia/Tokyo', false, true), '2026-07-15');
   assert.equal(formatRegionalDate('2026-07-15', { ...settings, dateFormat: 'dmy' }, 'America/New_York', false, true), '15.07.2026');
 });
+
+test('inherited preferences show concrete examples from workspace formats', async () => {
+  const { regionalSettingPreview } = await import('../src/lib/regional.js');
+  const workspace = { ...defaultRegionalSettings, locale: 'de-DE' as const, dateFormat: 'iso' as const, numberFormat: 'dot' as const, hourCycle: 'h23' as const, weekStart: 'sunday' as const };
+  assert.equal(regionalSettingPreview('locale', workspace), 'de-DE');
+  assert.equal(regionalSettingPreview('dateFormat', workspace), '2026-07-15');
+  assert.equal(regionalSettingPreview('hourCycle', workspace), '13:45');
+  assert.equal(regionalSettingPreview('hourCycle', workspace, 'Europe/Berlin'), '15:45');
+  assert.equal(regionalSettingPreview('numberFormat', workspace), '1,234.56');
+  assert.equal(regionalSettingPreview('weekStart', workspace), 'Sonntag');
+});

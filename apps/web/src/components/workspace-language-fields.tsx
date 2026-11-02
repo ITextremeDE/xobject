@@ -1,13 +1,14 @@
+import { SettingsHelp } from './settings-help';
 import { useTranslation } from 'react-i18next';
 import { languageCatalog, type WorkspaceLanguages, type Language } from '@xobject/contracts';
-import { Field, FieldGroup, FieldLabel, FieldSet, FieldLegend, FieldDescription, FieldError } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldSet, FieldLegend, FieldError } from '@/components/ui/field';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 
 export function WorkspaceLanguageFields({ value, disabled, onChange }: { value: WorkspaceLanguages; disabled: boolean; onChange: (value: WorkspaceLanguages) => void }) {
   const { t } = useTranslation();
   function choices(key: 'availableLanguages' | 'labelLanguages') {
-    return <FieldSet><FieldLegend>{t(key === 'availableLanguages' ? 'availableInterfaceLanguages' : 'availableLabelLanguages')}</FieldLegend><FieldDescription>{t(key === 'availableLanguages' ? 'availableInterfaceLanguagesHelp' : 'availableLabelLanguagesHelp')}</FieldDescription><FieldGroup className="gap-3">{languageCatalog.map(item => <Field key={item.code} data-disabled={disabled || undefined} orientation="horizontal"><Checkbox id={`${key}-${item.code}`} checked={value[key].includes(item.code)} disabled={disabled} onCheckedChange={checked => onChange({ ...value, [key]: (checked ? [...value[key], item.code] : value[key].filter(code => code !== item.code)).sort() })} /><FieldLabel htmlFor={`${key}-${item.code}`}>{item.nativeName}</FieldLabel></Field>)}</FieldGroup>{!value[key].length ? <FieldError>{t('atLeastOneLanguage')}</FieldError> : null}</FieldSet>;
+    return <FieldSet><FieldLegend>{t(key === 'availableLanguages' ? 'availableInterfaceLanguages' : 'availableLabelLanguages')}</FieldLegend><FieldGroup className="flex-row flex-wrap gap-4">{languageCatalog.map(item => <Field key={item.code} data-disabled={disabled || undefined} className="w-auto" orientation="horizontal"><Checkbox id={`${key}-${item.code}`} checked={value[key].includes(item.code)} disabled={disabled} onCheckedChange={checked => onChange({ ...value, [key]: (checked ? [...value[key], item.code] : value[key].filter(code => code !== item.code)).sort() })} /><FieldLabel htmlFor={`${key}-${item.code}`}>{item.nativeName}</FieldLabel></Field>)}</FieldGroup><SettingsHelp title={t(key === 'availableLanguages' ? 'interfaceLanguageDetails' : 'labelLanguageDetails')}>{t(key === 'availableLanguages' ? 'availableInterfaceLanguagesHelp' : 'availableLabelLanguagesHelp')}</SettingsHelp>{!value[key].length ? <FieldError>{t('atLeastOneLanguage')}</FieldError> : null}</FieldSet>;
   }
   const items = languageCatalog.filter(item => value.availableLanguages.includes(item.code)).map(item => ({ value: item.code, label: item.nativeName }));
   const validDefault = value.availableLanguages.includes(value.defaultLanguage);

@@ -1,4 +1,5 @@
-import { ClientTablePagination, useClientPagination } from './client-table-pagination';
+import { SettingsTable, SettingsTableSearch, useSettingsTable } from './settings-table';
+import { ClientTablePagination } from './client-table-pagination';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +13,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldGroup, FieldLabel, FieldSet, FieldLegend, FieldDescription } from '@/components/ui/field';
-import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from '@/components/ui/table';
+import { TableHeader, TableHead, TableRow, TableBody, TableCell } from '@/components/ui/table';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
@@ -26,18 +27,18 @@ export function WorkspaceGroups({ workspaceId, isAdmin, canManage, onDirtyChange
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const groups = useQuery({ queryKey: ['workspace-groups', workspaceId], queryFn: () => api('list_groups', { workspaceId }) });
-  const pagination = useClientPagination([...(groups.data ?? [])].sort((a, b) => a.name.localeCompare(b.name, i18n.language)));
+  const { search, onSearch, pagination } = useSettingsTable([...(groups.data ?? [])].sort((a, b) => a.name.localeCompare(b.name, i18n.language)), group => `${group.name} ${t(group.active ? 'definition_active' : 'definition_inactive')}`);
   const members = useQuery({ queryKey: ['workspace-members', workspaceId], queryFn: () => api('list_workspace_members', { workspaceId }) });
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
   function close() { if (busy) return; if (dirty) setConfirmClose(true); else setSelected(null); }
   const group = groups.data?.find(item => item.id === selected);
   return <FieldGroup><FieldDescription>{t('groupsHelp')}</FieldDescription>
-    {canManage ? <div className="flex justify-end"><Button type="button" variant="outline" data-group-create onClick={() => setSelected('new')}><PlusIcon data-icon="inline-start" />{t('createGroup')}</Button></div> : null}
-    {groups.isPending || members.isPending ? <Loading /> : groups.isError ? <ErrorNotice error={groups.error} /> : members.isError ? <ErrorNotice error={members.error} /> : !groups.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('noGroups')}</EmptyTitle></EmptyHeader></Empty> : <><Table aria-label={t('userGroups')}><TableHeader><TableRow><TableHead>{t('objectName')}</TableHead><TableHead>{t('groupMembers')}</TableHead><TableHead>{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>{pagination.rows.map(item => <TableRow key={item.id} onClick={event => {
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><SettingsTableSearch value={search} onChange={onSearch} />{canManage ? <><Button type="button" variant="outline" data-group-create onClick={() => setSelected('new')}><PlusIcon data-icon="inline-start" />{t('createGroup')}</Button></> : null}</div>
+    {groups.isPending || members.isPending ? <Loading /> : groups.isError ? <ErrorNotice error={groups.error} /> : members.isError ? <ErrorNotice error={members.error} /> : !groups.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('noGroups')}</EmptyTitle></EmptyHeader></Empty> : <><SettingsTable aria-label={t('userGroups')}><TableHeader><TableRow><TableHead>{t('objectName')}</TableHead><TableHead>{t('groupMembers')}</TableHead><TableHead>{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>{!pagination.total ? <TableRow><TableCell colSpan={3}>{t('settingsNoMatches')}</TableCell></TableRow> : null}{pagination.rows.map(item => <TableRow key={item.id} onClick={event => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString() || (event.target instanceof Element && event.target.closest('button, a, input'))) return;
       setSelected(item.id);
-    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} className="justify-start px-0 hover:no-underline" onClick={() => setSelected(item.id)}>{item.name}</Button></TableCell><TableCell>{item.memberIds.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell></TableRow>)}</TableBody></Table><ClientTablePagination pagination={pagination} disabled={busy} /></>}
+    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} className="h-auto w-full min-w-0 justify-start px-0 text-left hover:no-underline" title={item.name} onClick={() => setSelected(item.id)}><span className="truncate">{item.name}</span></Button></TableCell><TableCell>{item.memberIds.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell></TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('groupCount', { count: pagination.total })} disabled={busy} /></>}
     {selected && (selected === 'new' || group) && members.data ? <GroupEditor key={selected} workspaceId={workspaceId} group={group} members={members.data} isAdmin={isAdmin} canManage={canManage} onClose={close} onCreated={() => { setDirty(false); setSelected(null); }} onDirtyChange={setDirty} onBusyChange={setBusy} /> : null}
     <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { setDirty(false); setSelected(null); setConfirmClose(false); }}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </FieldGroup>;
@@ -71,6 +72,6 @@ function GroupEditor({ workspaceId, group, members, isAdmin, canManage, onClose,
     </FieldGroup></form>
       {group ? <div className="flex flex-col gap-3 pt-6"><FieldDescription>{t(baseline.active ? 'groupActiveHelp' : 'groupInactiveHelp')}</FieldDescription>{isAdmin ? <Button type="button" variant="outline" className="self-start" disabled={dirty || busy} onClick={() => state.mutate()}>{state.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : baseline.active ? <PauseIcon data-icon="inline-start" /> : <RotateCcwIcon data-icon="inline-start" />}{t(baseline.active ? 'deactivateDefinition' : 'reactivateDefinition')}</Button> : null}</div> : null}
     </div>
-    <DialogActions onClose={onClose} disabled={busy} closeLabel={t(group ? 'close' : 'cancel')}>{canManage ? <><Button type="button" variant="outline" disabled={!dirty || busy} onClick={() => { adopt(group ?? baseline); save.reset(); }}>{t('resetPreferences')}</Button><Button type="submit" form="group-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !name.trim() || busy}>{save.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}{t(group ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
+    <DialogActions onClose={onClose} disabled={busy} closeLabel={t(group ? 'close' : 'cancel')}>{canManage ? <>{group ? <Button type="button" variant="outline" disabled={!dirty || busy} onClick={() => { adopt(group ?? baseline); save.reset(); }}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="group-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !name.trim() || busy}>{save.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}{t(group ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
   </DialogContent></Dialog>;
 }

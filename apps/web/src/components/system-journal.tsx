@@ -1,30 +1,63 @@
-import { TablePagination } from './table-pagination';
+import { JournalEntryCard } from './journal-entry-card';
 import { useDeferredValue, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { SearchIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useRegional } from '@/lib/regional-context';
-import { useTimeZone } from '@/lib/time-zone-context';
-import { formatRegionalDate } from '@/lib/regional';
-import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { journalEntityKinds, journalEntityLabel, journalPropertyLabel } from '@/lib/journal-presentation';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem, SelectLabel } from '@/components/ui/select';
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend } from '@/components/ui/field';
+import { InputGroup, InputGroupInput, InputGroupAddon } from '@/components/ui/input-group';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { TablePagination } from './table-pagination';
 import { ErrorNotice, Loading } from './feedback';
 
 export function SystemJournal() {
   const { t } = useTranslation();
-  const regional = useRegional(), timeZone = useTimeZone();
   const [field, setField] = useState(''), [kind, setKind] = useState(''), [workspaceId, setWorkspaceId] = useState(''), [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(25);
-  const fieldKey = useDeferredValue(field);
+  const deferredField = useDeferredValue(field);
+  const knownProperties = ['time_zone', 'name', 'email', 'labels', 'technical_name', 'kind', 'required', 'state', 'active', 'language', 'is_admin', 'must_change_password', 'member:', 'regional.locale', 'regional.dateFormat', 'regional.hourCycle', 'regional.numberFormat', 'regional.weekStart'];
+  const fieldKey = knownProperties.find(key => journalPropertyLabel(key, t).toLocaleLowerCase() === deferredField.trim().toLocaleLowerCase()) ?? deferredField;
+  const users = useQuery({ queryKey: ['users'], queryFn: () => api('list_users', {}) });
   const workspaces = useQuery({ queryKey: ['workspaces'], queryFn: () => api('list_workspaces', {}) });
   const journal = useQuery({ queryKey: ['system-journal', fieldKey, kind, workspaceId, offset, pageSize], queryFn: () => api('list_system_journal', { fieldKey, entityKind: kind, ...(workspaceId ? { workspaceId } : {}), offset, limit: pageSize }) });
-  const value = (item: unknown) => item === null ? t('journalNotSet') : typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item);
-  return <FieldGroup><FieldDescription>{t('systemJournalHelp')}</FieldDescription><FieldGroup className="gap-3"><Field><FieldLabel htmlFor="journal-workspace">{t('workspace')}</FieldLabel><NativeSelect id="journal-workspace" value={workspaceId} onChange={event => { setWorkspaceId(event.target.value); setOffset(0); }}><NativeSelectOption value="">{t('allWorkspaces')}</NativeSelectOption>{workspaces.data?.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.name}</NativeSelectOption>)}</NativeSelect></Field><Field><FieldLabel htmlFor="journal-field">{t('journalFieldFilter')}</FieldLabel><Input id="journal-field" value={field} onChange={event => { setField(event.target.value); setOffset(0); }} /></Field><Field><FieldLabel htmlFor="journal-kind">{t('journalEntityKind')}</FieldLabel><Input id="journal-kind" value={kind} placeholder="user, workspace, group, record …" onChange={event => { setKind(event.target.value); setOffset(0); }} /></Field></FieldGroup>
-    {journal.isPending ? <Loading /> : journal.isError ? <ErrorNotice error={journal.error} retry={() => { void journal.refetch(); }} /> : !journal.data.entries.length ? <Empty><EmptyHeader><EmptyTitle>{t('journalNoEntries')}</EmptyTitle></EmptyHeader></Empty> : <><ol>{journal.data.entries.map((entry, index) => <li key={entry.id}>{index ? <Separator /> : null}<article className="flex flex-col gap-2 py-4"><div className="flex flex-wrap justify-between gap-2"><span className="font-medium wrap-anywhere">{entry.field_key}</span><time className="text-xs text-muted-foreground" dateTime={entry.created_at}>{formatRegionalDate(entry.created_at, regional, timeZone, true)}</time></div><FieldDescription>{entry.actor_name ?? entry.actor_id} · {entry.workspace_name ?? t('instance')} · {entry.entity_kind} · {entry.entity_name ?? entry.entity_id}</FieldDescription><dl className="grid min-w-0 grid-cols-2 gap-3"><div><dt className="text-xs text-muted-foreground">{t('before')}</dt><dd className="whitespace-pre-wrap wrap-anywhere">{value(entry.old_value)}</dd></div><div><dt className="text-xs text-muted-foreground">{t('after')}</dt><dd className="whitespace-pre-wrap wrap-anywhere">{value(entry.new_value)}</dd></div></dl><Collapsible><CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" />}>{t('journalShowDetails')}</CollapsibleTrigger><CollapsibleContent><FieldDescription>{t('changeId')}: {entry.change_id}<br />{t('entityId')}: {entry.entity_id}<br />ID: {entry.id}</FieldDescription></CollapsibleContent></Collapsible></article></li>)}</ol><TablePagination total={journal.data.total} page={Math.floor(offset / pageSize) + 1} pageSize={pageSize} disabled={journal.isFetching} onPage={page => setOffset((page - 1) * pageSize)} onPageSize={size => { setPageSize(size); setOffset(0); }} /></>}
+  const workspaceItems = [{ value: 'all', label: t('journalAllScopes') }, ...(workspaces.data ?? []).map(item => ({ value: item.id, label: item.name }))];
+  const kindItems = [{ value: 'all', label: t('journalAllEntities') }, ...journalEntityKinds.map(value => ({ value, label: journalEntityLabel(value, t) }))];
+  const filtered = Boolean(field || kind || workspaceId);
+
+  return <FieldGroup>
+    <FieldDescription>{t('systemJournalHelp')}</FieldDescription>
+    <FieldSet className="gap-3">
+      <FieldLegend variant="label" className="mb-0 flex w-full flex-wrap items-center justify-between gap-2"><span>{t('journalFilters')}</span>
+        {filtered ? <Button type="button" variant="ghost" size="sm" onClick={() => { setField(''); setKind(''); setWorkspaceId(''); setOffset(0); }}>{t('journalResetFilters')}</Button> : null}</FieldLegend>
+      <FieldGroup className="grid gap-3 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="journal-workspace">{t('journalScope')}</FieldLabel>
+          <Select items={workspaceItems} value={workspaceId || 'all'} onValueChange={value => { if (value) { setWorkspaceId(value === 'all' ? '' : value); setOffset(0); } }}>
+            <SelectTrigger id="journal-workspace" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup><SelectItem value="all">{t('journalAllScopes')}</SelectItem></SelectGroup><SelectGroup><SelectLabel>{t('workspace')}</SelectLabel>{workspaceItems.slice(1).map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="journal-kind">{t('journalEntityKind')}</FieldLabel>
+          <Select items={kindItems} value={kind || 'all'} onValueChange={value => { if (value) { setKind(value === 'all' ? '' : value); setOffset(0); } }}>
+            <SelectTrigger id="journal-kind" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup>{kindItems.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+        </Field>
+        <Field className="sm:col-span-2">
+          <FieldLabel htmlFor="journal-field">{t('journalFieldFilter')}</FieldLabel>
+          <InputGroup><InputGroupInput id="journal-field" type="search" placeholder={t('journalPropertyPlaceholder')} value={field} onChange={event => { setField(event.target.value); setOffset(0); }} /><InputGroupAddon><SearchIcon /></InputGroupAddon></InputGroup>
+        </Field>
+      </FieldGroup>
+    </FieldSet>
+    {journal.isPending ? <Loading /> : journal.isError ? <ErrorNotice error={journal.error} retry={() => { void journal.refetch(); }} /> : !journal.data.entries.length ? <Empty><EmptyHeader><EmptyTitle>{t('journalNoMatches')}</EmptyTitle></EmptyHeader></Empty> : <>
+      <ol className="flex min-w-0 flex-col gap-4" aria-label={t('journalEntries')}>
+        {journal.data.entries.map(entry => <li key={entry.id} className="min-w-0"><JournalEntryCard entry={entry} memberName={entry.field_key.startsWith('member:') ? users.data?.find(user => user.id === entry.field_key.slice(7))?.name : undefined} /></li>)}
+      </ol>
+      <TablePagination countLabel={t('journalCount', { count: journal.data.total })} total={journal.data.total} page={Math.floor(offset / pageSize) + 1} pageSize={pageSize} disabled={journal.isFetching} onPage={page => setOffset((page - 1) * pageSize)} onPageSize={size => { setPageSize(size); setOffset(0); }} />
+    </>}
   </FieldGroup>;
 }
