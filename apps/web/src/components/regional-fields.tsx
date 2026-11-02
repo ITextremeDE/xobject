@@ -2,14 +2,15 @@ import { SettingsHelp } from './settings-help';
 import { useTranslation } from 'react-i18next';
 import { regionalLocales, effectiveRegionalSettings, type RegionalSettings, type PersonalRegionalSettings } from '@xobject/contracts';
 import { useTimeZone } from '@/lib/time-zone-context';
-import { formatRegionalDate, formatRegionalNumber, regionalWeekStart } from '@/lib/regional';
+import { formatRegionalDate, formatRegionalNumber, regionalWeekStart, regionalSettingPreview } from '@/lib/regional';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 
-type Props = { value: RegionalSettings | PersonalRegionalSettings; inherited?: RegionalSettings; disabled: boolean; onChange: (value: RegionalSettings | PersonalRegionalSettings) => void };
-export function RegionalFields({ value, inherited, disabled, onChange }: Props) {
+type Props = { value: RegionalSettings | PersonalRegionalSettings; inherited?: RegionalSettings; disabled: boolean; timeZone?: string; onChange: (value: RegionalSettings | PersonalRegionalSettings) => void };
+export function RegionalFields({ value, inherited, disabled, timeZone: previewTimeZone, onChange }: Props) {
   const { t, i18n } = useTranslation();
-  const timeZone = useTimeZone();
+  const effectiveTimeZone = useTimeZone();
+  const timeZone = previewTimeZone ?? effectiveTimeZone;
   const effective = inherited ? effectiveRegionalSettings(inherited, value as PersonalRegionalSettings) : value as RegionalSettings;
   const fields = [
     { key: 'locale', label: 'regionalFormat', items: regionalLocales.map(locale => ({ value: locale, label: `${new Intl.DisplayNames([i18n.language], { type: 'language' }).of(locale) ?? locale} (${locale})` })) },
@@ -21,7 +22,7 @@ export function RegionalFields({ value, inherited, disabled, onChange }: Props) 
   const preview = formatRegionalDate('2026-07-15T13:45:00Z', effective, timeZone, true);
   return <FieldGroup className="grid sm:grid-cols-2">{fields.map(field => {
     const id = `${inherited ? 'personal' : 'workspace'}-region-${field.key}`;
-    const items = [...(inherited ? [{ value: 'inherit', label: t('inheritWorkspace') }] : []), ...field.items];
+    const items = [...(inherited ? [{ value: 'inherit', label: t('inheritSetting', { value: regionalSettingPreview(field.key, inherited, timeZone) }) }] : []), ...field.items];
     return <Field className={field.key === 'locale' ? 'sm:col-span-2' : undefined} key={field.key} data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(field.label)}</FieldLabel><Select items={items} value={value[field.key] ?? 'inherit'} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [field.key]: next === 'inherit' ? null : next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>;
   })}<Field className="sm:col-span-2"><FieldLabel>{t('preview')}</FieldLabel><FieldDescription>{preview} · {formatRegionalNumber('1234567.89', effective, 2)} · {t('weekStartsOn', { day: t(regionalWeekStart(effective) === 1 ? 'weekStart_monday' : 'weekStart_sunday') })}</FieldDescription><SettingsHelp title={t('regionalInputDetails')}>{t('regionalInputHelp')}</SettingsHelp></Field></FieldGroup>;
 }

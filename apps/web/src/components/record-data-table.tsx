@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, Columns3Icon, EllipsisVerticalIcon, PanelRightOpenIcon, DatabaseIcon, CopyIcon } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, Columns3Icon, ChevronDownIcon, EllipsisVerticalIcon, PanelRightOpenIcon, DatabaseIcon, CopyIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -9,9 +9,18 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGro
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { TablePagination } from './table-pagination';
 export type RecordColumn<Row> = { key: string; label: string; cell: (row: Row) => ReactNode; required?: boolean };
+// One responsive toolbar composition for mixed-object and object-specific lists.
+export function RecordTableToolbar({ search, children }: { search: ReactNode; children: ReactNode }) {
+  return <div className="@container/table-toolbar" data-record-table-toolbar>
+    <div className="flex flex-col gap-3 @2xl/table-toolbar:flex-row @2xl/table-toolbar:items-center @2xl/table-toolbar:justify-between">
+      {search}
+      <div className="flex flex-wrap items-center gap-2 @2xl/table-toolbar:ml-auto">{children}</div>
+    </div>
+  </div>;
+}
 export function ColumnMenu<Row>({ columns, hidden, onToggle, disabled }: { columns: RecordColumn<Row>[]; hidden: Set<string>; onToggle: (key: string) => void; disabled?: boolean }) {
   const { t } = useTranslation();
-  return <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" disabled={disabled} />}><Columns3Icon data-icon="inline-start" />{t('customizeColumns')}</DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{columns.map(column => <DropdownMenuCheckboxItem key={column.key} checked={!hidden.has(column.key)} disabled={column.required} closeOnClick={false} onCheckedChange={() => onToggle(column.key)}>{column.label}</DropdownMenuCheckboxItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>;
+  return <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" disabled={disabled} />}><Columns3Icon data-icon="inline-start" />{t('customizeColumns')}<ChevronDownIcon data-icon="inline-end" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{columns.map(column => <DropdownMenuCheckboxItem key={column.key} checked={!hidden.has(column.key)} disabled={column.required} closeOnClick={false} onCheckedChange={() => onToggle(column.key)}>{column.label}</DropdownMenuCheckboxItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>;
 }
 export function RecordDataTable<Row extends { id: string }>({ rows, columns, hidden, total, page, pageSize, sort, disabled = false, selectedRecord, onSort, onPage, onPageSize, onOpen, onObject }: { rows: Row[]; columns: RecordColumn<Row>[]; hidden: Set<string>; total: number; page: number; pageSize: number; sort: { by: string; direction: 'asc' | 'desc' }; disabled?: boolean; selectedRecord?: string | null; onSort: (key: string) => void; onPage: (page: number) => void; onPageSize: (size: number) => void; onOpen: (row: Row) => void; onObject?: (row: Row) => void }) {
   const { t } = useTranslation();

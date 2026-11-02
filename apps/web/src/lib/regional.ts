@@ -22,3 +22,12 @@ export function regionalWeekStart(regional: RegionalSettings): 1 | 7 {
   if (regional.weekStart === 'sunday') return 7;
   return ['en-US', 'en-CA'].includes(regional.locale) ? 7 : 1;
 }
+
+// Concrete examples make inherited display preferences visible without changing them.
+export function regionalSettingPreview(key: keyof RegionalSettings, regional: RegionalSettings, timeZone = 'UTC'): string {
+  if (key === 'locale') return regional.locale;
+  if (key === 'dateFormat') return formatRegionalDate('2026-07-15', regional, 'UTC', false, true);
+  if (key === 'hourCycle') return new Intl.DateTimeFormat(regional.locale, { timeZone, timeStyle: 'short', ...(regional.hourCycle === 'locale' ? {} : { hourCycle: regional.hourCycle }) }).format(new Date('2026-07-15T13:45:00Z'));
+  if (key === 'numberFormat') return formatRegionalNumber('1234.56', regional, 2);
+  return new Intl.DateTimeFormat(regional.locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(regionalWeekStart(regional) === 1 ? '2026-07-13T00:00:00Z' : '2026-07-19T00:00:00Z'));
+}

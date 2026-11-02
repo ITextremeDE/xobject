@@ -1,3 +1,5 @@
+import { RequiredFieldSetting } from './required-field-setting';
+import { SettingsHelp } from './settings-help';
 import { Spinner } from '@/components/ui/spinner';
 import { DialogActions } from './dialog-actions';
 import { useEffect, useRef, useState } from 'react';
@@ -39,7 +41,7 @@ const errorKeys: Record<string, string> = {
   'Invalid default Type': 'classificationDefaultsInvalid', 'Invalid default Category': 'classificationDefaultsInvalid',
   'Invalid initial Status': 'classificationDefaultsInvalid', 'Initial Status requires an active Type': 'classificationDefaultsInvalid',
 };
-export function ClassificationDialog({ onDeleted, readOnly = false, definition, field, onClose, onDirtyChange, onBusyChange, finalFocus }: { onDeleted?: () => void; readOnly?: boolean; definition: ObjectDefinition; field: FieldDefinition; onClose: () => void; onDirtyChange: (value: boolean) => void; onBusyChange: (value: boolean) => void; finalFocus?: () => HTMLElement | true }) {
+export function ClassificationDialog({ onDeleted, readOnly = false, definition, field, onClose, onDirtyChange, onBusyChange, finalFocus, create, onCreated }: { create?: 'type_status' | 'category'; onCreated?: () => void; onDeleted?: () => void; readOnly?: boolean; definition: ObjectDefinition; field: FieldDefinition; onClose: () => void; onDirtyChange: (value: boolean) => void; onBusyChange: (value: boolean) => void; finalFocus?: () => HTMLElement | true }) {
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const category = field.technicalName === 'category';
@@ -58,7 +60,10 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
   const validLabels = draft.options.every(option => hasLabel(option.labels));
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline) || pendingNew;
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
-  const mutation = useMutation({ mutationFn: () => api('configure_classification', { objectTypeId: definition.id, version, config: { ...draft, options: draft.options.map(option => ({ ...option, labels: cleanLabels(option.labels) })) } }),
+  const mutation = useMutation({ mutationFn: () => {
+    const configuration = { version, config: { ...draft, options: draft.options.map(option => ({ ...option, labels: cleanLabels(option.labels) })) } };
+    return create ? api('add_standard_field', { objectTypeId: definition.id, field: create, configuration }) : api('configure_classification', { objectTypeId: definition.id, ...configuration });
+  },
     onSuccess: async result => {
       const next = clean(result.classification); setUsedIds(new Set(result.classification.options.filter(option => option.canDelete === false).map(option => option.id))); setDraft(next); setBaseline(next); setVersion(result.classification.version); setSaved(true); setAnnouncement(''); onDirtyChange(false);
       await Promise.all([
@@ -66,6 +71,7 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
         client.invalidateQueries({ queryKey: ['records', definition.id] }),
         client.invalidateQueries({ queryKey: ['record', definition.id], refetchType: 'all' }),
       ]);
+      if (create) onCreated?.();
     } });
   useEffect(() => { onBusyChange(mutation.isPending || lifeBusy); }, [mutation.isPending, lifeBusy, onBusyChange]);
   const name = (option: ClassificationRules['options'][number]) => option.labels[i18n.language as 'de' | 'en'] ?? option.labels.en ?? option.labels.de ?? t('unnamedOption');
@@ -83,7 +89,7 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
   const controlsDisabled = readOnly || mutation.isPending || lifeBusy;
   const statusDefault = (typeId: string | null) => draft.status.defaults.find(initial => initial.typeId === typeId)?.statusId ?? '';
   function required(kind: Kind) {
-    return <Field data-disabled={controlsDisabled || undefined} orientation="horizontal"><Checkbox id={`required-${kind}`} checked={draft[kind].required} disabled={controlsDisabled} onCheckedChange={checked => setDraft(old => ({ ...old, [kind]: { ...old[kind], required: checked === true } }))} /><FieldLabel htmlFor={`required-${kind}`}>{t('requiredField')} · {t(`classification${kind[0].toUpperCase()}${kind.slice(1)}`)}</FieldLabel></Field>;
+    return <RequiredFieldSetting id={`required-${kind}`} value={draft[kind].required} disabled={controlsDisabled} label={category ? t('requiredField') : `${t('requiredField')} · ${t(`classification${kind[0].toUpperCase()}${kind.slice(1)}`)}`} onChange={required => setDraft(old => ({ ...old, [kind]: { ...old[kind], required } }))} />;
   }
   function move(id: string, targetId: string) {
     const next = moveClassificationOption(draft.options, id, targetId);
@@ -121,22 +127,22 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
     if (readOnly) return null;
     const key = `${kind}-${typeId ?? 'none'}`;
     const labels = additions[key] ?? {};
-    return <FieldSet className="gap-3"><FieldLegend variant="label">{t('newChoice')} · {t(`classification${kind[0].toUpperCase()}${kind.slice(1)}`)}</FieldLegend><TranslatedLabelInput readOnly={readOnly} showHelp={false} id={`new-choice-${key}`} value={labels} requireOne={false} disabled={controlsDisabled} onChange={labels => setAdditions(old => ({ ...old, [key]: labels }))} /><Button type="button" variant="outline" disabled={controlsDisabled || !hasLabel(labels) || draft.options.length >= 300} onClick={() => {
+    return <FieldSet className="gap-3"><FieldLegend variant="label">{t(kind === 'type' ? 'newType' : kind === 'status' ? 'newStatus' : 'newCategory')}</FieldLegend><TranslatedLabelInput readOnly={readOnly} showHelp={false} id={`new-choice-${key}`} value={labels} requireOne={false} disabled={controlsDisabled} onChange={labels => setAdditions(old => ({ ...old, [key]: labels }))} /><Button type="button" variant="outline" disabled={controlsDisabled || !hasLabel(labels) || draft.options.length >= 300} onClick={() => {
       setDraft(old => ({ ...old, options: [...old.options, { id: v7(), kind, labels: cleanLabels(labels), active: true, typeId }] })); setAdditions(old => ({ ...old, [key]: {} })); setSaved(false);
-    }}><PlusIcon data-icon="inline-start" />{t('addChoice')}</Button></FieldSet>;
+    }}><PlusIcon data-icon="inline-start" />{t(kind === 'type' ? 'addType' : kind === 'status' ? 'addStatus' : 'addCategory')}</Button></FieldSet>;
   }
   function defaultStatus(typeId: string | null) {
     const parentActive = typeId === null || draft.options.some(option => option.id === typeId && option.kind === 'type' && option.active);
-    return <Field data-disabled={!parentActive}><FieldLabel htmlFor={`initial-status-${typeId ?? 'none'}`}>{t('initialStatus')}</FieldLabel><NativeSelect id={`initial-status-${typeId ?? 'none'}`} value={statusDefault(typeId)} disabled={controlsDisabled || !parentActive} onChange={event => { const statusId = event.target.value; setDraft(old => ({ ...old, status: { ...old.status, defaults: [...old.status.defaults.filter(initial => initial.typeId !== typeId), ...(statusId ? [{ typeId, statusId }] : [])] } })); }}><NativeSelectOption value="">{t('noDefault')}</NativeSelectOption>{active('status').filter(option => option.typeId === typeId).map(option => <NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect>{!parentActive ? <FieldDescription>{t('inactiveTypeDefault')}</FieldDescription> : null}</Field>;
+    return <Field data-disabled={!parentActive}><FieldLabel htmlFor={`initial-status-${typeId ?? 'none'}`}>{t('defaultStatus')}</FieldLabel><NativeSelect id={`initial-status-${typeId ?? 'none'}`} value={statusDefault(typeId)} disabled={controlsDisabled || !parentActive} onChange={event => { const statusId = event.target.value; setDraft(old => ({ ...old, status: { ...old.status, defaults: [...old.status.defaults.filter(initial => initial.typeId !== typeId), ...(statusId ? [{ typeId, statusId }] : [])] } })); }}><NativeSelectOption value="">{t('noDefault')}</NativeSelectOption>{active('status').filter(option => option.typeId === typeId).map(option => <NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect>{!parentActive ? <FieldDescription>{t('inactiveTypeDefault')}</FieldDescription> : null}</Field>;
   }
   return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending && !lifeBusy) onClose(); }}>
     <DialogContent className={cn("flex max-h-[85svh] flex-col overflow-hidden p-0", category ? "sm:max-w-lg" : "sm:max-w-4xl")} closeButtonDisabled={mutation.isPending || lifeBusy} finalFocus={finalFocus ?? (() => document.querySelector<HTMLElement>(`[data-field-editor="${field.id}"]`) ?? true)}>
-      <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{t(category ? 'classificationCategory' : 'typesAndStatuses')}</DialogTitle><DialogDescription>{definition.label} · {t('classificationDescription')}</DialogDescription></DialogHeader>
-      <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="classification-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (!readOnly && dirty && validLabels && !pendingNew && !mutation.isPending && !lifeBusy) mutation.mutate(); }}><FieldGroup>
+      <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{create ? t('createStandardField', { name: t(category ? 'classificationCategory' : 'typesAndStatuses') }) : t(category ? 'classificationCategory' : 'typesAndStatuses')}</DialogTitle><DialogDescription>{definition.label} · {t('classificationDescription')}</DialogDescription></DialogHeader>
+      <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="classification-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (!readOnly && (dirty || create) && validLabels && !pendingNew && !mutation.isPending && !lifeBusy) mutation.mutate(); }}><FieldGroup>
         {mutation.isError ? <Alert variant="destructive"><AlertTitle>{t('errorTitle')}</AlertTitle><AlertDescription>{t(mutation.error instanceof ApiError && mutation.error.status === 409 ? 'classificationConflict' : errorKeys[mutation.error.message] ?? 'classificationInvalid')}</AlertDescription></Alert> : null}
         {saved && !dirty ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
         <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
-        <FieldDescription>{readOnly ? t('classificationReadOnlyHelp') : t('classificationExistingHelp')} {t('translationHelp')}</FieldDescription>
+        {readOnly ? <FieldDescription>{t('classificationReadOnlyHelp')}</FieldDescription> : null}<SettingsHelp title={t('configurationDetails')}>{!readOnly ? t('classificationExistingHelp') : null} {t('translationHelp')}</SettingsHelp>
         {category ? <>
           {required('category')}
           <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="category-mode">{t('selectionMode')}</FieldLabel><NativeSelect id="category-mode" value={draft.category.multiple ? 'multiple' : 'single'} disabled={controlsDisabled} onChange={event => setDraft(old => ({ ...old, category: { ...old.category, multiple: event.target.value === 'multiple', defaultIds: event.target.value === 'single' && old.category.defaultIds.length > 1 ? [] : old.category.defaultIds } }))}><NativeSelectOption value="single">{t('singleChoice')}</NativeSelectOption><NativeSelectOption value="multiple">{t('multipleChoice')}</NativeSelectOption></NativeSelect></Field>
@@ -145,16 +151,16 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
           <FieldSet><FieldLegend variant="label">{t('defaultValue')}</FieldLegend>{draft.category.multiple ? active('category').map(option => <Field data-disabled={controlsDisabled || undefined} orientation="horizontal" key={option.id}><Checkbox id={`default-category-${option.id}`} checked={draft.category.defaultIds.includes(option.id)} disabled={controlsDisabled} onCheckedChange={checked => setDraft(old => ({ ...old, category: { ...old.category, defaultIds: (checked ? [...old.category.defaultIds, option.id] : old.category.defaultIds.filter(id => id !== option.id)).sort() } }))} /><FieldLabel htmlFor={`default-category-${option.id}`}>{name(option)}</FieldLabel></Field>) : <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="default-category">{t('classificationCategory')}</FieldLabel><NativeSelect id="default-category" value={draft.category.defaultIds[0] ?? ''} disabled={controlsDisabled} onChange={event => setDraft(old => ({ ...old, category: { ...old.category, defaultIds: event.target.value ? [event.target.value] : [] } }))}><NativeSelectOption value="">{t('noDefault')}</NativeSelectOption>{active('category').map(option => <NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect></Field>}</FieldSet>
         </> : <>
           <FieldGroup className="sm:grid sm:grid-cols-2">{required('type')}{required('status')}</FieldGroup>
-          <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="default-type">{t('defaultValue')} · {t('classificationType')}</FieldLabel><NativeSelect id="default-type" value={draft.type.defaultId ?? ''} disabled={controlsDisabled} onChange={event => setDraft(old => ({ ...old, type: { ...old.type, defaultId: event.target.value || null } }))}><NativeSelectOption value="">{t('noDefault')}</NativeSelectOption>{active('type').map(option => <NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect></Field>
+          <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="default-type">{t('defaultType')}</FieldLabel><NativeSelect id="default-type" value={draft.type.defaultId ?? ''} disabled={controlsDisabled} onChange={event => setDraft(old => ({ ...old, type: { ...old.type, defaultId: event.target.value || null } }))}><NativeSelectOption value="">{t('noDefault')}</NativeSelectOption>{active('type').map(option => <NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect></Field>
           <Table className="table-fixed" aria-label={t('typesAndStatuses')}><TableHeader className="hidden sm:table-header-group"><TableRow><TableHead>{t('classificationType')}</TableHead><TableHead>{t('associatedStatuses')}</TableHead></TableRow></TableHeader><TableBody>
             {[null, ...draft.options.filter(option => option.kind === 'type')].map(type => <TableRow key={type?.id ?? 'none'} className="block hover:bg-transparent sm:table-row"><TableCell className="block w-full min-w-0 align-top whitespace-normal sm:table-cell sm:w-1/2 sm:min-w-64"><FieldGroup className="py-4">{type ? optionEditor(type) : <FieldDescription>{t('withoutType')}</FieldDescription>}</FieldGroup></TableCell><TableCell className="block w-full min-w-0 align-top whitespace-normal sm:table-cell sm:w-1/2 sm:min-w-64"><FieldGroup className="py-4">{draft.options.filter(option => option.kind === 'status' && option.typeId === (type?.id ?? null)).map((option, index) => <div key={option.id}>{index > 0 ? <FieldSeparator className="mb-6" /> : null}{optionEditor(option)}</div>)}{addOption('status', type?.id ?? null)}<FieldSeparator />{defaultStatus(type?.id ?? null)}</FieldGroup></TableCell></TableRow>)}
           </TableBody></Table>
           <FieldSeparator />{addOption('type')}
         </>}
         {pendingNew ? <FieldDescription>{t('pendingChoiceHelp')}</FieldDescription> : null}
-        {!readOnly ? <><FieldSeparator /><DefinitionLifecycle label={category ? field.label : t('typesAndStatuses')} kind="field" id={field.id} objectTypeId={definition.id} state={field.state} isProtected={field.isProtected} canDelete={field.canDelete} disabled={dirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} onDeleted={onDeleted} /></> : null}
+        {!readOnly && !create ? <><FieldSeparator /><DefinitionLifecycle label={category ? field.label : t('typesAndStatuses')} kind="field" id={field.id} objectTypeId={definition.id} state={field.state} isProtected={field.isProtected} canDelete={field.canDelete} disabled={dirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} onDeleted={onDeleted} /></> : null}
       </FieldGroup></form></div>
-      <DialogActions onClose={onClose} disabled={mutation.isPending || lifeBusy}>{!readOnly ? <><Button variant="outline" disabled={!dirty || mutation.isPending || lifeBusy} onClick={() => { setDraft(baseline); setAdditions({}); setSaved(false); setAnnouncement(''); mutation.reset(); }}>{t('resetPreferences')}</Button><Button type="submit" form="classification-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !validLabels || mutation.isPending || lifeBusy || pendingNew}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('save')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
+      <DialogActions onClose={onClose} closeLabel={t(create ? 'cancel' : 'close')} disabled={mutation.isPending || lifeBusy}>{!readOnly ? <>{!create ? <Button variant="outline" disabled={!dirty || mutation.isPending || lifeBusy} onClick={() => { setDraft(baseline); setAdditions({}); setSaved(false); setAnnouncement(''); mutation.reset(); }}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="classification-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={(!dirty && !create) || !validLabels || mutation.isPending || lifeBusy || pendingNew}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t(create ? 'create' : 'save')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
     </DialogContent>
   </Dialog>;
 }

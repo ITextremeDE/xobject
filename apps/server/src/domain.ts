@@ -1,3 +1,4 @@
+import { enrichJournalContext } from './journal-context.js';
 import { listWorkspaceRecords, workspaceDashboard } from './dashboard.js';
 import { managedUsers, createUser, configureUser } from './user-management.js';
 import { configureWorkspaceLanguages, workspaceGroups, configureGroup, createWorkspaceGroup, validateDefinitionLanguages } from './workspace-configuration.js';
@@ -77,7 +78,7 @@ export class Application {
           case 'set_group_members': return configureGroup(tx, schemas.set_group_members.parse(parsed), configJournal);
           case 'set_group_active': return configureGroup(tx, schemas.set_group_active.parse(parsed), configJournal);
           case 'set_definition_state': return this.setDefinitionState(tx, schemas.set_definition_state.parse(parsed), userId);
-          case 'get_definition_journal': { const args = schemas.get_definition_journal.parse(parsed); const type = await this.objectType(tx, args.objectTypeId, true); return (await sql`SELECT id, change_id, field_id, field_key, old_value, new_value, actor_id, created_at FROM sys_journal WHERE object_type_id = ${type.id}::uuid AND entity_kind <> 'record' ORDER BY created_at, id`.execute(tx)).rows; }
+          case 'get_definition_journal': { const args = schemas.get_definition_journal.parse(parsed); const type = await this.objectType(tx, args.objectTypeId, true); return enrichJournalContext(tx, (await sql<Record<string, unknown>>`SELECT j.*, a.name AS actor_name, w.name AS workspace_name FROM sys_journal j LEFT JOIN sys_users a ON a.id = j.actor_id LEFT JOIN sys_workspaces w ON w.id = j.workspace_id WHERE j.object_type_id = ${type.id}::uuid AND j.entity_kind <> 'record' ORDER BY j.created_at, j.id`.execute(tx)).rows, userId, false); }
           case 'get_access_context': return { isAdmin: access.isAdmin };
           case 'list_managed_users': return managedUsers(tx);
           case 'create_user': return createUser(tx, schemas.create_user.parse(parsed), (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
@@ -86,8 +87,8 @@ export class Application {
             const args = schemas.list_system_journal.parse(parsed);
             const filter = sql`${args.workspaceId ? sql`j.workspace_id = ${args.workspaceId}::uuid` : sql`true`} AND position(lower(${args.fieldKey}) in lower(j.field_key)) > 0 AND (${args.entityKind} = '' OR j.entity_kind = ${args.entityKind})`;
             const total = (await sql<{ total: number }>`SELECT count(*)::integer AS total FROM sys_journal j WHERE ${filter}`.execute(tx)).rows[0].total;
-            const entries = (await sql`SELECT j.*, a.name AS actor_name, w.name AS workspace_name, COALESCE(u.name, g.name, CASE WHEN j.entity_kind IN ('workspace', 'workspace_member') THEN w.name END, o.labels->>'en', o.labels->>'de', f.labels->>'en', f.labels->>'de') AS entity_name FROM sys_journal j LEFT JOIN sys_users a ON a.id = j.actor_id LEFT JOIN sys_workspaces w ON w.id = j.workspace_id LEFT JOIN sys_users u ON j.entity_kind IN ('user', 'account_security') AND u.id = j.entity_id::text LEFT JOIN sys_groups g ON j.entity_kind = 'group' AND g.id = j.entity_id LEFT JOIN sys_object_types o ON j.entity_kind = 'object_type' AND o.id = j.entity_id LEFT JOIN sys_fields f ON j.entity_kind IN ('field', 'classification_field') AND f.id = j.entity_id WHERE ${filter} ORDER BY j.created_at DESC, j.id DESC LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
-            return { entries, total, limit: args.limit, offset: args.offset };
+            const entries = (await sql<Record<string, unknown>>`SELECT j.*, a.name AS actor_name, w.name AS workspace_name, COALESCE(u.name, g.name, CASE WHEN j.entity_kind IN ('workspace', 'workspace_member') THEN w.name END, o.labels->>'en', o.labels->>'de', f.labels->>'en', f.labels->>'de') AS entity_name FROM sys_journal j LEFT JOIN sys_users a ON a.id = j.actor_id LEFT JOIN sys_workspaces w ON w.id = j.workspace_id LEFT JOIN sys_users u ON j.entity_kind IN ('user', 'account_security') AND u.id = j.entity_id::text LEFT JOIN sys_groups g ON j.entity_kind = 'group' AND g.id = j.entity_id LEFT JOIN sys_object_types o ON j.entity_kind = 'object_type' AND o.id = j.entity_id LEFT JOIN sys_fields f ON j.entity_kind IN ('field', 'classification_field') AND f.id = j.entity_id WHERE ${filter} ORDER BY j.created_at DESC, j.id DESC LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
+            return { entries: await enrichJournalContext(tx, entries, userId, true), total, limit: args.limit, offset: args.offset };
           }
           case 'list_users': return (await sql`SELECT id, name, email, is_admin AS "isAdmin" FROM sys_users ORDER BY name, id`.execute(tx)).rows;
           case 'list_workspace_members': { const args = schemas.list_workspace_members.parse(parsed); if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404, 'Workspace not found'); return (await sql`SELECT u.id, u.name, u.email, CASE WHEN u.is_admin THEN 'administrator' ELSE m.role END AS role FROM sys_users u LEFT JOIN sys_workspace_members m ON m.user_id = u.id AND m.workspace_id = ${args.workspaceId}::uuid WHERE u.is_admin OR m.user_id IS NOT NULL ORDER BY u.name, u.id`.execute(tx)).rows; }
@@ -148,7 +149,14 @@ export class Application {
             return { records: records.map(row => this.outputRecord(row as DataRecord, sortableFields)), total, limit: args.limit, offset: args.offset };
           }
           case 'create_object_type': return this.createObjectType(tx, schemas.create_object_type.parse(parsed), userId);
-          case 'add_standard_field': { const args = schemas.add_standard_field.parse(parsed); const type = await this.objectType(tx, args.objectTypeId); await this.addStandardField(tx, type, args.field, userId); return this.definition(tx, type.id, userId); }
+          case 'add_standard_field': {
+            const args = schemas.add_standard_field.parse(parsed);
+            const type = await this.objectType(tx, args.objectTypeId);
+            const change = v7();
+            await this.addStandardField(tx, type, args.field, userId, change, args.required ?? false);
+            if (args.configuration) return this.configureClassification(tx, { objectTypeId: type.id, ...args.configuration }, userId, change);
+            return this.definition(tx, type.id, userId);
+          }
           case 'create_field': return this.createField(tx, schemas.create_field.parse(parsed), userId);
           case 'get_object_type': return this.definition(tx, schemas.get_object_type.parse(parsed).objectTypeId, userId);
           case 'configure_field': return this.configureField(tx, schemas.configure_field.parse(parsed), userId);
@@ -412,17 +420,18 @@ export class Application {
     return { id, ...args, tableName: name };
   }
 
-  private async addStandardField(tx: Executor, type: ObjectType, kind: 'type_status' | 'category' | 'keyword', actor: string, change = v7()) {
+  private async addStandardField(tx: Executor, type: ObjectType, kind: 'type_status' | 'category' | 'keyword', actor: string, change = v7(), keywordRequired = false) {
     this.requireActive(type);
     const names = kind === 'type_status' ? ['type', 'status'] : [kind];
     if ((await sql`SELECT 1 FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted' AND technical_name = ANY(${names}::text[])`.execute(tx)).rows.length) throw new AppError(409, 'Standard field already exists');
     if (kind === 'keyword') {
+      if (keywordRequired && (await sql`SELECT 1 FROM ${sql.table(tableName(type))} LIMIT 1`.execute(tx)).rows.length) throw new AppError(400, 'Existing records have empty required fields');
       const labels = { de: 'Stichwort', en: 'Keyword' };
       await sql`ALTER TABLE ${sql.table(tableName(type))} ADD COLUMN keyword text NOT NULL DEFAULT ''`.execute(tx);
-      await sql`INSERT INTO sys_fields (id, object_type_id, technical_name, labels, kind, required) VALUES (${v7()}::uuid, ${type.id}::uuid, 'keyword', ${JSON.stringify(labels)}::jsonb, 'text', false)`.execute(tx);
+      await sql`INSERT INTO sys_fields (id, object_type_id, technical_name, labels, kind, required) VALUES (${v7()}::uuid, ${type.id}::uuid, 'keyword', ${JSON.stringify(labels)}::jsonb, 'text', ${keywordRequired})`.execute(tx);
     } else await addClassificationFields(tx, type.id, tableName(type), names);
-    const fields = (await sql<Field>`SELECT id, technical_name, labels, kind FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted' AND technical_name = ANY(${names}::text[])`.execute(tx)).rows;
-    for (const field of fields) for (const [key, value] of Object.entries({ technical_name: field.technical_name, labels: field.labels, kind: field.kind, required: false })) await this.journal(tx, actor, type.workspace_id, type.id, 'field', field.id, change, key, null, value, field.id);
+    const fields = (await sql<Field>`SELECT id, technical_name, labels, kind, required FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted' AND technical_name = ANY(${names}::text[])`.execute(tx)).rows;
+    for (const field of fields) for (const [key, value] of Object.entries({ technical_name: field.technical_name, labels: field.labels, kind: field.kind, required: field.required })) await this.journal(tx, actor, type.workspace_id, type.id, 'field', field.id, change, key, null, value, field.id);
   }
 
   private async createField(tx: Executor, args: z.infer<typeof schemas.create_field>, actor: string) {

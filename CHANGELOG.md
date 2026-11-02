@@ -9,7 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Sof
 The project is in early development. No software release is available yet.
 
 ### Added
-
+- Stage optional standard fields in their existing editors before creation. API/MCP can install Keyword requiredness or versioned Type/Status/Category configuration atomically, including storage and journal rollback on validation failure.
 - Workspace Dashboard based on shadcn dashboard-01 with actual record/object statistics, a 7/30/90-day activity chart and a cross-object standard-field table through shared API/MCP operations. Object-filter sections, column visibility, page selection, row actions and complete pagination also serve individual record lists; growing administration tables and the instance Journal share the pagination footer.
 - Sidebar search placement based on sidebar-02 and a scrollable command menu combining navigation, object definitions, resources and authorized record search, including Command/Ctrl+K and keyboard selection.
 - Administrator-only local user management with initial-password provisioning, mandatory first password change, reversible account activation and session revocation; atomic credential/metadata journals exclude all password material. Instance Journal displays every recorded change with workspace, field/property and entity-kind filters and pagination. Workspace General displays the creator and evidenced creation time.
@@ -55,13 +55,15 @@ The project is in early development. No software release is available yet.
 - Project README describing the product idea, planned first-version scope, technology and commercial model.
 
 ### Changed
-
+- Unify definition and instance journals with structured event cards, labeled context, framed before/after values, integrated technical disclosures and readable localized properties. Current field/object names and record Keywords supplement immutable events; instance filters remain server-side and Administrator-only.
+- Reorganize settings and nested editors with grouped localization, concrete inherited-format examples, tabbed workspace design controls, adjacent light/dark previews and effective theme-color swatches. User, group, membership, session and field lists share searchable or paginated layouts as applicable, semantic counts and readable mobile rows; immediate membership changes are explicitly identified.
+- Clarify object/field administration with scoped property actions, separate availability/history and framed technical details, grouped editors and direct Type/Status wording. Sort fields alphabetically with stable technical-name/identity tie-breakers, distinguish duplicate mobile labels and retain inactive/deleted indicators. All required-field controls consistently use Yes/No; the table remains read-only.
+- Align Dashboard summary cards and activity-chart presentation with dashboard-01: responsive numeric typography, two-line card footers, wide-screen period toggles/mobile Select, reference chart spacing and a standard dotted tooltip. Keep existing metrics, regional formatting and independent overlapping activity series.
+- Dashboard and individual record lists share a responsive toolbar with search on the left, compact column/action buttons on the right and an unchanged common pagination footer. Object-list headings stay separate; Dashboard object filters remain above the toolbar.
 - Rename the Dashboard action to Add filter and give shared record-action menus enough room for single-line labels, consistent icons and a separate copy-ID group.
-- Compact settings forms with keyboard-accessible expandable explanations, a field-first object editor and a separate technical/administration section. Account, group, membership and field tables wrap long values within the settings pane; mobile section titles and choices retain their personal/workspace/instance scope.
 - Muted table headers and example-aligned user-menu profile spacing; resource links sit above the separate sidebar user footer.
 - Consistent shadcn form disabled/validation states and inline account/profile errors, standard pending-action spinners, matching empty journal views and keyboard-accessible collapsible definition details.
-- Dialog action footers consistently place Close/Cancel left and Reset then Save/Create right, with shared neutral/primary styling, read-only dismissal, invalid-draft reset and pending guards; destructive confirmations use a destructive action.
-- Definition journal entries use localized attribute/value labels, aligned Before/After columns, compact actor/time metadata and expandable structured values.
+- Dialog action footers place Cancel/Create on creation and Close/Reset/Save when editing, with shared neutral/primary styling, read-only dismissal, invalid-draft reset for editors and pending guards; destructive confirmations use a destructive action.
 - Settings dialog offers a larger 960 × 640 px desktop layout while remaining constrained to the viewport; the deleted-definition toggle appears below the object selector.
 - Unused Type/Status choices can be deleted with atomic journals; current/historical record references and retained Status mappings prevent deletion, and deleted identities cannot be reused. Standard-field technical names and German/English labels are reserved across custom-field creation and renaming.
 - New object types start without Keyword, Type/Status or Category; Add field offers missing standard fields through a dropdown and creates them atomically via UI/API/MCP. Existing definitions are preserved, absent fields stay absent across migrations, and records without Keyword use their ID. Status entries have separators.
@@ -76,7 +78,8 @@ The project is in early development. No software release is available yet.
 - Aligned the project website with ITextreme’s page structure: compact sticky header, compact section navigation, accessible mobile navigation, shared container rhythm and grouped footer; remove visible license notices from the footer while retaining distributed attribution files.
 
 ### Fixed
-
+- Reset the settings content scroll position on section changes and keep the user editor, its fields and actions inside a wider, independently scrollable dialog.
+- Keep the dashboard width stable while the settings dialog module loads for the first time after a page reload; its accessible loading status no longer occupies space beside the application content.
 - Closing record details returns to the originating Dashboard or object-list URL, retaining its filters and restoring keyboard focus to the record. Direct record links fall back to their own object list; unrelated history-state destinations are ignored.
 - Keep content-hashed assets across local web rebuilds so open clients can still load settings and other lazy views; CI/explicit clean builds remain clean. Module-load failures offer an accurate reload message.
 - Open user editing from the whole row, preserve the expected version of unsaved drafts across refetches, and recover conflicts with Reset. Save exposes the common keyboard shortcut.

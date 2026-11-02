@@ -13,10 +13,10 @@ No delivery dates are committed. An item here is not evidence that its requireme
 ## Delivered — Local Administrator prototype
 
 - PostgreSQL-backed local login, workspace/object/typed-field creation, versioned record editing and atomic per-field journals through shared API/MCP rules.
-- Shared Type/Status/Category configuration with independent required flags, localized stable choices, defaults, per-Type Status mappings and single/multiple Category selection in the local experiment.
-- React web interface with direct routes, actual workspace Dashboard statistics/activity, mixed-object and individual record tables, complete pagination, selection, column controls, sidebar command search and keyboard navigation.
-- Personal profile, verified password changes and own-session management; Administrator user provisioning with mandatory initial-password change, reversible activation and a global journal view of recorded changes.
-- Workspace group management, independent interface/definition-language policies for the installed German/English packs, named time zones and regional formats with personal overrides.
+- Optional Keyword, Type/Status and Category fields can be configured in the shared field editors before installation, with atomic API/MCP creation and existing-data preflight. Classification supports independent required flags, localized stable choices/defaults, per-Type Status mappings and single/multiple Category selection.
+- React web interface with direct routes, mixed-object and individual record tables, shared search/action toolbars, complete pagination, selection, column controls, sidebar command search and keyboard navigation. Closing record details preserves the originating list or Dashboard filters and focus. Dashboard statistics/activity use real local data; their metric selection and chart remain exploratory.
+- Personal profile, verified password changes and own-session management; Administrator user provisioning with mandatory initial-password change and reversible activation. Instance and definition journals share structured history cards with current readable names, before/after values and technical details; definition history excludes record events.
+- Responsive personal/instance/workspace settings and nested editors with guarded drafts, consistent actions, alphabetical field administration and explicit required flags. Workspace groups and User/Designer memberships, independent interface/definition-language policies for the installed German/English packs, named time zones and regional formats with personal inheritance previews.
 - Shared workspace shadcn appearance with base/theme/chart colors, primary/secondary overrides, fonts, heading fonts, radius and menu previews; light/dark/system mode remains personal.
 - Instance-wide Administrators, explicit workspace User/Designer memberships and role-appropriate configuration views; business-content access remains Administrator-only.
 - Field/object definition deactivation, validated reactivation and confirmed deletion of never-used storage, with retained metadata/journals and read-only inactive values. The record recycle bin remains pending.
@@ -26,11 +26,11 @@ No delivery dates are committed. An item here is not evidence that its requireme
 
 - Refine the initial requirements and acceptance criteria for the object platform, CRM and project management.
 - Resolve the technical foundation decisions needed for the first implementation slice: production migration history, scalable workspace isolation/locking, authentication hardening and controlled schema changes.
-- Evaluate local login, workspace-prefixed dynamic tables, shared API/MCP operations and atomic per-field journals in the backend technical spike. The web interface now exercises workspace/object/typed-field creation, record search/editing and journals. Complete shared fields and permissions remain necessary for the first slice below.
+- Build on the verified local login, workspace-prefixed dynamic tables, common API/MCP operations and atomic per-field journals. Keep complete shared fields and content permissions as the remaining foundation work; UI refinement does not constitute version-1 acceptance.
 
 ## Next — First end-to-end object slice
 
-Deliver a small, working foundation before building the full domain modules:
+The Administrator-only prototype already exercises the basic flow below. Complete the shared-field and content-permission baseline, then verify it against the PRD before treating this as the first accepted product slice:
 
 1. Create a workspace and initial Administrator account.
 2. Define a custom object type and a field.
