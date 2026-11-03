@@ -1,3 +1,4 @@
+import {AccountSecurityLoading} from './loading';
 import { SettingsTable } from './settings-table';
 import { ClientTablePagination, useClientPagination } from './client-table-pagination';
 import { useRegional } from '@/lib/regional-context';
@@ -19,7 +20,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
-import { ErrorNotice, Loading } from './feedback';
+import { ErrorNotice } from './feedback';
 
 export function sessionDevice(session: Pick<AccountSession, 'userAgent'>, fallback: string): string {
   const agent = session.userAgent ?? '';
@@ -64,7 +65,7 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
   return <FieldGroup>
     <FieldDescription>{t('signedInAccount', { email: user.email })}</FieldDescription>
     {notice ? <Alert><AlertDescription role="status">{t(notice)}</AlertDescription></Alert> : null}
-    {security.isPending ? <Loading /> : security.isError ? <ErrorNotice error={security.error} retry={() => { void security.refetch(); }} /> : <>
+    {security.isPending ? <AccountSecurityLoading initialOnly={initialOnly}/> : security.isError ? <ErrorNotice error={security.error} retry={() => { void security.refetch(); }} /> : <>
       <form id="account-password-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (valid && !busy && security.data.hasPassword) password.mutate(); }}><FieldSet disabled={busy}><FieldLegend>{t('changePassword')}</FieldLegend>
         {password.isError ? password.error instanceof ApiError && passwordErrors[password.error.message] ? ['Current password is incorrect', 'New password must be different'].includes(password.error.message) ? null : <Alert variant="destructive"><AlertDescription>{t(passwordErrors[password.error.message])}</AlertDescription></Alert> : <ErrorNotice error={password.error} /> : null}
         {security.data.hasPassword ? <FieldGroup>

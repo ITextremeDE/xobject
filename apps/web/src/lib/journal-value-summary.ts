@@ -1,6 +1,9 @@
+import {formLayoutSchema,formLayoutEntries} from '@xobject/contracts';
 /** Text-only table preview; never replace raw journal values or technical identities. */
-export function journalValueSummary(value: unknown, language: string, notSet: string, yes: string, no: string, countLabel: (kind: 'properties' | 'items', count: number) => string = (kind,count)=>`${count} ${kind}`): string {
+export function journalValueSummary(value: unknown, language: string, notSet: string, yes: string, no: string, countLabel: (kind: 'properties' | 'items' | 'groups' | 'elements', count: number) => string = (kind,count)=>`${count} ${kind}`): string {
   if (value === null || value === undefined) return notSet;
+  const layout=formLayoutSchema.safeParse(value);
+  if(layout.success)return `${countLabel('groups',layout.data.groups.length)} · ${countLabel('elements',formLayoutEntries(layout.data).length)}`;
   if (typeof value === 'boolean') return value ? yes : no;
   if (typeof value === 'object' && !Array.isArray(value) && 'relationshipTypeId' in value && 'left' in value && 'right' in value) {
     const edge = value as { labels?: Record<string, string>; left?: { keyword?: string }; right?: { keyword?: string }; directed?: boolean };

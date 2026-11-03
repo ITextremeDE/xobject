@@ -8,7 +8,7 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 **Early development.** The local PostgreSQL-backed prototype combines dynamic typed fields, optional Type/Status/Category, translated definitions and atomic per-field journals through shared API/MCP rules. Its React/Vite interface includes a workspace Dashboard with actual activity metrics, mixed-object tables, search, keyboard navigation, paginated tables and dedicated responsive record pages with formatted field history.
 
-Personal settings cover the profile, password, own sessions and language/regional preferences. Administrators manage local users with mandatory initial-password changes and reversible activation. Workspace configuration includes User/Designer memberships, user groups, available German/English languages, time zones, regional formats and shared shadcn appearance with locally served fonts. Fields and object types support deactivation/reactivation and confirmed deletion when never used, retaining definition history. Workspace settings also configure directed/undirected relationship definitions, translated side labels, cardinalities and one object pair per custom type. General is always available; a minimal workspace Projects activation controls Primary association for all object types. Complete domain-module templates remain planned. Rules are activated after preflight; record saves enforce cardinalities and Primary cycle prevention. Record pages show the single-value Primary chain, a collapsible table for each applicable custom relationship, an expandable relationship tree, a filtered Dossier table and shared relationship history. General links are edited through the header action and listed in the Dossier. A fictional local demo dataset includes 45 connections.
+Personal settings cover the profile, password, own sessions and language/regional preferences. Administrators manage local users with mandatory initial-password changes and reversible activation. Workspace configuration includes User/Designer memberships, user groups, available German/English languages, time zones, regional formats and shared shadcn appearance with locally served fonts. Fields and object types support deactivation/reactivation and confirmed deletion when never used, retaining definition history. Workspace settings also configure directed/undirected relationship definitions, translated side labels, cardinalities and one object pair per custom type. General is always available; dedicated Modules settings list Contacts & Relations, Projects & Tasks and Documents & Communication. Projects & Tasks activation supplies protected base object types and the fixed Contact → Project → Case chain; the other two modules are visibly planned. Module object technical names are reserved even while disabled/planned. Complete domain-module templates remain planned. Rules are activated after preflight; record saves enforce cardinalities and Primary cycle prevention. Record pages show the single-value Primary chain, a labeled field for each single-target custom relationship and a collapsible table for each multi-target side, an expandable relationship tree, a filtered Dossier table and shared relationship history. General links are edited through the header action and listed in the Dossier. A fictional local demo dataset includes 45 connections.
 
 Administrators have instance-wide access. Users can view permitted workspace configuration; Designers can edit configuration within their workspace. Business-content access remains Administrator-only until object/field/record permissions are implemented. Groups and memberships do not yet grant content rights. The record recycle bin, domain modules and complete version-1 acceptance remain open. There is no installation package or software release. See the [development guide](docs/development.md) for commands, validation and limits.
 
@@ -24,8 +24,9 @@ Workspaces keep data and configuration separate. A configurable primary associat
 
 | Area | Scope |
 | --- | --- |
-| **CRM** | Contacts with separate kinds for organizations, individual contacts and contact persons; organization relationships and domain roles. |
-| **Project management** | Projects, cases and tasks, including separate responsibility and task assignment. |
+| **Contacts** | Contacts with separate kinds for organizations, individual contacts and contact persons; organization relationships and domain roles. |
+| **Projects** | Shared Contacts, projects, cases and tasks, including separate responsibility and task assignment. |
+| **Documents (planned additional module)** | Documents & Communication: Emails and Documents; further objects can follow. No email handling or uploads are implemented. |
 | **Custom data models** | User-defined object types, fields and relationship types alongside protected module definitions. |
 | **Classification** | Configurable types, type-dependent statuses and single- or multiple-choice categories. |
 | **Access control** | User and group permissions, field-level overrides and optional record access lists. Administrators have installation-wide access. |
@@ -34,6 +35,8 @@ Workspaces keep data and configuration separate. A configurable primary associat
 | **API and MCP** | Every application capability available through shared backend rules; agents act with their user's rights. |
 
 Uploads, attachments, import/export, SSO, desktop and mobile clients, offline synchronization, Kanban and calendar views are outside the first-version scope.
+
+Modules may share one object and record while using different field selections and form layouts. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
 
 ## Planned technology
 

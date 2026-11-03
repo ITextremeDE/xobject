@@ -1,3 +1,6 @@
+import {BlocksIcon} from 'lucide-react';
+import {settingsDialogClassName} from '@/lib/settings-dialog-layout';
+import {WorkspaceFormDesigner} from './workspace-form-designer';
 import { WorkspaceModules } from './workspace-modules';
 import { WorkspaceRelationships } from './workspace-relationships';
 import { SettingsHelp } from './settings-help';
@@ -18,7 +21,7 @@ import { DialogActions } from './dialog-actions';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SunIcon, MoonIcon, MonitorIcon, PaintbrushIcon, GlobeIcon, Settings2Icon, DatabaseIcon, GroupIcon, ShieldUserIcon, UserRoundCogIcon, ShieldCheckIcon, UserRoundIcon, UploadIcon, NetworkIcon } from 'lucide-react';
+import { SunIcon, MoonIcon, MonitorIcon, PaintbrushIcon, GlobeIcon, Settings2Icon, DatabaseIcon, GroupIcon, ShieldUserIcon, UserRoundCogIcon, ShieldCheckIcon, UserRoundIcon, UploadIcon, NetworkIcon, PanelsTopLeftIcon } from 'lucide-react';
 import { defaultWorkspaceAppearance, workspaceAppearanceSchema, languageCatalog, languageCodes, workspaceLanguageSchema, type WorkspaceLanguages, type AuthUser, type Language, type Workspace } from '@xobject/contracts';
 import { api, ApiError } from '@/lib/api';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
@@ -45,12 +48,22 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
   user: AuthUser; workspace?: Workspace; onClose: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const [moduleDirty,setModuleDirty]=useState(false);
-  const [section, setSection] = useState<'systemJournal' | 'systemUsers' | 'profile' | 'appearance' | 'language' | 'security' | 'workspaceAppearance' | 'workspaceGeneral' | 'workspaceLanguage' | 'workspaceObjects' | 'workspaceMembers' | 'workspaceGroups' | 'workspaceRelationships'>('profile');
+  const [section, setSection] = useState<'systemJournal' | 'systemUsers' | 'profile' | 'appearance' | 'language' | 'security' | 'workspaceAppearance' | 'workspaceModules' | 'workspaceGeneral' | 'workspaceLanguage' | 'workspaceObjects' | 'workspaceForms' | 'workspaceMembers' | 'workspaceGroups' | 'workspaceRelationships'>('profile');
   const sections = [{ id: 'profile' as const, label: t('profile'), icon: UserRoundIcon }, { id: 'security' as const, label: t('accountSecurity'), icon: ShieldCheckIcon }, { id: 'appearance' as const, label: t('theme'), icon: PaintbrushIcon }, { id: 'language' as const, label: t('languageRegion'), icon: GlobeIcon }];
-  const workspaceSections = [{ id: 'workspaceGeneral' as const, label: t('general'), icon: Settings2Icon }, { id: 'workspaceAppearance' as const, label: t('theme'), icon: PaintbrushIcon }, { id: 'workspaceLanguage' as const, label: t('languageRegion'), icon: GlobeIcon }, { id: 'workspaceObjects' as const, label: t('objects'), icon: DatabaseIcon }, { id: 'workspaceRelationships' as const, label: t('relationshipTypes'), icon: NetworkIcon }, { id: 'workspaceGroups' as const, label: t('userGroups'), icon: GroupIcon }, { id: 'workspaceMembers' as const, label: t('members'), icon: ShieldUserIcon }];
-  const instanceSections = user.isAdmin ? [{ id: 'systemUsers' as const, label: t('users'), icon: UserRoundCogIcon }, { id: 'systemJournal' as const, label: t('journal'), icon: ShieldCheckIcon }] : [];
-  const specialSection = ['workspaceRelationships', 'workspaceObjects', 'workspaceMembers', 'workspaceGroups', 'security', 'systemJournal', 'systemUsers'].includes(section);
+  const workspaceSections = [
+    { id: 'workspaceGeneral' as const, label: t('general'), icon: Settings2Icon },
+    { id: 'workspaceAppearance' as const, label: t('theme'), icon: PaintbrushIcon },
+    { id: 'workspaceLanguage' as const, label: t('languageRegion'), icon: GlobeIcon },
+    { id: 'workspaceModules' as const, label: t('workspaceModules'), icon: BlocksIcon },
+    { id: 'workspaceObjects' as const, label: t('objects'), icon: DatabaseIcon },
+    { id: 'workspaceRelationships' as const, label: t('relationshipTypes'), icon: NetworkIcon },
+    { id: 'workspaceForms' as const, label: t('formDesigner'), icon: PanelsTopLeftIcon },
+    { id: 'workspaceMembers' as const, label: t('members'), icon: ShieldUserIcon },
+    { id: 'workspaceGroups' as const, label: t('userGroups'), icon: GroupIcon },
+  ];
+  const instanceSections = user.isAdmin ? [{ id: 'systemUsers' as const, label: t('userAdministration'), icon: UserRoundCogIcon }, { id: 'systemJournal' as const, label: t('journal'), icon: ShieldCheckIcon }] : [];
+  const [formActionsTarget,setFormActionsTarget]=useState<HTMLDivElement|null>(null);
+  const specialSection = ['workspaceModules', 'workspaceForms', 'workspaceRelationships', 'workspaceObjects', 'workspaceMembers', 'workspaceGroups', 'security', 'systemJournal', 'systemUsers'].includes(section);
   const workspaceSection = section.startsWith('workspace');
   const canManage = Boolean(user.isAdmin || workspace?.role === 'designer');
   const title = [...sections, ...workspaceSections, ...instanceSections].find(item => item.id === section)!.label;
@@ -99,11 +112,12 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
   const [relationDirty, setRelationDirty] = useState(false);
   const [relationBusy, setRelationBusy] = useState(false);
   const [moduleBusy,setModuleBusy]=useState(false);
+  const [formDirty,setFormDirty]=useState(false),[formBusy,setFormBusy]=useState(false);
   const [objectDirty, setObjectDirty] = useState(false);
   const [objectBusy, setObjectBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const selectedTheme = themeDraft ?? theme;
-  const dirty = profileName !== baselineProfileName || personalLocalizationDirty || selectedTheme !== theme || workspaceName !== baselineName || workspaceLanguageDirty || designDirty || relationDirty || objectDirty || memberDirty || securityDirty || groupDirty || userDirty || moduleDirty;
+  const dirty = profileName !== baselineProfileName || personalLocalizationDirty || selectedTheme !== theme || workspaceName !== baselineName || workspaceLanguageDirty || designDirty || relationDirty || objectDirty || memberDirty || securityDirty || groupDirty || userDirty || formDirty;
   const sectionDirty = section === 'workspaceAppearance' ? designDirty : section === 'profile' ? profileName !== baselineProfileName : section === 'appearance' ? selectedTheme !== theme : section === 'language' ? personalLocalizationDirty : section === 'workspaceGeneral' ? workspaceName !== baselineName : section === 'workspaceLanguage' ? workspaceLanguageDirty : false;
   const valid = section === 'workspaceLanguage' ? Boolean(canManage && workspaceLanguageSchema.safeExtend({ timeZone: timeZoneSchema, regional: regionalSchema }).safeParse(workspaceLanguageDraft).success) : section === 'workspaceAppearance' ? Boolean(workspace && canManage && workspaceAppearanceSchema.safeParse(design).success) : section === 'profile' ? Boolean(profileName.trim() && profileName.trim().length <= 200) : !workspaceSection || canManage && Boolean(workspace && (section !== 'workspaceGeneral' || workspaceName.trim()));
   const contentRef = useRef<HTMLDivElement>(null);
@@ -131,7 +145,7 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
     }
     setSaved(true);
   } });
-  useEffect(() => { onBusyChange(mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy); }, [mutation.isPending, moduleBusy, relationBusy, objectBusy, memberBusy, securityBusy, groupBusy, userBusy, onBusyChange]);
+  useEffect(() => { onBusyChange(mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy); }, [mutation.isPending, moduleBusy, relationBusy, formBusy, objectBusy, memberBusy, securityBusy, groupBusy, userBusy, onBusyChange]);
   function reset() {
     if (section === 'profile') setProfileName(baselineProfileName);
     if (section === 'appearance') setThemeDraft(null);
@@ -142,17 +156,17 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
     setSaved(false); mutation.reset();
   }
   return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending && !moduleBusy && !relationBusy && !objectBusy && !memberBusy && !securityBusy && !groupBusy && !userBusy) onClose(); }}>
-    <DialogContent closeButtonDisabled={mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} className="h-[640px] max-h-[calc(100svh-4rem)] overflow-hidden p-0 md:max-w-[880px] lg:max-w-[960px]" finalFocus={() => document.querySelector<HTMLElement>('[data-user-menu="header"]') ?? true}>
+    <DialogContent closeButtonDisabled={mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} className={settingsDialogClassName} finalFocus={() => document.querySelector<HTMLElement>('[data-user-menu="header"]') ?? true}>
       <DialogTitle className="sr-only">{t('settings')} — {scope} — {title}</DialogTitle>
       <DialogDescription className="sr-only">{t('settingsDescription')}</DialogDescription>
       <SidebarProvider className="h-full min-h-0 items-stretch">
         <Sidebar collapsible="none" className="hidden h-full shrink-0 md:flex">
           <SidebarContent>
             <SidebarGroup><SidebarGroupLabel>{t('personal')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">
-              {sections.map(item => <SidebarMenuItem key={item.id}><SidebarMenuButton isActive={section === item.id} aria-current={section === item.id ? 'page' : undefined} disabled={mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onClick={() => selectSection(item.id)}><item.icon /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>)}
+              {sections.map(item => <SidebarMenuItem key={item.id}><SidebarMenuButton isActive={section === item.id} aria-current={section === item.id ? 'page' : undefined} disabled={mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onClick={() => selectSection(item.id)}><item.icon /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>)}
             </SidebarMenu></SidebarGroupContent></SidebarGroup>
-            <SidebarGroup><SidebarGroupLabel>{t('workspace')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">{workspaceSections.map(item => <SidebarMenuItem key={item.id}><SidebarMenuButton disabled={!workspace || mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} isActive={section === item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => selectSection(item.id)}><item.icon /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
-            {instanceSections.length ? <SidebarGroup><SidebarGroupLabel>{t('instance')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">{instanceSections.map(item => <SidebarMenuItem key={item.id}><SidebarMenuButton isActive={section === item.id} disabled={mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onClick={() => selectSection(item.id)}><item.icon /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup> : null}
+            <SidebarGroup><SidebarGroupLabel>{t('workspace')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">{workspaceSections.map(item => <SidebarMenuItem key={item.id}><SidebarMenuButton disabled={!workspace || mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} isActive={section === item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => selectSection(item.id)}><item.icon /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+            {instanceSections.length ? <SidebarGroup><SidebarGroupLabel>{t('instance')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">{instanceSections.map(item => <SidebarMenuItem key={item.id}><SidebarMenuButton isActive={section === item.id} disabled={mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onClick={() => selectSection(item.id)}><item.icon /><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup> : null}
           </SidebarContent>
         </Sidebar>
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -162,7 +176,7 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
           </BreadcrumbList></Breadcrumb></header>
           <div className="flex min-h-0 flex-1 flex-col">
             <div ref={contentRef} data-settings-scroll className="min-h-0 flex-1 overflow-y-auto p-4 pt-0"><FieldGroup>
-              <Field data-disabled={(mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy) || undefined} className="md:hidden"><FieldLabel htmlFor="settings-section">{t('settings')}</FieldLabel><NativeSelect id="settings-section" className="w-full" value={section} disabled={mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onChange={event => selectSection(event.target.value as typeof section)}><optgroup label={t('personal')}>{sections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('personal')} · {item.label}</NativeSelectOption>)}</optgroup><optgroup label={t('workspace')} disabled={!workspace}>{workspaceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('workspace')} · {item.label}</NativeSelectOption>)}</optgroup>{instanceSections.length ? <optgroup label={t('instance')}>{instanceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('instance')} · {item.label}</NativeSelectOption>)}</optgroup> : null}</NativeSelect></Field>
+              <Field data-disabled={(mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy) || undefined} className="md:hidden"><FieldLabel htmlFor="settings-section">{t('settings')}</FieldLabel><NativeSelect id="settings-section" className="w-full" value={section} disabled={mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy} onChange={event => selectSection(event.target.value as typeof section)}><optgroup label={t('personal')}>{sections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('personal')} · {item.label}</NativeSelectOption>)}</optgroup><optgroup label={t('workspace')} disabled={!workspace}>{workspaceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('workspace')} · {item.label}</NativeSelectOption>)}</optgroup>{instanceSections.length ? <optgroup label={t('instance')}>{instanceSections.map(item => <NativeSelectOption key={item.id} value={item.id}>{t('instance')} · {item.label}</NativeSelectOption>)}</optgroup> : null}</NativeSelect></Field>
               {workspaceSection && !canManage ? <FieldDescription>{t('workspaceReadOnly')}</FieldDescription> : null}
               {!specialSection ? <>
               <form id="settings-form" className="min-w-0" aria-label={t(workspaceSection ? 'workspacePreferences' : 'personalPreferences')} data-shortcut-submit onSubmit={event => { event.preventDefault(); if ((!workspaceSection || canManage) && sectionDirty && valid && !mutation.isPending && !moduleBusy) mutation.mutate(); }}>
@@ -177,7 +191,6 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
               </> : section === 'workspaceGeneral' ? <>
                 <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="workspace-name">{t('workspaceName')}</FieldLabel><Input id="workspace-name" readOnly={!canManage} value={workspaceName} required maxLength={200} disabled={mutation.isPending} onChange={event => { setWorkspaceName(event.target.value); setSaved(false); }} /></Field>
                 <Field><FieldLabel htmlFor="workspace-code">{t('code')}</FieldLabel><Input id="workspace-code" value={workspace?.code ?? ''} readOnly aria-describedby="workspace-code-help" /><FieldDescription id="workspace-code-help">{t('workspaceCodeFixed')}</FieldDescription></Field><Field><FieldLabel>{t('createdBy')}</FieldLabel><FieldDescription>{workspace?.created_by_name ?? workspace?.created_by ?? '—'}</FieldDescription></Field><Field><FieldLabel>{t('createdAt')}</FieldLabel><FieldDescription>{workspace?.created_at ? formatRegionalDate(workspace.created_at, regional, timeZone, true) : t('creationTimeUnknown')}</FieldDescription></Field>
-                {workspace?<WorkspaceModules workspaceId={workspace.id} readOnly={!canManage} disabled={mutation.isPending} onBusyChange={setModuleBusy} onDirtyChange={setModuleDirty}/>:null}
               </> : section === 'workspaceAppearance' ? <WorkspaceAppearanceFields value={design} disabled={mutation.isPending || !canManage} onChange={next => { setDesign(next); setSaved(false); }} /> : section === 'workspaceLanguage' ? <><FieldSet><FieldLegend>{t('language')}</FieldLegend><WorkspaceLanguageFields value={workspaceLanguageDraft} disabled={mutation.isPending || !canManage} onChange={next => { setWorkspaceLanguageDraft({ ...next, timeZone: workspaceLanguageDraft.timeZone, regional: workspaceLanguageDraft.regional }); setSaved(false); }} /></FieldSet><FieldSeparator /><FieldSet><FieldLegend>{t('timeSettings')}</FieldLegend><TimeZoneField key="workspace-time-zone" id="workspace-time-zone" value={workspaceLanguageDraft.timeZone} disabled={mutation.isPending || !canManage} onChange={next => { if (next) { setWorkspaceLanguageDraft({ ...workspaceLanguageDraft, timeZone: next }); setSaved(false); } }} /></FieldSet><FieldSeparator /><FieldSet><FieldLegend>{t('displayFormats')}</FieldLegend><RegionalFields key="workspace-region" timeZone={workspaceLanguageDraft.timeZone} value={workspaceLanguageDraft.regional} disabled={mutation.isPending || !canManage} onChange={next => { setWorkspaceLanguageDraft({ ...workspaceLanguageDraft, regional: next as typeof workspaceLanguageDraft.regional }); setSaved(false); }} /></FieldSet></> : section === 'language' ? <><FieldSet><FieldLegend>{t('interfaceSettings')}</FieldLegend><Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="language">{t('language')}</FieldLabel>
                 <NativeSelect id="language" className="w-full" aria-describedby="language-help" value={language} disabled={mutation.isPending} onChange={event => { setLanguage(event.target.value as Language | 'inherit'); setSaved(false); }}>
                   <NativeSelectOption value="inherit">{t('inheritSetting', { value: languageCatalog.find(item => item.code === workspace?.default_language)?.nativeName ?? workspace?.default_language ?? 'English' })}</NativeSelectOption>{languageCatalog.filter(item => personalLanguages.includes(item.code) || language === item.code).map(item => <NativeSelectOption key={item.code} value={item.code} disabled={!personalLanguages.includes(item.code)}>{item.nativeName}{!personalLanguages.includes(item.code) ? ` (${t('languageUnavailable')})` : ''}</NativeSelectOption>)}
@@ -193,12 +206,14 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
               </form></> : null}
               {user.isAdmin ? <><div hidden={section !== 'systemUsers'}><UserManagement ownId={user.id} onDirtyChange={setUserDirty} onBusyChange={setUserBusy} /></div>{section === 'systemJournal' ? <SystemJournal /> : null}</> : null}
               <div hidden={section !== 'security'}><AccountSecuritySettings user={user} active={section === 'security'} onDirtyChange={setSecurityDirty} onBusyChange={setSecurityBusy} /></div>
+              <div hidden={section !== 'workspaceModules'}>{workspace?<WorkspaceModules key={workspace.id} workspaceId={workspace.id} readOnly={!canManage} disabled={mutation.isPending} onBusyChange={setModuleBusy}/>:null}</div>
+              <div hidden={section !== 'workspaceForms'}>{workspace?<WorkspaceFormDesigner actionTarget={section==='workspaceForms'?formActionsTarget:null} key={workspace.id} workspace={workspace} user={user} readOnly={!canManage} onDirtyChange={setFormDirty} onBusyChange={setFormBusy}/>:null}</div>
               <div hidden={section !== 'workspaceObjects'}>{workspace ? <ObjectSettings readOnly={!canManage} key={workspace.id} workspace={workspace} user={user} onDirtyChange={setObjectDirty} onBusyChange={setObjectBusy} /> : null}</div>
             <div hidden={section !== 'workspaceRelationships'}>{workspace ? <WorkspaceRelationships key={workspace.id} workspaceId={workspace.id} canManage={canManage} onDirtyChange={setRelationDirty} onBusyChange={setRelationBusy} /> : null}</div>
             <div hidden={section !== 'workspaceGroups'}>{workspace ? <WorkspaceGroups key={workspace.id} workspaceId={workspace.id} isAdmin={Boolean(user.isAdmin)} canManage={canManage} onDirtyChange={setGroupDirty} onBusyChange={setGroupBusy} /> : null}</div>
             <div hidden={section !== 'workspaceMembers'}>{workspace ? <WorkspaceMembers key={workspace.id} workspaceId={workspace.id} isAdmin={Boolean(user.isAdmin)} onDirtyChange={setMemberDirty} onBusyChange={setMemberBusy} /> : null}</div>
             </FieldGroup></div>
-            <DialogActions onClose={onClose} disabled={mutation.isPending || moduleBusy || relationBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy}>{!specialSection && (!workspaceSection || canManage) ? <><Button type="button" variant="outline" disabled={!sectionDirty || mutation.isPending || moduleBusy} onClick={reset}>{t('resetPreferences')}</Button><Button type="submit" form="settings-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!sectionDirty || !valid || mutation.isPending || moduleBusy}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('save')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
+            <DialogActions onClose={onClose} disabled={mutation.isPending || moduleBusy || relationBusy || formBusy || objectBusy || memberBusy || securityBusy || groupBusy || userBusy}>{section==='workspaceForms'?<div ref={setFormActionsTarget} className="flex flex-col gap-2 sm:flex-row"/>:null}{!specialSection && (!workspaceSection || canManage) ? <><Button type="button" variant="outline" disabled={!sectionDirty || mutation.isPending || moduleBusy} onClick={reset}>{t('resetPreferences')}</Button><Button type="submit" form="settings-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!sectionDirty || !valid || mutation.isPending || moduleBusy}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('save')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
           </div>
         </div>
       </SidebarProvider>

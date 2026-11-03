@@ -129,22 +129,25 @@ async function migrateRelationshipScope(tx:Executor) {
 }
 export async function workspaceModules(tx:Executor,workspaceId:string):Promise<WorkspaceModule[]> {
   if(!(await sql`SELECT 1 FROM sys_workspaces WHERE id=${workspaceId}::uuid`.execute(tx)).rows.length)throw new AppError(404,'Workspace not found');
-  return (await sql<WorkspaceModule>`SELECT module_key AS key,enabled,version,(SELECT jsonb_object_agg(role,object_type_id::text) FROM sys_primary_chain_levels l WHERE l.workspace_id=sys_workspace_modules.workspace_id) AS "primaryChain" FROM sys_workspace_modules WHERE workspace_id=${workspaceId}::uuid ORDER BY module_key`.execute(tx)).rows;
+  return (await sql<WorkspaceModule>`SELECT m.module_key AS key,c.labels,c.description,c.available,c.objects,m.enabled,m.version,CASE WHEN m.module_key='projects' THEN (SELECT jsonb_object_agg(role,object_type_id::text) FROM sys_primary_chain_levels l WHERE l.workspace_id=m.workspace_id) ELSE NULL END AS "primaryChain" FROM sys_workspace_modules m JOIN sys_modules c ON c.key=m.module_key WHERE m.workspace_id=${workspaceId}::uuid ORDER BY c.position`.execute(tx)).rows;
 }
-export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:string;key:'projects';enabled:boolean;version:number},journal:Journal) {
+export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:string;key:WorkspaceModule['key'];enabled:boolean;version:number},journal:Journal,install:()=>Promise<import('@xobject/contracts').PrimaryChain>) {
   const previous=(await workspaceModules(tx,args.workspaceId)).find(module=>module.key===args.key);
   if(!previous)throw new AppError(404,'Module not found');
+  if(!previous.available)throw new AppError(409,'Module is not implemented yet');
   if(previous.version!==args.version)throw new AppError(409,'Module version conflict');
-  if(previous.enabled===args.enabled)return previous;
+  if(previous.enabled===args.enabled&&(!args.enabled||previous.primaryChain))return previous;
   const primary=(await relationshipTypes(tx,args.workspaceId)).find(type=>type.kind==='primary')!;
   if(!args.enabled&&(await sql`SELECT 1 FROM sys_relationships WHERE relationship_type_id=${primary.id}::uuid LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Remove existing Primary associations before disabling Projects');
+  const chain=args.enabled?await install():previous.primaryChain;
+  await sql`UPDATE sys_workspace_modules SET enabled=${args.enabled},version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
   if(args.enabled)await validateRelationshipGraph(tx,{...primary,active:true});
   const change=v7();
-  await sql`UPDATE sys_workspace_modules SET enabled=${args.enabled},version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
+
   await sql`UPDATE sys_relationship_types SET active=${args.enabled},version=version+1 WHERE id=${primary.id}::uuid`.execute(tx);
   await journal('workspace',args.workspaceId,change,'module.projects',previous.enabled,args.enabled);
   await journal('relationship_type',primary.id,change,'active',primary.active,args.enabled);
-  return {...previous,enabled:args.enabled,version:previous.version+1};
+  return {...previous,primaryChain:chain,enabled:args.enabled,version:previous.version+1};
 }
 
 /** Frozen version-1 projection used only by the original schema installer. */

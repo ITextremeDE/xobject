@@ -49,3 +49,19 @@ test('journal table previews preserve empty/false values and readable relationsh
   assert.equal(summary({...snapshot,directed:false}),'Hauptzuordnung: Projekt A ↔ Aufgabe B');
   assert.equal(snapshot.relationshipTypeId,'retained-definition-id');
 });
+
+test('form journals present translated groups/settings and resolve metadata names without changing historical values',async()=>{
+ const {formSnapshotGroups}=await import('../src/lib/form-layout-presentation.js');
+ const {journalValueSummary}=await import('../src/lib/journal-value-summary.js');
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{formLayoutTitle:'Form layout',formDefault:'Standard form',formHalf:'Half width',formFull:'Full width',formHidden:'Hidden',formShown:'Shown',formExpansionClosed:'Initially closed',formUnassigned:'Unassigned',formUnknownField:'Unavailable field'}}}});
+ const field='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',relation='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+ const layout:any={groups:[{id:'saved',labels:{en:'Historical group',de:'Historische Gruppe'},fields:[{fieldId:field,width:'half'},{relationshipTypeId:relation,side:'right',width:'full',visible:false,expanded:'closed'}]}],unassigned:[{fieldId:relation,width:'full'}]};
+ const before=structuredClone(layout),context={fields:{[field]:'Current field name'},relationships:{[relation]:{left:'Parent',right:'Children'}}};
+ const groups=formSnapshotGroups(layout,context,'en',i18n.t);
+ assert.equal(journalPropertyLabel('form_layout.default',i18n.t),'Form layout · Standard form');
+ assert.equal(groups[0].label,'Historical group');assert.equal(groups[0].entries[0].label,'Current field name');
+ assert.equal(groups[0].entries[1].label,'Children');assert.deepEqual(groups[0].entries[1].settings,['Full width','Hidden','Initially closed']);
+ assert.equal(groups[1].label,'Unassigned');assert.equal(groups[1].entries[0].label,'Unavailable field');
+ assert.deepEqual(layout,before,'presentation does not rewrite stored audit snapshots');
+ assert.equal(journalValueSummary(layout,'en','None','Yes','No',(kind,count)=>`${count} ${kind}`),'1 groups · 3 elements');
+});

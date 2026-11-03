@@ -9,8 +9,8 @@ const development = await getEntry('project', 'development');
 if (!development) throw new Error('Missing development content');
 const { Content: DevelopmentContent } = await render(development);
 const areas = [
-  { title: 'CRM', text: 'Kontakte, Organisationen und Beziehungen zentral erfassen und mit Projekten und Vorgängen in Verbindung bringen.', icon: UsersRound },
-  { title: 'Projektmanagement', text: 'Projekte, Vorgänge und Aufgaben strukturiert abbilden und mit relevanten Kontakten und eigenen Datenobjekten verknüpfen.', icon: Folder },
+  { title: 'Contacts', text: 'Kontakte, Organisationen und Beziehungen zentral erfassen und mit Projekten und Vorgängen in Verbindung bringen.', icon: UsersRound },
+  { title: 'Projects', text: 'Projekte, Vorgänge und Aufgaben strukturiert abbilden und mit relevanten Kontakten und eigenen Datenobjekten verknüpfen.', icon: Folder },
   { title: 'Eigene Objekte', text: 'Eigene Datenobjekte flexibel definieren und in die zentrale Struktur integrieren.', icon: Box }
 ];
 ---

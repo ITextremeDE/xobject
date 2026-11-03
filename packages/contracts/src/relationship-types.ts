@@ -22,4 +22,4 @@ export type RelationshipConfiguration = z.infer<typeof relationshipConfiguration
 export interface RelationshipType extends RelationshipConfiguration { id: string; workspaceId: string; technicalName: string; kind: 'primary' | 'general' | 'custom'; rulesState: 'draft' | 'active'; version: number; pairLocked?: boolean }
 
 export const customRelationshipConfigurationSchema = relationshipConfigurationSchema.refine(value=>!value.allowAll&&value.pairs.length===1,{message:"Custom relationships require exactly one object pair",path:["pairs"]});
-export interface WorkspaceModule {key:"projects";enabled:boolean;version:number;primaryChain:import('./primary-chain.js').PrimaryChain|null}
+export interface WorkspaceModule {key:'contacts'|'projects'|'documents';labels:Record<string,string>;description:Record<string,string>;available:boolean;objects:{key:string;technicalName:string;labels:Record<string,string>}[];enabled:boolean;version:number;primaryChain:import('./primary-chain.js').PrimaryChain|null}

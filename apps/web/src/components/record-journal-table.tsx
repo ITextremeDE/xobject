@@ -12,9 +12,9 @@ import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ColumnMenu, RecordDataTable, RecordTableToolbar, type RecordColumn } from './record-data-table';
-import { JournalEntryCard } from './journal-entry-card';
+import { JournalEntryDetails } from './journal-entry-details';
 import { DialogActions } from './dialog-actions';
-import { ErrorNotice, Loading } from './feedback';
+import { ErrorNotice } from './feedback';
 
 type Entry = SystemJournalEntry & JournalEntry;
 type Props = {
@@ -44,10 +44,10 @@ export function RecordJournalTable({ entries, filters, total, page, pageSize, bu
   const {hidden,toggle}=useColumnPreferences(preferenceKey,columns,contextColumns?['actor','before','after','scope',...(mobile?['created_at']:[])]:mobile?['actor','before']:[]);
   return <FieldGroup aria-busy={busy}>
     <RecordTableToolbar search={filters} alignEnd><ColumnMenu columns={columns} hidden={hidden} onToggle={toggle} /></RecordTableToolbar>
-    {loading ? <Loading /> : error ? <ErrorNotice error={error} retry={onRetry} /> : <RecordDataTable compact={contextColumns} rows={entries} columns={columns} hidden={hidden} total={total} page={page} pageSize={pageSize} sort={{ by: 'created_at', direction: 'desc' }} disabled={busy} selectedRecord={selected?.id} onSort={() => {}} onPage={onPage} onPageSize={onPageSize} onOpen={setSelected} rowName={entry=>`${title(entry)}${contextColumns?` · ${entry.entity_name??entry.entity_id}`:''} · ${formatRegionalDate(entry.created_at,regional,timeZone,true)}`} ariaLabel={t('journal')} labels={{ open: t('journalShowDetails'), actions: t('journalEntryActions'), copyId: t('journalCopyEntryId'), empty: emptyLabel??t('noJournal'), selectRow: name=>t('journalSelectEntry',{name}) }} />}
+    {error ? <ErrorNotice error={error} retry={onRetry} /> : <RecordDataTable loading={loading} compact={contextColumns} rows={entries} columns={columns} hidden={hidden} total={total} page={page} pageSize={pageSize} sort={{ by: 'created_at', direction: 'desc' }} disabled={busy} selectedRecord={selected?.id} onSort={() => {}} onPage={onPage} onPageSize={onPageSize} onOpen={setSelected} rowName={entry=>`${title(entry)}${contextColumns?` · ${entry.entity_name??entry.entity_id}`:''} · ${formatRegionalDate(entry.created_at,regional,timeZone,true)}`} ariaLabel={t('journal')} labels={{ open: t('journalShowDetails'), actions: t('journalEntryActions'), copyId: t('journalCopyEntryId'), empty: emptyLabel??t('noJournal'), selectRow: name=>t('journalSelectEntry',{name}) }} />}
     {selected ? <Dialog open onOpenChange={open => { if (!open) setSelected(null); }}><DialogContent className="flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-3xl" finalFocus={() => document.querySelector<HTMLElement>(`[data-journal-entry="${selected.id}"]`) ?? true}>
-      <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{t('journalEntryDetails')}</DialogTitle><DialogDescription>{title(selected)}</DialogDescription></DialogHeader>
-      <div className="min-h-0 overflow-y-auto px-4 pb-4"><JournalEntryCard compact={!contextColumns} memberName={memberName?.(selected)} entry={selected} renderValue={selected.field_id ? (value, side) => renderValue?.(selected, value, side) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count})) : undefined} /></div>
+      <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{title(selected)}</DialogTitle><DialogDescription>{t('journalEntryDetailsHelp')}</DialogDescription></DialogHeader>
+      <div className="min-h-0 overflow-y-auto px-4 pb-4"><JournalEntryDetails compact={!contextColumns} memberName={memberName?.(selected)} entry={selected} renderValue={selected.field_id ? (value, side) => renderValue?.(selected, value, side) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count})) : undefined} /></div>
       <DialogActions onClose={() => setSelected(null)} />
     </DialogContent></Dialog> : null}
   </FieldGroup>;

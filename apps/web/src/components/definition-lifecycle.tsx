@@ -1,4 +1,7 @@
-import { JournalEntryCard } from './journal-entry-card';
+import {RecordJournalTable} from './record-journal-table';
+import {useSettingsTable,SettingsTableSearch} from './settings-table';
+import {journalEntryTitle} from '@/lib/journal-presentation';
+import type {SystemJournalEntry} from '@xobject/contracts';
 import { DialogActions } from './dialog-actions';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,9 +14,7 @@ import { Field, FieldGroup, FieldDescription } from '@/components/ui/field';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
-import { ErrorNotice, Loading } from './feedback';
 
 export function DefinitionLifecycle({ label, kind, id, objectTypeId, state = 'active', isProtected, canDelete, disabled = false, onBusyChange, onDeleted }: {
   label: string; kind: 'object_type' | 'field'; id: string; objectTypeId: string; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; disabled?: boolean; onBusyChange: (busy: boolean) => void; onDeleted?: () => void;
@@ -39,13 +40,15 @@ export function DefinitionLifecycle({ label, kind, id, objectTypeId, state = 'ac
 }
 
 export function DefinitionJournal({ objectTypeId, objectLabel, fieldLabels, user }: { objectTypeId: string; objectLabel: string; fieldLabels: Record<string, string>; user: AuthUser }) {
-  const { t } = useTranslation();
+  const { t,i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const journal = useQuery({ queryKey: ['definition-journal', objectTypeId], queryFn: () => api('get_definition_journal', { objectTypeId }), enabled: open });
+  const entries:SystemJournalEntry[]=[...(journal.data??[])].reverse().map(entry=>({...entry,entity_kind:entry.entity_kind??(entry.field_id?'field':'object_type'),entity_id:entry.entity_id??entry.field_id??objectTypeId,workspace_id:entry.workspace_id??null,workspace_name:entry.workspace_name??null,actor_name:entry.actor_name??(entry.actor_id===user.id?user.name:t('journalUnknownUser')),entity_name:entry.entity_name??(entry.field_id?fieldLabels[entry.field_id]??entry.field_id:objectLabel)}));
+  const table=useSettingsTable(entries,entry=>[journalEntryTitle(entry,t,i18n.language),entry.field_key,entry.entity_name,entry.actor_name].join(' '));
   return <><Button type="button" variant="outline" onClick={() => setOpen(true)}><HistoryIcon data-icon="inline-start" />{t('definitionJournal')}</Button><Dialog open={open} onOpenChange={setOpen}>
-    <DialogContent className="flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-2xl">
+    <DialogContent className="flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-4xl">
       <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{t('definitionJournal')}</DialogTitle><DialogDescription>{t('definitionJournalHelp')}</DialogDescription></DialogHeader>
-      <div className="min-h-0 overflow-y-auto px-4">{journal.isPending ? <Loading /> : journal.isError ? <ErrorNotice error={journal.error} /> : !journal.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('journalNoEntries')}</EmptyTitle></EmptyHeader></Empty> : <ol className="flex min-w-0 flex-col gap-4 py-1" aria-label={t('journalEntries')}>{[...journal.data].reverse().map(entry => <li key={entry.id} className="min-w-0"><JournalEntryCard entry={{ ...entry, entity_kind: entry.entity_kind ?? (entry.field_id ? 'field' : 'object_type'), entity_id: entry.entity_id ?? entry.field_id ?? objectTypeId, workspace_id: entry.workspace_id ?? null, workspace_name: entry.workspace_name ?? null, actor_name: entry.actor_name ?? (entry.actor_id === user.id ? user.name : entry.actor_id), entity_name: entry.entity_name ?? (entry.field_id ? fieldLabels[entry.field_id] ?? entry.field_id : objectLabel) }} /></li>)}</ol>}</div>
+      <div className="min-h-0 overflow-y-auto px-4 pb-4"><RecordJournalTable contextColumns preferenceKey="definition-journal" entries={table.pagination.rows} filters={<SettingsTableSearch value={table.search} onChange={table.onSearch}/>} total={table.pagination.total} page={table.pagination.page} pageSize={table.pagination.pageSize} onPage={table.pagination.onPage} onPageSize={table.pagination.onPageSize} busy={journal.isFetching} loading={journal.isPending} error={journal.error} onRetry={()=>{void journal.refetch();}} emptyLabel={t('journalNoEntries')}/></div>
       <DialogActions onClose={() => setOpen(false)} />
     </DialogContent>
   </Dialog></>;

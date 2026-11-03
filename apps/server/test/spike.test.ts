@@ -54,7 +54,7 @@ async function ok(operation: Operation, payload: unknown) {
   return response.json();
 }
 async function enableProjects(workspaceId:string) {
-  const module=(await ok('list_workspace_modules',{workspaceId}))[0];
+  const module=(await ok('list_workspace_modules',{workspaceId})).find((m:any)=>m.key==='projects');
   await ok('configure_workspace_module',{workspaceId,key:'projects',enabled:true,version:module.version});
   return (await ok('list_relationship_types',{workspaceId})).find((type:any)=>type.kind==='primary');
 }
@@ -1596,7 +1596,7 @@ test('dashboard aggregates actual workspace records and journal activity across 
   const ws = await ok('create_workspace', { name: 'Dashboard', code: 'dashboard', defaultLanguage: 'de', timeZone: 'Europe/Berlin' });
   const other = await ok('create_workspace', { name: 'Other dashboard', code: 'otherdashboard' });
   const bare = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'bare', labels: { de: 'Ohne Standardfelder', en: 'Bare' } });
-  const contacts = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'contacts', labels: { de: 'Kontakte', en: 'Contacts' }, standardFields: ['keyword', 'type_status', 'category'] });
+  const contacts = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'directory', labels: { de: 'Kontakte', en: 'Contacts' }, standardFields: ['keyword', 'type_status', 'category'] });
   const hidden = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'hidden', labels: { en: 'Inactive' }, standardFields: ['keyword'] });
   const foreign = await ok('create_object_type', { workspaceId: other.id, technicalName: 'foreign_items', labels: { en: 'Foreign' }, standardFields: ['keyword'] });
   const empty = await ok('create_record', { objectTypeId: bare.id });
@@ -1789,7 +1789,7 @@ test('relationship definitions share API/MCP rules, protected system defaults, w
 
 test('record relationships enforce final-state cardinalities, Primary uniqueness/cycles and share one journal event across endpoints', async () => {
   const ws=await ok('create_workspace',{code:'edges',name:'Edges'});
-  const models=await Promise.all(['parents','children','tasks'].map(technicalName=>ok('create_object_type',{workspaceId:ws.id,technicalName,labels:{en:technicalName},standardFields:['keyword']})));
+  await enableProjects(ws.id);const models=await Promise.all(['contacts','projects','tasks'].map(async technicalName=>{const list=await ok('list_object_types',{workspaceId:ws.id});return list.find((o:any)=>o.technicalName===technicalName);}));
   const [parents,children,tasks]=models;
   const make=(model:any,keyword:string)=>ok('create_record',{objectTypeId:model.id,keyword});
   const [a,b,c,d,e]=await Promise.all([make(parents,'Parent A'),make(parents,'Parent B'),make(children,'Child'),make(tasks,'Task'),make(tasks,'Other task')]);
@@ -1802,7 +1802,7 @@ test('record relationships enforce final-state cardinalities, Primary uniqueness
   const ref=(model:any,row:any)=>({objectTypeId:model.id,recordId:row.id});
   assert.equal((await update(children,c,'right',[ref(parents,a)])).statusCode,200);
   assert.equal((await update(tasks,d,'right',[ref(children,c)])).statusCode,200);
-  assert.equal((await update(parents,a,'right',[ref(tasks,d)])).statusCode,409,'cycle rejected');
+  assert.equal((await update(parents,a,'right',[ref(tasks,d)])).statusCode,400,'Contact cannot have a parent');
   const priorB=await ok('get_record',{objectTypeId:parents.id,recordId:b.id});
   assert.equal((await update(parents,b,'left',[ref(tasks,d)])).statusCode,409,'second parent rejected across object pairs');
   assert.equal((await ok('get_record',{objectTypeId:parents.id,recordId:b.id})).version,priorB.version);
@@ -1924,7 +1924,7 @@ test('custom relationships reject unrestricted and multiple object pairs through
 
 test('relationship tree branches derive real context, paginate Primary children and expose marked cyclic cross references without writes',async()=>{
   const ws=await ok('create_workspace',{code:'treefixture',name:'Tree fixture'});
-  const models=await Promise.all(['contacts','projects','cases','tasks','vehicles'].map(technicalName=>ok('create_object_type',{workspaceId:ws.id,technicalName,labels:{en:technicalName},standardFields:['keyword']})));
+  await enableProjects(ws.id);const installed=await ok('list_object_types',{workspaceId:ws.id});const models=await Promise.all(['contacts','projects','cases','tasks','vehicles'].map(technicalName=>installed.find((o:any)=>o.technicalName===technicalName)??ok('create_object_type',{workspaceId:ws.id,technicalName,labels:{en:technicalName},standardFields:['keyword']})));
   const [contact,project,caseType,task,vehicle]=models;
   const make=(model:any,keyword:string)=>ok('create_record',{objectTypeId:model.id,keyword});
   const [c,p,independent,ca,tc,tp,tcontact,standalone,v]=await Promise.all([make(contact,'Contact'),make(project,'Project'),make(project,'Independent project'),make(caseType,'Case'),make(task,'Case task'),make(task,'Project task'),make(task,'Contact task'),make(task,'Standalone'),make(vehicle,'Vehicle')]);
@@ -1967,30 +1967,21 @@ test('relationship tree branches derive real context, paginate Primary children 
   assert.equal((await api('get_relationship_tree_branch',input(contact,c),userCookie)).statusCode,403);
   assert.equal((await api('get_relationship_tree_branch',{objectTypeId:task.id,recordId:c.id})).statusCode,404);
   assert.equal((await sql<{count:number}>`SELECT count(*)::int AS count FROM sys_journal`.execute(runtime.db)).rows[0].count,beforeJournal,'tree reads do not journal or change records');
-  await ok('set_definition_state',{kind:'object_type',id:caseType.id,expectedState:'active',state:'inactive'});
-  assert.equal((await ok('get_relationship_tree_branch',input(task,tc))).ancestors.at(-1).state,'inactive','retained inactive ancestors remain identifiable');
+  assert.equal((await api('set_definition_state',{kind:'object_type',id:caseType.id,expectedState:'active',state:'inactive'})).statusCode,409,'module levels cannot be deactivated');
 });
 
-test('deep Primary context is bounded explicitly and records remain navigable beyond the context segment',async()=>{
-  const ws=await ok('create_workspace',{code:'deeptree',name:'Deep tree'}),model=await ok('create_object_type',{workspaceId:ws.id,technicalName:'nodes',labels:{en:'Nodes'},standardFields:['keyword']});
-  const definition=(await ok('list_relationship_types',{workspaceId:ws.id})).find((d:any)=>d.kind==='primary');
-  const config=(({id,workspaceId,technicalName,kind,rulesState,version,...rest}:any)=>rest)(definition);
-  const configured=await enableProjects(ws.id);
-  const active=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:configured.id,version:configured.version});
-  const records:any[]=[];
-  for(let index=0;index<35;index++)records.push(await ok('create_record',{objectTypeId:model.id,keyword:`Level ${index}`,relationships:index?[{relationshipTypeId:active.id,version:active.version,side:'right',targets:[{objectTypeId:model.id,recordId:records[index-1].id}]}]:[]}));
-  const segment=await ok('get_relationship_tree_branch',{objectTypeId:model.id,recordId:records[34].id});
-  assert.equal(segment.ancestors.length,32);assert.equal(segment.ancestorsTruncated,true);
-  assert.equal(segment.ancestors[0].recordId,records[2].id);assert.equal(segment.ancestors.at(-1).recordId,records[33].id);
-  const continuation=await ok('get_relationship_tree_branch',{objectTypeId:model.id,recordId:segment.ancestors[0].recordId});
-  assert.equal(continuation.ancestorsTruncated,false);assert.deepEqual(continuation.ancestors.map((r:any)=>r.recordId),[records[0].id,records[1].id]);
+test('Primary cannot form arbitrary deep or same-object hierarchies',async()=>{
+  const ws=await ok('create_workspace',{code:'deeptree',name:'Fixed tree'});
+  const primary=await enableProjects(ws.id),model=await ok('create_object_type',{workspaceId:ws.id,technicalName:'nodes',labels:{en:'Nodes'},standardFields:['keyword']});
+  const parent=await ok('create_record',{objectTypeId:model.id,keyword:'Parent'});
+  assert.equal((await api('create_record',{objectTypeId:model.id,keyword:'Child',relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:model.id,recordId:parent.id}]}]})).statusCode,400);
 });
 
 test('Projects activation gates global Primary while General is always available; module writes are scoped, versioned and journaled atomically',async()=>{
   const ws=await ok('create_workspace',{code:'projectmodule',name:'Projects module'});
   const a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'alpha',labels:{en:'Alpha'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'beta',labels:{en:'Beta'}});
   const ar=await ok('create_record',{objectTypeId:a.id}),br=await ok('create_record',{objectTypeId:b.id});
-  const initial=(await ok('list_workspace_modules',{workspaceId:ws.id}))[0],types=await ok('list_relationship_types',{workspaceId:ws.id});
+  const initial=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects'),types=await ok('list_relationship_types',{workspaceId:ws.id});
   assert.equal(initial.enabled,false);
   const primary=types.find((t:any)=>t.kind==='primary'),general=types.find((t:any)=>t.kind==='general');
   assert.equal(general.active,true);assert.equal(general.rulesState,'active');assert.equal(primary.active,false);assert.equal(primary.allowAll,true);assert.equal(primary.pairs.length,0);
@@ -2001,8 +1992,9 @@ test('Projects activation gates global Primary while General is always available
   assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:false,version:initial.version})).statusCode,409);
   const currentPrimary=(await ok('list_relationship_types',{workspaceId:ws.id})).find((t:any)=>t.kind==='primary');
   const later=await ok('create_object_type',{workspaceId:ws.id,technicalName:'later',labels:{en:'Later'}});
-  assert.equal((await ok('get_record_relationships',{objectTypeId:later.id})).fields.filter((f:any)=>f.definition.kind==='primary').length,2,'new objects inherit both sides automatically');
-  const linked=await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:br.version,relationships:[{relationshipTypeId:currentPrimary.id,version:currentPrimary.version,side:'right',targets:[{objectTypeId:a.id,recordId:ar.id}]}]});
+  assert.equal((await ok('get_record_relationships',{objectTypeId:later.id})).fields.filter((f:any)=>f.definition.kind==='primary').length,1,'custom objects can have one direct Primary parent but cannot become a Primary level');
+  const root=await ok('create_record',{objectTypeId:enabled.primaryChain.contact});
+  const linked=await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:br.version,relationships:[{relationshipTypeId:currentPrimary.id,version:currentPrimary.version,side:'right',targets:[{objectTypeId:enabled.primaryChain.contact,recordId:root.id}]}]});
   assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:false,version:enabled.version})).statusCode,409,'module off must not orphan existing Primary links');
   await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:linked.version,relationships:[{relationshipTypeId:currentPrimary.id,version:currentPrimary.version,side:'right',targets:[]}]});
   const disabled=await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:false,version:enabled.version});
@@ -2012,7 +2004,7 @@ test('Projects activation gates global Primary while General is always available
   const before=await ok('list_relationship_types',{workspaceId:ws.id});
   await sql`CREATE FUNCTION fail_module_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='module.projects' THEN RAISE EXCEPTION 'module journal failure'; END IF; RETURN NEW; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER fail_module_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_module_journal()`.execute(runtime.db);
-  try{assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:disabled.version})).statusCode,500);assert.deepEqual(await ok('list_relationship_types',{workspaceId:ws.id}),before);assert.deepEqual((await ok('list_workspace_modules',{workspaceId:ws.id}))[0],disabled);}
+  try{assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:disabled.version})).statusCode,500);assert.deepEqual(await ok('list_relationship_types',{workspaceId:ws.id}),before);assert.deepEqual((await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects'),disabled);}
   finally{await sql`DROP TRIGGER fail_module_journal ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_module_journal()`.execute(runtime.db);}
   const user=(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0];
   await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
@@ -2025,7 +2017,8 @@ test('Projects activation gates global Primary while General is always available
 test('legacy used Primary definitions adopt Projects without changing record or edge identities and repeat migration is journal-free',async()=>{
   const ws=await ok('create_workspace',{code:'legacyprimary',name:'Legacy Primary'}),a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'parents',labels:{en:'Parents'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'}});
   const ar=await ok('create_record',{objectTypeId:a.id}),br=await ok('create_record',{objectTypeId:b.id}),primary=await enableProjects(ws.id);
-  await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:br.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:a.id,recordId:ar.id}]}]});
+  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects'),root=await ok('create_record',{objectTypeId:module.primaryChain.contact});
+  await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:br.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:module.primaryChain.contact,recordId:root.id}]}]});
   const beforeA=await ok('get_record',{objectTypeId:a.id,recordId:ar.id}),beforeB=await ok('get_record',{objectTypeId:b.id,recordId:br.id});
   const beforeEdges=(await sql`SELECT * FROM sys_relationships WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
   await sql`DELETE FROM sys_schema_migrations WHERE version=1`.execute(runtime.db);
@@ -2034,7 +2027,7 @@ test('legacy used Primary definitions adopt Projects without changing record or 
   await sql`INSERT INTO sys_relationship_type_pairs VALUES(${primary.id}::uuid,${ws.id}::uuid,${a.id}::uuid,${b.id}::uuid)`.execute(runtime.db);
   await sql`DELETE FROM sys_workspace_modules WHERE workspace_id=${ws.id}::uuid`.execute(runtime.db);
   await migrate(databaseURL,secret,baseURL);
-  assert.equal((await ok('list_workspace_modules',{workspaceId:ws.id}))[0].enabled,true);
+  assert.equal((await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects').enabled,true);
   const upgraded=(await ok('list_relationship_types',{workspaceId:ws.id})).find((t:any)=>t.kind==='primary');
   assert.equal(upgraded.id,primary.id);assert.equal(upgraded.allowAll,true);assert.equal(upgraded.active,true);assert.deepEqual(upgraded.pairs,[]);
   assert.deepEqual(await ok('get_record',{objectTypeId:a.id,recordId:ar.id}),beforeA);assert.deepEqual(await ok('get_record',{objectTypeId:b.id,recordId:br.id}),beforeB);
@@ -2091,7 +2084,7 @@ test('readers share schema/workspace locks while unrelated workspace writes proc
     await holder.query("SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",[`xobject:workspace:${ws.id}`]);
     const attempt=(operation:Operation,workspaceId:string)=>runtime.db.transaction().execute(async tx=>{await sql`SET LOCAL lock_timeout='100ms'`.execute(tx);await lockOperation(tx,operation,{workspaceId});});
     await attempt('list_object_types',ws.id);
-    await attempt('configure_workspace_module',other.id);
+    await assert.rejects(attempt('configure_workspace_module',other.id),{code:'55P03'},'module installation may create tables and requires the schema barrier');
     await assert.rejects(attempt('configure_workspace_module',ws.id),{code:'55P03'});
     await assert.rejects(attempt('configure_workspace_module',ws.id.toUpperCase()),{code:'55P03'});
     await assert.rejects(attempt('create_field',other.id),{code:'55P03'});
@@ -2100,7 +2093,7 @@ test('readers share schema/workspace locks while unrelated workspace writes proc
 
 test('scalar saves avoid graph scans but changed endpoints still enforce minimums, maxima and cycles',async()=>{
   const ws=await ok('create_workspace',{code:'targetgraph',name:'Targeted validation'});
-  const a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'parents',labels:{en:'Parents'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'},standardFields:['keyword']});
+  await enableProjects(ws.id);const a=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'},standardFields:['keyword']});
   const parent=await ok('create_record',{objectTypeId:a.id}),child=await ok('create_record',{objectTypeId:b.id,keyword:'Child'});
   const primary=await enableProjects(ws.id);
   await ok('update_record',{objectTypeId:b.id,recordId:child.id,version:child.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:a.id,recordId:parent.id}]}]});
@@ -2108,7 +2101,7 @@ test('scalar saves avoid graph scans but changed endpoints still enforce minimum
   const holder=new PgClient({connectionString:databaseURL});await holder.connect();
   let request:Promise<unknown>|undefined,timer:ReturnType<typeof globalThis.setTimeout>|undefined;
   try {
-    await holder.query('BEGIN');await holder.query('LOCK TABLE targetgraph_parents IN ACCESS EXCLUSIVE MODE');
+    await holder.query('BEGIN');await holder.query('LOCK TABLE targetgraph_contacts IN ACCESS EXCLUSIVE MODE');
     request=ok('update_record',{objectTypeId:b.id,recordId:child.id,version:current.version,keyword:'Changed'});
     const saved=await Promise.race([request,new Promise<never>((_,reject)=>{timer=globalThis.setTimeout(()=>reject(new Error('Scalar save scanned an unrelated locked content table')),1500);})]) as {keyword:string};
     assert.equal(saved.keyword,'Changed');
@@ -2116,7 +2109,7 @@ test('scalar saves avoid graph scans but changed endpoints still enforce minimum
 
   // Existing integration scenarios above cover changed-edge cardinalities and Primary cycles.
   const definitions=(await sql<{version:number;name:string}>`SELECT version,name FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows;
-  assert.deepEqual(definitions.map(row=>row.version),[1,2,3,4]);
+  assert.deepEqual(definitions.map(row=>row.version),[1,2,3,4,5,6,7]);
   const before=(await sql`SELECT * FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows;
   await migrate(databaseURL,secret,baseURL);assert.deepEqual((await sql`SELECT * FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows,before);
 });
@@ -2289,18 +2282,12 @@ test('relationship picker object filters apply before server pagination and neve
   assert.equal((await api('search_relationship_candidates',input,userCookie)).statusCode,403);
 });
 
-test('configured Primary levels use stable object identities, inherited context, versioned preflight and common API/MCP rules',async()=>{
-  const catalog=await client.listTools();assert.ok(catalog.tools.some(tool=>tool.name==='configure_primary_chain'));assert.ok(catalog.tools.some(tool=>tool.name==='get_primary_chain_context'));
+test('fixed module Primary levels use stable identities, inherited context and common API/MCP rules',async()=>{
+  const catalog=await client.listTools();assert.ok(!catalog.tools.some(tool=>tool.name==='configure_primary_chain'));assert.ok(catalog.tools.some(tool=>tool.name==='get_primary_chain_context'));
   const ws=await ok('create_workspace',{name:'Primary levels',code:'primarylevels'});
-  const ids:Record<string,string>={};for(const name of ['customers','jobs','tickets','items'])ids[name]=(await ok('create_object_type',{workspaceId:ws.id,technicalName:name,labels:{en:name},standardFields:['keyword']})).id;
-  await enableProjects(ws.id);let module=(await ok('list_workspace_modules',{workspaceId:ws.id}))[0];
-  const levels={contact:ids.customers,project:ids.jobs,case:ids.tickets};
-  const configured=await tool('configure_primary_chain',{workspaceId:ws.id,version:module.version,levels});
-  assert.equal((await api('configure_primary_chain',{workspaceId:ws.id,version:module.version,levels})).statusCode,409);
-  module=(await ok('list_workspace_modules',{workspaceId:ws.id}))[0];assert.deepEqual(module.primaryChain,levels);
-  assert.equal((await api('configure_primary_chain',{workspaceId:ws.id,version:module.version,levels:{...levels,case:levels.project}})).statusCode,400);
-  const foreignWorkspace=await ok('create_workspace',{code:'chainforeign',name:'Foreign levels'}),foreign=await ok('create_object_type',{workspaceId:foreignWorkspace.id,technicalName:'level',labels:{en:'Level'}});
-  assert.equal((await api('configure_primary_chain',{workspaceId:ws.id,version:module.version,levels:{...levels,case:foreign.id}})).statusCode,400);
+  await enableProjects(ws.id);const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');
+  const levels=module.primaryChain;
+  const ids:Record<string,string>={customers:levels.contact,jobs:levels.project,tickets:levels.case,items:(await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']})).id};
   const rows:Record<string,any>={};for(const name of Object.keys(ids))rows[name]=await ok('create_record',{objectTypeId:ids[name],keyword:name});
   async function assign(child:string,parent:string|null){const record=await ok('get_record',{objectTypeId:ids[child],recordId:rows[child].id});const field=(await ok('get_record_relationships',{objectTypeId:ids[child],recordId:record.id})).fields.find((f:any)=>f.definition.kind==='primary'&&f.side==='right');return api('update_record',{objectTypeId:ids[child],recordId:record.id,version:record.version,relationships:[{relationshipTypeId:field.definition.id,version:field.definition.version,side:'right',targets:parent?[{objectTypeId:ids[parent],recordId:rows[parent].id}]:[]}]});}
   for(const [child,parent] of [['jobs','customers'],['tickets','jobs'],['items','tickets']])assert.equal((await assign(child,parent)).statusCode,200);
@@ -2312,12 +2299,9 @@ test('configured Primary levels use stable object identities, inherited context,
   assert.equal((await assign('jobs','tickets')).statusCode,400);
   const primary=(await ok('list_relationship_types',{workspaceId:ws.id})).find((type:any)=>type.kind==='primary');
   const candidates=await ok('search_relationship_candidates',{objectTypeId:ids.jobs,recordId:rows.jobs.id,relationshipTypeId:primary.id,side:'right'});assert.deepEqual(candidates.records.map((row:any)=>row.objectTypeId),[ids.customers]);
-  assert.equal((await api('configure_primary_chain',{workspaceId:ws.id,version:module.version,levels:{contact:ids.tickets,project:ids.jobs,case:ids.customers}})).statusCode,409);
   assert.equal((await api('set_definition_state',{kind:'object_type',id:ids.tickets,expectedState:'active',state:'inactive'})).statusCode,409);
   assert.equal((await api('get_primary_chain_context',args,userCookie)).statusCode,403);
-  assert.equal((await api('configure_primary_chain',{workspaceId:ws.id,version:module.version,levels},userCookie)).statusCode,403);
   const skip=await ok('get_primary_chain_context',{...args,parent:{objectTypeId:ids.customers,recordId:rows.customers.id}});assert.deepEqual(skip.levels.map((level:any)=>level.record?.recordId??null),[rows.customers.id,null,null]);
-  assert.deepEqual(await ok('configure_primary_chain',{workspaceId:ws.id,version:configured.version,levels}),configured);
 });
 
 test('relationship endpoint rules constrain candidates and all final record writes, with protected controller dependencies',async()=>{
@@ -2357,4 +2341,160 @@ test('conditional relationship minima are validated when a scalar choice activat
   assert.equal((await api('update_record',{objectTypeId:b.id,recordId:child.id,version:child.version,values:{kind:yes}})).statusCode,409);
   assert.equal((await ok('get_record',{objectTypeId:b.id,recordId:child.id})).kind,no);
   const saved=await tool('update_record',{objectTypeId:b.id,recordId:child.id,version:child.version,values:{kind:yes},relationships:[{relationshipTypeId:active.id,version:active.version,side:'right',targets:[{objectTypeId:a.id,recordId:parent.id}]}]});assert.equal(saved.kind,yes);
+});
+
+
+test('form layouts share object identities, reject foreign fields and stale writes, and journal atomically through API/MCP',async()=>{
+  const registryBefore=(await sql`SELECT * FROM sys_record_identities ORDER BY workspace_id,object_type_id,record_id`.execute(runtime.db)).rows;
+  await sql`ALTER TABLE sys_object_types DROP COLUMN form_layouts;DELETE FROM sys_schema_migrations WHERE version>=5`.execute(runtime.db);
+  await migrate(databaseURL,secret,baseURL);
+  assert.deepEqual((await sql`SELECT * FROM sys_record_identities ORDER BY workspace_id,object_type_id,record_id`.execute(runtime.db)).rows,registryBefore);
+  const ws=await ok('create_workspace',{name:'Forms',code:'forms'});
+  const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+  await ok('create_field',{objectTypeId:type.id,technicalName:'serial',labels:{en:'Serial'}});
+  let model=await ok('get_object_type',{objectTypeId:type.id});
+  const layout={groups:[{id:'details',labels:{en:'Details'},fields:[{fieldId:model.fields[0].id,width:'full'}]}]};
+  const before=(await ok('get_definition_journal',{objectTypeId:type.id})).length;
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'constructor',layout})).statusCode,400);
+  const first=await tool('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'contacts',layout});
+  assert.deepEqual(first.formLayouts.contacts,layout);assert.equal(first.version,model.version+1);
+  const event=(await tool('get_definition_journal',{objectTypeId:type.id})).find((entry:any)=>entry.field_key==='form_layout.contacts');
+  assert.equal(event.form_layout_context.fields[model.fields[0].id],'Serial');
+  assert.deepEqual(event.new_value,layout,'name enrichment preserves immutable historical values');
+  const globalEvent=(await ok('list_system_journal',{workspaceId:ws.id,fieldKey:'form_layout.contacts'})).entries.find((entry:any)=>entry.id===event.id);
+  assert.deepEqual(globalEvent.form_layout_context,event.form_layout_context,'definition and instance journals share the same context');
+
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'projects',layout})).statusCode,409);
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,layout},userCookie)).statusCode,403);
+  const same=await ok('configure_form_layout',{objectTypeId:type.id,version:first.version,context:'contacts',layout});assert.equal(same.version,first.version);
+  assert.equal((await ok('get_definition_journal',{objectTypeId:type.id})).length,before+1);
+  const foreign=await ok('create_object_type',{workspaceId:ws.id,technicalName:'other',labels:{en:'Other'},standardFields:['keyword']});
+  const foreignModel=await ok('get_object_type',{objectTypeId:foreign.id});
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,context:'projects',layout:{groups:[{...layout.groups[0],fields:[{fieldId:foreignModel.fields[0].id,width:'half'}]}]}})).statusCode,400);
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,layout:{groups:[layout.groups[0],layout.groups[0]]}})).statusCode,400);
+  await sql`CREATE FUNCTION fail_form_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='form_layout.projects' THEN RAISE EXCEPTION 'journal failure'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER fail_form_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_form_journal()`.execute(runtime.db);
+  try{assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,context:'projects',layout})).statusCode,500);}finally{await sql`DROP TRIGGER fail_form_journal ON sys_journal;DROP FUNCTION fail_form_journal()`.execute(runtime.db);}
+  model=await ok('get_object_type',{objectTypeId:type.id});assert.equal(model.version,first.version);assert.equal(model.formLayouts.projects,undefined);
+  const second=await ok('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'projects',layout:{groups:[{...layout.groups[0],fields:[]}]}});
+  assert.deepEqual(second.formLayouts.contacts,layout);assert.equal(second.fields[0].id,model.fields[0].id);
+  const removed=await ok('configure_form_layout',{objectTypeId:type.id,version:second.version,context:'contacts',layout:null});assert.equal(removed.formLayouts.contacts,undefined);assert.ok(removed.formLayouts.projects);
+});
+
+test('relationship form elements enforce side scope, width and required visibility without changing link rules',async()=>{
+  const ws=await ok('create_workspace',{name:'Relationship forms',code:'relationforms'});
+  const left=await ok('create_object_type',{workspaceId:ws.id,technicalName:'parents',labels:{en:'Parents'},standardFields:['keyword']});
+  const right=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'},standardFields:['keyword']});
+  const configuration={labels:{en:'Connection'},leftLabels:{en:'Child'},rightLabels:{en:'Parents'},directed:true,leftMin:1,leftMax:1,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:left.id,rightObjectTypeId:right.id}],active:true};
+  let relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'connection',configuration});relation=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
+  let model=await ok('get_object_type',{objectTypeId:left.id});
+  assert.deepEqual(model.formRelationships.map((item:any)=>[item.definition.id,item.side]),[[relation.id,'left']]);
+  const view=(entry:any)=>({groups:[{id:'connections',labels:{en:'Connections'},fields:[entry]}]});
+  const single={relationshipTypeId:relation.id,side:'left',width:'half',visible:true};
+  assert.equal((await api('configure_form_layout',{objectTypeId:left.id,version:model.version,layout:view({...single,visible:false})})).statusCode,400);
+  assert.equal((await api('configure_form_layout',{objectTypeId:left.id,version:model.version,layout:{groups:[],unassigned:[{...single,visible:false}]}})).statusCode,400,'unassigned elements cannot bypass required visibility');
+  assert.equal((await api('configure_form_layout',{objectTypeId:left.id,version:model.version,layout:view({...single,side:'right'})})).statusCode,400);
+  const saved=await tool('configure_form_layout',{objectTypeId:left.id,version:model.version,layout:view(single)});assert.deepEqual(saved.formLayouts.default,view(single));
+  const event=(await ok('get_definition_journal',{objectTypeId:left.id})).find((entry:any)=>entry.field_key==='form_layout.default');
+  assert.deepEqual(event.form_layout_context.relationships[relation.id],{left:'Child',right:'Parents'});
+  assert.deepEqual(event.new_value,view(single));
+
+  model=await ok('get_object_type',{objectTypeId:right.id});
+  const many={relationshipTypeId:relation.id,side:'right',width:'full',visible:false,expanded:'closed'};
+  assert.equal((await api('configure_form_layout',{objectTypeId:right.id,version:model.version,layout:view({...many,width:'half'})})).statusCode,400);
+  await ok('configure_form_layout',{objectTypeId:right.id,version:model.version,layout:view(many)});
+  const types=await ok('list_relationship_types',{workspaceId:ws.id});assert.deepEqual(types.find((type:any)=>type.id===relation.id),relation,'presentation does not mutate relationship rules');
+  const general=types.find((type:any)=>type.kind==='general');
+  model=await ok('get_object_type',{objectTypeId:right.id});assert.equal((await api('configure_form_layout',{objectTypeId:right.id,version:model.version,layout:view({...many,relationshipTypeId:general.id})})).statusCode,400);
+});
+
+test('Primary is one full-width form element and its stored position survives a disabled Projects module',async()=>{
+  const ws=await ok('create_workspace',{name:'Primary forms',code:'primaryforms'});
+  await enableProjects(ws.id);let module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');
+  const ids=[module.primaryChain.contact,module.primaryChain.project,module.primaryChain.case];
+  const root=await ok('get_object_type',{objectTypeId:ids[0]});assert.equal(root.formRelationships.some((item:any)=>item.definition.kind==='primary'),false);
+  let model=await ok('get_object_type',{objectTypeId:ids[1]});assert.equal(model.formRelationships.filter((item:any)=>item.definition.kind==='primary').length,1);
+  const layout={groups:[{id:'context',labels:{en:'Context'},fields:[{primary:true,width:'full',visible:true}]}]};
+  const saved=await ok('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout});assert.deepEqual(saved.formLayouts.default,layout);
+  module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:module.version,enabled:false});
+  model=await ok('get_object_type',{objectTypeId:ids[1]});assert.equal(model.formRelationships.length,0);
+  layout.groups[0].labels.en='Retained context';const retained=await ok('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout});assert.equal(retained.formLayouts.default.groups[0].fields[0].primary,true);
+  const unconfigured=await ok('get_object_type',{objectTypeId:ids[2]});assert.equal((await api('configure_form_layout',{objectTypeId:ids[2],version:unconfigured.version,layout})).statusCode,400);
+});
+
+test('new objects start with editable General, while added elements remain unassigned and scoped through API/MCP',async()=>{
+ const ws=await ok('create_workspace',{name:'Free forms',code:'freeforms'});
+ const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ let model=await ok('get_object_type',{objectTypeId:type.id});const initial=model.formLayouts.default;
+ assert.equal(initial.groups.length,1);assert.deepEqual(initial.groups[0].labels,{de:'Allgemein',en:'General'});assert.equal(initial.groups[0].fields.length,1);
+ const field=await ok('create_field',{objectTypeId:type.id,technicalName:'serial',labels:{en:'Serial'}});model=await ok('get_object_type',{objectTypeId:type.id});assert.deepEqual(model.formLayouts.default,initial,'new field creation does not change any group');
+ const layout={groups:[{...initial.groups[0],labels:{en:'Our own group'}}],unassigned:[{fieldId:field.id,width:'half'}]};
+ const saved=await tool('configure_form_layout',{objectTypeId:type.id,version:model.version,layout});assert.deepEqual(saved.formLayouts.default,layout);
+ const foreign=await ok('create_object_type',{workspaceId:ws.id,technicalName:'other',labels:{en:'Other'},standardFields:['keyword']});const foreignModel=await ok('get_object_type',{objectTypeId:foreign.id});
+ assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:saved.version,layout:{...layout,unassigned:[{fieldId:foreignModel.fields[0].id,width:'half'}]}})).statusCode,400);
+ assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:saved.version,layout:{...layout,unassigned:[layout.groups[0].fields[0]]}})).statusCode,400);
+ const placed={groups:[{...layout.groups[0],fields:[...layout.groups[0].fields,...layout.unassigned]}],unassigned:[]};
+ const result=await ok('configure_form_layout',{objectTypeId:type.id,version:saved.version,layout:placed});assert.deepEqual(result.formLayouts.default,placed);
+});
+
+test('migration 6 materializes implicit v5 forms, preserves authored groups and keeps content/history unchanged',async()=>{
+ const ws=await ok('create_workspace',{name:'Legacy forms',code:'legacyforms'});
+ const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const field=await ok('create_field',{objectTypeId:type.id,technicalName:'serial',labels:{en:'Serial'}});
+ const model=await ok('get_object_type',{objectTypeId:type.id});
+ const existing={groups:[{id:'business',labels:{en:'Custom name'},fields:[{fieldId:model.fields.find((f:any)=>f.technicalName==='keyword').id,width:'full'}]}]};
+ const moduleLayout={groups:[{id:'modulegroup',labels:{en:'Module group'},fields:[]}]};
+ await sql`UPDATE sys_object_types SET form_layouts=${JSON.stringify({default:existing,projects:moduleLayout})}::jsonb WHERE id=${type.id}::uuid`.execute(runtime.db);
+ const implicit=await ok('create_object_type',{workspaceId:ws.id,technicalName:'implicit',labels:{en:'Implicit'},standardFields:['keyword']});await ok('create_field',{objectTypeId:implicit.id,technicalName:'description',labels:{en:'Description'}});
+ await sql`UPDATE sys_object_types SET form_layouts='{}'::jsonb WHERE id=${implicit.id}::uuid`.execute(runtime.db);
+ const before=(await sql`SELECT (SELECT count(*) FROM sys_record_identities)::int AS records,(SELECT count(*) FROM sys_relationships)::int AS links,(SELECT count(*) FROM sys_journal)::int AS journal`.execute(runtime.db)).rows[0];
+ await sql`DELETE FROM sys_schema_migrations WHERE version=6`.execute(runtime.db);await migrate(databaseURL,secret,baseURL);
+ const adopted=await ok('get_object_type',{objectTypeId:type.id});assert.equal(adopted.formLayouts.default.groups[0].labels.en,'Custom name');assert.equal(adopted.formLayouts.default.groups[0].fields[0].fieldId,existing.groups[0].fields[0].fieldId);assert.ok(adopted.formLayouts.default.groups[0].fields.some((entry:any)=>entry.fieldId===field.id));assert.deepEqual(adopted.formLayouts.projects,moduleLayout);
+ const old=await ok('get_object_type',{objectTypeId:implicit.id});assert.deepEqual(old.formLayouts.default.groups.map((group:any)=>group.id),['general','business']);assert.equal(old.formLayouts.default.groups[0].fields.length,1);assert.equal(old.formLayouts.default.groups[1].fields.length,1);
+ assert.deepEqual((await sql`SELECT (SELECT count(*) FROM sys_record_identities)::int AS records,(SELECT count(*) FROM sys_relationships)::int AS links,(SELECT count(*) FROM sys_journal)::int AS journal`.execute(runtime.db)).rows[0],before);
+ const snapshot=(await sql`SELECT form_layouts,version FROM sys_object_types WHERE id=${type.id}::uuid`.execute(runtime.db)).rows[0];await migrate(databaseURL,secret,baseURL);assert.deepEqual((await sql`SELECT form_layouts,version FROM sys_object_types WHERE id=${type.id}::uuid`.execute(runtime.db)).rows[0],snapshot,'adoption is idempotent');
+});
+
+
+test('module catalog is complete and planned modules cannot activate; fixed installation is atomic and never adopts matching custom names',async()=>{
+  const ws=await ok('create_workspace',{code:'modulecatalog',name:'Module catalog'});
+  const catalog=await ok('list_workspace_modules',{workspaceId:ws.id});
+  assert.deepEqual(await tool('list_workspace_modules',{workspaceId:ws.id}),catalog);
+  assert.deepEqual(catalog.map((m:any)=>[m.key,m.available,m.enabled]),[['contacts',false,false],['projects',true,false],['documents',false,false]]);
+  assert.equal(catalog[0].labels.de,'Kontakte & Beziehungen');assert.equal(catalog[2].labels.en,'Documents & Communication');
+  for(const module of catalog.filter((m:any)=>!m.available))assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:module.key,version:module.version,enabled:true})).statusCode,409);
+  for(const name of ['contacts','projects','cases','tasks','emails','documents']){
+    assert.equal((await api('create_object_type',{workspaceId:ws.id,technicalName:name,labels:{en:'Own object'}})).statusCode,400);
+    const result=await client.callTool({name:'create_object_type',arguments:{workspaceId:ws.id,technicalName:name,labels:{en:'Own object'}}});assert.equal(result.isError,true);
+  }
+  const custom=await ok('create_object_type',{workspaceId:ws.id,technicalName:'legacy_projects',labels:{en:'User data'}});
+  // Simulate an object that pre-dates catalog reservation; never rename live user data.
+  await sql`ALTER TABLE modulecatalog_legacy_projects RENAME TO modulecatalog_projects`.execute(runtime.db);
+  await sql`UPDATE sys_object_types SET technical_name='projects' WHERE id=${custom.id}::uuid`.execute(runtime.db);
+  const history=(await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
+  const rejected=await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:catalog[1].version,enabled:true});
+  assert.equal(rejected.statusCode,409);assert.match(rejected.body,/custom object/);
+  assert.deepEqual((await ok('list_object_types',{workspaceId:ws.id})).map((o:any)=>o.id),[custom.id],'no partial Contact object remains');
+  assert.deepEqual((await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows,history);
+  assert.equal((await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_module_object_bindings WHERE workspace_id=${ws.id}::uuid`.execute(runtime.db)).rows[0].n,0);
+  assert.equal((await ok('get_object_type',{objectTypeId:custom.id})).isProtected,false);
+
+  const clean=await ok('create_workspace',{code:'moduleatomic',name:'Module atomic'});
+  const module=(await ok('list_workspace_modules',{workspaceId:clean.id})).find((m:any)=>m.key==='projects');
+  await sql`CREATE FUNCTION fail_initial_module() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='primary_chain.case' THEN RAISE EXCEPTION 'module journal rejected'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE TRIGGER fail_initial_module BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_initial_module()`.execute(runtime.db);
+  try{assert.equal((await api('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true})).statusCode,500);assert.deepEqual(await ok('list_object_types',{workspaceId:clean.id}),[]);assert.equal((await sql`SELECT 1 FROM sys_primary_chain_levels WHERE workspace_id=${clean.id}::uuid`.execute(runtime.db)).rows.length,0);}
+  finally{await sql`DROP TRIGGER fail_initial_module ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_initial_module()`.execute(runtime.db);}
+  const enabled=await tool('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true});
+  const objects=await ok('list_object_types',{workspaceId:clean.id});assert.equal(objects.length,4);
+  for(const object of objects){const definition=await ok('get_object_type',{objectTypeId:object.id});assert.equal(definition.isProtected,true);assert.ok(definition.fields.every((f:any)=>f.isProtected));}
+  const contact=await ok('create_record',{objectTypeId:enabled.primaryChain.contact,keyword:'Retain me'});
+  const disabled=await ok('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:enabled.version,enabled:false});
+  assert.deepEqual((await ok('get_primary_chain_context',{objectTypeId:enabled.primaryChain.project})).levels,[]);
+  assert.equal((await ok('get_record',{objectTypeId:enabled.primaryChain.contact,recordId:contact.id})).keyword,'Retain me');
+  const again=await ok('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:disabled.version,enabled:true});assert.deepEqual(again.primaryChain,enabled.primaryChain);assert.equal((await ok('list_object_types',{workspaceId:clean.id})).length,4);
+  const count=(await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_journal WHERE workspace_id=${clean.id}::uuid`.execute(runtime.db)).rows[0].n;
+  assert.deepEqual(await ok('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:again.version,enabled:true}),again);
+  assert.equal((await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_journal WHERE workspace_id=${clean.id}::uuid`.execute(runtime.db)).rows[0].n,count);
+  assert.equal((await runtime.app.inject({method:'POST',url:'/api/v1/configure_primary_chain',headers:{host:'127.0.0.1:4100',cookie:adminCookie,'x-xobject-request':'1'},payload:{workspaceId:clean.id,version:again.version,levels:enabled.primaryChain}})).statusCode,404);
 });

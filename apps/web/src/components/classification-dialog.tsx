@@ -2,11 +2,13 @@ import { RequiredFieldSetting } from './required-field-setting';
 import { SettingsHelp } from './settings-help';
 import { Spinner } from '@/components/ui/spinner';
 import { DialogActions } from './dialog-actions';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { v7 } from 'uuid';
-import { PlusIcon, GripVerticalIcon, ArrowUpIcon, ArrowDownIcon, Trash2Icon } from 'lucide-react';
+import {PlusIcon,ChevronDownIcon} from 'lucide-react';
+import {ChoiceValueEditor} from './choice-value-editor';
+import {Collapsible,CollapsibleTrigger,CollapsibleContent} from '@/components/ui/collapsible';
 import { moveClassificationOption } from '@xobject/contracts';
 import type { ClassificationConfig, ClassificationRules, ObjectDefinition, FieldDefinition, Labels } from '@xobject/contracts';
 import { DefinitionLifecycle } from './definition-lifecycle';
@@ -15,10 +17,9 @@ import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend, FieldTitle, FieldSeparator } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend, FieldSeparator } from '@/components/ui/field';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { TranslatedLabelInput, cleanLabels, hasLabel } from './translated-label-input';
-import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Kbd } from '@/components/ui/kbd';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
@@ -53,9 +54,11 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
   const [lifeBusy, setLifeBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [announcement, setAnnouncement] = useState('');
-  const drag = useRef<{ id: string; x: number; y: number } | null>(null);
+  const [typeScope,setTypeScope]=useState('');
+  const selectedType=draft.options.find(option=>option.kind==='type'&&option.id===typeScope);
+  const selectedTypeId=selectedType?.id??null;
   const [focusId, setFocusId] = useState<string | null>(null);
-  useEffect(() => { if (focusId) { const handle = document.querySelector<HTMLElement>(`[data-choice-handle="${focusId}"]`); const target = handle && !handle.matches(':disabled') ? handle : document.getElementById(`choice-label-${focusId}`) ?? document.getElementById(focusId); target?.focus(); setFocusId(null); } }, [draft, focusId]);
+  useEffect(() => { if (focusId) { const handle = document.querySelector<HTMLElement>(`[data-choice-handle="${focusId}"]`); const target = handle && !handle.matches(':disabled') ? handle : document.getElementById(`choice-toggle-${focusId}`) ?? document.getElementById(focusId); target?.focus(); setFocusId(null); } }, [draft, focusId]);
   const pendingNew = Object.values(additions).some(labels => Object.values(labels).some(Boolean));
   const validLabels = draft.options.every(option => hasLabel(option.labels));
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline) || pendingNew;
@@ -112,37 +115,35 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
     const siblings = draft.options.filter(item => item.kind === option.kind && item.typeId === option.typeId);
     const blocked = usedIds.has(option.id) || (option.kind === 'type' && draft.options.some(item => item.kind === 'status' && item.typeId === option.id));
     const index = siblings.findIndex(item => item.id === option.id);
-    return <FieldSet key={option.id} className="min-w-0 gap-3" data-choice-drop={option.id}><FieldLegend variant="label" className="sr-only">{name(option)}</FieldLegend>
-      <div className="flex items-center justify-between gap-2"><FieldTitle aria-hidden="true" className="min-w-0 flex-1 wrap-anywhere">{name(option)}</FieldTitle>{!readOnly ? <div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" data-choice-handle={option.id} className="touch-none" disabled={controlsDisabled || siblings.length < 2} aria-label={t('dragChoice', { name: name(option) })} title={t('dragChoice', { name: name(option) })}
-          onPointerDown={event => { if (event.button !== 0 || mutation.isPending) return; drag.current = { id: option.id, x: event.clientX, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); }}
-          onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }} onKeyDown={event => { if (event.key === 'Escape' && drag.current) { drag.current = null; event.preventDefault(); event.stopPropagation(); } }}
-          onPointerUp={event => { const source = drag.current; drag.current = null; if (!source || mutation.isPending || Math.hypot(event.clientX - source.x, event.clientY - source.y) < 6) return; const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-choice-drop]')?.getAttribute('data-choice-drop'); if (target) move(source.id, target); }}><GripVerticalIcon /></Button>
-        <Button type="button" variant="ghost" size="icon-sm" disabled={controlsDisabled || index === 0} aria-label={t('moveChoiceUp', { name: name(option) })} title={t('moveChoiceUp', { name: name(option) })} onClick={() => move(option.id, siblings[index - 1]!.id)}><ArrowUpIcon /></Button>
-        <Button type="button" variant="ghost" size="icon-sm" disabled={controlsDisabled || index === siblings.length - 1} aria-label={t('moveChoiceDown', { name: name(option) })} title={t('moveChoiceDown', { name: name(option) })} onClick={() => move(option.id, siblings[index + 1]!.id)}><ArrowDownIcon /></Button>{option.kind !== 'category' ? <Button type="button" variant="ghost" size="icon-sm" disabled={controlsDisabled || blocked} title={blocked ? t(usedIds.has(option.id) ? 'choiceInUse' : 'typeHasStatuses') : t('deleteChoice', { name: name(option) })} aria-label={t('deleteChoice', { name: name(option) })} onClick={() => removeOption(option.id)}><Trash2Icon /></Button> : null}</div> : null}</div><TranslatedLabelInput readOnly={readOnly} showHelp={false} id={`choice-label-${option.id}`} value={option.labels} disabled={mutation.isPending || lifeBusy} onChange={labels => patchOption(option.id, { labels })} />
-      {option.kind === 'status' ? <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor={`choice-type-${option.id}`}>{t('statusScope')}</FieldLabel><NativeSelect id={`choice-type-${option.id}`} value={option.typeId ?? ''} disabled={controlsDisabled} onChange={event => patchOption(option.id, { typeId: event.target.value || null })}><NativeSelectOption value="">{t('withoutType')}</NativeSelectOption>{draft.options.filter(item => item.kind === 'type').map(item => <NativeSelectOption key={item.id} value={item.id}>{name(item)}</NativeSelectOption>)}</NativeSelect></Field> : null}
-      <Field data-disabled={controlsDisabled || undefined} orientation="horizontal"><Checkbox id={`choice-active-${option.id}`} checked={option.active} disabled={controlsDisabled} onCheckedChange={checked => patchOption(option.id, { active: checked === true })} /><FieldLabel htmlFor={`choice-active-${option.id}`}>{t('activeChoice')}</FieldLabel></Field>
-    </FieldSet>;
+    return <ChoiceValueEditor key={option.id} id={option.id} labels={option.labels} active={option.active} readOnly={readOnly} disabled={mutation.isPending||lifeBusy} onLabels={labels=>patchOption(option.id,{labels})} onActive={active=>patchOption(option.id,{active})}
+      onUp={index>0?()=>move(option.id,siblings[index-1].id):undefined} onDown={index<siblings.length-1?()=>move(option.id,siblings[index+1].id):undefined} onMoveTo={option.kind!=='type'?target=>move(option.id,target):undefined}
+      onDelete={option.kind!=='category'?()=>removeOption(option.id):undefined} deleteBlocked={option.kind!=='category'&&blocked?t(usedIds.has(option.id)?'choiceInUse':'typeHasStatuses'):undefined}>
+      {option.kind==='status'?<Field><FieldLabel htmlFor={`choice-type-${option.id}`}>{t('statusScope')}</FieldLabel><NativeSelect id={`choice-type-${option.id}`} className="w-full" value={option.typeId??''} disabled={controlsDisabled} onChange={event=>patchOption(option.id,{typeId:event.target.value||null})}><NativeSelectOption value="">{t('withoutType')}</NativeSelectOption>{draft.options.filter(item=>item.kind==='type').map(item=><NativeSelectOption key={item.id} value={item.id}>{name(item)}</NativeSelectOption>)}</NativeSelect></Field>:null}
+    </ChoiceValueEditor>;
   }
+
   function addOption(kind: Kind, typeId: string | null = null) {
     if (readOnly) return null;
     const key = `${kind}-${typeId ?? 'none'}`;
     const labels = additions[key] ?? {};
-    return <FieldSet className="gap-3"><FieldLegend variant="label">{t(kind === 'type' ? 'newType' : kind === 'status' ? 'newStatus' : 'newCategory')}</FieldLegend><TranslatedLabelInput readOnly={readOnly} showHelp={false} id={`new-choice-${key}`} value={labels} requireOne={false} disabled={controlsDisabled} onChange={labels => setAdditions(old => ({ ...old, [key]: labels }))} /><Button type="button" variant="outline" disabled={controlsDisabled || !hasLabel(labels) || draft.options.length >= 300} onClick={() => {
-      setDraft(old => ({ ...old, options: [...old.options, { id: v7(), kind, labels: cleanLabels(labels), active: true, typeId }] })); setAdditions(old => ({ ...old, [key]: {} })); setSaved(false);
-    }}><PlusIcon data-icon="inline-start" />{t(kind === 'type' ? 'addType' : kind === 'status' ? 'addStatus' : 'addCategory')}</Button></FieldSet>;
+    const title=t(kind==='type'?'newType':kind==='status'?'newStatus':'newCategory');
+    return <Collapsible className="min-w-0"><CollapsibleTrigger render={<Button type="button" variant="outline" className="group/new-choice w-fit"/>}><PlusIcon data-icon="inline-start"/>{title}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/new-choice:rotate-180"/></CollapsibleTrigger><CollapsibleContent className="pt-3"><FieldSet className="gap-3"><FieldLegend variant="label" className="sr-only">{title}</FieldLegend><TranslatedLabelInput readOnly={readOnly} showHelp={false} id={`new-choice-${key}`} value={labels} requireOne={false} disabled={controlsDisabled} onChange={labels=>setAdditions(old=>({...old,[key]:labels}))}/><Button type="button" variant="outline" disabled={controlsDisabled||!hasLabel(labels)||draft.options.length>=300} onClick={()=>{
+      const id=v7();setDraft(old=>({...old,options:[...old.options,{id,kind,labels:cleanLabels(labels),active:true,typeId}]}));if(kind==='type')setTypeScope(id);setAdditions(old=>({...old,[key]:{}}));setSaved(false);
+    }}><PlusIcon data-icon="inline-start"/>{t(kind==='type'?'addType':kind==='status'?'addStatus':'addCategory')}</Button></FieldSet></CollapsibleContent></Collapsible>;
   }
+
   function defaultStatus(typeId: string | null) {
     const parentActive = typeId === null || draft.options.some(option => option.id === typeId && option.kind === 'type' && option.active);
     return <Field data-disabled={!parentActive}><FieldLabel htmlFor={`initial-status-${typeId ?? 'none'}`}>{t('defaultStatus')}</FieldLabel><NativeSelect id={`initial-status-${typeId ?? 'none'}`} value={statusDefault(typeId)} disabled={controlsDisabled || !parentActive} onChange={event => { const statusId = event.target.value; setDraft(old => ({ ...old, status: { ...old.status, defaults: [...old.status.defaults.filter(initial => initial.typeId !== typeId), ...(statusId ? [{ typeId, statusId }] : [])] } })); }}><NativeSelectOption value="">{t('noDefault')}</NativeSelectOption>{active('status').filter(option => option.typeId === typeId).map(option => <NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect>{!parentActive ? <FieldDescription>{t('inactiveTypeDefault')}</FieldDescription> : null}</Field>;
   }
   return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending && !lifeBusy) onClose(); }}>
-    <DialogContent className={cn("flex max-h-[85svh] flex-col overflow-hidden p-0", category ? "sm:max-w-lg" : "sm:max-w-4xl")} closeButtonDisabled={mutation.isPending || lifeBusy} finalFocus={finalFocus ?? (() => document.querySelector<HTMLElement>(`[data-field-editor="${field.id}"]`) ?? true)}>
+    <DialogContent className={cn("flex max-h-[85svh] flex-col overflow-hidden p-0", category ? "sm:max-w-xl" : "sm:max-w-4xl")} closeButtonDisabled={mutation.isPending || lifeBusy} finalFocus={finalFocus ?? (() => document.querySelector<HTMLElement>(`[data-field-editor="${field.id}"]`) ?? true)}>
       <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{create ? t('createStandardField', { name: t(category ? 'classificationCategory' : 'typesAndStatuses') }) : t(category ? 'classificationCategory' : 'typesAndStatuses')}</DialogTitle><DialogDescription>{definition.label} · {t('classificationDescription')}</DialogDescription></DialogHeader>
       <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="classification-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (!readOnly && (dirty || create) && validLabels && !pendingNew && !mutation.isPending && !lifeBusy) mutation.mutate(); }}><FieldGroup>
         {mutation.isError ? <Alert variant="destructive"><AlertTitle>{t('errorTitle')}</AlertTitle><AlertDescription>{t(mutation.error instanceof ApiError && mutation.error.status === 409 ? 'classificationConflict' : errorKeys[mutation.error.message] ?? 'classificationInvalid')}</AlertDescription></Alert> : null}
         {saved && !dirty ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
         <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
-        {readOnly ? <FieldDescription>{t('classificationReadOnlyHelp')}</FieldDescription> : null}<SettingsHelp title={t('configurationDetails')}>{!readOnly ? t('classificationExistingHelp') : null} {t('translationHelp')}</SettingsHelp>
+        {readOnly ? <FieldDescription>{t('classificationReadOnlyHelp')}</FieldDescription> : null}<SettingsHelp title={t('configurationDetails')}>{!readOnly ? t('classificationExistingHelp') : null} {t('choiceEditorHelp')} {t('translationHelp')}</SettingsHelp>
         {category ? <>
           {required('category')}
           <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="category-mode">{t('selectionMode')}</FieldLabel><NativeSelect id="category-mode" value={draft.category.multiple ? 'multiple' : 'single'} disabled={controlsDisabled} onChange={event => setDraft(old => ({ ...old, category: { ...old.category, multiple: event.target.value === 'multiple', defaultIds: event.target.value === 'single' && old.category.defaultIds.length > 1 ? [] : old.category.defaultIds } }))}><NativeSelectOption value="single">{t('singleChoice')}</NativeSelectOption><NativeSelectOption value="multiple">{t('multipleChoice')}</NativeSelectOption></NativeSelect></Field>
@@ -152,10 +153,18 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
         </> : <>
           <FieldGroup className="sm:grid sm:grid-cols-2">{required('type')}{required('status')}</FieldGroup>
           <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="default-type">{t('defaultType')}</FieldLabel><NativeSelect id="default-type" value={draft.type.defaultId ?? ''} disabled={controlsDisabled} onChange={event => setDraft(old => ({ ...old, type: { ...old.type, defaultId: event.target.value || null } }))}><NativeSelectOption value="">{t('noDefault')}</NativeSelectOption>{active('type').map(option => <NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect></Field>
-          <Table className="table-fixed" aria-label={t('typesAndStatuses')}><TableHeader className="hidden sm:table-header-group"><TableRow><TableHead>{t('classificationType')}</TableHead><TableHead>{t('associatedStatuses')}</TableHead></TableRow></TableHeader><TableBody>
-            {[null, ...draft.options.filter(option => option.kind === 'type')].map(type => <TableRow key={type?.id ?? 'none'} className="block hover:bg-transparent sm:table-row"><TableCell className="block w-full min-w-0 align-top whitespace-normal sm:table-cell sm:w-1/2 sm:min-w-64"><FieldGroup className="py-4">{type ? optionEditor(type) : <FieldDescription>{t('withoutType')}</FieldDescription>}</FieldGroup></TableCell><TableCell className="block w-full min-w-0 align-top whitespace-normal sm:table-cell sm:w-1/2 sm:min-w-64"><FieldGroup className="py-4">{draft.options.filter(option => option.kind === 'status' && option.typeId === (type?.id ?? null)).map((option, index) => <div key={option.id}>{index > 0 ? <FieldSeparator className="mb-6" /> : null}{optionEditor(option)}</div>)}{addOption('status', type?.id ?? null)}<FieldSeparator />{defaultStatus(type?.id ?? null)}</FieldGroup></TableCell></TableRow>)}
-          </TableBody></Table>
-          <FieldSeparator />{addOption('type')}
+          <FieldGroup className="grid items-start gap-6 sm:grid-cols-2">
+            <FieldSet><FieldLegend>{t('classificationType')}</FieldLegend>
+              <Field><FieldLabel htmlFor="status-type-scope">{t('statusTypeSelection')}</FieldLabel><NativeSelect id="status-type-scope" className="w-full" disabled={mutation.isPending||lifeBusy||pendingNew} value={selectedTypeId??''} onChange={event=>setTypeScope(event.target.value)}><NativeSelectOption value="">{t('withoutType')}</NativeSelectOption>{draft.options.filter(option=>option.kind==='type').map(option=><NativeSelectOption key={option.id} value={option.id}>{name(option)}</NativeSelectOption>)}</NativeSelect></Field>
+              {selectedType?optionEditor(selectedType):<FieldDescription>{t('withoutTypeHelp')}</FieldDescription>}
+              <FieldSeparator/>{addOption('type')}
+            </FieldSet>
+            <FieldSet><FieldLegend>{t('associatedStatuses')}</FieldLegend><FieldDescription>{t('statusesForType',{name:selectedType?name(selectedType):t('withoutType')})}</FieldDescription>
+              <FieldGroup className="gap-3">{draft.options.filter(option=>option.kind==='status'&&option.typeId===selectedTypeId).map((option,index)=><div key={option.id}>{index?<FieldSeparator className="mb-3"/>:null}{optionEditor(option)}</div>)}</FieldGroup>
+              {!draft.options.some(option=>option.kind==='status'&&option.typeId===selectedTypeId)?<FieldDescription>{t('noStatusesInScope')}</FieldDescription>:null}
+              <FieldSeparator/>{addOption('status',selectedTypeId)}<FieldSeparator/>{defaultStatus(selectedTypeId)}
+            </FieldSet>
+          </FieldGroup>
         </>}
         {pendingNew ? <FieldDescription>{t('pendingChoiceHelp')}</FieldDescription> : null}
         {!readOnly && !create ? <><FieldSeparator /><DefinitionLifecycle label={category ? field.label : t('typesAndStatuses')} kind="field" id={field.id} objectTypeId={definition.id} state={field.state} isProtected={field.isProtected} canDelete={field.canDelete} disabled={dirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} onDeleted={onDeleted} /></> : null}

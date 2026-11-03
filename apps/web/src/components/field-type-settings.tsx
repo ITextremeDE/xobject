@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { v7 } from 'uuid';
-import { PlusIcon } from 'lucide-react';
+import {PlusIcon,ChevronDownIcon} from 'lucide-react';
+import {ChoiceValueEditor} from './choice-value-editor';
+import {SettingsHelp} from './settings-help';
+import {Collapsible,CollapsibleTrigger,CollapsibleContent} from '@/components/ui/collapsible';
+import {Separator} from '@/components/ui/separator';
 import type { CustomFieldKind, FieldConfig, Labels } from '@xobject/contracts';
 import { Field, FieldGroup, FieldLabel, FieldSet, FieldLegend, FieldDescription } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -14,10 +18,16 @@ export const fieldKindKey = (kind: string) => `fieldKind_${kind}`;
 export function FieldTypeSettings({ readOnly = false, kind, config, onChange, disabled, onPendingChange }: {
   readOnly?: boolean; kind: CustomFieldKind; config: FieldConfig; onChange: (config: FieldConfig) => void; disabled: boolean; onPendingChange: (value: boolean) => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [newLabels, setNewLabels] = useState<Labels>({});
   useEffect(() => { onPendingChange(Object.values(newLabels).some(Boolean)); }, [newLabels, onPendingChange]);
   const options = config.options ?? [];
+  function move(id:string,target:string){
+    const from=options.findIndex(option=>option.id===id),to=options.findIndex(option=>option.id===target);
+    if(from<0||to<0||from===to)return;
+    const next=[...options];next.splice(to,0,next.splice(from,1)[0]);onChange({...config,options:next});
+    requestAnimationFrame(()=>document.querySelector<HTMLElement>(`[data-choice-handle="${id}"]`)?.focus());
+  }
   return <FieldGroup className={kind==='money'?'grid items-start gap-4 sm:grid-cols-2':undefined}>
     {kind === 'decimal' || kind === 'money' ? <Field data-disabled={disabled || undefined}><FieldLabel htmlFor="field-scale">{t('decimalScale')}</FieldLabel><Input id="field-scale" type="number" min={0} max={12} value={config.scale ?? 2} disabled={disabled} onChange={event => onChange({ ...config, scale: Number(event.target.value) })} /></Field> : null}
     {kind === 'money' ? <Field data-disabled={disabled || undefined}><FieldLabel htmlFor="field-currency">{t('defaultCurrency')}</FieldLabel><Input id="field-currency" value={config.currency ?? 'EUR'} minLength={3} maxLength={3} pattern="[A-Z]{3}" required disabled={disabled} onChange={event => onChange({ ...config, currency: event.target.value.toUpperCase() })} /><FieldDescription>{t('currencyHelp')}</FieldDescription></Field> : null}
@@ -27,8 +37,9 @@ export function FieldTypeSettings({ readOnly = false, kind, config, onChange, di
       <Field data-disabled={disabled || undefined} orientation="horizontal"><Checkbox id="field-reference-multiple" checked={config.multiple ?? false} disabled={disabled} onCheckedChange={checked => onChange({ ...config, multiple: checked === true })} /><FieldLabel htmlFor="field-reference-multiple">{t('multipleChoice')}</FieldLabel></Field>
     </> : null}
     {kind === 'single_choice' || kind === 'multiple_choice' ? <FieldSet><FieldLegend>{t('choiceValues')}</FieldLegend><FieldGroup>
-      {options.map((option, index) => <FieldSet key={option.id}><FieldLegend variant="label">{option.labels[i18n.language as 'de' | 'en'] ?? option.labels.en ?? option.labels.de ?? t('unnamedOption')}</FieldLegend><TranslatedLabelInput id={`field-option-${option.id}`} value={option.labels} readOnly={readOnly} readOnlyHelp={t('readOnlyLabelHelp')} disabled={disabled && !readOnly} onChange={labels => onChange({ ...config, options: options.map(item => item.id === option.id ? { ...item, labels } : item) })} /><Field data-disabled={disabled || undefined} orientation="horizontal"><Checkbox id={`field-option-active-${option.id}`} checked={option.active} disabled={disabled} onCheckedChange={checked => onChange({ ...config, options: options.map(item => item.id === option.id ? { ...item, active: checked === true } : item) })} /><FieldLabel htmlFor={`field-option-active-${option.id}`}>{t('activeChoice')} ({index + 1})</FieldLabel></Field></FieldSet>)}
-      {!readOnly ? <FieldSet><FieldLegend variant="label">{t('newChoice')}</FieldLegend><TranslatedLabelInput id="field-new-option" value={newLabels} onChange={setNewLabels} disabled={disabled} requireOne={false} /><Button type="button" variant="outline" disabled={disabled || !hasLabel(newLabels) || options.length >= 300} onClick={() => { onChange({ ...config, options: [...options, { id: v7(), labels: cleanLabels(newLabels), active: true }] }); setNewLabels({}); }}><PlusIcon data-icon="inline-start" />{t('addChoice')}</Button>{Object.values(newLabels).some(Boolean) ? <FieldDescription>{t('pendingChoiceHelp')}</FieldDescription> : null}</FieldSet> : null}
+      <SettingsHelp title={t('configurationDetails')}>{t('choiceEditorHelp')} {t('translationHelp')}</SettingsHelp>
+      {options.map((option,index)=><div key={option.id}>{index?<Separator className="mb-3"/>:null}<ChoiceValueEditor id={option.id} labels={option.labels} active={option.active} readOnly={readOnly} disabled={disabled&&!readOnly} onLabels={labels=>onChange({...config,options:options.map(item=>item.id===option.id?{...item,labels}:item)})} onActive={active=>onChange({...config,options:options.map(item=>item.id===option.id?{...item,active}:item)})} onUp={index>0?()=>move(option.id,options[index-1].id):undefined} onDown={index<options.length-1?()=>move(option.id,options[index+1].id):undefined} onMoveTo={target=>move(option.id,target)}/></div>)}
+      {!readOnly?<Collapsible><CollapsibleTrigger render={<Button type="button" variant="outline" className="group/new-choice w-fit"/>}><PlusIcon data-icon="inline-start"/>{t('newChoice')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/new-choice:rotate-180"/></CollapsibleTrigger><CollapsibleContent className="pt-3"><FieldSet><FieldLegend variant="label" className="sr-only">{t('newChoice')}</FieldLegend><TranslatedLabelInput id="field-new-option" value={newLabels} onChange={setNewLabels} disabled={disabled} showHelp={false} requireOne={false}/><Button type="button" variant="outline" disabled={disabled||!hasLabel(newLabels)||options.length>=300} onClick={()=>{onChange({...config,options:[...options,{id:v7(),labels:cleanLabels(newLabels),active:true}]});setNewLabels({});}}><PlusIcon data-icon="inline-start"/>{t('addChoice')}</Button>{Object.values(newLabels).some(Boolean)?<FieldDescription>{t('pendingChoiceHelp')}</FieldDescription>:null}</FieldSet></CollapsibleContent></Collapsible>:null}
     </FieldGroup></FieldSet> : null}
   </FieldGroup>;
 }

@@ -1,3 +1,5 @@
+import {installModuleCatalog} from './migrations/0007-module-catalog.js';
+import {materializeLegacyFormLayouts} from './migrations/0006-materialize-form-layouts.js';
 import { hardenStorage } from './storage-integrity.js';
 import { migratePrototypeBaseline } from './migrations/0001-prototype-baseline.js';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
@@ -24,7 +26,7 @@ export async function migrate(connectionString: string, secret: string, baseURL:
     await lock.query("SELECT pg_advisory_lock(hashtext('xobject:migrations'))");
     await sql`CREATE TABLE IF NOT EXISTS sys_schema_migrations(version integer PRIMARY KEY CHECK(version>0),name text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())`.execute(db);
     const applied=(await sql<{version:number}>`SELECT version FROM sys_schema_migrations ORDER BY version`.execute(db)).rows.map(row=>row.version);
-    if (applied.some(version=>version>4)) throw new Error('Database schema is newer than this application');
+    if (applied.some(version=>version>7)) throw new Error('Database schema is newer than this application');
     if (!applied.includes(1)) {
       const authMigration = await getMigrations(authOptions(pool, secret, baseURL));
       await authMigration.runMigrations();
@@ -49,6 +51,20 @@ export async function migrate(connectionString: string, secret: string, baseURL:
       await sql`CREATE TABLE sys_primary_chain_levels(workspace_id uuid NOT NULL REFERENCES sys_workspaces(id),role text NOT NULL CHECK(role IN('contact','project','case')),object_type_id uuid NOT NULL,PRIMARY KEY(workspace_id,role),UNIQUE(workspace_id,object_type_id),FOREIGN KEY(object_type_id,workspace_id) REFERENCES sys_object_types(id,workspace_id) ON DELETE RESTRICT)`.execute(tx);
       await sql`ALTER TABLE sys_relationship_types ADD COLUMN left_applicability jsonb,ADD COLUMN right_applicability jsonb`.execute(tx);
       await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(4,'primary_chain_and_relationship_conditions')`.execute(tx);
+    });
+    if(!applied.includes(5))await db.transaction().execute(async tx=>{
+      await sql`ALTER TABLE sys_object_types ADD COLUMN form_layouts jsonb NOT NULL DEFAULT '{}'::jsonb CHECK(jsonb_typeof(form_layouts)='object')`.execute(tx);
+      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(5,'object_form_layouts')`.execute(tx);
+    });
+    if(!applied.includes(6))await db.transaction().execute(async tx=>{
+      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
+      await materializeLegacyFormLayouts(tx);
+      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(6,'materialize_existing_form_layouts')`.execute(tx);
+    });
+    if(!applied.includes(7))await db.transaction().execute(async tx=>{
+      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
+      await installModuleCatalog(tx);
+      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(7,'module_catalog_and_fixed_primary_roles')`.execute(tx);
     });
   } finally {
     try { await lock.query("SELECT pg_advisory_unlock(hashtext('xobject:migrations'))"); }

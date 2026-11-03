@@ -9,6 +9,7 @@ const regionLabels: Record<string, string> = { locale: 'regionalFormat', dateFor
 export function journalEntityLabel(kind: string, t: TFunction): string { return t(entityLabels[kind] ?? 'journalOtherEntity'); }
 export function journalPropertyLabel(key: string, t: TFunction, technicalFallback = false): string {
   if (/^(left|right)(Min|Max)$/.test(key)) return `${t(key.startsWith('left') ? 'relationLeft' : 'relationRight')} · ${t(key.endsWith('Min') ? 'relationMinimum' : 'relationMaximum')}`;
+  if(key.startsWith('form_layout.'))return `${t('formLayoutTitle')} · ${key.slice(12)==='default'?t('formDefault'):key.slice(12)}`;
   if(key.startsWith('primary_chain.'))return `${t('primaryChainTitle')} · ${t(`primaryRole_${key.slice(14)}`)}`;
   if(key==='leftApplicability'||key==='rightApplicability')return `${t(key.startsWith('left')?'relationLeft':'relationRight')} · ${t('relationshipCondition')}`;
   if(key==='module.projects')return `${t('workspaceModules')} · ${t('projectsModule')}`;

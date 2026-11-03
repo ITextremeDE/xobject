@@ -6,8 +6,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 
 export function SettingsHelp({ title, children }: { title: string; children: ReactNode }) {
   return <Collapsible className="min-w-0">
-    <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="max-w-full justify-start whitespace-normal px-0 text-left" />}>
-      {title}<ChevronDownIcon data-icon="inline-end" />
+    <CollapsibleTrigger className="group/settings-help" render={<Button type="button" variant="ghost" size="sm" className="max-w-full justify-start whitespace-normal px-0 text-left" />}>
+      {title}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/settings-help:rotate-180" />
     </CollapsibleTrigger>
     <CollapsibleContent><FieldDescription className="pt-2">{children}</FieldDescription></CollapsibleContent>
   </Collapsible>;

@@ -1,3 +1,5 @@
+import {RecordPageLoading} from './loading';
+import {resolveFormLayout,formEntryKey,formLayoutEntries,type FormEntry,type FieldDefinition} from '@xobject/contracts';
 import {localizedFieldDraft,normalizedFieldDraft,numericDraftError} from '@/lib/numeric-input';
 import { RecordTree } from './record-tree';
 import { RecordRelationshipFields, RecordGeneralLinkAction, RecordDossier } from './record-relationships';
@@ -27,7 +29,7 @@ import { displayFieldValue } from './custom-field-control';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ClassificationFields, initialChoices, displayClassification, type ClassificationValues } from './classification-values';
 import { CustomFieldControl, emptyCustomValue } from './custom-field-control';
-import { ErrorNotice, Loading } from './feedback';
+import { ErrorNotice } from './feedback';
 
 type Props = {
   definition: ObjectDefinition; recordId: string; user: AuthUser; workspaceName: string; workspaceCode: string;
@@ -39,9 +41,9 @@ export function RecordPage(props: Props) {
   const record = useQuery({ queryKey: ['record', props.definition.id, props.recordId],
     queryFn: () => api('get_record', { objectTypeId: props.definition.id, recordId: props.recordId }), enabled: props.recordId !== 'new' });
   const relationships=useQuery({queryKey:['record-relationships',props.definition.id,props.recordId],queryFn:()=>api('get_record_relationships',{objectTypeId:props.definition.id,recordId:props.recordId==='new'?undefined:props.recordId})});
-  if (relationships.isPending) return <Loading/>;
+  if (relationships.isPending) return <RecordPageLoading definition={props.definition} isNew={props.recordId==='new'}/>;
   if (relationships.isError) return <ErrorNotice error={relationships.error} retry={()=>{void relationships.refetch();}}/>;
-  if (props.recordId !== 'new' && record.isPending) return <Loading />;
+  if (props.recordId !== 'new' && record.isPending) return <RecordPageLoading definition={props.definition}/>;
   if (record.isError) return <FieldGroup><Button type="button" variant="outline" className="w-fit" onClick={props.onClose}><ArrowLeftIcon data-icon="inline-start" />{t('backToOverview')}</Button><ErrorNotice error={record.error} retry={() => { void record.refetch(); }} /></FieldGroup>;
   return <RecordForm key={props.recordId} {...props} record={record.data} relationships={relationships.data} />;
 }
@@ -69,6 +71,14 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
   const applicableFields=activeFields.filter(field=>fieldApplies(field,activeFields,values));
   const [choices, setChoices] = useState<ClassificationValues>(() => record ? { type: record.type, status: record.status, category: record.category } : initialChoices(definition.classification));
   const [choiceBaseline, setChoiceBaseline] = useState(choices);
+  const [showHiddenRelationships,setShowHiddenRelationships]=useState(false);
+  const formRelationships=relationFields.filter(field=>(field.definition.kind==='custom'||(field.definition.kind==='primary'&&field.side==='right'))&&fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,values));
+  const configuredLayout=resolveFormLayout(definition.formLayouts?.default,applicableFields,true,formRelationships);
+  const hiddenRelationships=formLayoutEntries(configuredLayout).filter(entry=>!('fieldId' in entry)&&entry.visible===false).length;
+  const formGroups=[...configuredLayout.groups,...(configuredLayout.unassigned?.length?[{id:':unassigned',labels:{en:t('formUnassigned'),de:t('formUnassigned')},fields:configuredLayout.unassigned}]:[])];
+  const layout={groups:formGroups.map(group=>({...group,fields:group.fields.filter(entry=>'fieldId' in entry||entry.visible!==false||showHiddenRelationships)}))};
+  const groupLabel=(labels:Record<string,string>)=>labels[i18n.language]??labels.en??labels.de??Object.values(labels)[0]??'';
+
   const timestampInvalid = activeFields.some(field => field.kind === 'datetime' && typeof values[field.technicalName] === 'string' && Boolean(values[field.technicalName]) && !isInstant(String(values[field.technicalName])));
   const choicesDirty = JSON.stringify(choices) !== JSON.stringify(choiceBaseline);
   const [version, setVersion] = useState(record?.version);
@@ -102,10 +112,19 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
     const next = { ...values, [key]: value };
     const blocked=activeFields.filter(field=>fieldApplies(field,activeFields,values)&&!fieldApplies(field,activeFields,next)&&!emptyCustomValue(next[field.technicalName]));
     const blockedRelations=relationFields.filter(field=>field.targets.length&&!fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,next));
-    if(blockedRelations.length){setApplicabilityError(t('clearInapplicableRelationships'));return;}
+    if(blockedRelations.length){setShowHiddenRelationships(true);setApplicabilityError(t('clearInapplicableRelationships'));return;}
     if(blocked.length){setApplicabilityError(t('clearInapplicableFields',{fields:blocked.map(field=>field.label).join(', ')}));return;}
     setApplicabilityError('');setValues(next); setSaved(false);
     onDirtyChange(relationDirty || choicesDirty || Object.keys(next).some(k => JSON.stringify(next[k]) !== JSON.stringify(baseline[k])));
+  }
+  function renderEntry(entry:FormEntry){
+    if('fieldId' in entry){const field=applicableFields.find(field=>field.id===entry.fieldId);return field?renderField(field):null;}
+    return <RecordRelationshipFields entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
+  }
+  function renderField(field:FieldDefinition){
+    if(field.technicalName==='keyword')return <Field data-disabled={(mutation.isPending||readOnly)||undefined}><FieldLabel htmlFor="record-keyword">{field.label}{field.required?' *':''}</FieldLabel><Input id="record-keyword" value={String(values.keyword??'')} maxLength={200} required={field.required} disabled={mutation.isPending||readOnly} onChange={event=>update('keyword',event.target.value)}/></Field>;
+    if(['type','status','category'].includes(field.technicalName))return <ClassificationFields fields={[field]} config={definition.classification} value={choices} disabled={mutation.isPending||readOnly} onChange={next=>{setChoices(next);setSaved(false);onDirtyChange(relationDirty||JSON.stringify(next)!==JSON.stringify(choiceBaseline)||Object.keys(values).some(key=>JSON.stringify(values[key])!==JSON.stringify(baseline[key])));}}/>;
+    return <CustomFieldControl field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} disabled={mutation.isPending||readOnly} onChange={value=>update(field.technicalName,value)}/>;
   }
   useEffect(() => { document.querySelector<HTMLElement>('[data-record-page-title]')?.focus(); }, [recordId]);
   const title = record ? record.keyword || record.id : t('newRecord');
@@ -139,14 +158,8 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
       {mutation.error instanceof ApiError && mutation.error.status === 409 ? <Button variant="outline" type="button" onClick={() => { window.location.reload(); }}>{t('reload')}</Button> : null}
       {saved ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
       {!record?<FieldDescription>{t('recordCreateHelp')}</FieldDescription>:null}
-      {activeFields.some(field=>['keyword','type','status','category'].includes(field.technicalName))?<FieldSet><FieldLegend>{t('recordGeneral')}</FieldLegend><FieldGroup className="grid gap-6 md:grid-cols-2">
-        {hasKeyword ? <Field className="md:col-span-2" data-disabled={(mutation.isPending || readOnly) || undefined}><FieldLabel htmlFor="record-keyword">{t('keyword')}{activeFields.find(field => field.technicalName === 'keyword')?.required ? ' *' : ''}</FieldLabel><Input id="record-keyword" value={String(values.keyword ?? '')} maxLength={200} required={definition.fields.find(field => field.technicalName === 'keyword')?.required} disabled={mutation.isPending || readOnly} onChange={event => update('keyword', event.target.value)} /></Field> : null}
-        <ClassificationFields fields={activeFields} config={definition.classification} value={choices} disabled={mutation.isPending || readOnly} onChange={next => { setChoices(next); setSaved(false); onDirtyChange(relationDirty || JSON.stringify(next) !== JSON.stringify(choiceBaseline) || Object.keys(values).some(key => JSON.stringify(values[key]) !== JSON.stringify(baseline[key]))); }} />
-      </FieldGroup></FieldSet>:null}
-      {applicableFields.some(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword') ? <><Separator /><FieldSet><FieldLegend>{t('recordBusinessFields')}</FieldLegend><FieldGroup className="grid items-start gap-6 md:grid-cols-2">
-        {applicableFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(field => <div key={field.id} className={field.kind === 'multiline' || field.kind === 'multiple_choice' ? 'min-w-0 md:col-span-2' : 'min-w-0'}><CustomFieldControl field={field} value={values[field.technicalName] ?? null} workspaceId={definition.workspaceId} disabled={mutation.isPending || readOnly} onChange={value => update(field.technicalName, value)} /></div>)}
-      </FieldGroup></FieldSet></> : null}
-      <RecordRelationshipFields fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>
+      {hiddenRelationships?<Button type="button" variant="outline" className="self-start" onClick={()=>setShowHiddenRelationships(value=>!value)}>{t(showHiddenRelationships?'formHideOptionalRelationships':'formShowOptionalRelationships',{count:hiddenRelationships})}</Button>:null}
+      {layout.groups.filter(group=>group.fields.length).map((group,index)=><div key={group.id} className="flex min-w-0 flex-col gap-6">{index?<Separator/>:null}<FieldSet><FieldLegend>{groupLabel(group.labels)}</FieldLegend><FieldGroup className="grid min-w-0 items-start gap-6 md:grid-cols-2">{group.fields.map(entry=>{return <div key={formEntryKey(entry)} className={entry.width==='full'?'min-w-0 md:col-span-2':'min-w-0'}>{renderEntry(entry)}</div>;})}</FieldGroup></FieldSet></div>)}
       {record && inactiveFields.length ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-inactive" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3"/>}>{t('inactiveFields')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-inactive:rotate-180"/></CollapsibleTrigger><CollapsibleContent><Separator/><FieldSet className="p-4"><FieldLegend className="sr-only">{t('inactiveFields')}</FieldLegend><FieldGroup>
         {inactiveFields.filter(field => isCustomFieldKind(field.kind)).map(field => <CustomFieldControl key={field.id} field={field} value={localizedFieldDraft(field,record[field.technicalName] as FieldValue ?? null,regional)} workspaceId={definition.workspaceId} disabled onChange={() => {}} />)}
         <ClassificationFields fields={inactiveFields} config={definition.classification} value={{ type: record.type, status: record.status, category: record.category }} disabled onChange={() => {}} />

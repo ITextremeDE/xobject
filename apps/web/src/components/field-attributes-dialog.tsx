@@ -1,3 +1,4 @@
+import {ClassificationLoading} from './loading';
 import {FieldApplicabilitySettings} from './applicability-settings';
 import { TechnicalNameField } from './technical-name-field';
 import { Spinner } from '@/components/ui/spinner';
@@ -21,18 +22,18 @@ import { Kbd } from '@/components/ui/kbd';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { DefinitionLifecycle } from './definition-lifecycle';
-import { ErrorNotice, Loading } from './feedback';
+import { ErrorNotice } from './feedback';
 const ClassificationDialog = lazy(() => import('./classification-dialog').then(module => ({ default: module.ClassificationDialog })));
 
 type Props = { standardKind?: 'keyword'; onDeleted?: () => void; readOnly?: boolean; field?: FieldDefinition; definition?: ObjectDefinition; objectTypeId?: string; onClose: () => void; onCreated?: (id: string) => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; finalFocus?: () => HTMLElement | true };
-export function FieldAttributesDialog(props: Props & { field: FieldDefinition; definition: ObjectDefinition }) { return props.field.state !== 'deleted' && ['type', 'status', 'category'].includes(props.field.technicalName) ? <Suspense fallback={<Loading />}><ClassificationDialog {...props} onCreated={() => props.onCreated?.(props.field.id)} /></Suspense> : <FieldEditorDialog {...props} />; }
+export function FieldAttributesDialog(props: Props & { field: FieldDefinition; definition: ObjectDefinition }) { return props.field.state !== 'deleted' && ['type', 'status', 'category'].includes(props.field.technicalName) ? <Suspense fallback={<ClassificationLoading category={props.field.technicalName==='category'} objectLabel={props.definition.label} onClose={props.onClose}/>}><ClassificationDialog {...props} onCreated={() => props.onCreated?.(props.field.id)} /></Suspense> : <FieldEditorDialog {...props} />; }
 // Standard fields use the same editors; creation stays staged until submit.
 export function StandardFieldDialog({ standardKind, ...props }: Omit<Props, 'standardKind' | 'field' | 'objectTypeId'> & { standardKind: 'keyword' | 'type_status' | 'category'; definition: ObjectDefinition }) {
   const { t } = useTranslation();
   if (standardKind === 'keyword') return <FieldEditorDialog {...props} standardKind="keyword" />;
   const name = standardKind === 'type_status' ? 'type' : 'category';
   const field: FieldDefinition = { version: 1, id: `pending-${name}`,  technicalName: name, labels: {}, label: t(standardKind === 'type_status' ? 'typesAndStatuses' : 'classificationCategory'), kind: name, config: {}, required: false };
-  return <Suspense fallback={<span role="status" className="sr-only">{t('loading')}</span>}><ClassificationDialog {...props} field={field} create={standardKind} onCreated={() => props.onCreated?.(standardKind)} /></Suspense>;
+  return <Suspense fallback={<ClassificationLoading category={standardKind==='category'} objectLabel={props.definition.label} onClose={props.onClose}/>}><ClassificationDialog {...props} field={field} create={standardKind} onCreated={() => props.onCreated?.(standardKind)} /></Suspense>;
 }
 export function FieldEditorDialog({ standardKind, onDeleted, readOnly = false, field, definition, objectTypeId, onClose, onCreated, onDirtyChange, onBusyChange, finalFocus }: Props) {
   const { t } = useTranslation();

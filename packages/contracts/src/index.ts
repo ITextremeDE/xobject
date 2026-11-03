@@ -1,3 +1,5 @@
+import {formLayoutSchema,type FormLayouts,type FormRelationship} from './form-layout.js';
+export * from './form-layout.js';
 export * from './identity.js';
 import {uuidSchema} from './identity.js';
 import {primaryChainSchema,type PrimaryChain,type PrimaryChainContext} from './primary-chain.js';
@@ -34,14 +36,14 @@ const values = z.record(z.string(), fieldValueSchema).refine(
 const definitionState = z.enum(['active', 'inactive', 'deleted']);
 const workspaceRole = z.enum(['user', 'designer']);
 export const schemas = {
+  configure_form_layout: z.object({objectTypeId:uuid,version:z.number().int().positive(),context:z.string().regex(/^[a-z][a-z0-9_]*$/).max(63).refine(value=>!['constructor','prototype'].includes(value),'Reserved form context').default('default'),layout:formLayoutSchema.nullable()}).strict(),
   get_relationship_tree_branch: z.object({objectTypeId:uuid,recordId:uuid,offset:z.number().int().min(0).default(0),limit:z.number().int().min(1).max(100).default(25)}).strict(),
   get_record_relationships: z.object({ objectTypeId: uuid, recordId: uuid.optional() }).strict(),
   search_relationship_candidates: z.object({sourceValues:z.record(z.string(),fieldValueSchema).optional(), targetObjectTypeId: uuid.optional(), objectTypeId: uuid, recordId: uuid.optional(), relationshipTypeId: uuid, side: z.enum(['left','right']), query: z.string().trim().max(200).default(''), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict(),
   activate_relationship_type: z.object({ workspaceId: uuid, relationshipTypeId: uuid, version: z.number().int().positive() }).strict(),
   get_primary_chain_context: z.object({objectTypeId:uuid,recordId:uuid.optional(),parent:z.object({objectTypeId:uuid,recordId:uuid}).strict().nullable().optional()}).strict(),
-  configure_primary_chain: z.object({workspaceId:uuid,version:z.number().int().positive(),levels:primaryChainSchema}).strict(),
   list_workspace_modules: z.object({workspaceId:uuid}).strict(),
-  configure_workspace_module: z.object({workspaceId:uuid,key:z.literal('projects'),enabled:z.boolean(),version:z.number().int().positive()}).strict(),
+  configure_workspace_module: z.object({workspaceId:uuid,key:z.enum(['contacts','projects','documents']),enabled:z.boolean(),version:z.number().int().positive()}).strict(),
   list_relationship_types: z.object({ workspaceId: uuid }).strict(),
   create_relationship_type: z.object({ workspaceId: uuid, technicalName, configuration: customRelationshipConfigurationSchema }).strict(),
   configure_relationship_type: z.object({ workspaceId: uuid, relationshipTypeId: uuid, version: z.number().int().positive(), configuration: relationshipConfigurationSchema }).strict(),
@@ -102,12 +104,12 @@ export interface Workspace { id: string; code: string; name: string; default_lan
 export type DefinitionState = 'active' | 'inactive' | 'deleted';
 export interface ObjectSummary { state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
 export interface FieldDefinition extends ObjectSummary { applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
-export interface ObjectDefinition extends ObjectSummary { version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
+export interface ObjectDefinition extends ObjectSummary { formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
 export interface DataRecord { id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type: string | null; status: string | null; category: string[]; [field: string]: FieldValue | number }
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
 export interface SearchRecord { id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
-export interface JournalEntry { value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
+export interface JournalEntry { form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
 export type Inputs = { [K in Operation]: z.input<(typeof schemas)[K]> };
 export interface WorkspaceGroup { id: string; workspaceId: string; name: string; active: boolean; version: number; memberIds: string[] }
@@ -124,7 +126,6 @@ export interface Outputs {
   search_relationship_candidates: { records: RelatedRecord[]; total: number; limit: number; offset: number };
   activate_relationship_type: RelationshipType;
   get_primary_chain_context: PrimaryChainContext;
-  configure_primary_chain: {version:number;levels:PrimaryChain};
   list_workspace_modules: WorkspaceModule[];
   configure_workspace_module: WorkspaceModule;
   list_relationship_types: RelationshipType[];
@@ -174,6 +175,7 @@ export interface Outputs {
   set_user_profile: { name: string };
   set_user_language: { language: Language | null };
   configure_classification: ObjectDefinition;
+  configure_form_layout: ObjectDefinition;
   create_record: DataRecord;
   update_record: DataRecord;
   get_record: DataRecord;

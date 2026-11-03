@@ -23,7 +23,7 @@ Run schema initialization explicitly, using Better Auth's migration API and idem
 
 ## Consequences and limits
 
-- The stack can be evaluated without a browser interface, CRM modules or a production deployment.
+- The stack can be evaluated without a browser interface, Contacts modules or a production deployment.
 - Dynamic object schemas require runtime validation; TypeScript cannot statically know user-created columns.
 - A global lock is simple for this test but limits throughput. Finer locking remains a design task.
 - Later local slices implement optional Keyword, Type/Status and Category (ADR 0006), typed custom fields (ADR 0007), workspace configuration roles (ADR 0008) and definition lifecycle (ADR 0009). The remaining shared fields and full content permissions are still product work.

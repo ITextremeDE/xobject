@@ -4,30 +4,29 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { Link2Icon, PlusIcon, PencilIcon, XIcon, ArrowUpRightIcon, ChevronDownIcon } from 'lucide-react';
-import {fieldApplies,type FieldDefinition,type FieldValue,type RelationshipField,type RelatedRecord } from '@xobject/contracts';
+import {fieldApplies,type FormEntry,type FieldDefinition,type FieldValue,type RelationshipField,type RelatedRecord } from '@xobject/contracts';
 import { relatedIdentity } from '@/lib/relationship-selection';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Field, FieldDescription, FieldGroup, FieldSet, FieldLegend, FieldError } from '@/components/ui/field';
-import { Separator } from '@/components/ui/separator';
+import { Field, FieldDescription, FieldLabel, FieldError } from '@/components/ui/field';
+import { InputGroup, InputGroupInput, InputGroupAddon, InputGroupButton } from '@/components/ui/input-group';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { useClientPagination, ClientTablePagination } from './client-table-pagination';
 import { RelationshipPicker } from './relationship-picker';
 export { RecordDossier } from './record-dossier';
 
-type Props = { objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
+type Props = { entry:FormEntry; objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
 
-export function RecordRelationshipFields({ fields, onChange, primaryChain,fieldDefinitions,values, ...props }: Props) {
-  const { t } = useTranslation();
-  const primary=fields.find(field=>field.definition.kind==='primary'&&field.side==='right');
-  const remaining=fields.filter(field=>field.definition.kind==='custom'&&fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},fieldDefinitions,values));
-  const sourceValues=(field:RelationshipField)=>{const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;const controller=fieldDefinitions.find(item=>item.id===rule?.fieldId);return controller?{[controller.technicalName]:values[controller.technicalName]??null}:undefined;};
-  const control = (field: RelationshipField) => <RelationshipControl sourceValues={sourceValues(field)} key={`${field.definition.id}:${field.side}`} {...props} field={field} onChange={targets => onChange(fields.map(old => old === field ? { ...old, targets } : old))} />;
-  if (!primary && !remaining.length) return null;
-  return <><Separator/><FieldGroup>
-    {primary?<PrimaryAssociationFields {...props} configuration={primaryChain??null} field={primary} onChange={targets=>onChange(fields.map(old=>old===primary?{...old,targets}:old))}/>:null}
-    {remaining.length ? <FieldSet><FieldLegend>{t('recordRelationships')}</FieldLegend><FieldDescription>{t('relationshipEditorHelp')}</FieldDescription><FieldGroup>{remaining.map(control)}</FieldGroup></FieldSet> : null}
-  </FieldGroup></>;
+export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fieldDefinitions,values,...props }:Props){
+  const field='primary' in entry?fields.find(field=>field.definition.kind==='primary'&&field.side==='right'):'relationshipTypeId' in entry?fields.find(field=>field.definition.id===entry.relationshipTypeId&&field.side===entry.side):undefined;
+  if(!field)return null;
+  const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;
+  if(!fieldApplies({applicability:rule},fieldDefinitions,values))return null;
+  const change=(targets:RelatedRecord[])=>onChange(fields.map(old=>old===field?{...old,targets}:old));
+  if(field.definition.kind==='primary')return <PrimaryAssociationFields {...props} configuration={primaryChain??null} field={field} onChange={change}/>;
+  const controller=fieldDefinitions.find(item=>item.id===rule?.fieldId);
+  const sourceValues=controller?{[controller.technicalName]:values[controller.technicalName]??null}:undefined;
+  return <RelationshipControl {...props} sourceValues={sourceValues} field={field} expandedDefault={'expanded' in entry?entry.expanded:undefined} onChange={change}/>;
 }
 
 export function RecordGeneralLinkAction({field, objectTypeId, recordId, disabled, onApply, onPickerDirtyChange}: {
@@ -44,7 +43,7 @@ export function RecordGeneralLinkAction({field, objectTypeId, recordId, disabled
   </>;
 }
 
-function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode }: Omit<Props, 'fields' | 'onChange' | 'fieldDefinitions' | 'values'> & { sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
+function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'fieldDefinitions' | 'values' | 'entry'> & { expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
   const { t, i18n } = useTranslation(), [pickerOpen, setPickerOpen] = useState(false);
   const navigate = useNavigate();
   const label = (labels: Record<string, string>) => labels[i18n.language] ?? labels.de ?? labels.en ?? Object.values(labels)[0] ?? '';
@@ -53,7 +52,7 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
   const required = field.definition.active && (field.side === 'left' ? field.definition.leftMin : field.definition.rightMin) > 0;
   const editable = !readOnly && field.definition.active;
   const invalid = required && !field.targets.length;
-  const [expanded,setExpanded]=useState(field.targets.length>0||required);
+  const [expanded,setExpanded]=useState(expandedDefault==='open'||(expandedDefault!=='closed'&&(field.targets.length>0||required)));
   const id = `relation-${field.definition.id}-${field.side}`;
   const pagination = useClientPagination(field.targets);
   const close = () => { onPickerDirtyChange(false); setPickerOpen(false); };
@@ -65,7 +64,20 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
     <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={t('relationshipOpenRecord', { name: target.keyword })} title={t('openRecord')} nativeButton={false} render={<Link to={path(target)} />}><ArrowUpRightIcon /></Button>
     {editable ? <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={t('removeRelationship', { name: target.keyword })} title={t('removeRelationship', { name: target.keyword })} onClick={() => remove(target)}><XIcon /></Button> : null}
   </>;
-  return <Field aria-labelledby={`${id}-title`} data-invalid={invalid || undefined}><Collapsible open={expanded} onOpenChange={setExpanded}>
+  const target = field.targets[0];
+  return <Field className="min-w-0" aria-labelledby={`${id}-title`} data-invalid={invalid || undefined}>
+    {single && field.targets.length <= 1 ? <>
+      <FieldLabel id={`${id}-title`} htmlFor={id}>{fieldLabel}</FieldLabel>
+      <InputGroup>
+        <InputGroupInput id={id} readOnly disabled={disabled} value={target?.keyword ?? ''} title={target?.keyword} placeholder={t('noSelection')} aria-required={required || undefined} aria-invalid={invalid || undefined} aria-describedby={invalid ? `${id}-error` : undefined}/>
+        <InputGroupAddon align="inline-end" className="gap-0.5">
+          {editable ? <InputGroupButton id={`${id}-choose`} size="icon-xs" disabled={disabled} title={t(target ? 'relationshipChange' : 'relationshipChoose')} aria-label={chooseLabel} onClick={() => setPickerOpen(true)}>{target ? <PencilIcon/> : <Link2Icon/>}</InputGroupButton> : null}
+          {target ? <InputGroupButton size="icon-xs" disabled={disabled} nativeButton={false} title={t('openRecord')} aria-label={t('relationshipOpenRecord', {name: target.keyword})} render={<Link to={path(target)}/>}><ArrowUpRightIcon/></InputGroupButton> : null}
+          {target && editable ? <InputGroupButton size="icon-xs" disabled={disabled} title={t('removeRelationship', {name: target.keyword})} aria-label={t('removeRelationship', {name: target.keyword})} onClick={() => remove(target)}><XIcon/></InputGroupButton> : null}
+        </InputGroupAddon>
+      </InputGroup>
+      {target?.state === 'inactive' ? <FieldDescription>{label(target.objectLabels)} · {t('definition_inactive')}</FieldDescription> : null}
+    </> : <Collapsible open={expanded} onOpenChange={setExpanded}>
       <div className="flex items-center justify-between gap-3">
         <CollapsibleTrigger render={<Button type="button" variant="ghost" className="group/relation h-auto min-h-8 min-w-0 shrink flex-wrap justify-start whitespace-normal px-0 py-1 text-left"/>}><ChevronDownIcon data-icon="inline-start" className="transition-transform group-aria-expanded/relation:rotate-180"/><span id={`${id}-title`}>{fieldLabel}</span><Badge variant="secondary">{field.targets.length}</Badge>{single?<span className="text-xs text-muted-foreground">{t('relationshipAtMostOne')}</span>:null}</CollapsibleTrigger>
         {editable ? <Button id={`${id}-choose`} type="button" variant="outline" size="icon-sm" disabled={disabled} aria-label={chooseLabel} title={t(single && field.targets.length ? 'relationshipChange' : 'addRelatedRecord')} onClick={() => setPickerOpen(true)}>{single && field.targets.length ? <PencilIcon/> : <PlusIcon/>}</Button> : null}
@@ -84,7 +96,7 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
         {!field.targets.length ? <TableRow><TableCell colSpan={3} className="h-16 text-center text-muted-foreground">{t('relationshipNoneSelected')}</TableCell></TableRow> : null}</TableBody>
       </Table></div>
       {field.targets.length > 10 ? <ClientTablePagination pagination={pagination} disabled={disabled} countLabel={t('relationshipCount', { count: field.targets.length })} /> : null}
-      </CollapsibleContent></Collapsible>
+      </CollapsibleContent></Collapsible>}
     {!field.definition.active ? <FieldDescription>{t('relationshipInactiveHelp')}</FieldDescription> : null}
     {invalid ? <FieldError id={`${id}-error`}>{t('relationshipRequiredHelp')}</FieldError> : null}
     {pickerOpen ? <RelationshipPicker sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); setExpanded(true); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}
