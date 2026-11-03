@@ -1,3 +1,5 @@
+import {SettingsHelp} from './settings-help';
+import {SettingsSection} from './settings-section';
 import {AccountSecurityLoading} from './loading';
 import { SettingsTable } from './settings-table';
 import { ClientTablePagination, useClientPagination } from './client-table-pagination';
@@ -12,7 +14,7 @@ import { LogOutIcon, RefreshCwIcon } from 'lucide-react';
 import type { AccountSession, AuthUser } from '@xobject/contracts';
 import { api, ApiError } from '@/lib/api';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
-import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend, FieldSeparator, FieldError } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend, FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -63,10 +65,11 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
   const confirmationInvalid = Boolean(confirmation && confirmation !== newPassword);
   const formatDate = (value: string) => formatRegionalDate(value, regional, timeZone, true);
   return <FieldGroup>
-    <FieldDescription>{t('signedInAccount', { email: user.email })}</FieldDescription>
+    {initialOnly ? <FieldDescription>{t('signedInAccount', { email: user.email })}</FieldDescription> : null}
     {notice ? <Alert><AlertDescription role="status">{t(notice)}</AlertDescription></Alert> : null}
     {security.isPending ? <AccountSecurityLoading initialOnly={initialOnly}/> : security.isError ? <ErrorNotice error={security.error} retry={() => { void security.refetch(); }} /> : <>
-      <form id="account-password-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (valid && !busy && security.data.hasPassword) password.mutate(); }}><FieldSet disabled={busy}><FieldLegend>{t('changePassword')}</FieldLegend>
+      {!initialOnly ? <SettingsSection><Field><FieldLabel htmlFor="account-email">{t('email')}</FieldLabel><Input id="account-email" type="email" value={user.email} readOnly autoComplete="email" aria-describedby="account-email-help"/><FieldDescription id="account-email-help">{t('profileEmailReadOnly')}</FieldDescription><SettingsHelp title={t('emailChangeDetails')}>{t('profileEmailHelp')}</SettingsHelp></Field></SettingsSection> : null}
+      <SettingsSection><form id="account-password-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (valid && !busy && security.data.hasPassword) password.mutate(); }}><FieldSet className="min-w-0" disabled={busy}><FieldLegend>{t('changePassword')}</FieldLegend>
         {password.isError ? password.error instanceof ApiError && passwordErrors[password.error.message] ? ['Current password is incorrect', 'New password must be different'].includes(password.error.message) ? null : <Alert variant="destructive"><AlertDescription>{t(passwordErrors[password.error.message])}</AlertDescription></Alert> : <ErrorNotice error={password.error} /> : null}
         {security.data.hasPassword ? <FieldGroup>
           <Field data-disabled={busy || undefined} data-invalid={currentPasswordInvalid}><FieldLabel htmlFor="current-password">{t('currentPassword')}</FieldLabel><Input id="current-password" type="password" autoComplete="current-password" value={currentPassword} aria-invalid={currentPasswordInvalid} aria-describedby={currentPasswordInvalid ? 'current-password-error' : undefined} required maxLength={128} disabled={busy} onChange={event => { setCurrentPassword(event.target.value); password.reset(); setNotice(''); }} />{currentPasswordInvalid ? <FieldError id="current-password-error">{t('currentPasswordWrong')}</FieldError> : null}</Field>
@@ -75,12 +78,12 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
           <Field data-disabled={(busy || initialOnly) || undefined} orientation="horizontal"><Checkbox id="password-revoke-others" checked={initialOnly || revokeOthers} disabled={busy || initialOnly} onCheckedChange={checked => setRevokeOthers(checked === true)} /><FieldLabel htmlFor="password-revoke-others">{t('revokeOnPasswordChange')}</FieldLabel></Field>
           <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:flex-wrap sm:justify-end"><Button type="button" variant="outline" disabled={!dirty || busy} onClick={reset}>{t('resetPreferences')}</Button><Button type="submit" disabled={!valid || busy} aria-keyshortcuts={keyboardCommands.save.aria}>{password.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{password.isPending ? t('saving') : t('changePassword')}<Kbd>{saveShortcutLabel}</Kbd></Button></Field>
         </FieldGroup> : <FieldDescription>{t('noLocalPassword')}</FieldDescription>}
-      </FieldSet></form>
-      {!initialOnly ? <><FieldSeparator />
-      <FieldSet><FieldLegend>{t('activeSessions')}</FieldLegend><FieldDescription>{t('sessionListHelp')}</FieldDescription>
+      </FieldSet></form></SettingsSection>
+      {!initialOnly ? <>
+      <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('activeSessions')}</FieldLegend><FieldDescription>{t('sessionListHelp')}</FieldDescription>
         <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:flex-wrap sm:justify-end"><Button type="button" variant="outline" disabled={busy || security.isFetching} onClick={() => { void security.refetch(); }}><RefreshCwIcon data-icon="inline-start" />{t('refreshSessions')}</Button><Button type="button" variant="outline" disabled={busy || !security.data.sessions.some(session => !session.current)} onClick={() => { revoke.reset(); setConfirmSession('others'); }}><LogOutIcon data-icon="inline-start" />{t('revokeOtherSessions')}</Button></Field>
         <SettingsTable aria-label={t('activeSessions')}><TableHeader><TableRow><TableHead className="w-full sm:w-[45%]">{t('sessionDevice')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[30%]">{t('sessionUpdated')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[25%]"><span className="sr-only">{t('action')}</span></TableHead></TableRow></TableHeader><TableBody>{pagination.rows.map(session => <TableRow key={session.id}><TableCell className="whitespace-normal"><div>{sessionDevice(session, t('unknownDevice'))}</div><FieldDescription>{session.current ? t('currentSession') : session.ipAddress ?? t('unknownDevice')}</FieldDescription><FieldDescription>{t('sessionExpires', { time: formatDate(session.expiresAt) })}</FieldDescription><div className="mt-2 sm:hidden"><FieldDescription>{t('sessionUpdated')}: <time dateTime={session.updatedAt}>{formatDate(session.updatedAt)}</time></FieldDescription>{!session.current ? <Button type="button" variant="outline" className="mt-2" disabled={busy} aria-label={t('revokeNamedSession', { name: sessionDevice(session, t('unknownDevice')) })} onClick={() => { revoke.reset(); setConfirmSession(session.id); }}><LogOutIcon data-icon="inline-start" />{t('signOut')}</Button> : null}</div></TableCell><TableCell className="hidden whitespace-normal sm:table-cell"><time dateTime={session.updatedAt}>{formatDate(session.updatedAt)}</time></TableCell><TableCell className="hidden sm:table-cell">{!session.current ? <Button type="button" variant="outline" disabled={busy} aria-label={t('revokeNamedSession', { name: sessionDevice(session, t('unknownDevice')) })} onClick={() => { revoke.reset(); setConfirmSession(session.id); }}><LogOutIcon data-icon="inline-start" />{t('signOut')}</Button> : null}</TableCell></TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('sessionCount', { count: pagination.total })} disabled={busy} />
-      </FieldSet></> : null}
+      </FieldSet></SettingsSection></> : null}
     </>}
     <AlertDialog open={confirmSession !== null} onOpenChange={open => { if (!open && !revoke.isPending) setConfirmSession(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t(confirmSession === 'others' ? 'revokeOtherSessions' : 'revokeSession')}</AlertDialogTitle><AlertDialogDescription>{t('revokeSessionHelp')}</AlertDialogDescription></AlertDialogHeader>{revoke.isError ? <ErrorNotice error={revoke.error} /> : null}<AlertDialogFooter><AlertDialogCancel disabled={revoke.isPending}>{t('cancel')}</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={revoke.isPending} onClick={() => { if (confirmSession) revoke.mutate(confirmSession); }}>{revoke.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{t('signOut')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </FieldGroup>;

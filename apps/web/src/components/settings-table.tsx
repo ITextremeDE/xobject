@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 // Definition/account tables fit their settings pane; business-record tables
 // retain their independent column and horizontal scrolling behavior.
 export function SettingsTable({ className, ...props }: ComponentProps<typeof Table>) {
-  return <div className="min-w-0 overflow-hidden rounded-lg border"><Table className={cn('table-fixed [&_th]:whitespace-normal [&_th]:break-normal [&_td]:whitespace-normal [&_td]:[overflow-wrap:anywhere]', className)} {...props} /></div>;
+  return <div className="min-w-0 overflow-hidden rounded-lg border"><Table className={cn('table-fixed [&_th]:whitespace-normal [&_th]:[overflow-wrap:anywhere] [&_td]:whitespace-normal [&_td]:[overflow-wrap:anywhere]', className)} {...props} /></div>;
 }
 
 export function useSettingsTable<T>(rows: T[], searchText: (row: T) => string) {

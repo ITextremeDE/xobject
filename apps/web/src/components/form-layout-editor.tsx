@@ -1,3 +1,4 @@
+import {SettingsSection} from './settings-section';
 import {useLabelLanguages} from '@/lib/workspace-languages';
 import {createPortal} from 'react-dom';
 import {SettingsHelp} from './settings-help';
@@ -15,7 +16,6 @@ import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
 import {Field,FieldGroup,FieldLabel,FieldDescription,FieldSet,FieldLegend} from '@/components/ui/field';
 import {NativeSelect,NativeSelectOption} from '@/components/ui/native-select';
-import {Separator} from '@/components/ui/separator';
 import {TranslatedLabelInput,hasLabel,cleanLabels} from './translated-label-input';
 import {ErrorNotice} from './feedback';
 
@@ -54,7 +54,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
     <FieldDescription>{t('formDesignerHelp')}</FieldDescription>
     <SettingsHelp title={t('configurationDetails')}>{t('formDesignerControlsHelp')} {t('translationHelp')}</SettingsHelp>
     {mutation.isError?<ErrorNotice error={mutation.error}/>:null}
-    {shownGroups.map((group,groupIndex)=><FieldSet key={group.id} className="min-w-0">
+    {shownGroups.map((group,groupIndex)=><SettingsSection key={group.id}><FieldSet className="min-w-0">
       <FieldLegend className="mb-0 flex w-full flex-wrap items-center justify-between gap-2"><span>{localLabel(group.labels)||t('formGroup')}</span>{!group.unassigned&&!readOnly?<span className="flex gap-1">
         <Button type="button" variant="ghost" size="icon-sm" disabled={mutation.isPending||groupIndex===0} aria-label={t('formMoveGroupUp')} title={t('formMoveGroupUp')} onClick={()=>moveGroup(groupIndex,-1)}><ArrowUpIcon/></Button>
         <Button type="button" variant="ghost" size="icon-sm" disabled={mutation.isPending||groupIndex===draft.groups.length-1} aria-label={t('formMoveGroupDown')} title={t('formMoveGroupDown')} onClick={()=>moveGroup(groupIndex,1)}><ArrowDownIcon/></Button>
@@ -62,7 +62,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
       </span>:null}</FieldLegend>
       {group.unassigned?<FieldDescription>{t('formUnassignedHelp')}</FieldDescription>:<TranslatedLabelInput showHelp={false} id={`form-group-${group.id}`} value={group.labels} readOnly={readOnly} disabled={mutation.isPending} onChange={labels=>updateGroup(groupIndex,{labels})}/>}
       {!group.fields.length?<FieldDescription>{t('formGroupEmpty')}</FieldDescription>:null}
-      <FieldGroup className="gap-4">{group.fields.map((entry,index)=>{
+      <FieldGroup className="gap-6">{group.fields.map((entry,index)=>{
         const element=elements.find(element=>element.key===formEntryKey(entry));if(!element)return null;
         const relation=element.relationship;
         const label=element.field?.label??(relation?.definition.kind==='primary'?t('primaryChainTitle'):localLabel(relation!.side==='left'?relation!.definition.leftLabels:relation!.definition.rightLabels));
@@ -80,10 +80,10 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
             {!('fieldId' in entry)?<Field><FieldLabel htmlFor={element.required?undefined:`${id}-visibility`}>{t('formVisibility')}</FieldLabel>{element.required?<FieldDescription>{t('formRequiredVisible')}</FieldDescription>:<NativeSelect id={`${id}-visibility`} className="w-full" aria-label={t('formVisibilityFor',{name:label})} disabled={readOnly||mutation.isPending} value={entry.visible===false?'hidden':'shown'} onChange={event=>patch({visible:event.target.value==='shown'})}><NativeSelectOption value="shown">{t('formShown')}</NativeSelectOption><NativeSelectOption value="hidden">{t('formHidden')}</NativeSelectOption></NativeSelect>}</Field>:null}
             {'relationshipTypeId' in entry&&!element.single?<Field><FieldLabel htmlFor={`${id}-expansion`}>{t('formExpansion')}</FieldLabel><NativeSelect id={`${id}-expansion`} className="w-full" aria-label={t('formExpansionFor',{name:label})} disabled={readOnly||mutation.isPending||entry.visible===false} value={entry.expanded??'auto'} onChange={event=>patch({expanded:event.target.value as 'auto'|'open'|'closed'})}><NativeSelectOption value="auto">{t('formExpansionAuto')}</NativeSelectOption><NativeSelectOption value="open">{t('formExpansionOpen')}</NativeSelectOption><NativeSelectOption value="closed">{t('formExpansionClosed')}</NativeSelectOption></NativeSelect></Field>:null}
           </FieldGroup>
-          {index<group.fields.length-1?<Separator/>:null}
+
         </FieldSet>;
-      })}</FieldGroup><Separator/>
-    </FieldSet>)}
+      })}</FieldGroup>
+    </FieldSet></SettingsSection>)}
     {!readOnly?<Button type="button" variant="outline" disabled={mutation.isPending||draft.groups.length>=50} onClick={()=>setDraft(old=>appendFormGroup(old,{id:crypto.randomUUID(),labels:{[newGroupLanguage]:t('formNewGroup',{lng:newGroupLanguage})},fields:[]}))}><PlusIcon data-icon="inline-start"/>{t('formAddGroup')}</Button>:null}
   </form>{actionTarget?createPortal(actions,actionTarget):null}</>;
 }

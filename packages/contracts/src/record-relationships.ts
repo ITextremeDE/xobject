@@ -21,10 +21,10 @@ export interface RelationshipTreeChild {
   edgeId: string;
   record: RelatedRecord;
   relationshipTypeId: string;
-  kind: 'primary' | 'general' | 'custom';
+  kind: 'primary';
   labels: Record<string,string>;
   sideLabels: Record<string,string>;
-  direction: 'outgoing' | 'incoming' | 'undirected';
+  direction: 'outgoing';
   hasChildren: boolean;
 }
 export interface RelationshipTreeBranch {

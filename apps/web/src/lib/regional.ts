@@ -6,7 +6,7 @@ export function formatRegionalDate(value: string, regional: RegionalSettings = d
   if (regional.dateFormat === 'locale') result = new Intl.DateTimeFormat(regional.locale, { dateStyle: 'medium', timeZone: zone }).format(date);
   else {
     const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
-    const part = (type: string) => parts.find(item => item.type === type)!.value;
+    const part = (type: string) => {const text=parts.find(item => item.type === type)!.value;return type==='year'?text.padStart(4,'0'):text;};
     result = regional.dateFormat === 'iso' ? `${part('year')}-${part('month')}-${part('day')}` : regional.dateFormat === 'dmy' ? `${part('day')}.${part('month')}.${part('year')}` : `${part('month')}/${part('day')}/${part('year')}`;
   }
   if (includeTime && !dateOnly) result += `, ${new Intl.DateTimeFormat(regional.locale, { timeZone: zone, timeStyle: 'short', ...(regional.hourCycle === 'locale' ? {} : { hourCycle: regional.hourCycle }) }).format(date)}`;
@@ -30,4 +30,16 @@ export function regionalSettingPreview(key: keyof RegionalSettings, regional: Re
   if (key === 'hourCycle') return new Intl.DateTimeFormat(regional.locale, { timeZone, timeStyle: 'short', ...(regional.hourCycle === 'locale' ? {} : { hourCycle: regional.hourCycle }) }).format(new Date('2026-07-15T13:45:00Z'));
   if (key === 'numberFormat') return formatRegionalNumber('1234.56', regional, 2);
   return new Intl.DateTimeFormat(regional.locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(regionalWeekStart(regional) === 1 ? '2026-07-13T00:00:00Z' : '2026-07-19T00:00:00Z'));
+}
+
+/** Currency placement follows the locale; numeric separators may be overridden independently. */
+export function formatRegionalMoney(amount: string, currency: string, regional: RegionalSettings, scale = 2): string {
+  const parts = new Intl.NumberFormat(regional.locale, { style: 'currency', currency, currencyDisplay: 'code', minimumFractionDigits: scale, maximumFractionDigits: scale }).formatToParts(amount as unknown as number);
+  let inserted = false;
+  return parts.map(part => {
+    if (!['integer', 'group', 'decimal', 'fraction'].includes(part.type)) return part.value;
+    if (inserted) return '';
+    inserted = true;
+    return formatRegionalNumber(amount.replace(/^-/, ''), regional, scale);
+  }).join('');
 }

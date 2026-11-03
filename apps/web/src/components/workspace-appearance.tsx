@@ -1,3 +1,4 @@
+import {SettingsSection} from './settings-section';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WorkspaceMenuAppearanceProvider } from '@/lib/menu-appearance';
 import { MenuAppearancePreview } from './menu-appearance-preview';
@@ -46,14 +47,14 @@ export function WorkspaceAppearanceFields({ value, disabled, onChange }: { value
     <FieldDescription>{t('workspaceAppearanceHelp')}</FieldDescription>
     {fontFailed ? <Alert variant="destructive"><AlertDescription>{t('workspaceFontFailed')}</AlertDescription></Alert> : null}
     <div className="grid min-w-0 items-start gap-6 @[600px]/design:grid-cols-2">
-    <Tabs defaultValue="colors" className="min-w-0">
+    <SettingsSection><Tabs defaultValue="colors" className="min-w-0">
       <TabsList aria-label={t('designOptions')} className="w-full"><TabsTrigger value="colors">{t('designColors')}</TabsTrigger><TabsTrigger value="fonts">{t('designFonts')}</TabsTrigger><TabsTrigger value="menu">{t('designMenu')}</TabsTrigger></TabsList>
       <TabsContent value="colors"><FieldSet><FieldLegend className="sr-only">{t('designColors')}</FieldLegend><FieldGroup className="gap-4 pt-2">
-        <FieldGroup className="grid grid-cols-2 gap-4">{select('baseColor', workspaceBaseColors.map(item => ({ value: item, label: t(`designPalette_${item}`) })))}
+        <FieldGroup className="grid gap-4 sm:grid-cols-2">{select('baseColor', workspaceBaseColors.map(item => ({ value: item, label: t(`designPalette_${item}`) })))}
         {select('theme', workspaceThemes.map(item => ({ value: item, label: t(`designPalette_${item}`) })))}</FieldGroup>
         {color('primaryColor')}{color('secondaryColor')}
         <FieldDescription id="workspace-colors-help">{t('workspaceColorsHelp')} {t('colorPreviewHelp')}</FieldDescription>
-        <FieldGroup className="grid grid-cols-2 gap-4">{select('chartColor', workspaceChartColors.map(item => ({ value: item, label: t(`designPalette_${item}`) })))}
+        <FieldGroup className="grid gap-4 sm:grid-cols-2">{select('chartColor', workspaceChartColors.map(item => ({ value: item, label: t(`designPalette_${item}`) })))}
         {select('radius', workspaceRadii.map(item => ({ value: item, label: t(`designRadius_${item}`) })))}</FieldGroup>
       </FieldGroup></FieldSet></TabsContent>
       <TabsContent value="fonts"><FieldSet><FieldLegend className="sr-only">{t('designFonts')}</FieldLegend><FieldGroup className="gap-4 pt-2">
@@ -65,8 +66,8 @@ export function WorkspaceAppearanceFields({ value, disabled, onChange }: { value
         {select('menuColor', workspaceMenuColors.map(item => ({ value: item, label: t(`designMenu_${item}`) })))}
         {select('menuAccent', workspaceMenuAccents.map(item => ({ value: item, label: t(`designMenuAccent_${item}`) })))}
       </FieldGroup></FieldSet></TabsContent>
-    </Tabs>
-    <FieldSet className="min-w-0 @[600px]/design:sticky @[600px]/design:top-0"><FieldLegend>{t('preview')}</FieldLegend>
+    </Tabs></SettingsSection>
+    <SettingsSection className="@[600px]/design:sticky @[600px]/design:top-0"><FieldSet className="min-w-0"><FieldLegend>{t('preview')}</FieldLegend>
     <Tabs value={previewMode} onValueChange={setPreviewMode}><TabsList aria-label={t('preview')} className="w-full"><TabsTrigger value="light">{t('light')}</TabsTrigger><TabsTrigger value="dark">{t('dark')}</TabsTrigger></TabsList>
       {[false, true].map(dark => <TabsContent value={dark ? 'dark' : 'light'} key={String(dark)} data-theme-preview={dark ? 'dark' : 'light'} className={dark ? 'dark' : undefined}>
         <WorkspaceMenuAppearanceProvider appearance={preview} dark={dark}><div style={workspaceAppearanceTokens(preview, dark) as CSSProperties} className="flex flex-col gap-4 rounded-lg border bg-background p-4 font-sans text-foreground" role="group" aria-label={t(dark ? 'dark' : 'light')}>
@@ -77,6 +78,6 @@ export function WorkspaceAppearanceFields({ value, disabled, onChange }: { value
           <MenuAppearancePreview />
         </div></WorkspaceMenuAppearanceProvider>
       </TabsContent>)}
-    </Tabs></FieldSet></div>
+    </Tabs></FieldSet></SettingsSection></div>
   </FieldGroup>;
 }

@@ -10,7 +10,7 @@ This document specifies the agreed product scope. Requirements below are product
 
 xObject is an open-source application for defining, managing and connecting structured data objects. Configurable modules provide domain models on a shared object platform. The initial delivery includes Contacts, project management and user-defined object types.
 
-Version 1 includes workspaces, local user accounts, configurable data definitions, permissions, relationships, per-field change history, a recycle bin, tables, forms and record detail views with a relationship tree and dossier. All application capabilities must be available through both API and MCP from the outset.
+Version 1 includes workspaces, local user accounts, configurable data definitions, permissions, relationships, per-field change history, a recycle bin, tables, forms and record detail views with a Projects-owned Primary hierarchy tree and a dossier. All application capabilities must be available through both API and MCP from the outset.
 
 Out of scope for version 1:
 
@@ -223,9 +223,9 @@ The common fields apply to every supplied type. Additional fields are:
 | ID | Requirement | Acceptance criterion |
 | --- | --- | --- |
 | R-030 | Every type provides a searchable, sortable table with Type/Status/Category filters and personal column settings. | Column visibility, order and width persist for the respective user. Filtering and sorting do not expose restricted records or values. |
-| R-031 | Record details provide a form, Primary association, Journal, Dossier and an expandable relationship tree. Module forms select relevant fields. | A user opens the same record from two modules without changing its identity; required missing fields follow R-006. Dossier includes accessible incoming/outgoing links and Primary association. |
-| R-032 | The tree starts at the currently opened record and follows real relationships, with Primary association providing the main hierarchy. | A direct Contact Task appears directly under the Contact. A Project view begins at that Project, a Case view at that Case. Missing levels are not invented. |
-| R-033 | General links in the tree are distinguishable from hierarchical links, and repeated nodes cannot produce infinite traversal. | A cyclic general relationship terminates expansion along that path. A repeated record remains a reference to the same record, with permissions checked at every node. Exact relationship selection/direction requires UI specification. |
+| R-031 | Record details provide a form, Journal and Dossier. The active Projects module additionally provides Primary association and its expandable hierarchy tree. Module forms select relevant fields. | A user opens the same record from two modules without changing its identity; required missing fields follow R-006. Dossier includes accessible incoming/outgoing links and Primary association. |
+| R-032 | The Projects tree starts at the currently opened record and is generated exclusively from real Primary associations, descending from parent to child. | A direct Contact Task appears directly under the Contact. A Project view begins at that Project, a Case view at that Case. Missing levels are not invented. |
+| R-033 | The tree is available only with the active Projects module. General/custom links do not generate tree branches; defensive traversal limits and per-record permissions apply. | With Projects disabled there is no Tree tab and the shared tree API/MCP operation is unavailable. Parallel General/custom links do not duplicate Primary children; these links remain available in the Dossier. |
 
 ## 8. Journal and lifecycle
 

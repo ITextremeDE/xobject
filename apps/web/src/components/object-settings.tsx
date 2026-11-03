@@ -1,3 +1,5 @@
+import {createPortal} from 'react-dom';
+import {SettingsSection} from './settings-section';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { SettingsTable, SettingsTableSearch, useSettingsTable } from './settings-table';
 import { ClientTablePagination } from './client-table-pagination';
@@ -20,16 +22,16 @@ import { DefinitionLifecycle, DefinitionJournal } from './definition-lifecycle';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Link } from 'react-router';
 import { Kbd } from '@/components/ui/kbd';
-import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend, FieldSeparator } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend } from '@/components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 import { TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { ErrorNotice, Loading } from './feedback';
 
-type GuardProps = { onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void };
+type GuardProps = { actionTarget?: HTMLElement | null; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void };
 
-export function ObjectSettings({ readOnly = false, workspace, user, onDirtyChange, onBusyChange }: GuardProps & { readOnly?: boolean; workspace: Workspace; user: AuthUser }) {
+export function ObjectSettings({ readOnly = false, workspace, user, onDirtyChange, onBusyChange, actionTarget }: GuardProps & { readOnly?: boolean; workspace: Workspace; user: AuthUser }) {
   const { t } = useTranslation();
   const language = user.language ?? workspace.default_language;
   const [showDeleted, setShowDeleted] = useState(false);
@@ -55,15 +57,15 @@ export function ObjectSettings({ readOnly = false, workspace, user, onDirtyChang
   if (types.isPending) return <Loading variant="object"/>;
   if (types.isError) return <ErrorNotice error={types.error} retry={() => { void types.refetch(); }} />;
   return <FieldGroup>
-    <div className="flex flex-wrap items-end gap-3">
+    <SettingsSection><div className="flex flex-wrap items-end gap-3">
     {!sorted.length ? <FieldDescription>{t('noObjects')}</FieldDescription> : <Field className="min-w-48 flex-1" data-disabled={busy || undefined}><FieldLabel htmlFor="settings-object">{t('selectObjectType')}</FieldLabel><Select items={sorted.map(type => ({ value: type.id, label: type.state && type.state !== 'active' ? `${type.label} (${t(`definition_${type.state}`)})` : type.label }))} value={id} disabled={busy} onValueChange={value => { if (!value || value === id) return; if (dirty) setPendingId(value); else setSelectedId(value); }}>
       <SelectTrigger id="settings-object" className="w-full"><SelectValue /></SelectTrigger>
       <SelectContent><SelectGroup>{sorted.map(type => <SelectItem key={type.id} value={type.id}>{type.label}{type.state && type.state !== 'active' ? ` (${t(`definition_${type.state}`)})` : ''}</SelectItem>)}</SelectGroup></SelectContent>
     </Select></Field>}
     {!readOnly ? <Button type="button" variant="outline" data-settings-add-object disabled={busy || createBusy} onClick={() => setCreateOpen(true)}><PlusIcon data-icon="inline-start" />{t('newObject')}</Button> : null}
     </div>
-    <Field data-disabled={(busy || dirty) || undefined} orientation="horizontal"><Checkbox id="show-deleted-definitions" checked={showDeleted} disabled={busy || dirty} onCheckedChange={checked => setShowDeleted(checked === true)} /><FieldLabel htmlFor="show-deleted-definitions">{t('showDeletedDefinitions')}</FieldLabel></Field>
-    {id ? <>{definition.isPending ? <Loading variant="object"/> : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} /> : <ObjectAttributes user={user} canReadContents={Boolean(user.isAdmin)} showDeleted={showDeleted} readOnly={readOnly} key={definition.data.id} definition={definition.data} workspace={workspace} onDirtyChange={setDirty} onBusyChange={setBusy} />}
+    <Field data-disabled={(busy || dirty) || undefined} orientation="horizontal"><Checkbox id="show-deleted-definitions" checked={showDeleted} disabled={busy || dirty} onCheckedChange={checked => setShowDeleted(checked === true)} /><FieldLabel htmlFor="show-deleted-definitions">{t('showDeletedDefinitions')}</FieldLabel></Field></SettingsSection>
+    {id ? <>{definition.isPending ? <Loading variant="object"/> : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} /> : <ObjectAttributes actionTarget={actionTarget} user={user} canReadContents={Boolean(user.isAdmin)} showDeleted={showDeleted} readOnly={readOnly} key={definition.data.id} definition={definition.data} workspace={workspace} onDirtyChange={setDirty} onBusyChange={setBusy} />}
     </> : null}
     {createOpen ? <DefinitionDialog kind="object" workspaceId={workspace.id} onClose={closeCreate} onDirtyChange={setCreateDirty} onBusyChange={setCreateBusy} finalFocus={() => document.querySelector<HTMLElement>('[data-settings-add-object]') ?? true} onCreated={async id => { await client.invalidateQueries({ queryKey: ['types', workspace.id] }); setCreateOpen(false); setCreateDirty(false); setCreateBusy(false); if (dirty) setPendingId(id); else setSelectedId(id); }} /> : null}
     <AlertDialog open={confirmCreateClose} onOpenChange={setConfirmCreateClose}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { setCreateDirty(false); setCreateOpen(false); setConfirmCreateClose(false); }}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
@@ -71,7 +73,7 @@ export function ObjectSettings({ readOnly = false, workspace, user, onDirtyChang
   </FieldGroup>;
 }
 
-function ObjectAttributes({ user, canReadContents = false, showDeleted = false, readOnly = false, definition, workspace, onDirtyChange, onBusyChange }: GuardProps & { user: AuthUser; canReadContents?: boolean; showDeleted?: boolean; readOnly?: boolean; definition: ObjectDefinition; workspace: Workspace }) {
+function ObjectAttributes({ user, canReadContents = false, showDeleted = false, readOnly = false, definition, workspace, onDirtyChange, onBusyChange, actionTarget }: GuardProps & { user: AuthUser; canReadContents?: boolean; showDeleted?: boolean; readOnly?: boolean; definition: ObjectDefinition; workspace: Workspace }) {
   const { t } = useTranslation();
   const client = useQueryClient();
   const [baseline, setBaseline] = useState(definition.labels);
@@ -111,26 +113,26 @@ function ObjectAttributes({ user, canReadContents = false, showDeleted = false, 
   useEffect(()=>{if(!dirty){setBaselineVersion(definition.version);setBaseline(definition.labels);setLabels(definition.labels);}},[definition.version,definition.labels,dirty]);
   const kindLabel = (kind: string) => t(fieldKindKey(kind));
   return <>
-    <form id="object-settings-form" data-shortcut-submit aria-label={t('objectAttributes')} onSubmit={event => { event.preventDefault(); if (!locked && dirty && hasLabel(labels) && !mutation.isPending) mutation.mutate(); }}><FieldSet><FieldLegend>{t('objectProperties')}</FieldLegend><FieldDescription>{t('objectPropertiesHelp')}</FieldDescription>
+    <form id={`object-settings-${definition.id}`} data-shortcut-submit aria-label={t('objectAttributes')} onSubmit={event => { event.preventDefault(); if (!locked && dirty && hasLabel(labels) && !mutation.isPending) mutation.mutate(); }}><SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('objectProperties')}</FieldLegend><FieldDescription>{t('objectPropertiesHelp')}</FieldDescription>
       {mutation.isError ? <ErrorNotice error={mutation.error} /> : null}
       {saved && !dirty ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
       <FieldGroup>
         <TranslatedLabelInput compactHelp readOnly={locked} readOnlyHelp={t(definition.state === 'inactive' ? 'inactiveObjectHelp' : 'readOnlyLabelHelp')} id="object-label" value={labels} disabled={mutation.isPending || lifeBusy} onChange={next => { setLabels(next); setSaved(false); }} />
 
       </FieldGroup>
-      {!locked ? <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={!dirty || mutation.isPending} onClick={() => { setBaselineVersion(definition.version); setBaseline(definition.labels); setLabels(definition.labels); setSaved(false); mutation.reset(); }}>{t('resetObjectProperties')}</Button><Button type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !hasLabel(labels) || mutation.isPending}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('saveObjectProperties')}<Kbd>{saveShortcutLabel}</Kbd></Button></Field> : null}
-    </FieldSet></form>
-    <FieldSeparator /><FieldSet><FieldLegend className="flex w-full items-center justify-between gap-3"><span>{t('objectFields')}</span>{!locked ? <>{missingStandard.length ? <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" data-settings-add-field disabled={mutation.isPending} />}><PlusIcon data-icon="inline-start" />{t('newField')}<ChevronDownIcon data-icon="inline-end" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{missingStandard.map(kind => <DropdownMenuItem key={kind} onClick={() => setNewStandardOpen(kind)}>{t(kind === 'type_status' ? 'typesAndStatuses' : kind === 'category' ? 'classificationCategory' : 'keyword')}</DropdownMenuItem>)}</DropdownMenuGroup><DropdownMenuSeparator /><DropdownMenuGroup><DropdownMenuItem onClick={() => setNewFieldOpen(true)}>{t('customField')}</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu> : <Button type="button" variant="outline" data-settings-add-field disabled={mutation.isPending} onClick={() => setNewFieldOpen(true)}><PlusIcon data-icon="inline-start" />{t('newField')}</Button>}</> : null}</FieldLegend><SettingsTableSearch value={search} onChange={onSearch} /><SettingsTable aria-label={t('objectFields')}><TableHeader><TableRow><TableHead className="w-[45%] sm:w-[25%]">{t('objectName')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[25%]">{t('technicalName')}</TableHead><TableHead className="w-[30%] sm:w-[20%]">{t('fieldType')}</TableHead><TableHead className="w-[25%] sm:w-[15%]">{t('requiredField')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[15%]">{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>
+      {!locked && actionTarget ? createPortal(<><Button type="button" variant="outline" disabled={!dirty || mutation.isPending || lifeBusy} onClick={() => { setBaselineVersion(definition.version); setBaseline(definition.labels); setLabels(definition.labels); setSaved(false); mutation.reset(); }}>{t('resetPreferences')}</Button><Button type="submit" form={`object-settings-${definition.id}`} aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !hasLabel(labels) || mutation.isPending || lifeBusy}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('save')}<Kbd>{saveShortcutLabel}</Kbd></Button></>, actionTarget) : null}
+    </FieldSet></SettingsSection></form>
+    <SettingsSection><FieldSet className="min-w-0"><FieldLegend className="flex w-full items-center justify-between gap-3"><span>{t('objectFields')}</span>{!locked ? <>{missingStandard.length ? <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" data-settings-add-field disabled={mutation.isPending} />}><PlusIcon data-icon="inline-start" />{t('newField')}<ChevronDownIcon data-icon="inline-end" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{missingStandard.map(kind => <DropdownMenuItem key={kind} onClick={() => setNewStandardOpen(kind)}>{t(kind === 'type_status' ? 'typesAndStatuses' : kind === 'category' ? 'classificationCategory' : 'keyword')}</DropdownMenuItem>)}</DropdownMenuGroup><DropdownMenuSeparator /><DropdownMenuGroup><DropdownMenuItem onClick={() => setNewFieldOpen(true)}>{t('customField')}</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu> : <Button type="button" variant="outline" data-settings-add-field disabled={mutation.isPending} onClick={() => setNewFieldOpen(true)}><PlusIcon data-icon="inline-start" />{t('newField')}</Button>}</> : null}</FieldLegend><SettingsTableSearch value={search} onChange={onSearch} /><SettingsTable aria-label={t('objectFields')}><TableHeader><TableRow><TableHead className="w-[45%] sm:w-[25%]">{t('objectName')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[25%]">{t('technicalName')}</TableHead><TableHead className="w-[30%] sm:w-[20%]">{t('fieldType')}</TableHead><TableHead className="w-[25%] sm:w-[15%]">{t('requiredField')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[15%]">{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>
       {!pagination.total ? <TableRow><TableCell colSpan={5}>{t(search.trim() ? 'settingsNoMatches' : 'noFieldsYet')}</TableCell></TableRow> : null}{pagination.rows.map(field => <TableRow key={field.id} onClick={event => {
         if (mutation.isPending || lifeBusy || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString()) return;
         if (event.target instanceof Element && event.target.closest('button, a, input, select, textarea, [role="button"], [contenteditable]')) return;
         setSelectedFieldId(field.id);
       }}><TableCell><Button type="button" data-field-editor={field.id} variant="link" className="h-auto w-full justify-start whitespace-normal px-0 text-left [overflow-wrap:anywhere]" disabled={mutation.isPending || lifeBusy} onClick={() => setSelectedFieldId(field.id)}>{field.label}</Button>{ambiguousLabels.has(field.label.toLocaleLowerCase()) ? <div className="text-xs text-muted-foreground sm:hidden wrap-anywhere">{field.technicalName}</div> : null}{field.state && field.state !== 'active' ? <Badge variant="outline" className="mt-1 sm:hidden">{t(`definition_${field.state}`)}</Badge> : null}</TableCell><TableCell className="hidden sm:table-cell"><span className="block truncate" title={field.technicalName}>{field.technicalName}</span></TableCell><TableCell>{kindLabel(field.kind)}</TableCell><TableCell>{t(field.required ? 'yes' : 'no')}</TableCell><TableCell className="hidden sm:table-cell">{t(`definition_${field.state ?? 'active'}`)}</TableCell></TableRow>)}
-    </TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('fieldCount', { count: pagination.total })} disabled={mutation.isPending || lifeBusy} /></FieldSet>
-    <FieldSeparator /><FieldSet><FieldLegend>{t('objectManagement')}</FieldLegend>
+    </TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('fieldCount', { count: pagination.total })} disabled={mutation.isPending || lifeBusy} /></FieldSet></SettingsSection>
+    <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('objectManagement')}</FieldLegend>
       {!readOnly ? <DefinitionLifecycle label={definition.label} kind="object_type" id={definition.id} objectTypeId={definition.id} state={definition.state} isProtected={definition.isProtected} canDelete={definition.canDelete} disabled={dirty || fieldDirty || newFieldDirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} /> : <Badge variant="outline">{t(`definition_${definition.state ?? 'active'}`)}</Badge>}
       <Field orientation="horizontal" className="flex-wrap"><DefinitionJournal user={user} objectTypeId={definition.id} objectLabel={definition.label} fieldLabels={Object.fromEntries([...definition.fields, ...(definition.historicalFields ?? [])].map(field => [field.id, field.label]))} />{definition.state === 'inactive' && canReadContents ? <Button variant="outline" render={<Link to={`/w/${workspace.code}/objects/${definition.technicalName}`} />} nativeButton={false}>{t('viewArchivedRecords')}</Button> : null}</Field>
-    </FieldSet>
+    </FieldSet></SettingsSection>
     <Collapsible className="min-w-0 overflow-hidden rounded-lg border">
       <CollapsibleTrigger className="group/object-technical" render={<Button type="button" variant="ghost" className="w-full justify-between rounded-none" />}>
         {t('objectTechnicalDetails')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/object-technical:rotate-180" />
