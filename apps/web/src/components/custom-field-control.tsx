@@ -1,9 +1,9 @@
+import {TemporalFieldSkeleton} from './loading';
+import {lazy,Suspense} from 'react';
 import {useRegional} from '@/lib/regional-context';
-import {numericDraftError,numericSeparators} from '@/lib/numeric-input';
+import {numericDraftError,numericSeparators,formatNumericDraft} from '@/lib/numeric-input';
 import { defaultRegionalSettings, type RegionalSettings } from '@xobject/contracts';
-import { formatRegionalDate, formatRegionalNumber } from '@/lib/regional';
-import { useTimeZone } from '@/lib/time-zone-context';
-import { localTimestamp, timestampCandidates, isInstant } from '@/lib/time-zone';
+import { formatRegionalDate, formatRegionalNumber, formatRegionalMoney } from '@/lib/regional';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import Markdown from 'react-markdown';
@@ -21,6 +21,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 import { ErrorNotice, Loading } from './feedback';
 
+const RegionalTemporalField=lazy(()=>import('./regional-temporal-field').then(module=>({default:module.RegionalTemporalField})));
+
 export function emptyCustomValue(value: unknown): boolean {
   return value === null || value === undefined || value === '' || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length) || (typeof value === 'object' && !Array.isArray(value) && 'amount' in value && !String(value.amount ?? '').trim());
 }
@@ -28,7 +30,7 @@ const optionName = (labels: Record<string, string>, language: string) => labels[
 export function displayFieldValue(field: FieldDefinition, value: unknown, language: string, t: TFunction, principals: FieldPrincipal[] = [], timeZone = 'UTC', regional: RegionalSettings = defaultRegionalSettings): string {
   if (value === null || value === undefined || value === '') return '—';
   if (field.kind === 'boolean') return t(value === true ? 'yes' : 'no');
-  if (field.kind === 'money') { const money = value as MoneyValue; return `${formatRegionalNumber(money.amount, regional, field.config.scale ?? 2)} ${money.currency}`; }
+  if (field.kind === 'money') { const money = value as MoneyValue; return formatRegionalMoney(money.amount,money.currency,regional,field.config.scale??2); }
   if (field.kind === 'single_choice' || field.kind === 'multiple_choice') return (Array.isArray(value) ? value : [value]).map(id => { const option = field.config.options?.find(item => item.id === id); return option ? optionName(option.labels, language) : String(id); }).join(', ') || '—';
   if (field.kind === 'reference') return (Array.isArray(value) ? value : [value]).map(reference => { const ref = reference as ReferenceValue; return principals.find(item => item.kind === ref.kind && item.id === ref.id)?.name ?? `${t(`reference_${ref.kind}`)} · ${ref.id}`; }).join(', ') || '—';
   if (field.kind === 'date') return formatRegionalDate(String(value), regional, timeZone, false, true);
@@ -38,34 +40,24 @@ export function displayFieldValue(field: FieldDefinition, value: unknown, langua
 }
 export function CustomFieldControl({ field, value, workspaceId, disabled, onChange }: { field: FieldDefinition; value: FieldValue; workspaceId: string; disabled: boolean; onChange: (value: FieldValue) => void }) {
   const { t, i18n } = useTranslation();
-  const timeZone = useTimeZone();
   const regional=useRegional();
   const numericError=numericDraftError(field,value,regional);
   const id = `field-${field.id}`;
   const string = typeof value === 'string' ? value : '';
-  const candidates = field.kind === 'datetime' && string ? timestampCandidates(isInstant(string) ? localTimestamp(string, timeZone) : string, timeZone) : null;
-  const invalidTimestamp = candidates !== null && !isInstant(string);
-  const occurrenceLabel = (instant: string) => new Intl.DateTimeFormat(i18n.language, { timeZone, hour: '2-digit', minute: '2-digit', timeZoneName: 'longOffset' }).format(new Date(instant));
-  function changeInput(next: string) {
-    if (field.kind === 'datetime' && next) {
-      const candidates = timestampCandidates(next, timeZone);
-      onChange(candidates.length === 1 ? candidates[0] : next);
-    } else onChange(next || null);
-  }
+  const changeInput=(next:string)=>onChange(next||null);
+  if(field.kind==='date'||field.kind==='datetime')return <Suspense fallback={<TemporalFieldSkeleton label={`${field.label}${field.required?' *':''}`} datetime={field.kind==='datetime'}/>}><RegionalTemporalField field={field} value={value} disabled={disabled} onChange={onChange}/></Suspense>;
   if (field.kind === 'reference') return <ReferenceControl field={field} value={value} workspaceId={workspaceId} disabled={disabled} onChange={onChange} />;
   if (field.kind === 'multiple_choice') {
     const ids = Array.isArray(value) ? value as string[] : [];
     return <FieldSet><FieldLegend variant="label">{field.label}{field.required ? ' *' : ''}</FieldLegend><FieldGroup className="gap-3">{field.config.options?.filter(option => option.active || ids.includes(option.id)).map(option => <Field data-disabled={disabled || undefined} key={option.id} orientation="horizontal"><Checkbox id={`${id}-${option.id}`} checked={ids.includes(option.id)} disabled={disabled || (!option.active && !ids.includes(option.id))} onCheckedChange={checked => onChange((checked ? [...ids, option.id] : ids.filter(value => value !== option.id)).sort())} /><FieldLabel htmlFor={`${id}-${option.id}`}>{optionName(option.labels, i18n.language)}{!option.active ? ` (${t('inactiveChoice')})` : ''}</FieldLabel></Field>)}</FieldGroup></FieldSet>;
   }
-  return <Field data-disabled={disabled || undefined} data-invalid={invalidTimestamp||Boolean(numericError)}><FieldLabel htmlFor={id}>{field.label}{field.required ? ' *' : ''}</FieldLabel>
+  return <Field data-disabled={disabled || undefined} data-invalid={Boolean(numericError)}><FieldLabel htmlFor={id}>{field.label}{field.required ? ' *' : ''}</FieldLabel>
     {field.kind === 'multiline' ? <><Textarea id={id} value={string} required={field.required} maxLength={10000} disabled={disabled} onChange={event => onChange(event.target.value || null)} />{field.config.formatted && string ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/field-preview" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-3 py-2"/>}>{t('preview')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/field-preview:rotate-180"/></CollapsibleTrigger><CollapsibleContent><Separator/><div className="flex flex-col gap-3 p-3 wrap-anywhere"><Markdown skipHtml allowedElements={['p', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'h1', 'h2', 'h3', 'h4', 'br', 'hr']}>{string}</Markdown></div></CollapsibleContent></Collapsible> : null}</>
       : field.kind === 'boolean' || field.kind === 'single_choice' ? <Select items={field.kind === 'boolean' ? [{ value: 'none', label: t('noSelection') }, { value: 'true', label: t('yes') }, { value: 'false', label: t('no') }] : [{ value: 'none', label: t('noSelection') }, ...(field.config.options ?? []).filter(option => option.active || option.id === value).map(option => ({ value: option.id, label: `${optionName(option.labels, i18n.language)}${!option.active ? ` (${t('inactiveChoice')})` : ''}` }))]} value={value === null ? 'none' : String(value)} required={field.required} disabled={disabled} onValueChange={next => onChange(next === 'none' || next === null ? null : field.kind === 'boolean' ? next === 'true' : next)}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{field.kind === 'boolean' ? <><SelectItem value="none">{t('noSelection')}</SelectItem><SelectItem value="true">{t('yes')}</SelectItem><SelectItem value="false">{t('no')}</SelectItem></> : <><SelectItem value="none">{t('noSelection')}</SelectItem>{field.config.options?.filter(option => option.active || option.id === value).map(option => <SelectItem key={option.id} value={option.id} disabled={!option.active}>{optionName(option.labels, i18n.language)}{!option.active ? ` (${t('inactiveChoice')})` : ''}</SelectItem>)}</>}</SelectGroup></SelectContent></Select>
-      : field.kind === 'money' ? <div className="flex gap-2"><Input id={id} inputMode="decimal" maxLength={100} aria-invalid={Boolean(numericError)} aria-describedby={numericError?`${id}-number-error`:undefined} value={(value as MoneyValue | null)?.amount ?? ''} required={field.required} disabled={disabled} aria-label={field.label} onChange={event => onChange({ amount: event.target.value, currency: (value as MoneyValue | null)?.currency ?? field.config.currency ?? 'EUR' })} /><Input className="w-24" value={(value as MoneyValue | null)?.currency ?? field.config.currency ?? 'EUR'} maxLength={3} minLength={3} pattern="[A-Z]{3}" aria-invalid={numericError==='invalidCurrencyInput'} aria-describedby={numericError?`${id}-number-error`:undefined} disabled={disabled} aria-label={t('currency')} onChange={event => onChange({ amount: (value as MoneyValue | null)?.amount ?? '', currency: event.target.value.toUpperCase() })} /></div>
-      : <Input id={id} className={field.kind === 'date' || field.kind === 'datetime' ? 'scheme-light dark:scheme-dark' : undefined} aria-invalid={invalidTimestamp||Boolean(numericError)} aria-describedby={numericError?`${id}-number-error`:invalidTimestamp ? `${id}-time-error` : undefined} type={field.kind === 'date' ? 'date' : field.kind === 'datetime' ? 'datetime-local' : field.kind === 'email' ? 'email' : field.kind === 'phone' ? 'tel' : field.kind === 'url' ? 'url' : 'text'} inputMode={field.kind === 'integer' ? 'numeric' : field.kind === 'decimal' ? 'decimal' : undefined} step={field.kind === 'datetime' ? 'any' : undefined} value={field.kind === 'datetime' && isInstant(string) ? localTimestamp(string, timeZone) : string} required={field.required} maxLength={10000} disabled={disabled} onInput={field.kind === 'date' || field.kind === 'datetime' ? event => changeInput(event.currentTarget.value) : undefined} onChange={event => changeInput(event.target.value)} /> }
+      : field.kind === 'money' ? <div className="flex gap-2"><Input id={id} inputMode="decimal" maxLength={100} aria-invalid={Boolean(numericError)} aria-describedby={numericError?`${id}-number-error`:undefined} value={(value as MoneyValue | null)?.amount ?? ''} required={field.required} disabled={disabled} onBlur={()=>onChange(formatNumericDraft(field,value,regional))} aria-label={field.label} onChange={event => onChange({ amount: event.target.value, currency: (value as MoneyValue | null)?.currency ?? field.config.currency ?? 'EUR' })} /><Input className="w-24" value={(value as MoneyValue | null)?.currency ?? field.config.currency ?? 'EUR'} maxLength={3} minLength={3} pattern="[A-Z]{3}" aria-invalid={numericError==='invalidCurrencyInput'} aria-describedby={numericError?`${id}-number-error`:undefined} disabled={disabled} aria-label={t('currency')} onBlur={()=>onChange(formatNumericDraft(field,value,regional))} onChange={event => onChange({ amount: (value as MoneyValue | null)?.amount ?? '', currency: event.target.value.toUpperCase() })} /></div>
+      : <Input id={id} aria-invalid={Boolean(numericError)} aria-describedby={numericError?`${id}-number-error`:undefined} type={field.kind === 'email' ? 'email' : field.kind === 'phone' ? 'tel' : field.kind === 'url' ? 'url' : 'text'} inputMode={field.kind === 'integer' ? 'numeric' : field.kind === 'decimal' ? 'decimal' : undefined} value={string} required={field.required} maxLength={10000} disabled={disabled} onChange={event => changeInput(event.target.value)} onBlur={field.kind==='integer'||field.kind==='decimal'?()=>onChange(formatNumericDraft(field,value,regional)):undefined} /> }
     {numericError?<FieldError id={`${id}-number-error`}>{t(numericError,{scale:field.config.scale??2,decimal:numericSeparators(regional).decimal})}</FieldError>:null}
-    {invalidTimestamp ? <FieldError id={`${id}-time-error`}>{t(candidates && candidates.length > 1 ? 'ambiguousTime' : 'nonexistentTime')}</FieldError> : null}
-    {candidates && candidates.length > 1 ? <Select items={candidates.map(instant => ({ value: instant, label: occurrenceLabel(instant) }))} value={isInstant(string) ? string : null} disabled={disabled} onValueChange={next => { if (next) onChange(next); }}><SelectTrigger aria-label={t('timeOccurrence')} className="w-full"><SelectValue placeholder={t('timeOccurrence')} /></SelectTrigger><SelectContent><SelectGroup>{candidates.map(instant => <SelectItem key={instant} value={instant}>{occurrenceLabel(instant)}</SelectItem>)}</SelectGroup></SelectContent></Select> : null}
-    {field.kind === 'datetime' ? <FieldDescription>{t('timestampHelp', { timezone: timeZone })}</FieldDescription> : field.kind === 'phone' ? <FieldDescription>{t('phoneHelp')}</FieldDescription> : field.kind === 'decimal' || field.kind === 'money' ? <FieldDescription>{t('regionalDecimalHelp', { scale: field.config.scale ?? 2,decimal:numericSeparators(regional).decimal })}</FieldDescription> : null}
+    {field.kind === 'phone' ? <FieldDescription>{t('phoneHelp')}</FieldDescription> : field.kind === 'decimal' || field.kind === 'money' ? <FieldDescription>{t('regionalDecimalHelp', { scale: field.config.scale ?? 2,decimal:numericSeparators(regional).decimal })}</FieldDescription> : null}
   </Field>;
 }
 function ReferenceControl({ field, value, workspaceId, disabled, onChange }: { field: FieldDefinition; value: FieldValue; workspaceId: string; disabled: boolean; onChange: (value: FieldValue) => void }) {

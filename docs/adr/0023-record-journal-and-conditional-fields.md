@@ -17,7 +17,7 @@ The server reconstructs each record event's before/after field kind and configur
 
 A field is required only while applicable. UI, API and MCP evaluate the complete resulting record. Nonempty inapplicable values are rejected, including retained values omitted from a partial update; `false` and zero count as values. A discriminator change must explicitly clear incompatible values in the same transaction, or clear an optional value first. The UI refuses a selection that would conceal entered data and names the fields to clear. Nothing silently clears stored values.
 
-The shared field editor configures these rules. Record forms render only applicable active fields. An unsaved-change notice remains above every record tab; Tree, Dossier and Journal continue showing persisted data. Relationship controls use the separate Primary chain and per-custom-relationship collapsible Tables, including single-target definitions, with a dialog-based picker under ADR 0019. Single/multiple choices, search and server-side object filtering remain separate from persisted record data; required or populated connections stay visible.
+The shared field editor configures these rules. Record forms render only applicable active fields. An unsaved-change notice remains above every record tab; Tree, Dossier and Journal continue showing persisted data. Relationship controls use the separate Primary chain and labeled single-target custom fields and per-custom-relationship collapsible tables for multi-target definitions, with a dialog-based picker under ADR 0019. Single/multiple choices, search and server-side object filtering remain separate from persisted record data; required or populated connections stay visible.
 
 ## Scope and migration
 

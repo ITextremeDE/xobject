@@ -63,7 +63,7 @@ function GroupEditor({ workspaceId, group, members, isAdmin, canManage, onClose,
   const busy = save.isPending || state.isPending;
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
-  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}><DialogContent className="flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-xl" closeButtonDisabled={busy} finalFocus={() => document.querySelector<HTMLElement>(group ? `[data-group-editor="${group.id}"]` : '[data-group-create]') ?? true}>
+  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}><DialogContent className="bg-background text-foreground flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-xl" closeButtonDisabled={busy} finalFocus={() => document.querySelector<HTMLElement>(group ? `[data-group-editor="${group.id}"]` : '[data-group-create]') ?? true}>
     <DialogHeader className="px-4 pt-4 pr-12"><DialogTitle>{t(group ? 'editGroup' : 'createGroup')}</DialogTitle><DialogDescription>{t('groupEditorHelp')}</DialogDescription></DialogHeader>
     <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="group-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (canManage && dirty && name.trim() && !busy) save.mutate(); }}><FieldGroup>
       {save.isError ? <ErrorNotice error={save.error} /> : state.isError ? <ErrorNotice error={state.error} /> : null}

@@ -28,3 +28,12 @@ test('inherited preferences show concrete examples from workspace formats', asyn
   assert.equal(regionalSettingPreview('numberFormat', workspace), '1,234.56');
   assert.equal(regionalSettingPreview('weekStart', workspace), 'Sonntag');
 });
+
+test('currency placement and separators follow independent preferences without rounding exact values',async()=>{
+ const {formatRegionalMoney}=await import('../src/lib/regional.js');
+ const de={...defaultRegionalSettings,locale:'de-DE' as const},us={...defaultRegionalSettings,locale:'en-US' as const};
+ assert.equal(formatRegionalMoney('1234.56','EUR',de),'1.234,56\u00a0EUR');
+ assert.equal(formatRegionalMoney('1234.56','EUR',us),'EUR\u00a01,234.56');
+ assert.equal(formatRegionalMoney('-1234.56','USD',{...de,numberFormat:'dot'}),'-1,234.56\u00a0USD');
+ assert.equal(formatRegionalMoney('9007199254740993.12','EUR',de),'9.007.199.254.740.993,12\u00a0EUR');
+});

@@ -23,17 +23,17 @@ function useBranch(objectTypeId:string,recordId:string,enabled:boolean) {
     getNextPageParam:last=>last.offset+last.children.length<last.total?last.offset+last.children.length:undefined,
     enabled,staleTime:15_000});
 }
-export function RecordTree({objectTypeId,recordId,workspaceCode,primaryAvailable=true}:{objectTypeId:string;recordId:string;workspaceCode:string;primaryAvailable?:boolean}) {
+export function RecordTree({objectTypeId,recordId,workspaceCode}:{objectTypeId:string;recordId:string;workspaceCode:string}) {
   const {t,i18n}=useTranslation(),query=useBranch(objectTypeId,recordId,true),prefix=useId(),[activeId,setActive]=useState(`${prefix}-root`);
   useEffect(()=>setActive(`${prefix}-root`),[i18n.language,prefix]);
   if(query.isPending)return <Loading variant="tree"/>;
   if(query.isError&&!query.data)return <ErrorNotice error={query.error} retry={()=>{void query.refetch();}}/>;
   const branch=query.data!.pages[0];
-  return <FieldGroup><FieldDescription>{t(primaryAvailable?'treeSavedHelp':'treeCrossReferencesHelp')}</FieldDescription>
-    {primaryAvailable?<FieldSet><FieldLegend>{t('primaryContext')}</FieldLegend>
+  return <FieldGroup><FieldDescription>{t('treeSavedHelp')}</FieldDescription>
+    <FieldSet><FieldLegend>{t('primaryContext')}</FieldLegend>
       {branch.ancestorsTruncated?<FieldDescription>{t('treeMoreAncestors')}</FieldDescription>:null}
       {branch.ancestors.length?<Breadcrumb aria-label={t('primaryContext')}><BreadcrumbList>{branch.ancestors.map(ancestor=><Fragment key={identity(ancestor)}><BreadcrumbItem className="min-w-0"><BreadcrumbLink className="whitespace-normal wrap-anywhere" render={<Link to={recordPath(workspaceCode,ancestor)}/>}>{ancestor.keyword}</BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator/></Fragment>)}<BreadcrumbItem className="min-w-0"><BreadcrumbPage className="whitespace-normal wrap-anywhere">{branch.record.keyword}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>:<FieldDescription>{t('treeNoAncestors')}</FieldDescription>}
-    </FieldSet>:null}
+    </FieldSet>
     <Collapsible><CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="w-fit px-0"/>}>{t('keyboardHelp')}<ChevronRightIcon data-icon="inline-end"/></CollapsibleTrigger><CollapsibleContent><FieldDescription id={`${prefix}-help`}>{t('treeKeyboardHelp')}</FieldDescription></CollapsibleContent></Collapsible>
     <div className="min-w-0 overflow-x-auto rounded-lg border p-2"><ul role="tree" aria-label={t('recordTree')} className="min-w-0">
       <TreeNode record={branch.record} hasChildren={branch.total>0} root workspaceCode={workspaceCode} depth={0} path={[]} nodeId={`${prefix}-root`} position={1} total={1} activeId={activeId} setActive={setActive}/>
@@ -67,7 +67,7 @@ function TreeNode({record,hasChildren,root=false,via,workspaceCode,depth,path,no
     <div className="flex min-w-48 items-start gap-2 rounded-md p-1">
       {canExpand?<CollapsibleTrigger tabIndex={-1} aria-label={t(open?'collapseTreeRecord':'expandTreeRecord',{name:record.keyword})} render={<Button type="button" variant="ghost" size="icon-sm"/>}><ChevronRightIcon className={cn('transition-transform',open&&'rotate-90')}/></CollapsibleTrigger>:<span aria-hidden="true" className="size-8 shrink-0"/>}
       <div className="flex min-w-0 flex-1 flex-col gap-1 py-1">{root?<span className="font-medium wrap-anywhere">{record.keyword}</span>:<Button type="button" variant="link" tabIndex={-1} className="h-auto w-fit max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere" render={<Link to={recordPath(workspaceCode,record)}/>}>{record.keyword}</Button>}
-        <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{label(record.objectLabels)}</span>{via?<><Badge variant={via.kind==='primary'?'secondary':'outline'}>{label(via.labels)}</Badge>{via.kind!=='primary'?<span className="text-xs text-muted-foreground">{label(via.sideLabels)} · {t(`treeDirection_${via.direction}`)}</span>:null}</>:null}{record.state==='inactive'?<Badge variant="outline">{t('definition_inactive')}</Badge>:null}{repeated?<Badge variant="outline">{t('treeRepeated')}</Badge>:null}{depthLimit&&hasChildren?<span className="text-xs text-muted-foreground">{t('treeDepthLimit')}</span>:null}</div>
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{label(record.objectLabels)}</span>{via?<Badge variant="secondary">{label(via.labels)}</Badge>:null}{record.state==='inactive'?<Badge variant="outline">{t('definition_inactive')}</Badge>:null}{repeated?<Badge variant="outline">{t('treeRepeated')}</Badge>:null}{depthLimit&&hasChildren?<span className="text-xs text-muted-foreground">{t('treeDepthLimit')}</span>:null}</div>
       </div>
     </div>
     {canExpand?<CollapsibleContent><ul role="group" className="ml-4 min-w-0 border-l pl-3">

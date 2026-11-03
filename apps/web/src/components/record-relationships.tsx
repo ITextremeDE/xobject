@@ -70,7 +70,7 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
       <FieldLabel id={`${id}-title`} htmlFor={id}>{fieldLabel}</FieldLabel>
       <InputGroup>
         <InputGroupInput id={id} readOnly disabled={disabled} value={target?.keyword ?? ''} title={target?.keyword} placeholder={t('noSelection')} aria-required={required || undefined} aria-invalid={invalid || undefined} aria-describedby={invalid ? `${id}-error` : undefined}/>
-        <InputGroupAddon align="inline-end" className="gap-0.5">
+        <InputGroupAddon align="inline-end" className="shrink-0 gap-0.5 has-[>button]:mr-0">
           {editable ? <InputGroupButton id={`${id}-choose`} size="icon-xs" disabled={disabled} title={t(target ? 'relationshipChange' : 'relationshipChoose')} aria-label={chooseLabel} onClick={() => setPickerOpen(true)}>{target ? <PencilIcon/> : <Link2Icon/>}</InputGroupButton> : null}
           {target ? <InputGroupButton size="icon-xs" disabled={disabled} nativeButton={false} title={t('openRecord')} aria-label={t('relationshipOpenRecord', {name: target.keyword})} render={<Link to={path(target)}/>}><ArrowUpRightIcon/></InputGroupButton> : null}
           {target && editable ? <InputGroupButton size="icon-xs" disabled={disabled} title={t('removeRelationship', {name: target.keyword})} aria-label={t('removeRelationship', {name: target.keyword})} onClick={() => remove(target)}><XIcon/></InputGroupButton> : null}

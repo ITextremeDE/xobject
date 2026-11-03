@@ -224,15 +224,13 @@ async function journalEdge(tx:Executor,edge:Edge,type:RelationshipType,actor:str
   for(const ref of [left(edge),right(edge)])await sql`INSERT INTO sys_relationship_journal_endpoints VALUES(${journalId}::uuid,${edge.workspace_id}::uuid,${ref.objectTypeId}::uuid,${ref.recordId}::uuid)`.execute(tx);
 }
 
-/** One read-only level. Primary edges descend; all other edges are explicit cross references. */
+/** Projects read model: one level of Primary descendants, never general/custom links. */
 export async function relationshipTreeBranch(tx:Executor,args:{objectTypeId:string;recordId:string;offset:number;limit:number},actor:string):Promise<import('@xobject/contracts').RelationshipTreeBranch> {
   const model=await modelFor(tx,args.objectTypeId),record=await reference(tx,{objectTypeId:args.objectTypeId,recordId:args.recordId},model.workspace_id);
+  if(!await primaryChain(tx,model.workspace_id))throw new AppError(409,'Enable the Projects module first');
   const definitions=await relationshipTypes(tx,model.workspace_id),byId=new Map(definitions.map(type=>[type.id,type]));
-  const edges=await edgesFor(tx,model.workspace_id),focus=key(args);
-  const childrenFor=(identity:string)=>edges.filter(edge=>{
-    const type=byId.get(edge.relationship_type_id)!;
-    return type.kind==='primary'?key(left(edge))===identity:key(left(edge))===identity||key(right(edge))===identity;
-  });
+  const edges=(await edgesFor(tx,model.workspace_id)).filter(edge=>byId.get(edge.relationship_type_id)?.kind==='primary'),focus=key(args);
+  const childrenFor=(identity:string)=>edges.filter(edge=>key(left(edge))===identity);
   const parents=new Map(edges.filter(edge=>byId.get(edge.relationship_type_id)?.kind==='primary').map(edge=>[key(right(edge)),left(edge)]));
   const ancestors:RelatedRecord[]=[],seen=new Set([focus]);let parent=parents.get(focus);
   while(parent&&ancestors.length<32){
@@ -241,13 +239,12 @@ export async function relationshipTreeBranch(tx:Executor,args:{objectTypeId:stri
   }
   const candidates:import('@xobject/contracts').RelationshipTreeChild[]=[];
   for(const edge of childrenFor(focus)) {
-    const type=byId.get(edge.relationship_type_id)!,isLeft=key(left(edge))===focus;
-    const target=isLeft?right(edge):left(edge);
-    candidates.push({edgeId:edge.id,record:await reference(tx,target,model.workspace_id),relationshipTypeId:type.id,kind:type.kind,labels:type.labels,sideLabels:isLeft?type.leftLabels:type.rightLabels,direction:type.directed?(isLeft?'outgoing':'incoming'):'undirected',hasChildren:childrenFor(key(target)).length>0});
+    const type=byId.get(edge.relationship_type_id)!,target=right(edge);
+    candidates.push({edgeId:edge.id,record:await reference(tx,target,model.workspace_id),relationshipTypeId:type.id,kind:'primary',labels:type.labels,sideLabels:type.leftLabels,direction:'outgoing',hasChildren:childrenFor(key(target)).length>0});
   }
   const locale=(await sql<{language:Language|null;default_language:Language;available_languages:Language[]}>`SELECT u.language,w.default_language,w.available_languages FROM sys_users u CROSS JOIN sys_workspaces w WHERE u.id=${actor} AND w.id=${model.workspace_id}::uuid`.execute(tx)).rows[0];
   const collator=new Intl.Collator(effectiveWorkspaceLanguage(locale.language,locale.available_languages,locale.default_language),{numeric:true,sensitivity:'base'});
-  candidates.sort((a,b)=>Number(b.kind==='primary')-Number(a.kind==='primary')||collator.compare(a.record.keyword,b.record.keyword)||a.record.objectTypeId.localeCompare(b.record.objectTypeId)||a.record.recordId.localeCompare(b.record.recordId)||a.edgeId.localeCompare(b.edgeId));
+  candidates.sort((a,b)=>collator.compare(a.record.keyword,b.record.keyword)||a.record.objectTypeId.localeCompare(b.record.objectTypeId)||a.record.recordId.localeCompare(b.record.recordId)||a.edgeId.localeCompare(b.edgeId));
   return {record,ancestors,ancestorsTruncated:Boolean(parent),children:candidates.slice(args.offset,args.offset+args.limit),total:candidates.length,limit:args.limit,offset:args.offset};
 }
 

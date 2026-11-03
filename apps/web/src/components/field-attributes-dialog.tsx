@@ -1,3 +1,4 @@
+import {SettingsSection} from './settings-section';
 import {ClassificationLoading} from './loading';
 import {FieldApplicabilitySettings} from './applicability-settings';
 import { TechnicalNameField } from './technical-name-field';
@@ -10,7 +11,7 @@ import { customFieldKinds, defaultFieldConfig, hasReservedStandardFieldLabel, is
 import { api } from '@/lib/api';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend, FieldSeparator } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend } from '@/components/ui/field';
 import { TranslatedLabelInput, cleanLabels, hasLabel, sameLabels } from './translated-label-input';
 import { FieldTypeSettings, fieldKindKey } from './field-type-settings';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -77,29 +78,29 @@ export function FieldEditorDialog({ standardKind, onDeleted, readOnly = false, f
   function reset() { const current = context?.fields.find(item=>item.id===field?.id); const fresh=current ? {applicability:current.applicability ?? null,version:current.version,labels:current.labels,required:current.required,kind:current.kind,config:current.config,technicalName:current.technicalName} : baseline; setBaseline(fresh); setApplicability(fresh.applicability); setLabels(fresh.labels); setRequired(fresh.required); setKind(fresh.kind); setConfig(fresh.config); setTechnicalName(fresh.technicalName); setPendingChoice(false); setEditorRevision(value => value + 1); setSaved(false); mutation.reset(); }
   const kinds = customFieldKinds.map(value => ({ value, label: t(fieldKindKey(value)) }));
   return <Dialog open onOpenChange={open => { if (!open && !pending) onClose(); }}>
-    <DialogContent closeButtonDisabled={pending} className="flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-3xl" finalFocus={finalFocus ?? (() => field ? document.querySelector<HTMLElement>(`[data-field-editor="${field.id}"]`) ?? true : true)}>
+    <DialogContent closeButtonDisabled={pending} className="bg-background text-foreground flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-3xl" finalFocus={finalFocus ?? (() => field ? document.querySelector<HTMLElement>(`[data-field-editor="${field.id}"]`) ?? true : true)}>
       <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{standardKind ? t('createStandardField', { name: t('keyword') }) : t(field ? 'fieldAttributes' : 'newField')}</DialogTitle><DialogDescription>{context?.label}{field ? ` · ${field.label}` : ''}</DialogDescription></DialogHeader>
       <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="field-attributes-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (!readOnly && (dirty || standardKind) && valid && context && !pending) mutation.mutate(); }}><FieldGroup>
         {mutation.isError ? ['Existing records have empty required fields', 'Unsafe field conversion'].includes(mutation.error.message) ? <Alert variant="destructive"><AlertDescription>{t(mutation.error.message === 'Unsafe field conversion' ? 'unsafeFieldConversion' : 'requiredExisting')}</AlertDescription></Alert> : <ErrorNotice error={mutation.error} /> : null}
         {reservedName ? <Alert variant="destructive"><AlertDescription>{t('reservedStandardName')}</AlertDescription></Alert> : null}
         {owner.isError ? <ErrorNotice error={owner.error} /> : null}
         {saved && !dirty ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
-        <FieldSet><FieldLegend>{t('fieldIdentity')}</FieldLegend><TranslatedLabelInput compactHelp id="field-label" autoFocus={!field} value={labels} readOnly={fixed || protectedField || readOnly} readOnlyHelp={!fixed ? t('readOnlyLabelHelp') : undefined} disabled={pending} onChange={next => {
+        <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('fieldIdentity')}</FieldLegend><TranslatedLabelInput compactHelp id="field-label" autoFocus={!field} value={labels} readOnly={fixed || protectedField || readOnly} readOnlyHelp={!fixed ? t('readOnlyLabelHelp') : undefined} disabled={pending} onChange={next => {
           if (!field && !nameTouched) setTechnicalName((next.en ?? next.de ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+|_+$/g, ''));
           setLabels(next); setSaved(false);
         }} />
-        <TechnicalNameField id="field-technical-name" value={technicalName} readOnly={Boolean(field) || Boolean(standardKind)} standard={Boolean(standardKind)} disabled={pending} onChange={value => { setTechnicalName(value); setNameTouched(true); }} /></FieldSet><FieldSeparator /><FieldSet><FieldLegend>{t('fieldTypeAndInput')}</FieldLegend>
+        <TechnicalNameField id="field-technical-name" value={technicalName} readOnly={Boolean(field) || Boolean(standardKind)} standard={Boolean(standardKind)} disabled={pending} onChange={value => { setTechnicalName(value); setNameTouched(true); }} /></FieldSet></SettingsSection><SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('fieldTypeAndInput')}</FieldLegend>
         <Field><FieldLabel htmlFor="field-kind">{t('fieldType')}</FieldLabel>{fixed ? <Input id="field-kind" value={t(fieldKindKey(kind))} readOnly /> : <Select items={kinds} value={kind} disabled={pending || readOnly || protectedField} onValueChange={value => {
           if (!value) return;
           const next = value as CustomFieldKind;
           setConfig(['single_choice', 'multiple_choice'].includes(next) && ['single_choice', 'multiple_choice'].includes(kind) ? config : defaultFieldConfig(next)); setKind(next); setPendingChoice(false); setSaved(false);
         }}><SelectTrigger id="field-kind" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{kinds.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>}</Field>
         {!fixed ? <FieldTypeSettings readOnly={readOnly || (protectedField && !['single_choice','multiple_choice'].includes(kind))} key={`${kind}:${editorRevision}`} kind={kind as CustomFieldKind} config={config} onChange={next => { setConfig(next); setSaved(false); }} disabled={pending || readOnly || (protectedField && !['single_choice','multiple_choice'].includes(kind))} onPendingChange={setPendingChoice} /> : null}
-        </FieldSet><FieldSeparator /><FieldSet><FieldLegend>{t('fieldValidation')}</FieldLegend><FieldGroup className="grid items-start gap-4 sm:grid-cols-2"><RequiredFieldSetting id="field-required" value={required} disabled={pending || readOnly} onChange={value => { setRequired(value); setSaved(false); }} />
+        {field && !fixed && !readOnly ? <FieldDescription>{t('conversionHelp')}</FieldDescription> : null}</FieldSet></SettingsSection><SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('fieldValidation')}</FieldLegend><FieldGroup className="grid items-start gap-4 sm:grid-cols-2"><RequiredFieldSetting id="field-required" value={required} disabled={pending || readOnly} onChange={value => { setRequired(value); setSaved(false); }} />
         {!fixed && context ? <FieldApplicabilitySettings fields={context.fields} fieldId={field?.id} value={applicability} disabled={pending || readOnly || protectedField} onChange={setApplicability} /> : null}
-        </FieldGroup>{field && !fixed && !readOnly ? <FieldDescription>{t('conversionHelp')}</FieldDescription> : null}</FieldSet>
+        </FieldGroup></FieldSet></SettingsSection>
       </FieldGroup></form>
-      {field && context ? <FieldGroup className="pt-6"><FieldSeparator /><FieldSet><FieldLegend>{t('definitionState')}</FieldLegend>{readOnly ? <Badge variant="outline">{t(`definition_${field.state ?? 'active'}`)}</Badge> : <DefinitionLifecycle label={field.label} kind="field" id={field.id} objectTypeId={context.id} state={field.state} isProtected={field.isProtected} canDelete={field.canDelete} disabled={dirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} onDeleted={onDeleted} />}</FieldSet></FieldGroup> : null}
+      {field && context ? <FieldGroup className="pt-6"><SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('definitionState')}</FieldLegend>{readOnly ? <Badge variant="outline">{t(`definition_${field.state ?? 'active'}`)}</Badge> : <DefinitionLifecycle label={field.label} kind="field" id={field.id} objectTypeId={context.id} state={field.state} isProtected={field.isProtected} canDelete={field.canDelete} disabled={dirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} onDeleted={onDeleted} />}</FieldSet></SettingsSection></FieldGroup> : null}
       </div><DialogActions onClose={onClose} closeLabel={t(field ? 'close' : 'cancel')} disabled={pending}>{!readOnly ? <>{field ? <Button type="button" variant="outline" disabled={!dirty || pending} onClick={reset}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="field-attributes-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={(!dirty && !standardKind) || !valid || !context || pending}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t(field ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
     </DialogContent>
   </Dialog>;

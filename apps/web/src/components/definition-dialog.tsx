@@ -53,7 +53,7 @@ function DefinitionForm({ kind, workspaceId, objectTypeId, onClose, onCreated, o
       .replace(kind === 'workspace' ? /[^a-z0-9]/g : /[^a-z0-9]+/g, kind === 'workspace' ? '' : '_').replace(/^[^a-z]+|_+$/g, ''));
   }
   return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending) onClose(); }}>
-    <DialogContent closeButtonDisabled={mutation.isPending} finalFocus={finalFocus ?? (() => {
+    <DialogContent className="bg-background text-foreground" closeButtonDisabled={mutation.isPending} finalFocus={finalFocus ?? (() => {
       const origin = document.querySelector<HTMLElement>(`[data-definition-trigger="${kind}"]`);
       return origin?.getClientRects().length ? origin : document.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]') ?? true;
     })}>

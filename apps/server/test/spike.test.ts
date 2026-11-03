@@ -1922,7 +1922,21 @@ test('custom relationships reject unrestricted and multiple object pairs through
   finally{await sql`DELETE FROM sys_relationship_type_pairs WHERE relationship_type_id=${type.id}::uuid AND left_object_type_id=${b.id}::uuid`.execute(runtime.db);await migrate(databaseURL,secret,baseURL);}
 });
 
-test('relationship tree branches derive real context, paginate Primary children and expose marked cyclic cross references without writes',async()=>{
+test('relationship tree requires the Projects module through both API and MCP',async()=>{
+  const ws=await ok('create_workspace',{code:'treemodule',name:'Tree module'});
+  const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'assets',labels:{en:'Assets'},standardFields:['keyword']});
+  const record=await ok('create_record',{objectTypeId:object.id,keyword:'Asset'}),input={objectTypeId:object.id,recordId:record.id};
+  const denied=await api('get_relationship_tree_branch',input);assert.equal(denied.statusCode,409);assert.match(denied.json().error,/Projects module/);
+  assert.equal((await client.callTool({name:'get_relationship_tree_branch',arguments:input})).isError,true);
+  await enableProjects(ws.id);
+  assert.equal((await ok('get_relationship_tree_branch',input)).total,0);
+  assert.deepEqual(await tool('get_relationship_tree_branch',input),await ok('get_relationship_tree_branch',input));
+  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');
+  await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:module.version,enabled:false});
+  assert.equal((await api('get_relationship_tree_branch',input)).statusCode,409);
+});
+
+test('relationship tree branches derive only Primary context and descendants without cross references or writes',async()=>{
   const ws=await ok('create_workspace',{code:'treefixture',name:'Tree fixture'});
   await enableProjects(ws.id);const installed=await ok('list_object_types',{workspaceId:ws.id});const models=await Promise.all(['contacts','projects','cases','tasks','vehicles'].map(technicalName=>installed.find((o:any)=>o.technicalName===technicalName)??ok('create_object_type',{workspaceId:ws.id,technicalName,labels:{en:technicalName},standardFields:['keyword']})));
   const [contact,project,caseType,task,vehicle]=models;
@@ -1945,15 +1959,15 @@ test('relationship tree branches derive real context, paginate Primary children 
   const input=(model:any,row:any)=>({objectTypeId:model.id,recordId:row.id});
   const beforeJournal=(await sql<{count:number}>`SELECT count(*)::int AS count FROM sys_journal`.execute(runtime.db)).rows[0].count;
   const root=await ok('get_relationship_tree_branch',input(contact,c));
-  assert.equal(root.ancestors.length,0);assert.equal(root.ancestorsTruncated,false);assert.equal(root.total,3);
-  assert.deepEqual(root.children.map((n:any)=>n.kind),['primary','primary','general']);
-  assert.equal(root.children.filter((n:any)=>n.record.recordId===p.id).length,2,'parallel relationships reference the same record');
-  const pages=await Promise.all([0,1,2].map(offset=>ok('get_relationship_tree_branch',{...input(contact,c),offset,limit:1})));
-  assert.equal(new Set(pages.flatMap(page=>page.children.map((n:any)=>n.edgeId))).size,3);
+  assert.equal(root.ancestors.length,0);assert.equal(root.ancestorsTruncated,false);assert.equal(root.total,2);
+  assert.deepEqual(root.children.map((n:any)=>n.kind),['primary','primary']);
+  assert.equal(root.children.filter((n:any)=>n.record.recordId===p.id).length,1,'a parallel General link must not duplicate a Primary child');
+  const pages=await Promise.all([0,1].map(offset=>ok('get_relationship_tree_branch',{...input(contact,c),offset,limit:1})));
+  assert.equal(new Set(pages.flatMap(page=>page.children.map((n:any)=>n.edgeId))).size,2);
   const projectTree=await ok('get_relationship_tree_branch',input(project,p));
   assert.deepEqual(projectTree.ancestors.map((r:any)=>r.recordId),[c.id]);
   assert.ok(!projectTree.children.some((n:any)=>n.kind==='primary'&&n.record.recordId===c.id),'Primary parents are not descendants');
-  assert.ok(projectTree.children.some((n:any)=>n.kind==='general'&&n.record.recordId===c.id),'cross reference to ancestor is explicit');
+  assert.ok(projectTree.children.every((n:any)=>n.kind==='primary'&&n.direction==='outgoing'),'General and custom edges never create tree branches');
   const direct=await ok('get_relationship_tree_branch',input(task,tp));
   assert.deepEqual(direct.ancestors.map((r:any)=>r.recordId),[c.id,p.id],'no invented Case');assert.equal(direct.total,0);
   const deepest=await tool('get_relationship_tree_branch',input(task,tc));
@@ -1961,8 +1975,8 @@ test('relationship tree branches derive real context, paginate Primary children 
   assert.equal((await ok('get_relationship_tree_branch',input(project,independent))).ancestors.length,0);
   assert.equal((await ok('get_relationship_tree_branch',input(task,standalone))).total,0);
   const vehicleTree=await ok('get_relationship_tree_branch',input(vehicle,v));
-  assert.equal(vehicleTree.ancestors.length,0);assert.equal(vehicleTree.children[0].direction,'incoming');assert.equal(vehicleTree.children[0].sideLabels.en,'Cases');
-  assert.equal(vehicleTree.children[0].record.recordId,ca.id);assert.equal(vehicleTree.children[0].hasChildren,true);
+  assert.equal(vehicleTree.ancestors.length,0);assert.equal(vehicleTree.total,0,'an incoming custom link does not create a Primary ancestor or descendant');
+  const dossier=await ok('get_record_relationships',input(vehicle,v));assert.ok(dossier.dossier.some((entry:any)=>entry.record.recordId===ca.id),'custom links remain in the dossier');
   assert.deepEqual(await tool('get_relationship_tree_branch',input(contact,c)),root);
   assert.equal((await api('get_relationship_tree_branch',input(contact,c),userCookie)).statusCode,403);
   assert.equal((await api('get_relationship_tree_branch',{objectTypeId:task.id,recordId:c.id})).statusCode,404);

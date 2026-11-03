@@ -12,4 +12,7 @@ export function timestampCandidates(value: string, timeZone: string): string[] {
     return [...new Set(results)];
   } catch { return []; }
 }
-export const isInstant = (value: string) => /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+export function isInstant(value: string): boolean {
+  if(!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value))return false;
+  try{Temporal.Instant.from(value);return true;}catch{return false;}
+}

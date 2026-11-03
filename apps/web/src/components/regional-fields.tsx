@@ -2,7 +2,7 @@ import { SettingsHelp } from './settings-help';
 import { useTranslation } from 'react-i18next';
 import { regionalLocales, effectiveRegionalSettings, type RegionalSettings, type PersonalRegionalSettings } from '@xobject/contracts';
 import { useTimeZone } from '@/lib/time-zone-context';
-import { formatRegionalDate, formatRegionalNumber, regionalWeekStart, regionalSettingPreview } from '@/lib/regional';
+import { formatRegionalDate, formatRegionalNumber, formatRegionalMoney, regionalWeekStart, regionalSettingPreview } from '@/lib/regional';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 
@@ -24,5 +24,5 @@ export function RegionalFields({ value, inherited, disabled, timeZone: previewTi
     const id = `${inherited ? 'personal' : 'workspace'}-region-${field.key}`;
     const items = [...(inherited ? [{ value: 'inherit', label: t('inheritSetting', { value: regionalSettingPreview(field.key, inherited, timeZone) }) }] : []), ...field.items];
     return <Field className={field.key === 'locale' ? 'sm:col-span-2' : undefined} key={field.key} data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(field.label)}</FieldLabel><Select items={items} value={value[field.key] ?? 'inherit'} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [field.key]: next === 'inherit' ? null : next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>;
-  })}<Field className="sm:col-span-2"><FieldLabel>{t('preview')}</FieldLabel><FieldDescription>{preview} · {formatRegionalNumber('1234567.89', effective, 2)} · {t('weekStartsOn', { day: t(regionalWeekStart(effective) === 1 ? 'weekStart_monday' : 'weekStart_sunday') })}</FieldDescription><SettingsHelp title={t('regionalInputDetails')}>{t('regionalInputHelp')}</SettingsHelp></Field></FieldGroup>;
+  })}<Field className="sm:col-span-2"><FieldLabel>{t('preview')}</FieldLabel><FieldDescription>{preview} · {formatRegionalNumber('1234567.89', effective, 2)} · {formatRegionalMoney('1234.56','EUR',effective,2)} · {t('weekStartsOn', { day: t(regionalWeekStart(effective) === 1 ? 'weekStart_monday' : 'weekStart_sunday') })}</FieldDescription><SettingsHelp title={t('regionalInputDetails')}>{t('regionalInputHelp')}</SettingsHelp></Field></FieldGroup>;
 }
