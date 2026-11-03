@@ -1,13 +1,14 @@
+import {Collapsible,CollapsibleTrigger,CollapsibleContent} from '@/components/ui/collapsible';
 import {PrimaryAssociationFields} from './primary-association-fields';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
-import { Link2Icon, PlusIcon, PencilIcon, XIcon, ArrowUpRightIcon } from 'lucide-react';
+import { Link2Icon, PlusIcon, PencilIcon, XIcon, ArrowUpRightIcon, ChevronDownIcon } from 'lucide-react';
 import {fieldApplies,type FieldDefinition,type FieldValue,type RelationshipField,type RelatedRecord } from '@xobject/contracts';
 import { relatedIdentity } from '@/lib/relationship-selection';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Field, FieldTitle, FieldDescription, FieldGroup, FieldSet, FieldLegend, FieldError } from '@/components/ui/field';
+import { Field, FieldDescription, FieldGroup, FieldSet, FieldLegend, FieldError } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { useClientPagination, ClientTablePagination } from './client-table-pagination';
@@ -52,6 +53,7 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
   const required = field.definition.active && (field.side === 'left' ? field.definition.leftMin : field.definition.rightMin) > 0;
   const editable = !readOnly && field.definition.active;
   const invalid = required && !field.targets.length;
+  const [expanded,setExpanded]=useState(field.targets.length>0||required);
   const id = `relation-${field.definition.id}-${field.side}`;
   const pagination = useClientPagination(field.targets);
   const close = () => { onPickerDirtyChange(false); setPickerOpen(false); };
@@ -63,12 +65,12 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
     <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={t('relationshipOpenRecord', { name: target.keyword })} title={t('openRecord')} nativeButton={false} render={<Link to={path(target)} />}><ArrowUpRightIcon /></Button>
     {editable ? <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={t('removeRelationship', { name: target.keyword })} title={t('removeRelationship', { name: target.keyword })} onClick={() => remove(target)}><XIcon /></Button> : null}
   </>;
-  return <Field aria-labelledby={`${id}-title`} data-invalid={invalid || undefined}>
+  return <Field aria-labelledby={`${id}-title`} data-invalid={invalid || undefined}><Collapsible open={expanded} onOpenChange={setExpanded}>
       <div className="flex items-center justify-between gap-3">
-        <FieldTitle id={`${id}-title`}>{fieldLabel}<Badge variant="secondary">{field.targets.length}</Badge></FieldTitle>
+        <CollapsibleTrigger render={<Button type="button" variant="ghost" className="group/relation h-auto min-h-8 min-w-0 shrink flex-wrap justify-start whitespace-normal px-0 py-1 text-left"/>}><ChevronDownIcon data-icon="inline-start" className="transition-transform group-aria-expanded/relation:rotate-180"/><span id={`${id}-title`}>{fieldLabel}</span><Badge variant="secondary">{field.targets.length}</Badge>{single?<span className="text-xs text-muted-foreground">{t('relationshipAtMostOne')}</span>:null}</CollapsibleTrigger>
         {editable ? <Button id={`${id}-choose`} type="button" variant="outline" size="icon-sm" disabled={disabled} aria-label={chooseLabel} title={t(single && field.targets.length ? 'relationshipChange' : 'addRelatedRecord')} onClick={() => setPickerOpen(true)}>{single && field.targets.length ? <PencilIcon/> : <PlusIcon/>}</Button> : null}
       </div>
-      <div className="min-w-0 overflow-hidden rounded-lg border"><Table aria-labelledby={`${id}-title`} className="table-fixed">
+      <CollapsibleContent className="flex flex-col gap-3 pt-3"><div className="min-w-0 overflow-hidden rounded-lg border"><Table aria-labelledby={`${id}-title`} className="table-fixed">
         <TableHeader><TableRow><TableHead>{t('keyword')}</TableHead><TableHead className="w-24 sm:w-40">{t('objectSingular')}</TableHead><TableHead className="w-20"><span className="sr-only">{t('action')}</span></TableHead></TableRow></TableHeader>
         <TableBody>{pagination.rows.map(target => <TableRow key={relatedIdentity(target)} onClick={event => {
           if (disabled || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString()) return;
@@ -82,8 +84,9 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
         {!field.targets.length ? <TableRow><TableCell colSpan={3} className="h-16 text-center text-muted-foreground">{t('relationshipNoneSelected')}</TableCell></TableRow> : null}</TableBody>
       </Table></div>
       {field.targets.length > 10 ? <ClientTablePagination pagination={pagination} disabled={disabled} countLabel={t('relationshipCount', { count: field.targets.length })} /> : null}
+      </CollapsibleContent></Collapsible>
     {!field.definition.active ? <FieldDescription>{t('relationshipInactiveHelp')}</FieldDescription> : null}
     {invalid ? <FieldError id={`${id}-error`}>{t('relationshipRequiredHelp')}</FieldError> : null}
-    {pickerOpen ? <RelationshipPicker sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}
+    {pickerOpen ? <RelationshipPicker sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); setExpanded(true); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}
   </Field>;
 }

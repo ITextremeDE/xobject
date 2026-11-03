@@ -386,6 +386,10 @@ test('record sorting validates fields and applies before pagination identically 
   const alpha = await ok('create_record', { objectTypeId: type.id, keyword: 'Alpha', values: { note: 'Zulu' } });
   const blank = await ok('create_record', { objectTypeId: type.id, keyword: 'Bravo' });
   const args = { objectTypeId: type.id, sortBy: 'keyword', sortDirection: 'asc', limit: 1 };
+  const chronological = { ...args, sortBy: 'created_at' };
+  const byCreation = await ok('list_records', chronological);
+  assert.equal(byCreation.records[0].id, zulu.id);
+  assert.deepEqual(await tool('list_records', chronological), byCreation);
   const first = await ok('list_records', args);
   assert.equal(first.records[0].id, alpha.id);
   assert.deepEqual(await tool('list_records', args), first);

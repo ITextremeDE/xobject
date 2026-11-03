@@ -17,7 +17,7 @@ The server reconstructs each record event's before/after field kind and configur
 
 A field is required only while applicable. UI, API and MCP evaluate the complete resulting record. Nonempty inapplicable values are rejected, including retained values omitted from a partial update; `false` and zero count as values. A discriminator change must explicitly clear incompatible values in the same transaction, or clear an optional value first. The UI refuses a selection that would conceal entered data and names the fields to clear. Nothing silently clears stored values.
 
-The shared field editor configures these rules. Record forms render only applicable active fields. An unsaved-change notice remains above every record tab; Tree, Dossier and Journal continue showing persisted data. Relationship controls now use single-value InputGroups, per-relationship multiple-target Tables and a dialog-based picker under ADR 0019. Single/multiple choices, search and server-side object filtering remain separate from persisted record data; required or populated connections stay visible.
+The shared field editor configures these rules. Record forms render only applicable active fields. An unsaved-change notice remains above every record tab; Tree, Dossier and Journal continue showing persisted data. Relationship controls use the separate Primary chain and per-custom-relationship collapsible Tables, including single-target definitions, with a dialog-based picker under ADR 0019. Single/multiple choices, search and server-side object filtering remain separate from persisted record data; required or populated connections stay visible.
 
 ## Scope and migration
 
@@ -28,3 +28,7 @@ This delivers field applicability and the demo configuration, not complete CRM p
 ## Validation
 
 Integration checks cover API/MCP applicability, requiredness, rejected partial changes with unchanged journals, cross-object rules, controller dependencies, journal filters/pages and conversion context across repeated conversions. Local migration is checked on a restored database copy before application, with preserved business/auth/relationship rows and original journal events. Browser acceptance covers draft retention, field visibility, picker keyboard navigation and Journal filters/technical edge identity.
+
+## Instance journal presentation
+
+The Administrator instance journal reuses the record Journal data table and detail dialog, preserving server-side filters/pagination and raw historical events. Its compact default columns are timestamp, field/relationship and affected object; actor, scope and before/after previews remain selectable. On small screens, the affected object and field remain visible while timestamp defaults to hidden; filter controls start collapsed to leave room for entries. Detail dialogs retain structured scope/actor/endpoint and before/after data. Generic object previews show translated labels or property counts rather than raw JSON. This changes presentation only and does not alter journal permissions, identities or retention.

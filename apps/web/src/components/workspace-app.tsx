@@ -1,3 +1,4 @@
+import {TablePreferencesProvider} from '@/lib/column-preferences';
 import { recordReturnPath } from '@/lib/record-navigation';
 import { resourceLinks } from '@/lib/resource-links';
 import { RegionalProvider } from '@/lib/regional-context';
@@ -39,7 +40,7 @@ export function WorkspaceApp({ user, onSignOut }: { user: AuthUser; onSignOut: (
   const access = useQuery({ queryKey: ['access-context', user.id], queryFn: () => api('get_access_context', {}) });
   if (access.isPending) return <Loading />;
   if (access.isError) return <ErrorNotice error={access.error} retry={() => { void access.refetch(); }} />;
-  return <SidebarProvider><WorkspaceScreen user={{ ...user, isAdmin: access.data.isAdmin }} onSignOut={onSignOut} /></SidebarProvider>;
+  return <TablePreferencesProvider userId={user.id}><SidebarProvider><WorkspaceScreen user={{ ...user, isAdmin: access.data.isAdmin }} onSignOut={onSignOut} /></SidebarProvider></TablePreferencesProvider>;
 }
 
 function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
@@ -72,7 +73,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const canManage = Boolean(user.isAdmin || workspace?.role === 'designer');
   const language = effectiveWorkspaceLanguage(user.language, workspace?.available_languages ?? languageCodes, workspace?.default_language ?? 'en');
   useEffect(() => { void i18n.changeLanguage(language); }, [i18n, language]);
-  const types = useQuery({ queryKey: ['types', workspace?.id, user.id, language], queryFn: () => api('list_object_types', { workspaceId: workspace!.id, includeInactive: true }), enabled: Boolean(workspace) });
+  const types = useQuery({ queryKey: ['types', workspace?.id, user.id, language], queryFn: async () => (await api('list_object_types', { workspaceId: workspace!.id, includeInactive: true })).sort((a,b)=>new Intl.Collator(language,{sensitivity:'base'}).compare(a.label,b.label)||a.id.localeCompare(b.id)), enabled: Boolean(workspace) });
   const selectedType = view === 'records' ? types.data?.find(type => type.technicalName === objectRoute?.params.name) : undefined;
   const dashboardPath = workspace ? `/w/${workspace.code}` : '/';
   const objectPath = selectedType ? `${dashboardPath}/objects/${selectedType.technicalName}` : dashboardPath;

@@ -41,6 +41,9 @@ test('journal table previews preserve empty/false values and readable relationsh
   assert.equal(summary(false),'Nein');
   assert.equal(summary(0),'0');
   assert.equal(summary('true'),'true');
+  assert.equal(summary({de:'Standort',en:'Location'}),'Standort');
+  assert.equal(journalValueSummary({scale:2,required:true},'de','Nicht gesetzt','Ja','Nein',(_kind,count)=>`${count} Eigenschaften`),'2 Eigenschaften');
+  assert.equal(summary([false,0]),'Nein, 0');
   const snapshot={relationshipTypeId:'retained-definition-id',labels:{de:'Hauptzuordnung',en:'Primary'},left:{keyword:'Projekt A'},right:{keyword:'Aufgabe B'},directed:true};
   assert.equal(summary(snapshot),'Hauptzuordnung: Projekt A → Aufgabe B');
   assert.equal(summary({...snapshot,directed:false}),'Hauptzuordnung: Projekt A ↔ Aufgabe B');

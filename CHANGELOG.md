@@ -9,6 +9,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Sof
 The project is in early development. No software release is available yet.
 
 ### Added
+- Consistent standard-only initial object-list columns, retained account/view-scoped browser column choices, creation-time sorting, localized object navigation and clear filtered-empty states.
+- Regional numeric record inputs with exact canonical request values, field-level precision/range/currency feedback and blocked invalid saves; wider responsive field editors.
+- Compact instance Journal table with selectable context/value columns and structured detail dialogs; collapsible custom relationship tables, maximum-one hints and module-aware Primary help/preparation.
 - Fresh development-database guidance separates schema initialization, Administrator provisioning and demo seeding, with semantic system-column groups, schema-equivalence checks and recoverable database switching.
 - Versioned Primary-level bindings by object UUID for Address → Project → Case, with preflight, lifecycle protection, shared API/MCP context and role-filtered candidates. Record forms show inherited single-value fields and persist only the direct association; Workspace General configures the levels.
 - Generic relationship endpoint conditions reuse single-choice field rules in configuration, candidate pagination and final-state writes. The Contact fixture restricts Organization/Contact-person links and provides an AP/Individual-contact Identities list without another object type. Controller dependencies and atomic journals remain protected.

@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useState } from 'react';
+import {useColumnPreferences} from '@/lib/column-preferences';
+import { useDeferredValue, useEffect } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -22,14 +23,13 @@ export function RecordList({ definition, selectedRecord, basePath, disabled }: {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const [hidden, setHidden] = useState(new Set<string>());
   const search = (params.get('q') ?? '').slice(0, 200);
   const pageSize = pageSizes.includes(Number(params.get('size')) as typeof pageSizes[number]) ? Number(params.get('size')) : 25;
   const pageValue = Number(params.get('page') ?? 1), page = Number.isInteger(pageValue) && pageValue >= 1 && pageValue <= Math.floor(100000 / pageSize) + 1 ? pageValue : 1;
   const offset = (page - 1) * pageSize;
   const timeZone = useTimeZone(), regional = useRegional();
   const activeFields = definition.fields.filter(field => !field.state || field.state === 'active');
-  const allowed = ['id', 'updated_at', ...activeFields.map(field => field.technicalName)];
+  const allowed = ['id', 'created_at', 'updated_at', ...activeFields.map(field => field.technicalName)];
   const sort = { by: allowed.includes(params.get('sort') ?? '') ? params.get('sort')! : 'updated_at', direction: params.get('direction') === 'asc' ? 'asc' as const : 'desc' as const };
   function change(values: Record<string, string | null>, replace = false) { const next = new URLSearchParams(params); for (const [key, value] of Object.entries(values)) { if (value === null || value === '') next.delete(key); else next.set(key, value); } setParams(next, { replace }); }
   const query = useDeferredValue(search);
@@ -42,11 +42,13 @@ export function RecordList({ definition, selectedRecord, basePath, disabled }: {
   const columns: RecordColumn<DataRecord>[] = [
     { key: hasKeyword ? 'keyword' : 'id', label: t(hasKeyword ? 'keyword' : 'recordIdentity'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0 hover:no-underline" render={<Link to={`${basePath}/${row.id}?${params}`} state={{ recordOrigin: `${basePath}?${params}` }} />} nativeButton={false} disabled={disabled}>{row.keyword || row.id}</Button> },
     ...classifications.map(kind => ({ key: kind, label: t(kind === 'type' ? 'classificationType' : kind === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: DataRecord) => displayClassification(definition.classification, kind, row[kind]) })),
-    ...fields.map(field => ({ key: field.technicalName, label: field.label, cell: (row: DataRecord) => displayFieldValue(field, row[field.technicalName], i18n.language, t, principals.data, timeZone, regional) })),
+    { key: 'created_at', label: t('createdAt'), cell: row => formatRegionalDate(row.created_at, regional, timeZone) },
     { key: 'updated_at', label: t('updated'), cell: row => formatRegionalDate(row.updated_at, regional, timeZone) },
+    ...fields.map(field => ({ key: field.technicalName, label: field.label, cell: (row: DataRecord) => displayFieldValue(field, row[field.technicalName], i18n.language, t, principals.data, timeZone, regional) })),
   ];
+  const {hidden,toggle}=useColumnPreferences(`objects:${definition.workspaceId}:${definition.id}`,columns,fields.map(field=>field.technicalName));
   const readOnly = Boolean(definition.state && definition.state !== 'active');
   return <>{readOnly ? <p className="text-muted-foreground">{t('inactiveObjectHelp')}</p> : null}<h1 className="py-2 text-2xl font-semibold tracking-tight">{definition.label}</h1>
-    <RecordTableToolbar search={<Field className="w-full sm:max-w-xs"><FieldLabel htmlFor="record-search" className="sr-only">{t(hasKeyword ? 'search' : 'searchById')}</FieldLabel><InputGroup className="h-7"><InputGroupAddon><SearchIcon /></InputGroupAddon><InputGroupInput className="h-full py-0" data-record-search id="record-search" aria-keyshortcuts={keyboardCommands.search.aria} placeholder={t(hasKeyword ? 'search' : 'searchById')} value={search} maxLength={200} onChange={event => change({ q: event.target.value, page: null }, true)} /><InputGroupAddon align="inline-end"><Kbd>{keyboardCommands.search.key}</Kbd></InputGroupAddon></InputGroup></Field>}><ColumnMenu columns={columns} hidden={hidden} disabled={disabled} onToggle={key => setHidden(old => { const next = new Set(old); if (next.has(key)) next.delete(key); else next.add(key); return next; })} />{!readOnly ? <Button size="sm" render={<Link data-record-create to={`${basePath}/new?${params}`} state={{ recordOrigin: `${basePath}?${params}` }} />} nativeButton={false} disabled={disabled}><PlusIcon data-icon="inline-start" />{t('newRecord')}</Button> : null}</RecordTableToolbar>
-    {result.isPending ? <Loading /> : result.isError ? <ErrorNotice error={result.error} retry={() => { void result.refetch(); }} /> : <RecordDataTable rows={result.data.records} columns={columns} hidden={hidden} total={result.data.total} page={page} pageSize={pageSize} sort={sort} disabled={disabled || result.isFetching} selectedRecord={selectedRecord} onSort={key => change({ sort: key, direction: sort.by === key && sort.direction === 'asc' ? 'desc' : 'asc', page: null })} onPage={page => change({ page: page === 1 ? null : String(page) })} onPageSize={size => change({ size: String(size), page: null })} onOpen={row => { if (row.id !== selectedRecord) void navigate(`${basePath}/${row.id}?${params}`, { state: { recordOrigin: `${basePath}?${params}` } }); }} />}</>;
+    <RecordTableToolbar search={<Field className="w-full sm:max-w-xs"><FieldLabel htmlFor="record-search" className="sr-only">{t(hasKeyword ? 'search' : 'searchById')}</FieldLabel><InputGroup className="h-7"><InputGroupAddon><SearchIcon /></InputGroupAddon><InputGroupInput className="h-full py-0" data-record-search id="record-search" aria-keyshortcuts={keyboardCommands.search.aria} placeholder={t(hasKeyword ? 'search' : 'searchById')} value={search} maxLength={200} onChange={event => change({ q: event.target.value, page: null }, true)} /><InputGroupAddon align="inline-end"><Kbd>{keyboardCommands.search.key}</Kbd></InputGroupAddon></InputGroup></Field>}><ColumnMenu columns={columns} hidden={hidden} disabled={disabled} onToggle={toggle} />{!readOnly ? <Button size="sm" render={<Link data-record-create to={`${basePath}/new?${params}`} state={{ recordOrigin: `${basePath}?${params}` }} />} nativeButton={false} disabled={disabled}><PlusIcon data-icon="inline-start" />{t('newRecord')}</Button> : null}</RecordTableToolbar>
+    {result.isPending ? <Loading /> : result.isError ? <ErrorNotice error={result.error} retry={() => { void result.refetch(); }} /> : <RecordDataTable rows={result.data.records} columns={columns} hidden={hidden} total={result.data.total} page={page} pageSize={pageSize} sort={sort} disabled={disabled || result.isFetching} selectedRecord={selectedRecord} labels={{empty:t(search?'noMatches':'noRecords')}} emptyAction={search?<Button type="button" variant="outline" size="sm" onClick={()=>change({q:null,page:null},true)}>{t('clearSearch')}</Button>:undefined} onSort={key => change({ sort: key, direction: sort.by === key && sort.direction === 'asc' ? 'desc' : 'asc', page: null })} onPage={page => change({ page: page === 1 ? null : String(page) })} onPageSize={size => change({ size: String(size), page: null })} onOpen={row => { if (row.id !== selectedRecord) void navigate(`${basePath}/${row.id}?${params}`, { state: { recordOrigin: `${basePath}?${params}` } }); }} />}</>;
 }

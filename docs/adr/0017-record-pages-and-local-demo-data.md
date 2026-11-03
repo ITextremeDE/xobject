@@ -16,3 +16,7 @@ An authorized development reset first backs up/restores the old database for ver
 ## Consequences
 
 Records have room for later dossier/tree views without duplicating forms. Form drafts remain local and unsaved across tab switches. Existing API/MCP content permissions are unchanged. The demo seed refuses to overwrite workspaces; tests use isolated PostgreSQL and cover data, column order, history, duplicate-seed refusal and unique planned primary parents.
+
+## Regional numeric drafts
+
+Record forms edit numeric strings using the effective regional decimal and grouping separators. Validate grouping, integer range, decimal precision/scale and currency codes at the field, expose accessible errors and block invalid saves. Convert valid drafts to exact canonical decimal strings only at the shared API boundary; never parse via floating point, round excess precision or change backend storage/validation. Reset restores the original localized draft. Optional empty amounts become null. Backend rules remain authoritative for every client.

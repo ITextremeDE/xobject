@@ -140,7 +140,7 @@ export class Application {
             const args = schemas.list_records.parse(parsed);
             const type = await this.objectType(tx, args.objectTypeId);
             const sortableFields = (await sql<Field>`SELECT applicability, id, technical_name, kind, required, config, state, is_protected FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted'`.execute(tx)).rows;
-            if (!['id', 'updated_at'].includes(args.sortBy) && !sortableFields.some(field => field.state === 'active' && field.technical_name === args.sortBy)) {
+            if (!['id', 'created_at', 'updated_at'].includes(args.sortBy) && !sortableFields.some(field => field.state === 'active' && field.technical_name === args.sortBy)) {
               throw new AppError(400, 'Unknown sort field');
             }
             const direction = args.sortDirection === 'asc' ? sql`ASC` : sql`DESC`;

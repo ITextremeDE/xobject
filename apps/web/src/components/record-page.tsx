@@ -1,3 +1,4 @@
+import {localizedFieldDraft,normalizedFieldDraft,numericDraftError} from '@/lib/numeric-input';
 import { RecordTree } from './record-tree';
 import { RecordRelationshipFields, RecordGeneralLinkAction, RecordDossier } from './record-relationships';
 import { useRegional } from '@/lib/regional-context';
@@ -61,7 +62,7 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
   const activeFields = definition.fields.filter(field => !field.state || field.state === 'active');
   const inactiveFields = definition.fields.filter(field => field.state === 'inactive');
   const hasKeyword = activeFields.some(field => field.technicalName === 'keyword');
-  const initial = () => ({ ...(hasKeyword ? { keyword: record?.keyword ?? '' } : {}), ...Object.fromEntries(activeFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, (record?.[f.technicalName] as FieldValue) ?? null])) });
+  const initial = () => ({ ...(hasKeyword ? { keyword: record?.keyword ?? '' } : {}), ...Object.fromEntries(activeFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, localizedFieldDraft(f,(record?.[f.technicalName] as FieldValue) ?? null,regional)])) });
   const [baseline, setBaseline] = useState<Record<string, FieldValue>>(initial);
   const [values, setValues] = useState<Record<string, FieldValue>>(initial);
   const [applicabilityError,setApplicabilityError]=useState('');
@@ -74,7 +75,7 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
   const [saved, setSaved] = useState(false);
   const dirty = relationDirty || choicesDirty || Object.keys(values).some(key => JSON.stringify(values[key]) !== JSON.stringify(baseline[key]));
   const mutation = useMutation({ mutationFn: async () => {
-    const data = Object.fromEntries(applicableFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, f.kind === 'money' && emptyCustomValue(values[f.technicalName]) ? null : values[f.technicalName] ?? null]));
+    const data = Object.fromEntries(applicableFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, normalizedFieldDraft(f,values[f.technicalName]??null,regional)]));
     const classification = Object.fromEntries(Object.entries(choices).filter(([key]) => activeFields.some(field => field.technicalName === key)));
     const keyword = hasKeyword ? { keyword: String(values.keyword ?? '').trim() } : {};
     if (record && version) return api('update_record', { objectTypeId: definition.id, recordId: record.id, version, ...keyword, values: data, classification, relationships:relationshipWrites() });
@@ -116,7 +117,7 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
       return labels[i18n.language] ?? labels.en ?? labels.de ?? Object.values(labels)[0];
     }),
   ];
-  const invalid = timestampInvalid || missingFields.length > 0;
+  const invalid = timestampInvalid || missingFields.length > 0 || applicableFields.some(field=>Boolean(numericDraftError(field,values[field.technicalName]??null,regional)));
   function reset() {setApplicabilityError('');setRelationFields(relationBaseline); setValues({ ...baseline }); setChoices(choiceBaseline); setSaved(false); mutation.reset(); onDirtyChange(false); }
   const general = relationFields.find(field=>field.definition.kind==='general' && field.definition.active);
   const updateRelationships = (next: typeof relationFields) => {
@@ -147,11 +148,11 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
       </FieldGroup></FieldSet></> : null}
       <RecordRelationshipFields fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>
       {record && inactiveFields.length ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-inactive" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3"/>}>{t('inactiveFields')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-inactive:rotate-180"/></CollapsibleTrigger><CollapsibleContent><Separator/><FieldSet className="p-4"><FieldLegend className="sr-only">{t('inactiveFields')}</FieldLegend><FieldGroup>
-        {inactiveFields.filter(field => isCustomFieldKind(field.kind)).map(field => <CustomFieldControl key={field.id} field={field} value={record[field.technicalName] as FieldValue ?? null} workspaceId={definition.workspaceId} disabled onChange={() => {}} />)}
+        {inactiveFields.filter(field => isCustomFieldKind(field.kind)).map(field => <CustomFieldControl key={field.id} field={field} value={localizedFieldDraft(field,record[field.technicalName] as FieldValue ?? null,regional)} workspaceId={definition.workspaceId} disabled onChange={() => {}} />)}
         <ClassificationFields fields={inactiveFields} config={definition.classification} value={{ type: record.type, status: record.status, category: record.category }} disabled onChange={() => {}} />
       </FieldGroup></FieldSet></CollapsibleContent></Collapsible> : null}
       {record ? <><Separator /><Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-tech" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3" />}>{t('journalTechnicalDetails')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-tech:rotate-180" /></CollapsibleTrigger><CollapsibleContent><Separator/><div className="p-4"><dl className="grid gap-4 sm:grid-cols-2">{[[t('entityId'), record.id], [t('technicalName'), definition.technicalName], [t('recordVersion'), String(version)]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="wrap-anywhere">{value}</dd></div>)}</dl></div></CollapsibleContent></Collapsible></> : null}
-    </TabsContent><TabsContent value="tree">{record?<RecordTree objectTypeId={definition.id} recordId={record.id} workspaceCode={workspaceCode}/>:null}</TabsContent><TabsContent value="dossier">{record?<RecordDossier data={relationships} recordId={record.id} workspaceCode={workspaceCode}/>:null}</TabsContent><TabsContent value="journal" className="flex flex-col gap-6">{record ? <>
+    </TabsContent><TabsContent value="tree">{record?<RecordTree primaryAvailable={relationships.fields.some(field=>field.definition.kind==='primary'&&field.definition.active)} objectTypeId={definition.id} recordId={record.id} workspaceCode={workspaceCode}/>:null}</TabsContent><TabsContent value="dossier">{record?<RecordDossier data={relationships} recordId={record.id} workspaceCode={workspaceCode}/>:null}</TabsContent><TabsContent value="journal" className="flex flex-col gap-6">{record ? <>
       <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label={t('recordHistorySummary')}>{[[t('createdAt'), formatRegionalDate(record.created_at, regional, timeZone, true)], [t('createdBy'), userName(record.created_by)], [t('updated'), formatRegionalDate(record.updated_at, regional, timeZone, true)], [t('changedBy'), userName(record.updated_by)]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="wrap-anywhere">{value}</dd></div>)}</dl>
       <Separator />
       <Journal definition={definition} recordId={record.id} user={user} record={record} workspaceName={workspaceName} />
@@ -187,5 +188,5 @@ function Journal({ definition, recordId, user, record, workspaceName }: { defini
     const context=entry.value_context?.[side];
     return displayFieldValue(context?{...field,kind:context.kind as typeof field.kind,config:context.config}:field,value,i18n.language,t,principals.data??[],timeZone,regional);
   }
-  return <RecordJournalTable entries={entries} filters={filters} renderValue={renderValue} total={result.data?.total??0} page={page} pageSize={pageSize} busy={result.isFetching} loading={result.isPending} error={result.isError?result.error:undefined} onRetry={()=>{void result.refetch();}} onPage={setPage} onPageSize={size=>{setPageSize(size);setPage(1);}} />;
+  return <RecordJournalTable preferenceKey={`record-journal:${definition.workspaceId}`} entries={entries} filters={filters} renderValue={renderValue} total={result.data?.total??0} page={page} pageSize={pageSize} busy={result.isFetching} loading={result.isPending} error={result.isError?result.error:undefined} onRetry={()=>{void result.refetch();}} onPage={setPage} onPageSize={size=>{setPageSize(size);setPage(1);}} />;
 }
