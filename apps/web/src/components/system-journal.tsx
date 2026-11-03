@@ -1,4 +1,7 @@
-import { JournalEntryCard } from './journal-entry-card';
+import {useIsMobile} from '@/hooks/use-mobile';
+import {Collapsible,CollapsibleTrigger,CollapsibleContent} from '@/components/ui/collapsible';
+import {ChevronDownIcon} from 'lucide-react';
+import {RecordJournalTable} from './record-journal-table';
 import { useDeferredValue, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -9,12 +12,11 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectI
 import { Field, FieldGroup, FieldLabel, FieldDescription, FieldSet, FieldLegend } from '@/components/ui/field';
 import { InputGroup, InputGroupInput, InputGroupAddon } from '@/components/ui/input-group';
 import { Button } from '@/components/ui/button';
-import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { TablePagination } from './table-pagination';
-import { ErrorNotice, Loading } from './feedback';
 
 export function SystemJournal() {
   const { t } = useTranslation();
+  const mobile=useIsMobile();
+  const [filtersExpanded,setFiltersExpanded]=useState<boolean|null>(null);
   const [field, setField] = useState(''), [kind, setKind] = useState(''), [workspaceId, setWorkspaceId] = useState(''), [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const deferredField = useDeferredValue(field);
@@ -29,10 +31,10 @@ export function SystemJournal() {
 
   return <FieldGroup>
     <FieldDescription>{t('systemJournalHelp')}</FieldDescription>
-    <FieldSet className="gap-3">
-      <FieldLegend variant="label" className="mb-0 flex w-full flex-wrap items-center justify-between gap-2"><span>{t('journalFilters')}</span>
+    <Collapsible open={filtersExpanded??!mobile} onOpenChange={setFiltersExpanded}><FieldSet className="gap-3">
+      <FieldLegend variant="label" className="mb-0 flex w-full flex-wrap items-center justify-between gap-2"><CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="group/journal-filters px-0"/>}>{t('journalFilters')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/journal-filters:rotate-180"/></CollapsibleTrigger>
         {filtered ? <Button type="button" variant="ghost" size="sm" onClick={() => { setField(''); setKind(''); setWorkspaceId(''); setOffset(0); }}>{t('journalResetFilters')}</Button> : null}</FieldLegend>
-      <FieldGroup className="grid gap-3 sm:grid-cols-2">
+      <CollapsibleContent><FieldGroup className="grid gap-3 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="journal-workspace">{t('journalScope')}</FieldLabel>
           <Select items={workspaceItems} value={workspaceId || 'all'} onValueChange={value => { if (value) { setWorkspaceId(value === 'all' ? '' : value); setOffset(0); } }}>
@@ -51,13 +53,9 @@ export function SystemJournal() {
           <FieldLabel htmlFor="journal-field">{t('journalFieldFilter')}</FieldLabel>
           <InputGroup><InputGroupInput id="journal-field" type="search" placeholder={t('journalPropertyPlaceholder')} value={field} onChange={event => { setField(event.target.value); setOffset(0); }} /><InputGroupAddon><SearchIcon /></InputGroupAddon></InputGroup>
         </Field>
-      </FieldGroup>
-    </FieldSet>
-    {journal.isPending ? <Loading /> : journal.isError ? <ErrorNotice error={journal.error} retry={() => { void journal.refetch(); }} /> : !journal.data.entries.length ? <Empty><EmptyHeader><EmptyTitle>{t('journalNoMatches')}</EmptyTitle></EmptyHeader></Empty> : <>
-      <ol className="flex min-w-0 flex-col gap-4" aria-label={t('journalEntries')}>
-        {journal.data.entries.map(entry => <li key={entry.id} className="min-w-0"><JournalEntryCard entry={entry} memberName={entry.field_key.startsWith('member:') ? users.data?.find(user => user.id === entry.field_key.slice(7))?.name : undefined} /></li>)}
-      </ol>
-      <TablePagination countLabel={t('journalCount', { count: journal.data.total })} total={journal.data.total} page={Math.floor(offset / pageSize) + 1} pageSize={pageSize} disabled={journal.isFetching} onPage={page => setOffset((page - 1) * pageSize)} onPageSize={size => { setPageSize(size); setOffset(0); }} />
-    </>}
+      </FieldGroup></CollapsibleContent>
+    </FieldSet></Collapsible>
+    <RecordJournalTable entries={journal.data?.entries??[]} filters={null} contextColumns preferenceKey="system-journal" emptyLabel={t('journalNoMatches')} total={journal.data?.total??0} page={Math.floor(offset/pageSize)+1} pageSize={pageSize} busy={journal.isFetching} loading={journal.isPending} error={journal.error} onRetry={()=>{void journal.refetch();}} onPage={page=>setOffset((page-1)*pageSize)} onPageSize={size=>{setPageSize(size);setOffset(0);}} memberName={entry=>entry.field_key.startsWith('member:')?users.data?.find(user=>user.id===entry.field_key.slice(7))?.name:undefined}/>
+
   </FieldGroup>;
 }

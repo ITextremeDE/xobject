@@ -1,3 +1,4 @@
+import { provisionRuntimeRole } from './database-roles.js';
 import { sql } from 'kysely';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { configFromEnvironment } from './config.js';
@@ -7,8 +8,14 @@ import { createAuth } from './auth.js';
 const config = configFromEnvironment();
 switch (process.argv[2]) {
   case 'migrate':
-    await migrate(config.databaseURL, config.authSecret, config.baseURL);
+    await migrate(process.env.MIGRATION_DATABASE_URL ?? config.databaseURL, config.authSecret, config.baseURL);
+    if (process.env.MIGRATION_DATABASE_URL) await provisionRuntimeRole(process.env.MIGRATION_DATABASE_URL,config.databaseURL);
     console.log('Development schema ready.');
+    break;
+  case 'provision-runtime':
+    if (!process.env.MIGRATION_DATABASE_URL) throw new Error('MIGRATION_DATABASE_URL is required');
+    await provisionRuntimeRole(process.env.MIGRATION_DATABASE_URL,config.databaseURL);
+    console.log('Runtime database role ready.');
     break;
   case 'create-admin': {
     // This isolated provisioning instance is never exposed through HTTP.
@@ -36,9 +43,9 @@ switch (process.argv[2]) {
       const result = await seedDemoData(db, actor.id);
       await mkdir('.local', { recursive: true, mode: 0o700 });
       await writeFile('.local/demo-relationships.json', JSON.stringify({ version: 1, workspaceId: result.workspaceId, objects: Object.fromEntries(Object.entries(result.objects).map(([name, model]) => [name, model.id])), links: result.links }, null, 2), { mode: 0o600 });
-      console.log('Fictional demo workspace created:', Object.keys(result.objects).length, 'objects,', Object.values(result.records).flat().length, 'records. Relationship plans are not implemented relationships.');
+      console.log('Fictional demo workspace created:', Object.keys(result.objects).length, 'objects,', Object.values(result.records).flat().length, 'records. Demo relationships were created through the application layer.');
     } finally { await db.destroy(); }
     break;
   }
-  default: throw new Error('Expected migrate, create-admin or seed-demo');
+  default: throw new Error('Expected migrate, provision-runtime, create-admin or seed-demo');
 }

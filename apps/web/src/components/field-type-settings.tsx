@@ -18,7 +18,7 @@ export function FieldTypeSettings({ readOnly = false, kind, config, onChange, di
   const [newLabels, setNewLabels] = useState<Labels>({});
   useEffect(() => { onPendingChange(Object.values(newLabels).some(Boolean)); }, [newLabels, onPendingChange]);
   const options = config.options ?? [];
-  return <FieldGroup>
+  return <FieldGroup className={kind==='money'?'grid items-start gap-4 sm:grid-cols-2':undefined}>
     {kind === 'decimal' || kind === 'money' ? <Field data-disabled={disabled || undefined}><FieldLabel htmlFor="field-scale">{t('decimalScale')}</FieldLabel><Input id="field-scale" type="number" min={0} max={12} value={config.scale ?? 2} disabled={disabled} onChange={event => onChange({ ...config, scale: Number(event.target.value) })} /></Field> : null}
     {kind === 'money' ? <Field data-disabled={disabled || undefined}><FieldLabel htmlFor="field-currency">{t('defaultCurrency')}</FieldLabel><Input id="field-currency" value={config.currency ?? 'EUR'} minLength={3} maxLength={3} pattern="[A-Z]{3}" required disabled={disabled} onChange={event => onChange({ ...config, currency: event.target.value.toUpperCase() })} /><FieldDescription>{t('currencyHelp')}</FieldDescription></Field> : null}
     {kind === 'multiline' ? <Field data-disabled={disabled || undefined} orientation="horizontal"><Checkbox id="field-formatted" checked={config.formatted ?? false} disabled={disabled} onCheckedChange={checked => onChange({ ...config, formatted: checked === true })} /><FieldLabel htmlFor="field-formatted">{t('markdownFormatting')}</FieldLabel></Field> : null}

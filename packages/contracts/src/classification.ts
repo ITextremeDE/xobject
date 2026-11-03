@@ -1,7 +1,8 @@
+import {uuidSchema} from './identity.js';
 import { z } from 'zod';
 import { languageSchema } from './languages.js';
 
-const id = z.uuid().toLowerCase();
+const id = uuidSchema;
 const labels = z.partialRecord(languageSchema, z.string().trim().min(1).max(200)).refine(value => Object.keys(value).length > 0, 'A label is required');
 const ids = z.array(id).max(100).refine(value => new Set(value).size === value.length, 'Duplicate choices');
 export const classificationRulesSchema = z.object({

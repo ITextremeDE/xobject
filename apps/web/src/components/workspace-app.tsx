@@ -1,3 +1,4 @@
+import {TablePreferencesProvider} from '@/lib/column-preferences';
 import { recordReturnPath } from '@/lib/record-navigation';
 import { resourceLinks } from '@/lib/resource-links';
 import { RegionalProvider } from '@/lib/regional-context';
@@ -23,7 +24,7 @@ import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarGroup, 
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { DefinitionDialog } from './definition-dialog';
-import { RecordPage } from './record-page';
+const RecordPage=lazy(()=>import('./record-page').then(module=>({default:module.RecordPage})));
 import { ErrorNotice, Loading } from './feedback';
 import { UserMenu } from './user-menu';
 import { HeaderSearch } from './header-search';
@@ -39,7 +40,7 @@ export function WorkspaceApp({ user, onSignOut }: { user: AuthUser; onSignOut: (
   const access = useQuery({ queryKey: ['access-context', user.id], queryFn: () => api('get_access_context', {}) });
   if (access.isPending) return <Loading />;
   if (access.isError) return <ErrorNotice error={access.error} retry={() => { void access.refetch(); }} />;
-  return <SidebarProvider><WorkspaceScreen user={{ ...user, isAdmin: access.data.isAdmin }} onSignOut={onSignOut} /></SidebarProvider>;
+  return <TablePreferencesProvider userId={user.id}><SidebarProvider><WorkspaceScreen user={{ ...user, isAdmin: access.data.isAdmin }} onSignOut={onSignOut} /></SidebarProvider></TablePreferencesProvider>;
 }
 
 function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
@@ -72,7 +73,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const canManage = Boolean(user.isAdmin || workspace?.role === 'designer');
   const language = effectiveWorkspaceLanguage(user.language, workspace?.available_languages ?? languageCodes, workspace?.default_language ?? 'en');
   useEffect(() => { void i18n.changeLanguage(language); }, [i18n, language]);
-  const types = useQuery({ queryKey: ['types', workspace?.id, user.id, language], queryFn: () => api('list_object_types', { workspaceId: workspace!.id, includeInactive: true }), enabled: Boolean(workspace) });
+  const types = useQuery({ queryKey: ['types', workspace?.id, user.id, language], queryFn: async () => (await api('list_object_types', { workspaceId: workspace!.id, includeInactive: true })).sort((a,b)=>new Intl.Collator(language,{sensitivity:'base'}).compare(a.label,b.label)||a.id.localeCompare(b.id)), enabled: Boolean(workspace) });
   const selectedType = view === 'records' ? types.data?.find(type => type.technicalName === objectRoute?.params.name) : undefined;
   const dashboardPath = workspace ? `/w/${workspace.code}` : '/';
   const objectPath = selectedType ? `${dashboardPath}/objects/${selectedType.technicalName}` : dashboardPath;
@@ -218,7 +219,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           : !selectedType ? <RouteNotFound onBack={() => showPage('dashboard')} />
           : definition.isPending ? <Loading /> : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
           : !user.isAdmin ? <Empty><EmptyHeader><EmptyTitle>{selectedType.label}</EmptyTitle><EmptyDescription>{t('contentAccessPending')}</EmptyDescription></EmptyHeader></Empty>
-          : recordId && panelDefinition ? recordId === 'new' && panelDefinition.state && panelDefinition.state !== 'active' ? <RouteNotFound onBack={closeRecord} /> : <RecordPage key={`${panelDefinition.id}:${recordId}:${editorRevision}`} definition={panelDefinition} recordId={recordId} user={user} workspaceName={workspace.name} onClose={closeRecord} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={record => { setSavedRecordId(record.id); setDirty(false); }} />
+          : recordId && panelDefinition ? recordId === 'new' && panelDefinition.state && panelDefinition.state !== 'active' ? <RouteNotFound onBack={closeRecord} /> : <Suspense fallback={<Loading/>}><RecordPage key={`${panelDefinition.id}:${recordId}:${editorRevision}`} definition={panelDefinition} recordId={recordId} user={user} workspaceName={workspace.name} workspaceCode={workspace.code} onClose={closeRecord} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={record => { setSavedRecordId(record.id); setDirty(false); }} /></Suspense>
           : panelDefinition ? <RecordList key={panelDefinition.id} definition={panelDefinition} selectedRecord={recordId}
             basePath={objectPath}
             disabled={busy} /> : null}

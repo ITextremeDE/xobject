@@ -1,6 +1,6 @@
 # Local demo data
 
-The development fixture is wholly fictional. It exercises the generic object platform; it does not install complete CRM/Project Management modules, Contact-kind validation, automatic Contact Keywords or relationships.
+The development fixture is wholly fictional. It exercises the generic object platform; it does not install complete CRM/Project Management templates, conditional company/name requirements or automatic Contact Keywords. Contact-field applicability and relationship endpoint rules are configured through the regular API/MCP. Generic relationships are implemented independently of those modules.
 
 ## Model and field order
 
@@ -16,11 +16,11 @@ Each table starts with `id`, `created_at`, `created_by`, `updated_at`, `updated_
 | Tasks / `itx_tasks` | Description; due instant; assigned user; estimated hours; completed flag | 30 |
 | Vehicles / `itx_vehicles` | License plate; manufacturer, model; first registration; mileage, purchase price; electric drive, notes | 3 |
 
-Form order is independent of physical storage. Keyword and classification appear under General; business fields follow definition creation order (stable UUIDv7 order), with multiline fields spanning the content width. Technical metadata is separate. Definition management stays alphabetical. A configurable layout/order editor and conditional field visibility remain future work; this fixture uses only existing generic field capabilities.
+Form order is independent of physical storage. Keyword and classification appear under General; business fields follow definition creation order (stable UUIDv7 order), with multiline fields spanning the content width. Technical metadata is separate. Definition management stays alphabetical. A configurable layout/order editor remains future work; field visibility and relationship eligibility use the regular conditional-definition capabilities.
 
 All Keywords are required. Type and Status remain separate from Contact kind. Categories support multiple selections. Dates, UTC instants, precise decimals/money, booleans and user/group references provide real input/formatting cases. The seed performs a genuine task edit for before/after history. Counts describe the initial 54-record fixture, not a live limit; interactive testing may add records.
 
-## Future relationship scenarios
+## Relationship scenarios
 
 The seed returns a plan with current UUID identities. The local CLI persists it in ignored `.local/demo-relationships.json`; it is a development aid, not an application relationship table or a permission grant.
 
@@ -28,10 +28,10 @@ The seed returns a plan with current UUID identities. The local CLI persists it 
 - A fourth internal Project has no Contact.
 - Each Project also has a directly assigned Task, without a Case.
 - A contact-maintenance Task belongs directly to Nordlicht; another Task has no planned primary association.
-- Two Contact persons have a planned main Organization.
+- Two Contact persons each link to one Organization.
 - Three Vehicles have planned secondary links to service work.
 
-The 45 proposed links use at most one primary parent per child. They are deliberately not represented by duplicate text/UUID foreign-key fields. Actual cardinality checks, Primary associations, inheritance, dossiers and tree navigation must use the future relationship implementation. The fixture's descriptions supply human context while those capabilities are absent.
+The 45 proposed links use at most one primary parent per child. They are deliberately not represented by duplicate text/UUID foreign-key fields. The seed applies these links through the normal relationship operations. Cardinality checks, Primary cycle prevention, selection/list controls, a dossier and endpoint journals are implemented; derived ancestor display and tree navigation use the same persisted edges under [ADR 0020](adr/0020-relationship-tree.md).
 
 ## Seed safely
 
@@ -41,6 +41,18 @@ The seed uses multiple normal application transactions. If interrupted, inspect/
 
 For recovery, stop local writers, consult `.local/database-rebuild.json`, retain the current test database under a different name, and restore the saved original database name/connection policy before restarting. Alternatively restore a private dump to a separately created database and verify it before changing the application connection. Recovery artifacts are retained intentionally; ordinary seed/migration commands must not delete them.
 
-The relationship-definition baseline now installs Primary association and General relationship plus the demo Contact-person definition. Its allowed object pairs and per-side labels/cardinalities are editable in workspace settings. Rules remain staged drafts; these definitions do not apply the 45 proposed record links. See [ADR 0018](adr/0018-relationship-type-definitions.md).
+The relationship-definition baseline now installs Primary association and General relationship plus the demo Contact-person definition. Custom definitions have one object pair and editable side labels/cardinalities; system scope is protected and unrestricted. The seed enables Projects for Primary association and activates custom definitions after preflight, adds a Case/Vehicle definition and applies the 45 planned record links. Reapplying the plan retains existing links and adds no duplicates. See [ADR 0018](adr/0018-relationship-type-definitions.md).
 
-Future module ownership is explicit: Contact-person / main Organization belongs to CRM, Primary association to Project Management, and General relationship to the core. The current custom Contact-person fixture and protected Primary prototype default prepare these scenarios without activating modules or claiming module-owned definitions.
+Complete CRM provisioning/ownership remains future work. The fixture configures Contact-person/Organization and Identities with regular conditional relationship definitions. The minimal Projects activation provides Primary association for all object types; General relationship belongs to the core. This activation boundary does not install complete domain templates. See [ADR 0021](adr/0021-relationship-scope-and-projects-module.md).
+
+## Conditional Contact fields
+
+The fictional fixture configures generic field-applicability rules using its actual field and choice UUIDs. First name, Last name and Date of birth apply to Individual contact and Contact person; Commercial register applies to Organization and Individual contact. Other Contact fields remain available. Existing nonempty values prevent an incompatible Contact-kind change; values are never silently removed. This is demonstration configuration, not complete CRM provisioning or derived Contact names. See [ADR 0023](adr/0023-record-journal-and-conditional-fields.md).
+
+## Primary roles and Contact relationships
+
+The seed explicitly assigns its Contacts, Projects and Cases UUIDs to the Projects module's Primary levels through `configure_primary_chain`. It does not infer roles at runtime from names. Primary fields render as Address → Project → Case with inherited context; existing links still use one direct parent.
+
+Contact-person/Organization is directed, with an optional maximum of one Organization per Contact person and multiple Contact persons per Organization. Endpoint conditions reference the Contact-kind field and Organization/Contact-person option UUIDs. Identities is an undirected, symmetric multiple relationship limited to Contact persons and Individual contacts on both sides. It adds a Contact list, not an object type or records. The same definition editor and shared API/MCP rules apply to custom definitions. Complete CRM provisioning/ownership and derived Keywords remain outstanding.
+
+The 2026-11-03 development upgrade was checked on a restored copy before application. The existing 55 records, 45 edges and 658 record/relationship journal entries were retained. Configuration changes add definition/workspace journal entries. Private dumps remain under ignored `.local/backups`; no reset or content-history rewrite is part of this upgrade.

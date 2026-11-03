@@ -75,6 +75,7 @@ function ObjectAttributes({ user, canReadContents = false, showDeleted = false, 
   const { t } = useTranslation();
   const client = useQueryClient();
   const [baseline, setBaseline] = useState(definition.labels);
+  const [baselineVersion, setBaselineVersion] = useState(definition.version);
   const [labels, setLabels] = useState(definition.labels);
   const [saved, setSaved] = useState(false);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -99,9 +100,9 @@ function ObjectAttributes({ user, canReadContents = false, showDeleted = false, 
   const missingStandard = (['type_status', 'category', 'keyword'] as const).filter(kind => !definition.fields.some(field => field.technicalName === (kind === 'type_status' ? 'type' : kind)));
   const dirty = !sameLabels(labels, baseline);
   const mutation = useMutation({ mutationFn: async () => {
-    return api('set_labels', { kind: 'object_type', id: definition.id, labels: cleanLabels(labels) });
-  }, onSuccess: async result => {
-    setBaseline(result.labels); setLabels(result.labels); setSaved(true);
+    return api('set_labels', { kind: 'object_type', id: definition.id, version: baselineVersion, labels: cleanLabels(labels) });
+  }, onError: async () => { await client.invalidateQueries({ queryKey: ['definition', definition.id] }); }, onSuccess: async result => {
+    setBaselineVersion(result.version); setBaseline(result.labels); setLabels(result.labels); setSaved(true);
     await client.invalidateQueries({ queryKey: ['types', workspace.id] });
     await client.invalidateQueries({ queryKey: ['definition', definition.id] });
   } });
@@ -116,7 +117,7 @@ function ObjectAttributes({ user, canReadContents = false, showDeleted = false, 
         <TranslatedLabelInput compactHelp readOnly={locked} readOnlyHelp={t(definition.state === 'inactive' ? 'inactiveObjectHelp' : 'readOnlyLabelHelp')} id="object-label" value={labels} disabled={mutation.isPending || lifeBusy} onChange={next => { setLabels(next); setSaved(false); }} />
 
       </FieldGroup>
-      {!locked ? <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={!dirty || mutation.isPending} onClick={() => { setLabels(baseline); setSaved(false); mutation.reset(); }}>{t('resetObjectProperties')}</Button><Button type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !hasLabel(labels) || mutation.isPending}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('saveObjectProperties')}<Kbd>{saveShortcutLabel}</Kbd></Button></Field> : null}
+      {!locked ? <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={!dirty || mutation.isPending} onClick={() => { setBaselineVersion(definition.version); setBaseline(definition.labels); setLabels(definition.labels); setSaved(false); mutation.reset(); }}>{t('resetObjectProperties')}</Button><Button type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !hasLabel(labels) || mutation.isPending}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t('saveObjectProperties')}<Kbd>{saveShortcutLabel}</Kbd></Button></Field> : null}
     </FieldSet></form>
     <FieldSeparator /><FieldSet><FieldLegend className="flex w-full items-center justify-between gap-3"><span>{t('objectFields')}</span>{!locked ? <>{missingStandard.length ? <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" data-settings-add-field disabled={mutation.isPending} />}><PlusIcon data-icon="inline-start" />{t('newField')}<ChevronDownIcon data-icon="inline-end" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{missingStandard.map(kind => <DropdownMenuItem key={kind} onClick={() => setNewStandardOpen(kind)}>{t(kind === 'type_status' ? 'typesAndStatuses' : kind === 'category' ? 'classificationCategory' : 'keyword')}</DropdownMenuItem>)}</DropdownMenuGroup><DropdownMenuSeparator /><DropdownMenuGroup><DropdownMenuItem onClick={() => setNewFieldOpen(true)}>{t('customField')}</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu> : <Button type="button" variant="outline" data-settings-add-field disabled={mutation.isPending} onClick={() => setNewFieldOpen(true)}><PlusIcon data-icon="inline-start" />{t('newField')}</Button>}</> : null}</FieldLegend><SettingsTableSearch value={search} onChange={onSearch} /><SettingsTable aria-label={t('objectFields')}><TableHeader><TableRow><TableHead className="w-[45%] sm:w-[25%]">{t('objectName')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[25%]">{t('technicalName')}</TableHead><TableHead className="w-[30%] sm:w-[20%]">{t('fieldType')}</TableHead><TableHead className="w-[25%] sm:w-[15%]">{t('requiredField')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[15%]">{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>
       {!pagination.total ? <TableRow><TableCell colSpan={5}>{t(search.trim() ? 'settingsNoMatches' : 'noFieldsYet')}</TableCell></TableRow> : null}{pagination.rows.map(field => <TableRow key={field.id} onClick={event => {

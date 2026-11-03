@@ -22,7 +22,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     const created = await app.execute('create_object_type', { workspaceId: workspace.id, technicalName: name, labels: labels(de, en), standardFields: ['keyword', 'type_status', 'category'] }, actorId) as { id: string };
     let model = await app.execute('get_object_type', { objectTypeId: created.id }, actorId) as ObjectDefinition;
     const keyword = model.fields.find(item => item.technicalName === 'keyword')!;
-    await app.execute('configure_field', { fieldId: keyword.id, required: true }, actorId);
+    await app.execute('configure_field', { fieldId: keyword.id, version: keyword.version, required: true }, actorId);
     for (const item of fields) await app.execute('create_field', { objectTypeId: created.id, technicalName: item.name, labels: item.labels, kind: item.kind ?? 'text', config: item.config, required: item.required ?? false }, actorId);
     const typeOptions = types.map(name => ({ id: v7(), kind: 'type' as const, labels: labels(name, name), typeId: null, active: true }));
     const statusOptions = [null, ...typeOptions.map(item => item.id)].flatMap(typeId => statuses.map(name => ({ id: v7(), kind: 'status' as const, labels: labels(name, name), typeId, active: true })));
@@ -49,12 +49,18 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     field('street', 'Straße und Hausnummer', 'Street and number'), field('postal_code', 'Postleitzahl', 'Postal code'), field('city', 'Ort', 'City'), field('country', 'Land', 'Country'),
     field('commercial_register', 'Handelsregister', 'Commercial register'), field('birthday', 'Geburtsdatum', 'Date of birth', 'date'), field('notes', 'Notizen', 'Notes', 'multiline', { formatted: true }),
   ], ['Kunde', 'Lieferant', 'Partner'], ['Aktiv', 'In Klärung', 'Inaktiv']);
+  const contactModel=objects.contacts,contactKind=contactModel.fields.find(field=>field.technicalName==='contact_kind')!;
+  for(const name of ['first_name','last_name','birthday','commercial_register']) {
+    const target=contactModel.fields.find(field=>field.technicalName===name)!;
+    await app.execute('configure_field',{fieldId:target.id,version:target.version,required:target.required,applicability:{fieldId:contactKind.id,optionIds:(name==='commercial_register'?[contactKinds[0],contactKinds[1]]:[contactKinds[1],contactKinds[2]]).map(option=>option.id)}},actorId);
+  }
+  objects.contacts=await app.execute('get_object_type',{objectTypeId:contactModel.id},actorId) as ObjectDefinition;
   const organizations: DataRecord[] = [];
   const companies = ['Nordlicht Werkstätten GmbH', 'Bergwald Mobilität eG', 'Klarwasser Technik GmbH', 'Sonnenwinkel Kulturverein', 'Hafenblick Planung GmbH', 'Wiesenhof Logistik GmbH'];
-  for (let i = 0; i < companies.length; i++) organizations.push(await record('contacts', companies[i], { contact_kind: contactKinds[0].id, company_name: companies[i], email_address: `kontakt${i+1}@example.test`, phone_number: `+4989201000${10+i}`, website: 'https://example.org', street: `${['Werkstattweg','Waldstraße','Am Bach'][i%3]} ${i+1}`, postal_code: '80331', city: 'München', country: 'Deutschland', commercial_register: i === 3 ? 'VR 900004 (fiktiv)' : `HRB ${900001+i} (fiktiv)`, notes: 'Fiktiver Testkontakt. Ausgangspunkt für spätere Projekt- und Ansprechpartnerverknüpfungen.' }));
+  for (let i = 0; i < companies.length; i++) organizations.push(await record('contacts', companies[i], { contact_kind: contactKinds[0].id, company_name: companies[i], email_address: `kontakt${i+1}@example.test`, phone_number: `+4989201000${10+i}`, website: 'https://example.org', street: `${['Werkstattweg','Waldstraße','Am Bach'][i%3]} ${i+1}`, postal_code: '80331', city: 'München', country: 'Deutschland', commercial_register: i === 3 ? 'VR 900004 (fiktiv)' : `HRB ${900001+i} (fiktiv)`, notes: 'Fiktiver Testkontakt. Testkontakt für Projekte und Ansprechpartner.' }));
   for (const [i, person] of [['Mara','Beispiel'],['Jonas','Mustermann'],['Lea','Testmann']].entries()) {
     const individual = i === 2;
-    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[i]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, first_name: person[0], last_name: person[1], company_name: individual ? null : companies[i], email_address: `person${i+1}@example.test`, phone_number: `+4989201000${30+i}`, birthday: `199${i}-06-15`, city: 'München', country: 'Deutschland', notes: individual ? 'Selbstständiger Einzelkontakt für ein späteres eigenständiges Projekt.' : `Vorgesehene Hauptorganisation: ${companies[i]}. Die tatsächliche Beziehung folgt später.` });
+    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[i]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, first_name: person[0], last_name: person[1], company_name: individual ? null : companies[i], email_address: `person${i+1}@example.test`, phone_number: `+4989201000${30+i}`, birthday: `199${i}-06-15`, city: 'München', country: 'Deutschland', notes: individual ? 'Selbstständiger Einzelkontakt für ein späteres eigenständiges Projekt.' : `Organisation: ${companies[i]}. Die Beziehung ist unter Verknüpfungen hinterlegt.` });
     if (!individual) link('contacts', organizations[i], 'contacts', row, 'contact_person');
   }
   await object('projects', 'Projekte', 'Projects', [field('objective', 'Projektziel', 'Objective', 'multiline', { formatted: true }), field('start_date', 'Beginn', 'Start date', 'date'), field('target_date', 'Zieldatum', 'Target date', 'date'), field('budget', 'Budget', 'Budget', 'money'), field('progress', 'Fortschritt (%)', 'Progress (%)', 'decimal', { scale: 1 }), field('project_owner', 'Verantwortlich', 'Owner', 'reference', { referenceTarget: 'user', multiple: false }), field('team', 'Projektteam', 'Team', 'reference', { referenceTarget: 'group', multiple: false })], ['Kundenprojekt', 'Internes Projekt'], ['Geplant', 'In Arbeit', 'Abgeschlossen']);
@@ -70,7 +76,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
       link('projects', project, 'cases', currentCase);
       for (let k=0;k<3;k++) {
         const done = k === 2 && j === 0;
-        const task = await record('tasks', `${['Termin abstimmen', 'Ergebnisse dokumentieren', 'Checkliste prüfen'][k]} – ${project.keyword} / ${j ? 'Umsetzung' : 'Bestandsaufnahme'}`, { description: `Teil von „${currentCase.keyword}“. Fiktiver Testdatensatz für die spätere Hauptzuordnung.`, due_at: `2026-11-${10+i*2+j}T${k===0?'08':'13'}:00:00Z`, assigned_to: owners, estimated_hours: String(k+1), completed: done }, done?2:k%2);
+        const task = await record('tasks', `${['Termin abstimmen', 'Ergebnisse dokumentieren', 'Checkliste prüfen'][k]} – ${project.keyword} / ${j ? 'Umsetzung' : 'Bestandsaufnahme'}`, { description: `Teil von „${currentCase.keyword}“. Fiktiver Testdatensatz mit Hauptzuordnung.`, due_at: `2026-11-${10+i*2+j}T${k===0?'08':'13'}:00:00Z`, assigned_to: owners, estimated_hours: String(k+1), completed: done }, done?2:k%2);
         link('cases', currentCase, 'tasks', task);
       }
     }
@@ -81,16 +87,45 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   link('contacts', organizations[0], 'tasks', contactTask);
   await record('tasks', 'Interne Ideenliste sichten', { description: 'Bewusst ohne Hauptzuordnung: eigenständig bearbeitbare Aufgabe.', assigned_to: owners, completed: false });
   for (let i=0;i<3;i++) {
-    const vehicle = await record('vehicles', `Servicefahrzeug ${i+1} – TEST-${100+i}`, { registration_number: `TEST-${100+i}`, manufacturer: ['Volkswagen','Ford','Renault'][i], model: ['ID. Buzz','Transit','Kangoo'][i], first_registration: `202${3+i}-03-15`, mileage: String(45000+i*12500), purchase_price: { amount: String(28000+i*6000), currency:'EUR' }, electric: i===0, notes: 'Fiktives Fahrzeug für spätere Servicefall- und Projektverknüpfungen.' },i);
+    const vehicle = await record('vehicles', `Servicefahrzeug ${i+1} – TEST-${100+i}`, { registration_number: `TEST-${100+i}`, manufacturer: ['Volkswagen','Ford','Renault'][i], model: ['ID. Buzz','Transit','Kangoo'][i], first_registration: `202${3+i}-03-15`, mileage: String(45000+i*12500), purchase_price: { amount: String(28000+i*6000), currency:'EUR' }, electric: i===0, notes: 'Fiktives Fahrzeug mit Verknüpfung zu einem Vorgang.' },i);
     link('cases', records.cases[i], 'vehicles', vehicle, 'vehicle');
   }
   // A genuine edit creates before/after history through the common application layer.
   const firstTask = records.tasks[0];
   records.tasks[0] = await app.execute('update_record', { objectTypeId: objects.tasks.id, recordId: firstTask.id, version: firstTask.version, values: { estimated_hours: '2.5' } }, actorId) as DataRecord;
-  const relationTypes = await app.execute('list_relationship_types', { workspaceId: workspace.id }, actorId) as import('@xobject/contracts').RelationshipType[];
-  const primary = relationTypes.find(type => type.kind === 'primary')!;
-  const { id: _id, workspaceId: _workspace, technicalName: _name, kind: _kind, rulesState: _rules, version, ...configuration } = primary;
-  await app.execute('configure_relationship_type', { workspaceId: workspace.id, relationshipTypeId: primary.id, version, configuration: { ...configuration, pairs: [['contacts','projects'],['projects','cases'],['cases','tasks'],['projects','tasks'],['contacts','tasks']].map(([left,right]) => ({ leftObjectTypeId: objects[left].id, rightObjectTypeId: objects[right].id })) } }, actorId);
-  await app.execute('create_relationship_type', { workspaceId: workspace.id, technicalName: 'contact_person', configuration: { labels: { de: 'Ansprechpartner', en: 'Contact person' }, leftLabels: { de: 'Ansprechpartner', en: 'Contact persons' }, rightLabels: { de: 'Hauptorganisation', en: 'Main organization' }, directed: true, leftMin: 0, leftMax: null, rightMin: 0, rightMax: 1, allowAll: false, pairs: [{ leftObjectTypeId: objects.contacts.id, rightObjectTypeId: objects.contacts.id }], active: true } }, actorId);
+  const projectsModule=(await app.execute('list_workspace_modules',{workspaceId:workspace.id},actorId) as import('@xobject/contracts').WorkspaceModule[])[0];
+  await app.execute('configure_workspace_module',{workspaceId:workspace.id,key:'projects',enabled:true,version:projectsModule.version},actorId);
+  const chainModule=(await app.execute('list_workspace_modules',{workspaceId:workspace.id},actorId) as import('@xobject/contracts').WorkspaceModule[])[0];
+  await app.execute('configure_primary_chain',{workspaceId:workspace.id,version:chainModule.version,levels:{contact:objects.contacts.id,project:objects.projects.id,case:objects.cases.id}},actorId);
+  await app.execute('create_relationship_type', { workspaceId: workspace.id, technicalName: 'contact_person', configuration: { labels: { de: 'Ansprechpartner', en: 'Contact person' }, leftLabels: { de: 'Ansprechpartner', en: 'Contact persons' }, rightLabels: { de: 'Organisation', en: 'Organization' },leftApplicability:{fieldId:contactKind.id,optionIds:[contactKinds[0].id]},rightApplicability:{fieldId:contactKind.id,optionIds:[contactKinds[2].id]}, directed: true, leftMin: 0, leftMax: null, rightMin: 0, rightMax: 1, allowAll: false, pairs: [{ leftObjectTypeId: objects.contacts.id, rightObjectTypeId: objects.contacts.id }], active: true } }, actorId);
+  const identityRule={fieldId:contactKind.id,optionIds:[contactKinds[1].id,contactKinds[2].id]};
+  const identity=await app.execute('create_relationship_type',{workspaceId:workspace.id,technicalName:'contact_identities',configuration:{labels:{de:'Identitäten',en:'Identities'},leftLabels:{de:'Identitäten',en:'Identities'},rightLabels:{de:'Identitäten',en:'Identities'},directed:false,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:objects.contacts.id,rightObjectTypeId:objects.contacts.id}],active:true,leftApplicability:identityRule,rightApplicability:identityRule}},actorId) as import('@xobject/contracts').RelationshipType;
+  await app.execute('activate_relationship_type',{workspaceId:workspace.id,relationshipTypeId:identity.id,version:identity.version},actorId);
+  await connectDemoRelationships(db,actorId,workspace.id,links);
   return { workspaceId: workspace.id, objects, records, links };
+}
+
+/** Apply the fictional fixture plan through normal operations; retain existing links and no-op on repeats. */
+export async function connectDemoRelationships(db: Database, actorId: string, workspaceId: string, links: DemoLink[]) {
+  const app=new Application(db);
+  const objects=await app.execute('list_object_types',{workspaceId},actorId) as import('@xobject/contracts').ObjectSummary[];
+  let definitions=await app.execute('list_relationship_types',{workspaceId},actorId) as import('@xobject/contracts').RelationshipType[];
+  if(!definitions.some(type=>type.technicalName==='case_vehicle')) {
+    const cases=objects.find(type=>type.technicalName==='cases'),vehicles=objects.find(type=>type.technicalName==='vehicles');
+    if(!cases||!vehicles)throw new Error('Demo Cases/Vehicles missing');
+    await app.execute('create_relationship_type',{workspaceId,technicalName:'case_vehicle',configuration:{labels:{de:'Fahrzeugbezug',en:'Vehicle reference'},leftLabels:{de:'Fahrzeuge',en:'Vehicles'},rightLabels:{de:'Vorgänge',en:'Cases'},directed:false,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:cases.id,rightObjectTypeId:vehicles.id}],active:true}},actorId);
+    definitions=await app.execute('list_relationship_types',{workspaceId},actorId) as typeof definitions;
+  }
+  for(const type of definitions.filter(type=>['primary_association','general_relation','contact_person','case_vehicle'].includes(type.technicalName)))if(type.rulesState==='draft')await app.execute('activate_relationship_type',{workspaceId,relationshipTypeId:type.id,version:type.version},actorId);
+  definitions=await app.execute('list_relationship_types',{workspaceId},actorId) as typeof definitions;
+  for(const link of links) {
+    if(!objects.some(type=>type.id===link.from.objectTypeId)||!objects.some(type=>type.id===link.to.objectTypeId))throw new Error('Demo plan does not match this workspace');
+    const technicalName=link.relation==='primary'?'primary_association':link.relation==='contact_person'?'contact_person':'case_vehicle';
+    const type=definitions.find(type=>type.technicalName===technicalName);if(!type)throw new Error('Demo relationship definition missing');
+    const snapshot=await app.execute('get_record_relationships',{objectTypeId:link.from.objectTypeId,recordId:link.from.recordId},actorId) as import('@xobject/contracts').RecordRelationships;
+    const field=snapshot.fields.find(field=>field.definition.id===type.id&&field.side==='left');if(!field)throw new Error('Demo relationship side missing');
+    if(field.targets.some(target=>target.objectTypeId===link.to.objectTypeId&&target.recordId===link.to.recordId))continue;
+    const record=await app.execute('get_record',{objectTypeId:link.from.objectTypeId,recordId:link.from.recordId},actorId) as DataRecord;
+    await app.execute('update_record',{objectTypeId:link.from.objectTypeId,recordId:link.from.recordId,version:record.version,relationships:[{relationshipTypeId:type.id,version:type.version,side:'left',targets:[...field.targets.map(({objectTypeId,recordId})=>({objectTypeId,recordId})),link.to]}]},actorId);
+  }
 }

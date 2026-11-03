@@ -1,3 +1,4 @@
+import { TechnicalNameField } from './technical-name-field';
 import { TimeZoneField } from './time-zone-field';
 import { languageCatalog } from '@xobject/contracts';
 import { Spinner } from '@/components/ui/spinner';
@@ -10,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { Language, Labels } from '@xobject/contracts';
 import { api, ApiError } from '@/lib/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { TranslatedLabelInput, cleanLabels, hasLabel } from './translated-label-input';
 import { Input } from '@/components/ui/input';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
@@ -60,7 +61,7 @@ function DefinitionForm({ kind, workspaceId, objectTypeId, onClose, onCreated, o
           {mutation.isError ? <ErrorNotice error={mutation.error} /> : null}
           {kind === 'workspace' ? <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="workspace-name">{t('workspaceName')}</FieldLabel><Input id="workspace-name" autoFocus required maxLength={200} value={name} onChange={event => { setName(event.target.value); propose(event.target.value); }} disabled={mutation.isPending} /></Field> : <TranslatedLabelInput autoFocus id="definition-label" value={labels} disabled={mutation.isPending} onChange={next => { propose(next.en ?? next.de ?? ''); setLabels(next); }} />}
 
-          <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="technical-name">{t(kind === 'workspace' ? 'code' : 'technicalName')}</FieldLabel><Input id="technical-name" required value={code} maxLength={kind === 'workspace' ? 61 : 63} pattern={kind === 'workspace' ? '[a-z][a-z0-9]*' : '[a-z][a-z0-9_]*'} onChange={event => { setCodeTouched(true); setCode(event.target.value); }} disabled={mutation.isPending} /><FieldDescription>{t(kind === 'workspace' ? 'codeHelp' : 'technicalHelp')}</FieldDescription></Field>
+          <TechnicalNameField id="technical-name" value={code} workspaceCode={kind === 'workspace'} onChange={value => { setCodeTouched(true); setCode(value); }} disabled={mutation.isPending} />
           {kind === 'workspace' ? <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="default-language">{t('defaultLanguage')}</FieldLabel><NativeSelect id="default-language" value={language} onChange={event => setLanguage(event.target.value as Language)} disabled={mutation.isPending}>{languageCatalog.map(item => <NativeSelectOption key={item.code} value={item.code}>{item.nativeName}</NativeSelectOption>)}</NativeSelect></Field> : null}
           {kind === 'workspace' ? <TimeZoneField id="new-workspace-time-zone" value={timeZone} disabled={mutation.isPending} onChange={next => { if (next) setTimeZone(next); }} /> : null}
         </FieldGroup>
