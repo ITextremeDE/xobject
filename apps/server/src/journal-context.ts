@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { effectiveWorkspaceLanguage, type Language } from '@xobject/contracts';
+import { effectiveWorkspaceLanguage, formLayoutSchema, formLayoutEntries, type Language } from '@xobject/contracts';
 import type { Executor } from './database.js';
 
 type Labels = Record<string, string>;
@@ -26,6 +26,23 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     const relationshipTypes = (await sql<Context>`SELECT r.id, r.technical_name, r.labels, 'active' AS state, w.code, w.default_language, w.available_languages FROM sys_relationship_types r JOIN sys_workspaces w ON w.id=r.workspace_id WHERE r.id=ANY(${relationshipIds}::uuid[])`.execute(tx)).rows;
     for (const relation of relationshipTypes) relationshipNames.set(relation.id, label(relation.labels, relation));
   }
+  // Resolve names for layout snapshots without changing immutable old/new values.
+  // These are explicitly current metadata labels, including retained tombstones.
+  const layoutRows=rows.filter(row=>String(row.field_key).startsWith('form_layout.'));
+  const layoutObjectIds=[...new Set(layoutRows.map(row=>String(row.object_type_id)))];
+  const layoutFields=layoutObjectIds.length?(await sql<{id:string;object_type_id:string;labels:Labels}>`SELECT id,object_type_id,labels FROM sys_fields WHERE object_type_id=ANY(${layoutObjectIds}::uuid[])`.execute(tx)).rows:[];
+  const layoutRelations=layoutRows.length?(await sql<{id:string;workspace_id:string;left_labels:Labels;right_labels:Labels}>`SELECT id,workspace_id,left_labels,right_labels FROM sys_relationship_types WHERE workspace_id=ANY(${[...new Set(layoutRows.map(row=>String(row.workspace_id)))]}::uuid[])`.execute(tx)).rows:[];
+  const layoutContexts=new Map<string,{fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}>();
+  for(const row of layoutRows){
+    const type=typeMap.get(String(row.object_type_id));if(!type)continue;
+    const entries=[row.old_value,row.new_value].flatMap(value=>{const parsed=formLayoutSchema.safeParse(value);return parsed.success?formLayoutEntries(parsed.data):[];});
+    const fieldIds=new Set(entries.flatMap(entry=>'fieldId' in entry?[entry.fieldId]:[]));
+    const relationIds=new Set(entries.flatMap(entry=>'relationshipTypeId' in entry?[entry.relationshipTypeId]:[]));
+    layoutContexts.set(String(row.id),{
+      fields:Object.fromEntries(layoutFields.filter(field=>field.object_type_id===type.id&&fieldIds.has(field.id)).map(field=>[field.id,label(field.labels,type)])),
+      relationships:Object.fromEntries(layoutRelations.filter(relation=>relation.workspace_id===row.workspace_id&&relationIds.has(relation.id)).map(relation=>[relation.id,{left:label(relation.left_labels,type),right:label(relation.right_labels,type)}])),
+    });
+  }
   const names = new Map<string, string>();
   if (includeRecords) for (const type of types) {
     const ids = [...new Set(rows.filter(row => row.entity_kind === 'record' && row.object_type_id === type.id).map(row => String(row.entity_id)))];
@@ -39,6 +56,7 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
   return rows.map(row => {
     const type = typeMap.get(String(row.object_type_id)), field = fieldMap.get(String(row.field_id));
     return { ...row,
+      ...(layoutContexts.has(String(row.id))?{form_layout_context:layoutContexts.get(String(row.id))}:{}),
       object_type_name: type ? label(type.labels, type) : null,
       field_label: type && field ? label(field.labels, type) : null,
       entity_name: (row.entity_kind==='relationship' ? (()=>{const snapshot=(row.new_value??row.old_value) as {left?:{keyword?:string};right?:{keyword?:string};directed?:boolean}|null;return snapshot?.left?.keyword&&snapshot.right?.keyword?`${snapshot.left.keyword} ${snapshot.directed?'→':'↔'} ${snapshot.right.keyword}`:undefined;})() : undefined) ?? (row.entity_kind === 'relationship_type' ? relationshipNames.get(String(row.entity_id)) : undefined) ?? (type && row.entity_kind === 'object_type' ? label(type.labels, type)

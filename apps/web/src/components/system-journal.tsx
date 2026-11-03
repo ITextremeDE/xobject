@@ -20,7 +20,7 @@ export function SystemJournal() {
   const [field, setField] = useState(''), [kind, setKind] = useState(''), [workspaceId, setWorkspaceId] = useState(''), [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const deferredField = useDeferredValue(field);
-  const knownProperties = ['time_zone', 'name', 'email', 'labels', 'technical_name', 'kind', 'required', 'state', 'active', 'language', 'is_admin', 'must_change_password', 'member:', 'regional.locale', 'regional.dateFormat', 'regional.hourCycle', 'regional.numberFormat', 'regional.weekStart'];
+  const knownProperties = ['form_layout.default', 'time_zone', 'name', 'email', 'labels', 'technical_name', 'kind', 'required', 'state', 'active', 'language', 'is_admin', 'must_change_password', 'member:', 'regional.locale', 'regional.dateFormat', 'regional.hourCycle', 'regional.numberFormat', 'regional.weekStart'];
   const fieldKey = knownProperties.find(key => journalPropertyLabel(key, t).toLocaleLowerCase() === deferredField.trim().toLocaleLowerCase()) ?? deferredField;
   const users = useQuery({ queryKey: ['users'], queryFn: () => api('list_users', {}) });
   const workspaces = useQuery({ queryKey: ['workspaces'], queryFn: () => api('list_workspaces', {}) });

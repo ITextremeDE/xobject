@@ -1,4 +1,5 @@
-import {configurePrimaryChain} from './primary-chain.js';
+import {formLayoutElements,formEntryKey,formLayoutEntries,formRelationshipFields,resolveFormLayout,type FormLayouts} from '@xobject/contracts';
+import {primaryChain} from './primary-chain.js';
 import { applies, validateApplicability, applicabilityDependents } from './field-applicability.js';
 import { journalValueContexts } from './record-journal.js';
 import { lockOperation } from './operation-locks.js';
@@ -25,7 +26,7 @@ export { schemas, type Operation } from '@xobject/contracts';
 import type { Database, Executor } from './database.js';
 
 type Labels = Record<string, string>;
-type ObjectType = { version: number; id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string; available_languages: Language[]; classification: ClassificationConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
+type ObjectType = { form_layouts?:FormLayouts; version: number; id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string; available_languages: Language[]; classification: ClassificationConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type Field = { applicability?: import('@xobject/contracts').FieldApplicability; version: number; id: string; technical_name: string; labels: Labels; kind: string; required: boolean; config: FieldConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type DataRecord = Record<string, unknown> & { id: string; version: number; keyword: string };
 const reserved = new Set(['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category', 'business_number', 'access_principals', 'tableoid', 'xmin', 'xmax', 'cmin', 'cmax', 'ctid']);
@@ -71,9 +72,9 @@ export class Application {
           case 'search_relationship_candidates': return searchRelationshipCandidates(tx,schemas.search_relationship_candidates.parse(parsed));
           case 'activate_relationship_type': return activateRelationship(tx,schemas.activate_relationship_type.parse(parsed),userId);
           case 'get_primary_chain_context': return primaryChainContext(tx,schemas.get_primary_chain_context.parse(parsed),userId);
-          case 'configure_primary_chain': return configurePrimaryChain(tx,schemas.configure_primary_chain.parse(parsed),configJournal);
+          case 'configure_form_layout': return this.configureFormLayout(tx, schemas.configure_form_layout.parse(parsed), userId);
           case 'list_workspace_modules': return workspaceModules(tx,schemas.list_workspace_modules.parse(parsed).workspaceId);
-          case 'configure_workspace_module': return configureWorkspaceModule(tx,schemas.configure_workspace_module.parse(parsed),configJournal);
+          case 'configure_workspace_module': return configureWorkspaceModule(tx,schemas.configure_workspace_module.parse(parsed),configJournal,()=>this.installProjectObjects(tx,(parsed as {workspaceId:string}).workspaceId,userId));
           case 'list_relationship_types': return relationshipTypes(tx, schemas.list_relationship_types.parse(parsed).workspaceId);
           case 'create_relationship_type': return configureRelationship(tx, schemas.create_relationship_type.parse(parsed), configJournal);
           case 'configure_relationship_type': return configureRelationship(tx, schemas.configure_relationship_type.parse(parsed), configJournal);
@@ -249,7 +250,7 @@ export class Application {
     const member = (await sql<{ role: string }>`SELECT role FROM sys_workspace_members WHERE workspace_id = ${workspaceId}::uuid AND user_id = ${actor}`.execute(tx)).rows[0];
     if (!member) throw new AppError(403, 'Access denied');
     const reads: Operation[] = ['list_workspace_modules', 'list_relationship_types', 'list_groups', 'list_object_types', 'get_object_type', 'list_workspace_members', 'list_field_principals', 'get_definition_journal'];
-    const configuration: Operation[] = ['configure_primary_chain', 'configure_workspace_module', 'activate_relationship_type', 'create_relationship_type', 'configure_relationship_type', 'configure_group', 'configure_workspace_languages', 'set_workspace_appearance', 'set_workspace_name', 'set_workspace_language', 'create_object_type', 'create_field', 'add_standard_field', 'configure_field', 'set_field_required', 'set_labels', 'configure_classification', 'create_group', 'set_definition_state'];
+    const configuration: Operation[] = ['configure_form_layout', 'configure_workspace_module', 'activate_relationship_type', 'create_relationship_type', 'configure_relationship_type', 'configure_group', 'configure_workspace_languages', 'set_workspace_appearance', 'set_workspace_name', 'set_workspace_language', 'create_object_type', 'create_field', 'add_standard_field', 'configure_field', 'set_field_required', 'set_labels', 'configure_classification', 'create_group', 'set_definition_state'];
     if (!reads.includes(operation) && !(member.role === 'designer' && configuration.includes(operation))) throw new AppError(403, 'Access denied');
     return { isAdmin: false };
   }
@@ -387,6 +388,40 @@ export class Application {
       hasMoreObjects: matches.length > args.limit, hasMoreRecords: rows.length > args.limit };
   }
 
+  private async configureFormLayout(tx:Executor,args:z.infer<typeof schemas.configure_form_layout>,actor:string){
+    const type=await this.objectType(tx,args.objectTypeId);this.requireActive(type);
+    if(type.version!==args.version)throw new AppError(409,'Object version conflict');
+    if(args.layout){
+      const own=(await sql<{id:string;technical_name:string;kind:string}>`SELECT id,technical_name,kind FROM sys_fields WHERE object_type_id=${type.id}::uuid`.execute(tx)).rows.map(field=>({...field,technicalName:field.technical_name}));
+      const relationships=formRelationshipFields(await relationshipTypes(tx,type.workspace_id),type.id,await primaryChain(tx,type.workspace_id));
+      const elements=formLayoutElements(own,relationships);
+      for(const entry of formLayoutEntries(args.layout)){
+        const element=elements.find(element=>element.key===formEntryKey(entry));
+        if(!element){
+          const previous=(type.form_layouts?.[args.context]?formLayoutEntries(type.form_layouts[args.context]):[]).find(old=>formEntryKey(old)===formEntryKey(entry));
+          if(previous&&isDeepStrictEqual(previous,entry))continue;
+          throw new AppError(400,'Layout elements must belong to this object and use available relationship sides');
+        }
+        if(!element.single&&entry.width!=='full')throw new AppError(400,'Relationship tables and Primary chain require full width');
+        if(!('fieldId' in entry)&&element.required&&entry.visible===false)throw new AppError(400,'Required relationships must remain visible');
+      }
+      const languages=(await sql<{label_languages:string[]}>`SELECT label_languages FROM sys_workspaces WHERE id=${type.workspace_id}::uuid`.execute(tx)).rows[0].label_languages;
+      const old=type.form_layouts?.[args.context]??type.form_layouts?.default;
+      for(const group of args.layout.groups){
+        const proposed:Record<string,string|undefined>=group.labels;
+        const previous:Record<string,string|undefined>=old?.groups.find(item=>item.id===group.id)?.labels??(!old?{en:'General',de:'Allgemein'}:{});
+        for(const code of new Set([...Object.keys(group.labels),...Object.keys(previous)]))if(!languages.includes(code)&&proposed[code]!==previous[code])throw new AppError(400,'Definition language is unavailable');
+      }
+    }
+    const before=type.form_layouts?.[args.context]??null,next={...type.form_layouts};
+    if(args.layout)next[args.context]=args.layout;else delete next[args.context];
+    if(!isDeepStrictEqual(before,args.layout)){
+      await sql`UPDATE sys_object_types SET form_layouts=${JSON.stringify(next)}::jsonb,version=version+1 WHERE id=${type.id}::uuid`.execute(tx);
+      await this.journal(tx,actor,type.workspace_id,type.id,'object_type',type.id,v7(),`form_layout.${args.context}`,before,args.layout);
+    }
+    return this.definition(tx,type.id,actor);
+  }
+
   private async objectType(tx: Executor, id: string, includeDeleted = false) {
     const result = await sql<ObjectType>`SELECT o.*, w.code, w.default_language, w.available_languages FROM sys_object_types o
       JOIN sys_workspaces w ON w.id = o.workspace_id WHERE o.id = ${id}::uuid`.execute(tx);
@@ -427,11 +462,42 @@ export class Application {
     const regional = args.regional ?? { ...defaultRegionalSettings, locale: args.defaultLanguage === 'de' ? 'de-DE' : 'en-US' };
     for (const [key, value] of Object.entries(regional)) await this.journal(tx, actor, id, null, 'workspace', id, change, `regional.${key}`, null, value);
     await installSystemRelationships(tx, id, actor);
+    await sql`INSERT INTO sys_workspace_modules(workspace_id,module_key) SELECT ${id}::uuid,key FROM sys_modules ON CONFLICT DO NOTHING`.execute(tx);
     return { id, ...args };
   }
 
-  private async createObjectType(tx: Executor, args: z.infer<typeof schemas.create_object_type>, actor: string) {
+  private async installProjectObjects(tx:Executor,workspaceId:string,actor:string) {
+    const catalog=(await sql<{objects:{key:string;technicalName:string;labels:Record<string,string>;standardFields:('keyword'|'type_status'|'category')[]}[]}>`SELECT objects FROM sys_modules WHERE key='projects'`.execute(tx)).rows[0];
+    const levels:Record<string,string>={};
+    for(const proposal of catalog.objects){
+      let binding=(await sql<{object_type_id:string}>`SELECT object_type_id FROM sys_module_object_bindings WHERE workspace_id=${workspaceId}::uuid AND object_key=${proposal.key}`.execute(tx)).rows[0];
+      if(!binding){
+        if((await sql`SELECT 1 FROM sys_object_types WHERE workspace_id=${workspaceId}::uuid AND technical_name=${proposal.technicalName} AND state<>'deleted'`.execute(tx)).rows.length)throw new AppError(409,'Module object name conflicts with an existing custom object');
+        const created=await this.createObjectType(tx,{workspaceId,technicalName:proposal.technicalName,labels:proposal.labels,standardFields:proposal.standardFields},actor,true);
+        binding={object_type_id:created.id};
+        await sql`INSERT INTO sys_module_object_bindings VALUES(${workspaceId}::uuid,${proposal.key},${created.id}::uuid)`.execute(tx);
+        await sql`UPDATE sys_object_types SET is_protected=true WHERE id=${created.id}::uuid`.execute(tx);
+        await sql`UPDATE sys_fields SET is_protected=true WHERE object_type_id=${created.id}::uuid`.execute(tx);
+        const change=v7();
+        await this.journal(tx,actor,workspaceId,created.id,'object_type',created.id,change,'module_binding',null,proposal.key);
+        await this.journal(tx,actor,workspaceId,created.id,'object_type',created.id,change,'is_protected',false,true);
+        const suppliedFields=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${created.id}::uuid`.execute(tx)).rows;
+        for(const field of suppliedFields)await this.journal(tx,actor,workspaceId,created.id,'field',field.id,change,'is_protected',false,true,field.id);
+      }
+      const type=await this.objectType(tx,binding.object_type_id);this.requireActive(type);
+      levels[proposal.key]=binding.object_type_id;
+    }
+    const change=v7();
+    for(const role of ['contact','project','case']){
+      const inserted=(await sql`INSERT INTO sys_primary_chain_levels VALUES(${workspaceId}::uuid,${role},${levels[role]}::uuid) ON CONFLICT DO NOTHING RETURNING role`.execute(tx)).rows;
+      if(inserted.length)await this.journal(tx,actor,workspaceId,null,'workspace',workspaceId,change,`primary_chain.${role}`,null,levels[role]);
+    }
+    return {contact:levels.contact,project:levels.project,case:levels.case};
+  }
+
+  private async createObjectType(tx: Executor, args: z.infer<typeof schemas.create_object_type>, actor: string, supplied = false) {
     await checkName(tx, args.technicalName);
+    if(!supplied&&(await sql`SELECT 1 FROM sys_modules m CROSS JOIN LATERAL jsonb_array_elements(m.objects) o WHERE o->>'technicalName'=${args.technicalName} LIMIT 1`.execute(tx)).rows.length)throw new AppError(400,'Technical name is reserved for a module object');
     const ws = (await sql<{ code: string }>`SELECT code FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];
     if (!ws) throw new AppError(404, 'Workspace not found');
     const name = `${ws.code}_${args.technicalName}`;
@@ -454,6 +520,9 @@ export class Application {
     const type = await this.objectType(tx, id);
     for (const field of args.standardFields) await this.addStandardField(tx, type, field, actor, change);
 
+    const initialFields=(await sql<{id:string;technical_name:string;kind:string}>`SELECT id,technical_name,kind FROM sys_fields WHERE object_type_id=${id}::uuid AND state<>'deleted' ORDER BY id`.execute(tx)).rows.map(field=>({...field,technicalName:field.technical_name}));
+    const form=resolveFormLayout(undefined,initialFields);form.groups[0].id=v7();
+    await sql`UPDATE sys_object_types SET form_layouts=${JSON.stringify({default:form})}::jsonb WHERE id=${id}::uuid`.execute(tx);
     return { id, ...args, tableName: name };
   }
 
@@ -515,7 +584,7 @@ export class Application {
       WHERE table_schema = current_schema() AND table_name = ${tableName(type)} AND ${type.state !== 'deleted'} ORDER BY ordinal_position`.execute(tx)).rows;
     const used = type.state !== 'deleted' && type.classification.options.some(option => option.kind !== 'category') ? await this.usedClassificationIds(tx, type, fields) : new Set<string>();
     return {
-      version: type.version, id: type.id, state: type.state, isProtected: type.is_protected || fields.some(field => field.state !== 'deleted' && field.is_protected), canDelete: type.state !== 'deleted' && !type.is_protected && !fields.some(field => field.state !== 'deleted' && field.is_protected) && !(await this.objectUsed(tx, type)) && !(await sql`SELECT 1 FROM sys_relationship_type_pairs WHERE left_object_type_id=${type.id}::uuid OR right_object_type_id=${type.id}::uuid LIMIT 1`.execute(tx)).rows.length, workspaceId: type.workspace_id, technicalName: type.technical_name,
+      formRelationships:formRelationshipFields(await relationshipTypes(tx,type.workspace_id),type.id,await primaryChain(tx,type.workspace_id)), formLayouts:type.form_layouts??{}, version: type.version, id: type.id, state: type.state, isProtected: type.is_protected || fields.some(field => field.state !== 'deleted' && field.is_protected), canDelete: type.state !== 'deleted' && !type.is_protected && !fields.some(field => field.state !== 'deleted' && field.is_protected) && !(await this.objectUsed(tx, type)) && !(await sql`SELECT 1 FROM sys_relationship_type_pairs WHERE left_object_type_id=${type.id}::uuid OR right_object_type_id=${type.id}::uuid LIMIT 1`.execute(tx)).rows.length, workspaceId: type.workspace_id, technicalName: type.technical_name,
       classification: { ...type.classification, options: type.classification.options.map(option => ({ ...option, label: localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language), canDelete: option.kind !== 'category' && !used.has(option.id) })) },
       labels: type.labels, label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language),
       fields: await Promise.all(fields.filter(f => f.state !== 'deleted').map(async f => ({ applicability: f.applicability??null, version: f.version, id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, isProtected: f.is_protected || fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected),

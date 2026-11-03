@@ -2,19 +2,21 @@ import { ChevronDownIcon } from 'lucide-react';
 import { journalEntityLabel, journalEntryTitle, journalPropertyLabel } from '@/lib/journal-presentation';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SystemJournalEntry } from '@xobject/contracts';
+import {formLayoutSchema,type SystemJournalEntry} from '@xobject/contracts';
+import {JournalFormLayoutValue} from './journal-form-layout-value';
 import { useRegional } from '@/lib/regional-context';
 import { useTimeZone } from '@/lib/time-zone-context';
 import { formatRegionalDate } from '@/lib/regional';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import {FieldGroup,FieldDescription} from '@/components/ui/field';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 
-export function JournalEntryCard({ entry, memberName, renderValue, compact = false }: { entry: SystemJournalEntry; memberName?: string; compact?: boolean; renderValue?: (value: unknown, side: 'before' | 'after') => ReactNode }) {
+export function JournalEntryDetails({ entry, memberName, renderValue, compact = false }: { entry: SystemJournalEntry; memberName?: string; compact?: boolean; renderValue?: (value: unknown, side: 'before' | 'after') => ReactNode }) {
   const { t, i18n } = useTranslation();
   const regional = useRegional(), timeZone = useTimeZone();
   function value(item: unknown, key = entry.field_key, depth = 0): ReactNode {
+    if(entry.field_key.startsWith('form_layout.')&&formLayoutSchema.safeParse(item).success)return <JournalFormLayoutValue value={item} context={entry.form_layout_context}/>;
     if (item === null || item === undefined) return <span className="text-muted-foreground">{t('journalNotSet')}</span>;
     if (typeof item==='object' && !Array.isArray(item) && 'relationshipTypeId' in item && 'left' in item && 'right' in item) {
       const link=item as unknown as {labels:Record<string,string>;left:{keyword:string;objectLabels:Record<string,string>};right:{keyword:string;objectLabels:Record<string,string>};directed:boolean};
@@ -47,33 +49,27 @@ export function JournalEntryCard({ entry, memberName, renderValue, compact = fal
     [t('journalEntryId'), entry.id], [t('journalTimestampUtc'), entry.created_at],
   ];
 
-  return <article aria-labelledby={`journal-title-${entry.id}`}>
-    <Card size="sm">
-      <CardHeader className="gap-3">
+  return <article aria-label={journalEntryTitle(entry,t,i18n.language)}><FieldGroup>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Badge variant="outline">{journalEntityLabel(entry.entity_kind, t)}</Badge>
           <time className="text-xs text-muted-foreground" dateTime={entry.created_at}>{formatRegionalDate(entry.created_at, regional, timeZone, true)}</time>
         </div>
-        <CardTitle><h3 id={`journal-title-${entry.id}`}>{journalEntryTitle(entry, t, i18n.language)}</h3></CardTitle>
-        <CardDescription>
+        <div className="text-sm text-muted-foreground">
           {compact ? <span>{t('journalChangedBy')}: {entry.actor_name ?? t('journalUnknownUser')}</span> : <dl className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
             {[
               [t('journalTarget'), entry.entity_name ?? entry.entity_id],
               [t('journalChangedBy'), entry.actor_name ?? t('journalUnknownUser')],
               [t('journalScope'), entry.workspace_name ?? t('instance')],
-              ...(entry.object_type_name ? [[t('objectType'), entry.object_type_name]] : []),
+              ...(entry.object_type_name && !(entry.entity_kind==='object_type'&&entry.entity_name===entry.object_type_name) ? [[t('objectType'), entry.object_type_name]] : []),
               ...(entry.field_key.startsWith('member:') ? [[t('journalAffectedUser'), memberName ?? t('journalUnknownUser')]] : []),
             ].map(([label, text]) => <div key={label} className="min-w-0"><dt className="text-xs">{label}</dt><dd className="wrap-anywhere text-foreground">{text}</dd></div>)}
           </dl>}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </div>
+      {entry.field_key.startsWith('form_layout.')?<FieldDescription>{t('formSnapshotNamesHelp')}</FieldDescription>:null}
         <dl className="grid min-w-0 grid-cols-1 divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere">{renderValue ? renderValue(item,index===0?'before':'after') : value(item)}</dd></div>)}
+          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className={entry.field_key.startsWith('form_layout.')?'sm:max-h-80 overflow-auto whitespace-pre-wrap wrap-anywhere':'sm:max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere'}>{renderValue ? renderValue(item,index===0?'before':'after') : value(item)}</dd></div>)}
         </dl>
-      </CardContent>
-      <CardFooter className="block p-0">
-        <Collapsible>
+      <Collapsible className="overflow-hidden rounded-lg border">
           <CollapsibleTrigger className="group/journal-details" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between rounded-none px-3 py-2.5" />}>
             {t('journalTechnicalDetails')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/journal-details:rotate-180" />
           </CollapsibleTrigger>
@@ -81,9 +77,8 @@ export function JournalEntryCard({ entry, memberName, renderValue, compact = fal
             <dl className="grid min-w-0 gap-3 border-t p-3 sm:grid-cols-2">
               {details.map(([label, text]) => <div key={label} className="min-w-0"><dt className="mb-1 text-xs text-muted-foreground">{label}</dt><dd className="select-text font-mono text-xs wrap-anywhere">{text}</dd></div>)}
             </dl>
+            {entry.field_key.startsWith('form_layout.')?<div className="grid gap-3 border-t p-3 sm:grid-cols-2">{[[t('before'),entry.old_value],[t('after'),entry.new_value]].map(([label,value])=><div key={String(label)} className="min-w-0"><p className="text-xs text-muted-foreground">{String(label)}</p><pre className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere text-xs">{JSON.stringify(value,null,2)}</pre></div>)}</div>:null}
           </CollapsibleContent>
         </Collapsible>
-      </CardFooter>
-    </Card>
-  </article>;
+    </FieldGroup></article>;
 }

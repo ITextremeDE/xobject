@@ -1,0 +1,79 @@
+import {cn} from '@/lib/utils';
+import {useLocation} from 'react-router';
+import type {ReactNode} from 'react';
+import {useTranslation} from 'react-i18next';
+import {resolveFormLayout,type ObjectDefinition} from '@xobject/contracts';
+import {Skeleton} from '@/components/ui/skeleton';
+import {Spinner} from '@/components/ui/spinner';
+import {Field,FieldGroup,FieldSet,FieldLegend,FieldLabel} from '@/components/ui/field';
+import {Table,TableHeader,TableHead,TableBody,TableRow,TableCell} from '@/components/ui/table';
+import {Card,CardHeader,CardTitle,CardDescription,CardContent,CardFooter,CardAction} from '@/components/ui/card';
+import {Separator} from '@/components/ui/separator';
+import {SidebarProvider,Sidebar,SidebarHeader,SidebarContent,SidebarGroup,SidebarMenu,SidebarMenuItem,SidebarMenuSkeleton,SidebarFooter,SidebarInset} from '@/components/ui/sidebar';
+import {Dialog,DialogContent,DialogTitle,DialogDescription,DialogHeader} from '@/components/ui/dialog';
+import {DialogActions} from './dialog-actions';
+import {settingsDialogClassName} from '@/lib/settings-dialog-layout';
+
+export function LoadingRegion({children,className}:{children:ReactNode;className?:string}){
+  const {t}=useTranslation();
+  return <div role="status" aria-label={t('loading')} aria-busy="true" className={className}><div aria-hidden="true">{children}</div></div>;
+}
+export function FieldSkeleton({multiline=false,label}:{multiline?:boolean;label?:ReactNode}){
+  return <Field>{label?<FieldLabel>{label}</FieldLabel>:<Skeleton className="h-4 w-28"/>}<Skeleton className={multiline?'h-20 w-full':'h-8 w-full'}/></Field>;
+}
+export function TableSkeletonRows({columns,rows=5,columnClasses=[],dense=false,selectable=false}:{columns:number;rows?:number;columnClasses?:string[];dense?:boolean;selectable?:boolean}){
+  return <>{Array.from({length:rows},(_,row)=><TableRow key={row} aria-hidden="true" className={dense?'h-10':'h-12'}>{Array.from({length:columns},(_,column)=><TableCell key={column} className={columnClasses[column]}><Skeleton className={selectable&&column===0?'size-4':selectable&&column===columns-1?'size-7':'h-4 w-full'}/></TableCell>)}</TableRow>)}</>;
+}
+function TablePlaceholder({columns=4,rows=5,headings,columnClasses=[],dense=true,selectable=false}:{columns?:number;rows?:number;headings?:ReactNode[];columnClasses?:string[];dense?:boolean;selectable?:boolean}){
+  const count=headings?.length??columns;
+  return <div className="flex min-w-0 flex-col gap-5"><div className="overflow-hidden rounded-lg border"><Table className="table-fixed"><TableHeader><TableRow>{Array.from({length:count},(_,index)=><TableHead key={index} className={columnClasses[index]}>{headings?.[index]??<Skeleton className="h-4 w-20 max-w-full"/>}</TableHead>)}</TableRow></TableHeader><TableBody><TableSkeletonRows columns={count} rows={rows} dense={dense} selectable={selectable} columnClasses={columnClasses}/></TableBody></Table></div><div className="flex flex-wrap items-center justify-between gap-4 px-1"><Skeleton className="h-5 w-32"/><div className="flex flex-wrap items-center gap-4"><Skeleton className="h-7 w-40"/><Skeleton className="h-7 w-56"/></div></div></div>;
+}
+function FormPlaceholder({designer=false}:{designer?:boolean}){
+  if(designer)return <FieldGroup><Skeleton className="h-5 w-full"/><Skeleton className="h-7 w-44"/><FieldSet><FieldLegend><Skeleton className="h-5 w-36"/></FieldLegend><FieldSkeleton/>{Array.from({length:3},(_,index)=><FieldSet key={index}><FieldLegend><Skeleton className="h-4 w-28"/></FieldLegend><FieldGroup className="grid gap-3 sm:grid-cols-2"><FieldSkeleton/><FieldSkeleton/></FieldGroup><Separator/></FieldSet>)}</FieldSet></FieldGroup>;
+  return <FieldGroup><FieldSet><FieldLegend><Skeleton className="h-5 w-36"/></FieldLegend><FieldGroup className="grid gap-6 sm:grid-cols-2">{Array.from({length:6},(_,index)=><FieldSkeleton key={index}/>)}</FieldGroup></FieldSet></FieldGroup>;
+}
+export function Loading({variant='inline',columns=4,rows=5,headings,columnClasses,label}:{variant?:'inline'|'form'|'field'|'table'|'sidebar'|'designer'|'object'|'tree'|'module';label?:ReactNode;columns?:number;rows?:number;headings?:ReactNode[];columnClasses?:string[]}){
+  const {t}=useTranslation();
+  if(variant==='inline')return <div role="status" aria-label={t('loading')} className="flex items-center gap-2 py-2 text-sm text-muted-foreground"><Spinner aria-hidden="true"/>{t('loading')}</div>;
+  return <LoadingRegion>{variant==='table'?<TablePlaceholder columns={columns} rows={rows} headings={headings} columnClasses={columnClasses}/>:variant==='field'?<FieldSkeleton label={label}/>:variant==='sidebar'?<SidebarMenu className="gap-1">{Array.from({length:4},(_,index)=><SidebarMenuItem key={index}><SidebarMenuSkeleton showIcon/></SidebarMenuItem>)}</SidebarMenu>:variant==='module'?<FieldGroup><Skeleton className="h-5 w-28"/><Skeleton className="h-5 w-40"/><Skeleton className="h-4 w-full"/><Skeleton className="h-4 w-72 max-w-full"/><Skeleton className="h-8 w-64 max-w-full"/></FieldGroup>:variant==='tree'?<div className="flex flex-col gap-3"><Skeleton className="h-8 w-64 max-w-full"/><div className="flex flex-col gap-3 pl-6"><Skeleton className="h-8 w-72 max-w-full"/><Skeleton className="h-8 w-60 max-w-full"/></div></div>:variant==='object'?<FieldGroup><Skeleton className="h-5 w-44"/><Skeleton className="h-4 w-full"/><FieldSkeleton/><div className="flex justify-end gap-2"><Skeleton className="h-8 w-36"/><Skeleton className="h-8 w-40"/></div><Separator/><div className="flex justify-between gap-4"><Skeleton className="h-6 w-20"/><Skeleton className="h-8 w-40"/></div><Skeleton className="h-8 w-80 max-w-full"/><TablePlaceholder headings={[t('objectName'),t('technicalName'),t('fieldType'),t('requiredField'),t('definitionState')]} columnClasses={['','hidden sm:table-cell','','','hidden sm:table-cell']}/></FieldGroup>:<FormPlaceholder designer={variant==='designer'}/>}</LoadingRegion>;
+}
+export function DashboardSummaryLoading(){
+  return <LoadingRegion><div className="@container/main flex flex-col gap-6"><div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">{Array.from({length:4},(_,index)=><Card key={index}><CardHeader><CardDescription><Skeleton className="h-5 w-40 max-w-full"/></CardDescription><CardTitle><Skeleton className="h-9 w-16"/></CardTitle><CardAction><Skeleton className="h-5 w-16"/></CardAction></CardHeader><CardFooter className="flex-col items-start gap-1.5"><Skeleton className="h-5 w-52 max-w-full"/><Skeleton className="h-5 w-60 max-w-full"/></CardFooter></Card>)}</div><Card><CardHeader><CardTitle><Skeleton className="h-5 w-40"/></CardTitle><CardDescription><Skeleton className="h-5 w-80 max-w-full"/></CardDescription><CardAction><Skeleton className="h-8 w-28 sm:w-64"/></CardAction></CardHeader><CardContent className="px-2 pt-4 sm:px-6 sm:pt-6"><Skeleton className="h-[250px] w-full"/></CardContent></Card></div></LoadingRegion>;
+}
+export function DashboardLoading(){
+  return <div className="flex flex-col gap-6"><DashboardSummaryLoading/><LoadingRegion><div className="flex flex-col gap-4"><Skeleton className="h-8 w-72 max-w-full"/><div className="flex flex-wrap justify-between gap-3"><Skeleton className="h-7 w-80 max-w-full"/><Skeleton className="h-7 w-64 max-w-full"/></div><TablePlaceholder columns={9} rows={10} dense={false} selectable columnClasses={['w-10','','','','','','','','w-10']}/></div></LoadingRegion></div>;
+}
+export function RecordPageLoading({definition,isNew=false}:{definition?:ObjectDefinition;isNew?:boolean}){
+  const {t,i18n}=useTranslation();
+  const fields=definition?.fields.filter(field=>field.state==='active'&&!field.applicability)??[];
+  const layout=definition?resolveFormLayout(definition.formLayouts?.default,fields,true,definition.formRelationships):undefined;
+  const groups=layout?[...layout.groups,...(layout.unassigned?.length?[{id:':unassigned',labels:{},fields:layout.unassigned}]:[])]:[];
+  return <LoadingRegion className="mx-auto w-full min-w-0 max-w-6xl"><div className="flex flex-col gap-6 pb-6"><header className="flex flex-col gap-2"><div className="flex justify-between gap-4"><Skeleton className="h-8 w-44"/><Skeleton className="h-8 w-36"/></div><Skeleton className="h-8 w-72 max-w-full"/><Skeleton className="h-5 w-full"/></header><div className="flex gap-4">{Array.from({length:isNew?1:4},(_,index)=><Skeleton key={index} className="h-8 w-16"/>)}</div><Separator/>{groups.length?groups.filter(group=>group.fields.length).map(group=><FieldSet key={group.id}><FieldLegend>{(group.labels as Record<string,string>)[i18n.language]??(group.labels as Record<string,string>).en??<Skeleton className="h-5 w-36"/>}</FieldLegend><FieldGroup className="grid items-start gap-6 md:grid-cols-2">{group.fields.map((entry,index)=>{const field='fieldId' in entry?fields.find(field=>field.id===entry.fieldId):undefined;const relation='relationshipTypeId' in entry?definition?.formRelationships?.find(item=>item.definition.id===entry.relationshipTypeId&&item.side===entry.side):undefined;const names=relation?(relation.side==='left'?relation.definition.leftLabels:relation.definition.rightLabels) as Record<string,string>:undefined;const label=field?.label??('primary' in entry?t('primaryChainTitle'):names?.[i18n.language]??names?.en??names?.de);return <div key={index} className={entry.width==='full'?'md:col-span-2':undefined}><FieldSkeleton label={label} multiline={field?.kind==='multiline'}/></div>;})}</FieldGroup></FieldSet>):<FormPlaceholder/>}<div className="flex justify-end gap-2 border-t py-3"><Skeleton className="h-8 w-28"/><Skeleton className="h-8 w-40"/></div></div></LoadingRegion>;
+}
+export function RecordListLoading({title}:{title?:string}){
+  return <><h1 className="py-2 text-2xl font-semibold tracking-tight">{title??<Skeleton className="h-8 w-48"/>}</h1><LoadingRegion><div className="flex flex-col gap-4"><div className="flex flex-wrap justify-between gap-3"><Skeleton className="h-7 w-80 max-w-full"/><Skeleton className="h-7 w-64 max-w-full"/></div><TablePlaceholder columns={8} rows={10} dense={false} selectable columnClasses={['w-10','','','','','','','w-10']}/></div></LoadingRegion></>;
+}
+export function WorkspaceLoading({children}:{children?:ReactNode}){
+  const location=useLocation();
+  const pathname=location.pathname==='/settings'&&typeof location.state?.backgroundPath==='string'?location.state.backgroundPath:location.pathname;
+  const record=/^\/w\/[^/]+\/objects\/[^/]+\/([^/]+)/.exec(pathname);
+  const content=children??(record?<RecordPageLoading isNew={record[1]==='new'}/>:pathname.includes('/objects/')?<RecordListLoading/>:<DashboardLoading/>);
+  return <LoadingRegion><SidebarProvider><Sidebar collapsible="icon" variant="inset"><SidebarHeader><Skeleton className="h-12 w-full"/><Skeleton className="h-7 w-full"/></SidebarHeader><SidebarContent><SidebarGroup><Skeleton className="h-8 w-full"/></SidebarGroup><SidebarGroup><Skeleton className="mb-3 h-4 w-24"/><Loading variant="sidebar"/></SidebarGroup></SidebarContent><SidebarFooter><Skeleton className="h-12 w-full"/></SidebarFooter></Sidebar><SidebarInset className="min-w-0"><header className="flex h-16 items-center justify-between px-4"><Skeleton className="h-5 w-56 max-w-full"/><Skeleton className="h-9 w-32"/></header><div className="flex min-w-0 flex-col gap-4 p-4 pt-0">{content}</div></SidebarInset></SidebarProvider></LoadingRegion>;
+}
+function ActionSkeletons(){
+  return <><Skeleton className="h-8 w-full sm:w-28"/><Skeleton className="h-8 w-full sm:w-40"/></>;
+}
+export function SettingsLoading({onClose}:{onClose:()=>void}){
+  const {t}=useTranslation();
+  return <Dialog open onOpenChange={open=>{if(!open)onClose();}}><DialogContent className={settingsDialogClassName}><DialogTitle className="sr-only">{t('settings')}</DialogTitle><DialogDescription className="sr-only">{t('settingsDescription')}</DialogDescription><div className="flex h-full min-h-0"><aside className="hidden w-64 shrink-0 flex-col gap-6 bg-sidebar p-4 md:flex"><Loading variant="sidebar"/><Loading variant="sidebar"/><Loading variant="sidebar"/></aside><div className="flex min-h-0 min-w-0 flex-1 flex-col"><LoadingRegion className="flex-1 overflow-hidden p-4"><div className="flex flex-col gap-6"><Skeleton className="h-8 w-64 max-w-full"/><div className="flex items-center gap-4"><Skeleton className="size-12 rounded-full"/><Skeleton className="h-8 w-36"/></div><FieldSkeleton/><FieldSkeleton/><Skeleton className="h-7 w-52 max-w-full"/></div></LoadingRegion><DialogActions onClose={onClose}><ActionSkeletons/></DialogActions></div></div></DialogContent></Dialog>;
+}
+
+export function ClassificationLoading({category,objectLabel,onClose}:{category:boolean;objectLabel:string;onClose:()=>void}){
+  const {t}=useTranslation();
+  return <Dialog open onOpenChange={open=>{if(!open)onClose();}}><DialogContent className={cn('flex max-h-[85svh] flex-col overflow-hidden p-0',category?'sm:max-w-xl':'sm:max-w-4xl')}><DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{t(category?'classificationCategory':'typesAndStatuses')}</DialogTitle><DialogDescription>{objectLabel} · {t('classificationDescription')}</DialogDescription></DialogHeader><LoadingRegion className="min-h-0 overflow-y-auto px-4 pb-4"><FieldGroup><Skeleton className="h-7 w-44"/><FieldGroup className={category?undefined:'grid gap-6 sm:grid-cols-2'}><FieldSkeleton/>{!category?<FieldSkeleton/>:null}</FieldGroup><FieldSkeleton/>{category?<div className="flex flex-col gap-3">{Array.from({length:3},(_,index)=><Skeleton key={index} className="h-8 w-full"/>)}</div>:<FieldGroup className="grid items-start gap-6 sm:grid-cols-2"><FieldSkeleton/><div className="flex flex-col gap-4"><Skeleton className="h-5 w-40"/>{Array.from({length:3},(_,index)=><Skeleton key={index} className="h-8 w-full"/>)}<FieldSkeleton/></div></FieldGroup>}</FieldGroup></LoadingRegion><DialogActions onClose={onClose}><ActionSkeletons/></DialogActions></DialogContent></Dialog>;
+}
+
+export function AccountSecurityLoading({initialOnly=false}:{initialOnly?:boolean}){
+  const {t}=useTranslation();
+  return <LoadingRegion><FieldGroup><FieldSet><FieldLegend>{t('changePassword')}</FieldLegend><FieldSkeleton label={t('currentPassword')}/><FieldSkeleton label={t('newPassword')}/><FieldSkeleton label={t('confirmPassword')}/><Skeleton className="h-5 w-80 max-w-full"/><div className="flex justify-end gap-2"><Skeleton className="h-8 w-28"/><Skeleton className="h-8 w-44"/></div></FieldSet>{!initialOnly?<><Separator/><FieldSet><FieldLegend>{t('activeSessions')}</FieldLegend><Skeleton className="h-4 w-full"/><div className="flex flex-wrap justify-end gap-2"><Skeleton className="h-8 w-40"/><Skeleton className="h-8 w-48"/></div><TablePlaceholder headings={[t('sessionDevice'),t('sessionUpdated'),<span className="sr-only">{t('action')}</span>]} rows={2} columnClasses={['w-full sm:w-[45%]','hidden sm:table-cell sm:w-[30%]','hidden sm:table-cell sm:w-[25%]']}/></FieldSet></>:null}</FieldGroup></LoadingRegion>;
+}

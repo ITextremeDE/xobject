@@ -20,7 +20,7 @@ Use one shared API/MCP application layer under the existing model lock. Workspac
 
 ## Future module ownership
 
-General relationship remains in the application core. The Contact-person / main Organization relationship belongs to the future CRM module; Primary association belongs to the future Project Management module. The local `contact_person` fixture is currently a custom prototype definition, not an installed protected CRM definition. Primary association is currently a protected prototype default, not evidence of an active Project Management module.
+General relationship remains in the application core. The Contact-person / main Organization relationship belongs to the future Contacts module; Primary association belongs to the future Projects module. The local `contact_person` fixture is currently a custom prototype definition, not an installed protected Contacts definition. Primary association is currently a protected prototype default, not evidence of an active Projects module.
 
 Implement provisioning, supplied-definition protection, updates/deactivation and conflict-safe adoption when module management is introduced. Preserve existing definition identities, record links and journals during that transition; never claim ownership from a matching technical name alone. No module activation or ownership flag is introduced by this slice.
 
@@ -39,3 +39,7 @@ Before activation, the relationship engine must specify record identity/foreign-
 Workspace Settings has an alphabetical searchable/paginated Relationship types table and one responsive create/edit dialog. Side labels/cardinalities are adjacent on desktop and stacked on mobile. Symmetric values mirror from the left; immutable system controls are read-only. The same draft/pending/conflict guards and action placement as existing definition editors apply.
 
 Isolated PostgreSQL tests cover API/MCP parity, system defaults/protection, workspace User/Designer boundaries, direct composite foreign-key checks, duplicate/symmetric pairing rules, reserved names, optimistic/no-op behavior, rollback on journal failure, translation policy and repeat migration. Existing content access remains Administrator-only. Local fixture pairs prepare Contacts → Projects → Cases → Tasks, plus direct Contact/Project Tasks and a directed Contact-person relationship; they do not apply the separately stored record-link plan.
+
+## Cardinality presentation
+
+The settings list and editor display one conventional left:right cardinality (`1:1`, `1:n`, `n:1`, `n:m`) following the selected object-pair order. The left endpoint maximum counts right records, so `1:n` maps to `leftMax = null` and `rightMax = 1`. Each endpoint minimum remains a separate required-link setting with the object name; symmetric undirected relationships share one minimum and offer only `1:1` or `n:m`. Existing normalization, permissions, applicability, rule activation and protected system limits remain authoritative. This is a UI projection of the existing contract, with no schema migration or stored-data rewrite.

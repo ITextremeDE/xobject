@@ -26,7 +26,7 @@ function useBranch(objectTypeId:string,recordId:string,enabled:boolean) {
 export function RecordTree({objectTypeId,recordId,workspaceCode,primaryAvailable=true}:{objectTypeId:string;recordId:string;workspaceCode:string;primaryAvailable?:boolean}) {
   const {t,i18n}=useTranslation(),query=useBranch(objectTypeId,recordId,true),prefix=useId(),[activeId,setActive]=useState(`${prefix}-root`);
   useEffect(()=>setActive(`${prefix}-root`),[i18n.language,prefix]);
-  if(query.isPending)return <Loading/>;
+  if(query.isPending)return <Loading variant="tree"/>;
   if(query.isError&&!query.data)return <ErrorNotice error={query.error} retry={()=>{void query.refetch();}}/>;
   const branch=query.data!.pages[0];
   return <FieldGroup><FieldDescription>{t(primaryAvailable?'treeSavedHelp':'treeCrossReferencesHelp')}</FieldDescription>
@@ -71,7 +71,7 @@ function TreeNode({record,hasChildren,root=false,via,workspaceCode,depth,path,no
       </div>
     </div>
     {canExpand?<CollapsibleContent><ul role="group" className="ml-4 min-w-0 border-l pl-3">
-      {query.isPending?<li role="none" className="p-2"><Loading/></li>:null}
+      {query.isPending?<li role="none" className="p-2"><Loading variant="tree"/></li>:null}
       {query.isError?<li role="none" data-tree-control className="p-2"><ErrorNotice error={query.error} retry={()=>{void query.refetch();}}/></li>:null}
       {children.map((child,index)=><TreeNode key={child.edgeId} record={child.record} hasChildren={child.hasChildren} via={child} workspaceCode={workspaceCode} depth={depth+1} path={[...path,identity(record)]} nodeId={`${nodeId}-${child.edgeId}`} parentId={nodeId} position={index+1} total={query.data?.pages[0].total??children.length} activeId={activeId} setActive={setActive}/>)}
       {query.hasNextPage?<li role="none" data-tree-control className="flex flex-col items-start gap-2 p-2"><FieldDescription>{t('treeLoadedCount',{count:children.length,total:query.data?.pages[0].total??0})}</FieldDescription><Button type="button" variant="outline" size="sm" disabled={query.isFetchingNextPage} onClick={()=>{void query.fetchNextPage();}}>{query.isFetchingNextPage?<Spinner data-icon="inline-start"/>:null}{t('treeLoadMore')}</Button></li>:null}

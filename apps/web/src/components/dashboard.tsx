@@ -1,3 +1,4 @@
+import {DashboardSummaryLoading} from './loading';
 import {useColumnPreferences} from '@/lib/column-preferences';
 import { useDeferredValue, useEffect, useId, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
@@ -25,7 +26,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { RecordDataTable, RecordTableToolbar, ColumnMenu, type RecordColumn } from './record-data-table';
 import { pageSizes } from './table-pagination';
-import { ErrorNotice, Loading } from './feedback';
+import { ErrorNotice } from './feedback';
 
 type Props = { canManage: boolean; canReadContent: boolean; workspace: Workspace; types: ObjectSummary[]; onOpen: (id: string, recordId?: string) => void; onCreate: () => void };
 export function Dashboard({ canManage, canReadContent, workspace, types, onOpen, onCreate }: Props) {
@@ -53,7 +54,7 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
   useEffect(() => { if (records.data && !records.isPlaceholderData && page > 1 && (page - 1) * pageSize >= records.data.total) change({ page: String(Math.max(1, Math.ceil(records.data.total / pageSize))) }, true); }, [records.data, records.isPlaceholderData, page, pageSize]);
   const count = (value: number) => formatRegionalNumber(String(value), regional, 0);
   const columns: RecordColumn<WorkspaceRecord>[] = [
-    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0 hover:no-underline" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}>{row.keyword || row.id}</Button> },
+    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}>{row.keyword || row.id}</Button> },
     { key: 'objectLabel', label: t('objectType'), cell: row => row.objectLabel },
     ...(['type', 'status', 'category'] as const).map(key => ({ key, label: t(key === 'type' ? 'classificationType' : key === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: WorkspaceRecord) => row[key] ?? '—' })),
     { key: 'created_at', label: t('createdAt'), cell: row => formatRegionalDate(row.created_at, regional, timeZone) },
@@ -66,7 +67,7 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
   const activeSections = types.filter(type => sections.includes(type.id) || type.id === objectTypeId);
   const filters = [{ value: 'all', label: t('allRecords') }, ...activeSections.map(type => ({ value: type.id, label: type.label }))];
   return <div className="@container/main flex flex-col gap-6"><h1 className="sr-only">{t('dashboard')}</h1>
-    {summary.isPending ? <Loading /> : summary.isError ? <ErrorNotice error={summary.error} retry={() => { void summary.refetch(); }} /> : <>
+    {summary.isPending ? <DashboardSummaryLoading/> : summary.isError ? <ErrorNotice error={summary.error} retry={() => { void summary.refetch(); }} /> : <>
       <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs dark:*:data-[slot=card]:bg-card @xl/main:grid-cols-2 @5xl/main:grid-cols-4">{[
         { label: 'dashboardRecords', value: summary.data.total, help: 'dashboardRecordsHelp', summary: 'dashboardRecordsSummary', icon: FileTextIcon },
         { label: 'dashboardObjects', value: summary.data.objectTypes, help: 'dashboardObjectsHelp', summary: 'dashboardObjectsSummary', icon: DatabaseIcon },
@@ -107,7 +108,7 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
     </>}
     <div className="flex flex-col gap-4"><div className="flex flex-wrap items-center justify-between gap-3"><Tabs value={objectTypeId ?? 'all'} onValueChange={value => change({ object: value === 'all' ? null : String(value), page: null })} className="hidden min-w-0 overflow-x-auto overflow-y-hidden @4xl/main:flex"><TabsList>{filters.map(item => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}</TabsList></Tabs><Select items={filters} value={objectTypeId ?? 'all'} onValueChange={value => { if (value) change({ object: value === 'all' ? null : value, page: null }); }}><SelectTrigger size="sm" aria-label={t('objectFilter')} className="w-fit @4xl/main:hidden"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{filters.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></div>
       <RecordTableToolbar search={<Field className="w-full sm:max-w-xs"><FieldLabel htmlFor="dashboard-record-search" className="sr-only">{t('search')}</FieldLabel><InputGroup className="h-7"><InputGroupAddon><SearchIcon /></InputGroupAddon><InputGroupInput className="h-full py-0" data-record-search id="dashboard-record-search" aria-keyshortcuts={keyboardCommands.search.aria} placeholder={t('search')} value={query} onChange={event => change({ q: event.target.value, page: null }, true)} /><InputGroupAddon align="inline-end"><Kbd>{keyboardCommands.search.key}</Kbd></InputGroupAddon></InputGroup></Field>}><ColumnMenu columns={columns} hidden={hidden} onToggle={toggle} /><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" disabled={activeSections.length === types.length} />}><PlusIcon data-icon="inline-start" />{t('addSection')}</DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{types.filter(type => !activeSections.some(item => item.id === type.id)).map(type => <DropdownMenuItem key={type.id} onClick={() => { change({ sections: [...sections, type.id].join(','), object: type.id, page: null }); }}>{type.label}</DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu></RecordTableToolbar>
-      {records.isPending ? <Loading /> : records.isError ? <ErrorNotice error={records.error} retry={() => { void records.refetch(); }} /> : <RecordDataTable rows={records.data.records} columns={columns} hidden={hidden} total={records.data.total} page={page} pageSize={pageSize} sort={sort} disabled={records.isFetching} onSort={key => change({ sort: key, direction: sort.by === key && sort.direction === 'asc' ? 'desc' : 'asc', page: null })} onPage={page => change({ page: page === 1 ? null : String(page) })} onPageSize={size => change({ size: String(size), page: null })} onOpen={row => onOpen(row.objectTypeId, row.id)} onObject={row => onOpen(row.objectTypeId)} labels={{empty:t(query||objectTypeId?'noMatches':'noRecords')}} />}
+      {records.isError ? <ErrorNotice error={records.error} retry={() => { void records.refetch(); }} /> : <RecordDataTable loading={records.isPending} rows={records.data?.records??[]} columns={columns} hidden={hidden} total={records.data?.total??0} page={page} pageSize={pageSize} sort={sort} disabled={records.isFetching} onSort={key => change({ sort: key, direction: sort.by === key && sort.direction === 'asc' ? 'desc' : 'asc', page: null })} onPage={page => change({ page: page === 1 ? null : String(page) })} onPageSize={size => change({ size: String(size), page: null })} onOpen={row => onOpen(row.objectTypeId, row.id)} onObject={row => onOpen(row.objectTypeId)} labels={{empty:t(query||objectTypeId?'noMatches':'noRecords')}} />}
     </div>
   </div>;
 }

@@ -1,6 +1,6 @@
 # Local demo data
 
-The development fixture is wholly fictional. It exercises the generic object platform; it does not install complete CRM/Project Management templates, conditional company/name requirements or automatic Contact Keywords. Contact-field applicability and relationship endpoint rules are configured through the regular API/MCP. Generic relationships are implemented independently of those modules.
+The development fixture is wholly fictional. It exercises the generic object platform; it does not install complete Contacts/Projects templates, conditional company/name requirements or automatic Contact Keywords. Contact-field applicability and relationship endpoint rules are configured through the regular API/MCP. Generic relationships are implemented independently of those modules.
 
 ## Model and field order
 
@@ -43,16 +43,16 @@ For recovery, stop local writers, consult `.local/database-rebuild.json`, retain
 
 The relationship-definition baseline now installs Primary association and General relationship plus the demo Contact-person definition. Custom definitions have one object pair and editable side labels/cardinalities; system scope is protected and unrestricted. The seed enables Projects for Primary association and activates custom definitions after preflight, adds a Case/Vehicle definition and applies the 45 planned record links. Reapplying the plan retains existing links and adds no duplicates. See [ADR 0018](adr/0018-relationship-type-definitions.md).
 
-Complete CRM provisioning/ownership remains future work. The fixture configures Contact-person/Organization and Identities with regular conditional relationship definitions. The minimal Projects activation provides Primary association for all object types; General relationship belongs to the core. This activation boundary does not install complete domain templates. See [ADR 0021](adr/0021-relationship-scope-and-projects-module.md).
+Complete Contacts provisioning/ownership remains future work. The fixture configures Contact-person/Organization and Identities with regular conditional relationship definitions. The minimal Projects activation provides Primary association for all object types; General relationship belongs to the core. This activation boundary does not install complete domain templates. See [ADR 0021](adr/0021-relationship-scope-and-projects-module.md).
 
 ## Conditional Contact fields
 
-The fictional fixture configures generic field-applicability rules using its actual field and choice UUIDs. First name, Last name and Date of birth apply to Individual contact and Contact person; Commercial register applies to Organization and Individual contact. Other Contact fields remain available. Existing nonempty values prevent an incompatible Contact-kind change; values are never silently removed. This is demonstration configuration, not complete CRM provisioning or derived Contact names. See [ADR 0023](adr/0023-record-journal-and-conditional-fields.md).
+The fictional fixture configures generic field-applicability rules using its actual field and choice UUIDs. First name, Last name and Date of birth apply to Individual contact and Contact person; Commercial register applies to Organization and Individual contact. Other Contact fields remain available. Existing nonempty values prevent an incompatible Contact-kind change; values are never silently removed. This is demonstration configuration, not complete Contacts provisioning or derived Contact names. See [ADR 0023](adr/0023-record-journal-and-conditional-fields.md).
 
 ## Primary roles and Contact relationships
 
-The seed explicitly assigns its Contacts, Projects and Cases UUIDs to the Projects module's Primary levels through `configure_primary_chain`. It does not infer roles at runtime from names. Primary fields render as Address → Project → Case with inherited context; existing links still use one direct parent.
+The seed activates Projects & Tasks first and enriches its supplied object definitions with fictional fields and content. The fixed Contact → Project → Case UUID roles come from module installation, with no reassignment operation. Primary fields inherit context; existing links still use one direct parent.
 
-Contact-person/Organization is directed, with an optional maximum of one Organization per Contact person and multiple Contact persons per Organization. Endpoint conditions reference the Contact-kind field and Organization/Contact-person option UUIDs. Identities is an undirected, symmetric multiple relationship limited to Contact persons and Individual contacts on both sides. It adds a Contact list, not an object type or records. The same definition editor and shared API/MCP rules apply to custom definitions. Complete CRM provisioning/ownership and derived Keywords remain outstanding.
+Contact-person/Organization is directed, with an optional maximum of one Organization per Contact person and multiple Contact persons per Organization. Endpoint conditions reference the Contact-kind field and Organization/Contact-person option UUIDs. Identities is an undirected, symmetric multiple relationship limited to Contact persons and Individual contacts on both sides. It adds a Contact list, not an object type or records. The same definition editor and shared API/MCP rules apply to custom definitions. Complete Contacts provisioning/ownership and derived Keywords remain outstanding.
 
 The 2026-11-03 development upgrade was checked on a restored copy before application. The existing 55 records, 45 edges and 658 record/relationship journal entries were retained. Configuration changes add definition/workspace journal entries. Private dumps remain under ignored `.local/backups`; no reset or content-history rewrite is part of this upgrade.

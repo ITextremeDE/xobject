@@ -1,3 +1,4 @@
+import {relationshipSidesForObject} from '@xobject/contracts';
 import {conditionColumn,endpointMatches,validateEndpointPair,validateConditionalRecord} from './relationship-conditions.js';
 import {primaryChain,primaryPairAllowed,validatePrimaryChain} from './primary-chain.js';
 import {primaryChainRoles,primaryRolesForObject,type PrimaryChainContext,type RecordReference as PrimaryRef} from '@xobject/contracts';
@@ -54,10 +55,7 @@ export async function recordRelationships(tx:Executor,objectTypeId:string,record
   for(const edge of own)edges.push({id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:await reference(tx,left(edge),model.workspace_id),right:await reference(tx,right(edge),model.workspace_id)});
   const fields:RecordRelationships['fields']=[];
   for(const definition of definitions.filter(d=>(d.kind!=='primary'||d.active)&&(d.rulesState==='active'||own.some(e=>e.relationship_type_id===d.id)))) {
-    for(const side of ['left','right'] as const) {
-      if(side==='right'&&symmetric(definition))continue;
-      if(definition.kind==='primary'&&chain&&((side==='left'&&!Object.values(chain).includes(model.id))||(side==='right'&&chain.contact===model.id)))continue;
-      if(!eligible(definition,objectTypeId,side)&&!(symmetric(definition)&&eligible(definition,objectTypeId,'right')))continue;
+    for(const side of relationshipSidesForObject(definition,objectTypeId,chain)) {
       const targets=edges.filter(e=>e.definition.id===definition.id).flatMap(e=>{
         if(symmetric(definition))return [key(e.left)===`${objectTypeId}:${recordId}`?e.right:e.left];
         return key(e[side])===`${objectTypeId}:${recordId}`?[e[side==='left'?'right':'left']]:[];
@@ -128,7 +126,7 @@ export async function validateRelationshipGraph(tx:Executor,type:RelationshipTyp
     for(const row of records){if(!await endpointMatches(tx,type,side,{objectTypeId:model.id,recordId:row.id}))continue;const n=counts.get(`${side}:${model.id}:${row.id}`)??0;if(n<min||(max!==null&&n>max))throw new AppError(409,`Relationship cardinality violated (${type.technicalName}, ${side})`);}
   }
   if(type.kind==='primary') {
-    const chain=await primaryChain(tx,type.workspaceId);if(chain)await validatePrimaryChain(tx,type.workspaceId,chain);
+    const chain=await primaryChain(tx,type.workspaceId);if(!chain)throw new AppError(409,'Primary module levels are not installed');await validatePrimaryChain(tx,type.workspaceId,chain);
     const parents=new Map<string,string>();
     for(const edge of edges){const child=key(right(edge));if(parents.has(child))throw new AppError(409,'A record has at most one Primary association');parents.set(child,key(left(edge)));}
     for(const start of parents.keys()){const seen=new Set<string>();let current:string|undefined=start;while(current){if(seen.has(current))throw new AppError(409,'Primary association cycle');seen.add(current);current=parents.get(current);}}

@@ -15,11 +15,14 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   const workspaces = await app.execute('list_workspaces', {}, actorId) as { code: string }[];
   if (workspaces.some(workspace => workspace.code === code)) throw new Error('Demo workspace already exists; no data was changed');
   const workspace = await app.execute('create_workspace', { name: 'ITextreme', code, defaultLanguage: 'de', timeZone: 'Europe/Berlin' }, actorId) as { id: string };
+  const module=(await app.execute('list_workspace_modules',{workspaceId:workspace.id},actorId) as import('@xobject/contracts').WorkspaceModule[]).find(item=>item.key==='projects')!;
+  await app.execute('configure_workspace_module',{workspaceId:workspace.id,key:'projects',enabled:true,version:module.version},actorId);
+  const installed=await app.execute('list_object_types',{workspaceId:workspace.id},actorId) as {id:string;technicalName:string}[];
   const objects: Record<string, ObjectDefinition> = {}, records: Record<string, DataRecord[]> = {}, links: DemoLink[] = [];
   const group = await app.execute('create_group', { workspaceId: workspace.id, name: 'Projektteam' }, actorId) as { id: string };
   await app.execute('set_group_members', { workspaceId: workspace.id, groupId: group.id, version: 1, memberIds: [actorId] }, actorId);
   async function object(name: string, de: string, en: string, fields: SeedField[], types: string[], statuses: string[]) {
-    const created = await app.execute('create_object_type', { workspaceId: workspace.id, technicalName: name, labels: labels(de, en), standardFields: ['keyword', 'type_status', 'category'] }, actorId) as { id: string };
+    const created = installed.find(item=>item.technicalName===name) ?? await app.execute('create_object_type', { workspaceId: workspace.id, technicalName: name, labels: labels(de, en), standardFields: ['keyword', 'type_status', 'category'] }, actorId) as { id: string };
     let model = await app.execute('get_object_type', { objectTypeId: created.id }, actorId) as ObjectDefinition;
     const keyword = model.fields.find(item => item.technicalName === 'keyword')!;
     await app.execute('configure_field', { fieldId: keyword.id, version: keyword.version, required: true }, actorId);
@@ -93,10 +96,6 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   // A genuine edit creates before/after history through the common application layer.
   const firstTask = records.tasks[0];
   records.tasks[0] = await app.execute('update_record', { objectTypeId: objects.tasks.id, recordId: firstTask.id, version: firstTask.version, values: { estimated_hours: '2.5' } }, actorId) as DataRecord;
-  const projectsModule=(await app.execute('list_workspace_modules',{workspaceId:workspace.id},actorId) as import('@xobject/contracts').WorkspaceModule[])[0];
-  await app.execute('configure_workspace_module',{workspaceId:workspace.id,key:'projects',enabled:true,version:projectsModule.version},actorId);
-  const chainModule=(await app.execute('list_workspace_modules',{workspaceId:workspace.id},actorId) as import('@xobject/contracts').WorkspaceModule[])[0];
-  await app.execute('configure_primary_chain',{workspaceId:workspace.id,version:chainModule.version,levels:{contact:objects.contacts.id,project:objects.projects.id,case:objects.cases.id}},actorId);
   await app.execute('create_relationship_type', { workspaceId: workspace.id, technicalName: 'contact_person', configuration: { labels: { de: 'Ansprechpartner', en: 'Contact person' }, leftLabels: { de: 'Ansprechpartner', en: 'Contact persons' }, rightLabels: { de: 'Organisation', en: 'Organization' },leftApplicability:{fieldId:contactKind.id,optionIds:[contactKinds[0].id]},rightApplicability:{fieldId:contactKind.id,optionIds:[contactKinds[2].id]}, directed: true, leftMin: 0, leftMax: null, rightMin: 0, rightMax: 1, allowAll: false, pairs: [{ leftObjectTypeId: objects.contacts.id, rightObjectTypeId: objects.contacts.id }], active: true } }, actorId);
   const identityRule={fieldId:contactKind.id,optionIds:[contactKinds[1].id,contactKinds[2].id]};
   const identity=await app.execute('create_relationship_type',{workspaceId:workspace.id,technicalName:'contact_identities',configuration:{labels:{de:'Identitäten',en:'Identities'},leftLabels:{de:'Identitäten',en:'Identities'},rightLabels:{de:'Identitäten',en:'Identities'},directed:false,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:objects.contacts.id,rightObjectTypeId:objects.contacts.id}],active:true,leftApplicability:identityRule,rightApplicability:identityRule}},actorId) as import('@xobject/contracts').RelationshipType;

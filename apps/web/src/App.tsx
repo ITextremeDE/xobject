@@ -1,3 +1,4 @@
+import {WorkspaceLoading} from '@/components/loading';
 import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { installKeyboardShortcuts } from '@/lib/keyboard';
@@ -22,9 +23,9 @@ export default function App() {
     window.addEventListener('xobject:session-expired', forgetSession);
     return () => window.removeEventListener('xobject:session-expired', forgetSession);
   }, [client]);
-  if (session.isPending) return <main className="mx-auto max-w-xl pt-24"><Loading /></main>;
+  if (session.isPending) return <main className="flex min-h-svh items-center justify-center"><Loading /></main>;
   if (session.isError) return <main className="mx-auto max-w-xl p-8"><ErrorNotice error={session.error} retry={() => { void session.refetch(); }} /></main>;
   if (!session.data) return <Login onSuccess={() => { void client.invalidateQueries({ queryKey: ['session'] }); }} />;
   if (session.data.user.mustChangePassword) return <InitialPassword user={session.data.user} onSignOut={forgetSession} />;
-  return <WorkspaceBoundary><Suspense fallback={<Loading />}><WorkspaceApp key={session.data.user.id} user={session.data.user} onSignOut={forgetSession} /></Suspense></WorkspaceBoundary>;
+  return <WorkspaceBoundary><Suspense fallback={<WorkspaceLoading />}><WorkspaceApp key={session.data.user.id} user={session.data.user} onSignOut={forgetSession} /></Suspense></WorkspaceBoundary>;
 }
