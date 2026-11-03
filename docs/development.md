@@ -35,6 +35,25 @@ Tests start their own temporary PostgreSQL container on a random loopback port a
 
 The root development commands read `.env` through Node's environment-file support. No credentials or default administrator account are provided in the repository. The database container uses the unmodified official PostgreSQL image.
 
+## Fresh development databases and physical layout
+
+A new empty development database contains the current system schema and its migration ledger, without accounts, sessions, workspaces, object definitions, records or content journals. Provision the first Administrator separately with `admin:create`; sample content is a separate explicit `dev:seed` operation. Do not copy authentication rows or old migration history from a populated database to make an empty installation.
+
+Keep one `public` schema for the current prototype: `sys_` identifies system tables; dynamic business tables use the immutable workspace code and object technical name. Table names are navigated alphabetically in SQL clients. UUID identities, foreign keys, requiredness, indexes, transaction boundaries and operator/runtime ownership remain authoritative; a prefix and a visual position grant no rights.
+
+Use semantic physical column groups for an explicitly prepared new schema:
+
+- Identity and scope: primary key, workspace/object/user references and stable technical names.
+- Business attributes and configuration: labels, field kind, input aids, endpoint labels/cardinalities/conditions; keep each relationship side together.
+- Lifecycle and versions: protection, activation/state, optimistic version counters.
+- Audit metadata: creation/change timestamps and actors. Auth tables retain the exact provider-required types/defaults; journal tables group change identity, affected entity/field, before/after values and actor/time.
+
+For dynamic object tables the implemented append-only policy remains `id`, the common audit/version block, then installed standard and custom columns in creation order. UI form order, alphabetical field administration and physical SQL order are independent. Later `ADD COLUMN` operations append columns; never rebuild populated tables merely to change their display order. A SQL-client projection can provide another order without changing storage.
+
+An explicitly authorized empty development rebuild can use a disposable database migrated from the current source as its schema authority. Export schema only, reorder only column declarations within `CREATE TABLE`, and restore into another new empty database. Preserve definitions, types, defaults, constraints, indexes, triggers and functions exactly. Copy only the freshly generated migration ledger, verify schema equivalence ignoring column order, rerun migration to prove idempotency and provision the restricted runtime role. Check that all other tables are empty before switching. This is a local maintenance procedure, not an automatic behavior of `db:migrate` and not a second maintained schema snapshot.
+
+Before switching, stop the application, make and verify a custom-format dump, archive the previous database by renaming it, and retain both the archive and backup. Switch the new database to the configured development name and restart the server; existing SQL-client connections must reconnect. Reversal stops the server and swaps the database names back. Do not drop an archived database, restore staging database or named volume as part of this operation. PostgreSQL's [ALTER TABLE](https://www.postgresql.org/docs/18/sql-altertable.html) has no positional column-reordering operation; [pg_dump](https://www.postgresql.org/docs/18/app-pgdump.html) documents schema-only export and restore behavior.
+
 ## Web interface
 
 The React/Vite client uses standard Base UI-based shadcn/ui components (`base-nova`) and Tailwind semantic tokens in `apps/web/src/index.css`. Adjust appearance through those variables and existing component variants. Shared workspace design is stored in `sys_workspaces.appearance` and `appearance_version`; see [ADR 0011](adr/0011-workspace-appearance.md). The application shell follows the official [Sidebar 07 block](https://ui.shadcn.com/blocks/sidebar#sidebar-07): workspace switcher, icon-collapsible inset sidebar, user menu and Breadcrumb header. The record list follows the compact filter/table structure of the [Tasks example](https://ui.shadcn.com/examples/tasks), with only supported xObject actions. Keep these references when changing the layout; the installed official Nova components and theme remain the visual baseline. UI strings live in `apps/web/src/lib/i18n.ts`; definition labels come from PostgreSQL. Record contents are never translated.
