@@ -3,7 +3,9 @@
 - Status: Accepted for configuration in the local prototype
 - Date: 2026-11-02
 
-## Decision
+## Original decision
+
+[ADR 0021](0021-relationship-scope-and-projects-module.md) supersedes the original multi-pair/unrestricted custom scope and independent Primary provisioning below. General is now always active; Primary is unrestricted and gated by Projects activation; custom definitions have one pair. The following records the initial configuration design.
 
 Keep workspace-owned relationship definitions in `sys_relationship_types`. Store permitted ordered object pairs in `sys_relationship_type_pairs`; composite foreign keys include workspace identity for both endpoint objects and the owning relationship type. An allowed pair is schema metadata, not a connection between records. Object definitions referenced by pairs cannot be deleted; removing a pair does not delete records or history. Inactive objects remain readable in retained pairs, but cannot be newly assigned to a definition.
 
@@ -22,7 +24,11 @@ General relationship remains in the application core. The Contact-person / main 
 
 Implement provisioning, supplied-definition protection, updates/deactivation and conflict-safe adoption when module management is introduced. Preserve existing definition identities, record links and journals during that transition; never claim ownership from a matching technical name alone. No module activation or ownership flag is introduced by this slice.
 
-## Staged rules and remaining work
+## Original staging boundary
+
+The following describes the initial definition-only slice. [ADR 0019](0019-record-relationships.md) extends it with explicit activation, record edges, count checks, journal projections and record controls. Tree navigation and derived ancestor display remain outstanding.
+
+### Initial scope
 
 These definitions are explicitly stored/exposed as `rulesState: draft` (`rules_state` in PostgreSQL). Availability is independent of constraint activation. This slice configures future relationships; it introduces no record-edge table, record linking API, Primary selector, permissions inheritance, dossier or tree. Existing record writes remain unchanged. Minimum-one configurations are therefore saved drafts, not silently activated constraints over the current data.
 

@@ -11,11 +11,17 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 
-export function JournalEntryCard({ entry, memberName, renderValue }: { entry: SystemJournalEntry; memberName?: string; renderValue?: (value: unknown) => ReactNode }) {
+export function JournalEntryCard({ entry, memberName, renderValue, compact = false }: { entry: SystemJournalEntry; memberName?: string; compact?: boolean; renderValue?: (value: unknown, side: 'before' | 'after') => ReactNode }) {
   const { t, i18n } = useTranslation();
   const regional = useRegional(), timeZone = useTimeZone();
   function value(item: unknown, key = entry.field_key, depth = 0): ReactNode {
     if (item === null || item === undefined) return <span className="text-muted-foreground">{t('journalNotSet')}</span>;
+    if (typeof item==='object' && !Array.isArray(item) && 'relationshipTypeId' in item && 'left' in item && 'right' in item) {
+      const link=item as unknown as {labels:Record<string,string>;left:{keyword:string;objectLabels:Record<string,string>};right:{keyword:string;objectLabels:Record<string,string>};directed:boolean};
+      const label=(labels:Record<string,string>)=>labels[i18n.language]??labels.de??labels.en??Object.values(labels)[0];
+      return <dl className="flex flex-col gap-3"><div><dt className="text-xs text-muted-foreground">{t('relationshipType')}</dt><dd>{label(link.labels)}</dd></div>{(['left','right'] as const).map(side=><div key={side}><dt className="text-xs text-muted-foreground">{t(side==='left'?'relationLeft':'relationRight')} · {label(link[side].objectLabels)}</dt><dd>{link[side].keyword}</dd></div>)}</dl>;
+    }
+    if(key==='rulesState' && (item==='draft'||item==='active'))return t(item==='draft'?'ruleDraft':'ruleActive');
     if (typeof item === 'boolean') return t(item ? 'yes' : 'no');
     if (typeof item === 'string') {
       if (entry.entity_kind !== 'record' && key === 'state' && ['active', 'inactive', 'deleted'].includes(item)) return t(`definition_${item}`);
@@ -48,9 +54,9 @@ export function JournalEntryCard({ entry, memberName, renderValue }: { entry: Sy
           <Badge variant="outline">{journalEntityLabel(entry.entity_kind, t)}</Badge>
           <time className="text-xs text-muted-foreground" dateTime={entry.created_at}>{formatRegionalDate(entry.created_at, regional, timeZone, true)}</time>
         </div>
-        <CardTitle><h3 id={`journal-title-${entry.id}`}>{journalEntryTitle(entry, t)}</h3></CardTitle>
+        <CardTitle><h3 id={`journal-title-${entry.id}`}>{journalEntryTitle(entry, t, i18n.language)}</h3></CardTitle>
         <CardDescription>
-          <dl className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+          {compact ? <span>{t('journalChangedBy')}: {entry.actor_name ?? t('journalUnknownUser')}</span> : <dl className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
             {[
               [t('journalTarget'), entry.entity_name ?? entry.entity_id],
               [t('journalChangedBy'), entry.actor_name ?? t('journalUnknownUser')],
@@ -58,12 +64,12 @@ export function JournalEntryCard({ entry, memberName, renderValue }: { entry: Sy
               ...(entry.object_type_name ? [[t('objectType'), entry.object_type_name]] : []),
               ...(entry.field_key.startsWith('member:') ? [[t('journalAffectedUser'), memberName ?? t('journalUnknownUser')]] : []),
             ].map(([label, text]) => <div key={label} className="min-w-0"><dt className="text-xs">{label}</dt><dd className="wrap-anywhere text-foreground">{text}</dd></div>)}
-          </dl>
+          </dl>}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <dl className="grid min-w-0 grid-cols-1 divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere">{renderValue ? renderValue(item) : value(item)}</dd></div>)}
+          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere">{renderValue ? renderValue(item,index===0?'before':'after') : value(item)}</dd></div>)}
         </dl>
       </CardContent>
       <CardFooter className="block p-0">
