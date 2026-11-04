@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { languageCodes, type Labels } from '@xobject/contracts';
 import { Field, FieldLabel, FieldDescription } from '@/components/ui/field';
+import {Textarea} from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 
@@ -13,10 +14,11 @@ export const hasLabel = (labels: Labels) => Object.values(labels).some(value => 
 export const cleanLabels = (labels: Labels): Labels => Object.fromEntries(Object.entries(labels).filter(([, value]) => value.trim()).map(([key, value]) => [key, value.trim()]));
 export const sameLabels = (a: Labels, b: Labels) => JSON.stringify(Object.entries(a).sort(([x], [y]) => x.localeCompare(y))) === JSON.stringify(Object.entries(b).sort(([x], [y]) => x.localeCompare(y)));
 
-export function TranslatedLabelInput({ id, value, onChange, disabled = false, readOnly = false, requireOne = true, autoFocus = false, showHelp = true, compactHelp = true, readOnlyHelp }: {
-  id: string; value: Labels; onChange: (value: Labels) => void; disabled?: boolean; readOnly?: boolean; requireOne?: boolean; autoFocus?: boolean; showHelp?: boolean; compactHelp?: boolean; readOnlyHelp?: string;
+export function TranslatedLabelInput({ label, multiline=false,maxLength=200,id, value, onChange, disabled = false, readOnly = false, requireOne = true, autoFocus = false, showHelp = true, compactHelp = true, readOnlyHelp }: {
+  label?:string;multiline?:boolean;maxLength?:number;id: string; value: Labels; onChange: (value: Labels) => void; disabled?: boolean; readOnly?: boolean; requireOne?: boolean; autoFocus?: boolean; showHelp?: boolean; compactHelp?: boolean; readOnlyHelp?: string;
 }) {
   const { t, i18n } = useTranslation();
+  const Control=multiline?Textarea:Input;
   const available = useLabelLanguages();
   const [draftLanguage, setLanguage] = useState<string>(() => available.find(code => code === i18n.language.split('-')[0]) ?? available[0]);
   const visible = languages.filter(code => available.includes(code) || Boolean(value[code]));
@@ -25,13 +27,13 @@ export function TranslatedLabelInput({ id, value, onChange, disabled = false, re
   const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language' });
   const items = visible.map(code => ({ value: code, label: `${displayNames.of(code) ?? code}${!available.includes(code) ? ` (${t('languageUnavailable')})` : ''}` }));
   return <Field data-disabled={disabled || undefined}>
-    <FieldLabel htmlFor={id}>{t('objectName')}</FieldLabel>
-    <div className="flex min-w-0 flex-wrap gap-2">
+    <FieldLabel htmlFor={id}>{label??t('objectName')}</FieldLabel>
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
       <Select items={items} value={language} disabled={disabled} onValueChange={next => { if (next) setLanguage(next); }}>
-        <SelectTrigger className="w-28 shrink-0" aria-label={t('translationLanguage')}><SelectValue /></SelectTrigger>
+        <SelectTrigger className="w-full shrink-0 sm:w-28" aria-label={t('translationLanguage')}><SelectValue /></SelectTrigger>
         <SelectContent className="min-w-56"><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value}><span>{item.label}</span><span className="text-muted-foreground">· {t(value[item.value]?.trim() ? 'translationPresent' : 'translationMissing')}</span></SelectItem>)}</SelectGroup></SelectContent>
       </Select>
-      <Input id={id} autoFocus={autoFocus} className="min-w-32 flex-1" lang={language} value={value[language] ?? ''} maxLength={200} disabled={disabled} readOnly={readOnly || inactive} required={requireOne && !readOnly && !inactive && !hasLabel(value)} placeholder={t('translationPlaceholder')} aria-describedby={showHelp && (!compactHelp || inactive || readOnly) ? `${id}-help` : undefined} onChange={event => {
+      <Control id={id} autoFocus={autoFocus} className="min-w-32 flex-1" lang={language} value={value[language] ?? ''} maxLength={maxLength} disabled={disabled} readOnly={readOnly || inactive} required={requireOne && !readOnly && !inactive && !hasLabel(value)} placeholder={multiline?label:t('translationPlaceholder')} aria-describedby={showHelp && (!compactHelp || inactive || readOnly) ? `${id}-help` : undefined} onChange={event => {
         const next = { ...value };
         if (event.target.value) next[language] = event.target.value; else delete next[language];
         onChange(next);

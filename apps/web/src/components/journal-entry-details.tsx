@@ -40,8 +40,8 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
     if (depth >= 6) return JSON.stringify(item);
     const content = Array.isArray(item)
       ? <ol className="flex flex-col gap-2">{item.map((child, index) => <li key={index}>{value(child, key, depth + 1)}</li>)}</ol>
-      : <dl className="flex flex-col gap-3">{entries.map(([name, child]) => <div key={name}><dt className="text-xs text-muted-foreground">{(key === 'labels' || key === 'leftLabels' || key === 'rightLabels') ? name === 'root' ? t('journalOriginalLabel') : new Intl.DisplayNames([i18n.language], { type: 'language' }).of(name) ?? name : journalPropertyLabel(name, t, true)}</dt><dd>{value(child, name, depth + 1)}</dd></div>)}</dl>;
-    if ((key === 'labels' || key === 'leftLabels' || key === 'rightLabels') || depth > 0) return content;
+      : <dl className="flex flex-col gap-3">{entries.map(([name, child]) => <div key={name}><dt className="text-xs text-muted-foreground">{(key === 'labels' || key === 'input.description' || key === 'input.helpText' || key === 'leftLabels' || key === 'rightLabels') ? name === 'root' ? t('journalOriginalLabel') : new Intl.DisplayNames([i18n.language], { type: 'language' }).of(name) ?? name : journalPropertyLabel(name, t, true)}</dt><dd>{value(child, name, depth + 1)}</dd></div>)}</dl>;
+    if ((key === 'labels' || key === 'input.description' || key === 'input.helpText' || key === 'leftLabels' || key === 'rightLabels') || depth > 0) return content;
     return <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/value" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-3 py-2" />}>{t('journalShowDetails')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/value:rotate-180" /></CollapsibleTrigger><CollapsibleContent><div className="border-t p-3">{content}</div></CollapsibleContent></Collapsible>;
   }
   const details = [

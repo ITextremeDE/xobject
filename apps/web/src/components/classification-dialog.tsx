@@ -1,3 +1,5 @@
+import {FieldInputRulesSettings} from './field-input-rules-settings';
+import {emptyFieldInputRules,type FieldInputRules} from '@xobject/contracts';
 import {SettingsSection} from './settings-section';
 import { RequiredFieldSetting } from './required-field-setting';
 import { SettingsHelp } from './settings-help';
@@ -48,6 +50,10 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
   const client = useQueryClient();
   const category = field.technicalName === 'category';
   const [version, setVersion] = useState(definition.classification.version);
+  const ruleFields=definition.fields.filter(f=>category?f.kind==='category':['type','status'].includes(f.kind));
+  const initialRules=()=>Object.fromEntries(ruleFields.map(f=>[f.id,{version:f.version,inputRules:f.inputRules??emptyFieldInputRules()}]));
+  const [ruleBaseline,setRuleBaseline]=useState(initialRules);
+  const [fieldRules,setFieldRules]=useState<Record<string,{version:number;inputRules:FieldInputRules}>>(ruleBaseline);
   const [baseline, setBaseline] = useState(() => clean(definition.classification));
   const [draft, setDraft] = useState(baseline);
   const [additions, setAdditions] = useState<Record<string, Labels>>({});
@@ -62,13 +68,14 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
   useEffect(() => { if (focusId) { const handle = document.querySelector<HTMLElement>(`[data-choice-handle="${focusId}"]`); const target = handle && !handle.matches(':disabled') ? handle : document.getElementById(`choice-toggle-${focusId}`) ?? document.getElementById(focusId); target?.focus(); setFocusId(null); } }, [draft, focusId]);
   const pendingNew = Object.values(additions).some(labels => Object.values(labels).some(Boolean));
   const validLabels = draft.options.every(option => hasLabel(option.labels));
-  const dirty = JSON.stringify(draft) !== JSON.stringify(baseline) || pendingNew;
+  const dirty = JSON.stringify(fieldRules)!==JSON.stringify(ruleBaseline)||JSON.stringify(draft) !== JSON.stringify(baseline) || pendingNew;
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   const mutation = useMutation({ mutationFn: () => {
     const configuration = { version, config: { ...draft, options: draft.options.map(option => ({ ...option, labels: cleanLabels(option.labels) })) } };
-    return create ? api('add_standard_field', { objectTypeId: definition.id, field: create, configuration }) : api('configure_classification', { objectTypeId: definition.id, ...configuration });
+    return create ? api('add_standard_field', { objectTypeId: definition.id, field: create, configuration }) : api('configure_classification', { objectTypeId: definition.id, ...configuration,fieldInputRules:Object.entries(fieldRules).map(([fieldId,value])=>({fieldId,...value,inputRules:{...value.inputRules,description:cleanLabels(value.inputRules.description),helpText:cleanLabels(value.inputRules.helpText)}})) });
   },
     onSuccess: async result => {
+      const nextRules=Object.fromEntries(result.fields.filter(f=>category?f.kind==='category':['type','status'].includes(f.kind)).map(f=>[f.id,{version:f.version,inputRules:f.inputRules??emptyFieldInputRules()}]));setRuleBaseline(nextRules);setFieldRules(nextRules);
       const next = clean(result.classification); setUsedIds(new Set(result.classification.options.filter(option => option.canDelete === false).map(option => option.id))); setDraft(next); setBaseline(next); setVersion(result.classification.version); setSaved(true); setAnnouncement(''); onDirtyChange(false);
       await Promise.all([
         client.invalidateQueries({ queryKey: ['definition', definition.id] }),
@@ -167,8 +174,8 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
         </>}
         {pendingNew ? <FieldDescription>{t('pendingChoiceHelp')}</FieldDescription> : null}
         {!readOnly && !create ? <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('definitionState')}</FieldLegend><DefinitionLifecycle label={category ? field.label : t('typesAndStatuses')} kind="field" id={field.id} objectTypeId={definition.id} state={field.state} isProtected={field.isProtected} canDelete={field.canDelete} disabled={dirty || mutation.isPending} onBusyChange={value => { setLifeBusy(value); onBusyChange(value); }} onDeleted={onDeleted} /></FieldSet></SettingsSection> : null}
-      </FieldGroup></form></div>
-      <DialogActions onClose={onClose} closeLabel={t(create ? 'cancel' : 'close')} disabled={mutation.isPending || lifeBusy}>{!readOnly ? <>{!create ? <Button variant="outline" disabled={!dirty || mutation.isPending || lifeBusy} onClick={() => { setDraft(baseline); setAdditions({}); setSaved(false); setAnnouncement(''); mutation.reset(); }}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="classification-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={(!dirty && !create) || !validLabels || mutation.isPending || lifeBusy || pendingNew}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t(create ? 'create' : 'save')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
+      </FieldGroup>{!create?<FieldGroup className="pt-6">{ruleFields.map(f=><FieldInputRulesSettings key={f.id} classification field={f} workspaceId={definition.workspaceId} readOnly={readOnly} disabled={mutation.isPending||lifeBusy} value={fieldRules[f.id]?.inputRules??emptyFieldInputRules()} onChange={inputRules=>{setFieldRules(old=>({...old,[f.id]:{...old[f.id],inputRules}}));setSaved(false);}}/>)}</FieldGroup>:null}</form></div>
+      <DialogActions onClose={onClose} closeLabel={t(create ? 'cancel' : 'close')} disabled={mutation.isPending || lifeBusy}>{!readOnly ? <>{!create ? <Button variant="outline" disabled={!dirty || mutation.isPending || lifeBusy} onClick={() => { setFieldRules(ruleBaseline);setDraft(baseline); setAdditions({}); setSaved(false); setAnnouncement(''); mutation.reset(); }}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="classification-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={(!dirty && !create) || !validLabels || mutation.isPending || lifeBusy || pendingNew}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{mutation.isPending ? t('saving') : t(create ? 'create' : 'save')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
     </DialogContent>
   </Dialog>;
 }
