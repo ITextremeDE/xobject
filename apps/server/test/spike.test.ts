@@ -1639,14 +1639,18 @@ test('journal read context resolves current localized names without exposing rec
 test('fictional demo fixtures use validated fields, canonical field order and actual idempotent demo relationships', async () => {
   const { seedDemoData } = await import('../src/demo-data.js');
   const result = await seedDemoData(runtime.db, adminId, 'demofixture');
-  assert.deepEqual(Object.keys(result.objects), ['contacts', 'projects', 'cases', 'tasks', 'vehicles', 'contracts', 'devices', 'access_checks']);
-  assert.equal(Object.values(result.records).flat().length, 73);
+  assert.deepEqual(Object.keys(result.objects), ['contacts', 'projects', 'cases', 'tasks', 'vehicles', 'distribution_lists', 'contracts', 'devices', 'access_checks']);
+  assert.equal(Object.values(result.records).flat().length, 74);
   for (const [name, model] of Object.entries(result.objects)) {
     const definition = await ok('get_object_type', { objectTypeId: model.id });
-    assert.deepEqual(definition.columns.slice(0, 10), ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category']);
+    for(const field of definition.fields.filter((f:any)=>f.kind==='multiline')){if(name==='distribution_lists'&&field.technicalName==='description'){assert.equal(field.config.formatted,false);assert.equal(result.records[name][0].description.split('\n').length,3);continue;}assert.equal(field.config.formatted,true);for(const row of result.records[name]){assert.match(row[field.technicalName],/### Working notes/);assert.match(row[field.technicalName],/\(John Doe\) -----\n/);assert.match(row[field.technicalName],/\(Jane Doe\) -----\n/);assert.ok(row[field.technicalName].length>350);}}
+    const expected=['id','created_at','created_by','updated_at','updated_by','version',...(name==='contacts'?[]:['keyword']),'type','status','category'];
+    assert.deepEqual(definition.columns.slice(0,expected.length),expected);
     assert.ok(definition.fields.find((field: { technicalName: string; required: boolean }) => field.technicalName === 'keyword').required);
     assert.equal((await ok('list_records', { objectTypeId: model.id, limit: 100 })).total, result.records[name].length);
+    if(name!=='contacts'){const groups=definition.formLayouts.default.groups;assert.equal(groups[0].labels.en,'General');assert.ok(groups.find((g:any)=>g.labels.en==='Classification'));const primary=groups.findIndex((g:any)=>g.labels.en==='Primary association');if(primary>=0)assert.ok(primary<groups.findIndex((g:any)=>g.labels.en==='Classification'));assert.ok(groups[0].fields.some((e:any)=>e.fieldId===definition.fields.find((f:any)=>f.technicalName==='keyword').id));if(name==='vehicles'||name==='distribution_lists')assert.equal(groups.at(-1).labels.en,'Notes');assert.ok(!groups[0].fields.some((e:any)=>definition.fields.some((f:any)=>f.id===e.fieldId&&['type','status','category','notes'].includes(f.technicalName))));}
   }
+  assert.equal(result.objects.distribution_lists.numbering.enabled,false);assert.ok(!result.objects.distribution_lists.fields.some((f:any)=>f.technicalName==='business_number'));
   const identities = new Map(Object.entries(result.records).flatMap(([name, rows]) => rows.map(row => [row.id, result.objects[name].id])));
   const primaryChildren = new Set<string>();
   for (const link of result.links) {
@@ -1658,10 +1662,10 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   assert.ok(result.records.projects.some(row => !primaryChildren.has(row.id)), 'Project without a contact is retained');
   assert.ok((await journalEntries({ objectTypeId: result.objects.tasks.id, recordId: result.records.tasks[0].id })).some((entry: { old_value: unknown; new_value: unknown }) => entry.old_value === '1' && entry.new_value === '2.5'));
   const edgeCount=(await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count;
-  assert.equal(edgeCount,51);
+  assert.equal(edgeCount,54);
   const {connectDemoRelationships}=await import('../src/demo-data.js');
   await connectDemoRelationships(runtime.db,adminId,result.workspaceId,result.links);
-  assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count,51);
+  assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count,54);
   const workspace=(await ok('list_workspaces',{})).find((item:any)=>item.id===result.workspaceId);
   assert.equal(workspace.default_language,'en');
   assert.deepEqual(workspace.available_languages,['de','en']);
@@ -2375,7 +2379,7 @@ test('module catalog is complete and planned modules cannot activate; fixed inst
   const ws=await ok('create_workspace',{code:'modulecatalog',name:'Module catalog'});
   const catalog=await ok('list_workspace_modules',{workspaceId:ws.id});
   assert.deepEqual(await tool('list_workspace_modules',{workspaceId:ws.id}),catalog);
-  assert.deepEqual(catalog.map((m:any)=>[m.key,m.available,m.enabled]),[['contacts',false,false],['projects',true,false],['documents',false,false]]);
+  assert.deepEqual(catalog.map((m:any)=>[m.key,m.available,m.enabled]),[['contacts',true,false],['projects',true,false],['documents',false,false]]);
   assert.equal(catalog[0].labels.de,'Kontakte & Beziehungen');assert.equal(catalog[2].labels.en,'Documents & Communication');
   for(const module of catalog.filter((m:any)=>!m.available))assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:module.key,version:module.version,enabled:true})).statusCode,409);
   for(const name of ['contacts','projects','cases','tasks','emails','documents']){
@@ -3136,4 +3140,175 @@ test('unique input errors identify only the field and context while global searc
  await ok('configure_content_permissions',{objectTypeId:object.id,version:rights.version,sensitive:false,grants:[{kind:'user',id:ordinary.id,level:'read',create:false,fields:{[numberField.id]:'none'}}]});
  assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Numbered'},userCookie)).json().records[0].businessNumber,null);
  assert.equal((await api('search_workspace',{workspaceId:ws.id,query:row.business_number},userCookie)).json().records.length,0);
+});
+
+test('structured contact fields share API/MCP, field permissions, safe conversion, versions and atomic history',async()=>{
+ const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,6);
+ const ws=await ok('create_workspace',{name:'Structured contacts',code:'structuredcontacts'});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'people',labels:{en:'People',de:'Personen'},standardFields:['keyword']});
+ const names=await ok('create_field',{objectTypeId:object.id,technicalName:'given_names',labels:{en:'Given names',de:'Vornamen'},kind:'structured',config:{schema:'name_components'}});
+ const birthday=await ok('create_field',{objectTypeId:object.id,technicalName:'birthday',labels:{en:'Birthday',de:'Geburtsdatum'},kind:'structured',config:{schema:'partial_date'}});
+ const a={id:randomUUID(),text:'Ada'},b={id:randomUUID(),text:'Augusta'};
+ const row=await tool('create_record',{objectTypeId:object.id,keyword:'Ada',values:{given_names:[a,b],birthday:{month:2,day:29,year:null}}});
+ assert.deepEqual(row.given_names,[a,b]);assert.equal(row.birthday.year,null);
+ const before=(await journalEntries({objectTypeId:object.id,recordId:row.id})).length;
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{given_names:[a,a]}})).statusCode,400);
+ assert.equal((await journalEntries({objectTypeId:object.id,recordId:row.id})).length,before);
+ const updated=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{given_names:[b,a]}});assert.deepEqual(updated.given_names,[b,a]);
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{given_names:[]}})).statusCode,409);
+ const journal=await journalEntries({objectTypeId:object.id,recordId:row.id});assert.equal(journal.filter((e:any)=>e.field_id===names.id).length,2);
+ const reorder=journal.find((e:any)=>e.field_id===names.id&&e.old_value!==null);assert.deepEqual(reorder.detail_context,{schema:'name_components',changes:[{path:'$order'}]});
+ assert.equal((await api('configure_field',{fieldId:names.id,required:false,kind:'text',config:{}})).statusCode,400);
+ assert.equal((await api('list_records',{objectTypeId:object.id,sortBy:'given_names'})).statusCode,400);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const permissions=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'edit',fields:{[birthday.id]:'none',[names.id]:'read'}}]});
+ const visible=(await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).json();assert.deepEqual(visible.given_names,[b,a]);assert.ok(!Object.hasOwn(visible,'birthday'));
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:updated.version,values:{given_names:[]}},userCookie)).statusCode,403);
+ const history=(await api('list_record_journal',{objectTypeId:object.id,recordId:row.id},userCookie)).json();assert.ok(!JSON.stringify(history).includes(birthday.id));
+ await sql`CREATE FUNCTION fail_structured_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='given_names' THEN RAISE EXCEPTION 'structured journal fail'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+ await sql`CREATE TRIGGER fail_structured_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_structured_journal()`.execute(runtime.db);
+ try{assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:updated.version,values:{given_names:[a]}})).statusCode,500);}finally{await sql`DROP TRIGGER fail_structured_journal ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_structured_journal()`.execute(runtime.db);}
+ assert.deepEqual((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).given_names,[b,a]);
+});
+
+test('Contacts module installs structured Contacts and Distribution lists with shared bindings, derived names and normal relationships',async()=>{
+ const ws=await ok('create_workspace',{name:'Contact templates',code:'contacttemplates'});
+ const enabled=await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});assert.equal(enabled.enabled,true);
+ const types=await ok('list_object_types',{workspaceId:ws.id});assert.equal(types.length,2);
+ const contact=await ok('get_object_type',{objectTypeId:types.find((t:any)=>t.technicalName==='contacts').id}),list=types.find((t:any)=>t.technicalName==='distribution_lists');
+ const kind=contact.fields.find((f:any)=>f.technicalName==='contact_kind'),organization=kind.config.options.find((o:any)=>o.labels.en==='Organization').id,person=kind.config.options.find((o:any)=>o.labels.en==='Contact person').id,individual=kind.config.options.find((o:any)=>o.labels.en==='Individual contact').id;
+ const name=(text:string)=>[{id:randomUUID(),text}];
+ const org=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:organization,company_name:'ITextreme'}});assert.equal(org.keyword,'ITextreme');
+ const ap=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:person,first_name:name('Jane'),last_name:name('Doe')}});assert.equal(ap.keyword,'Doe, Jane');
+ const standalone=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:individual,first_name:name('John'),last_name:name('Doe'),birthday:{year:null,month:2,day:29}}});assert.equal(standalone.keyword,'Doe, John');
+ assert.equal((await api('create_record',{objectTypeId:contact.id,keyword:'Override',values:{contact_kind:organization,company_name:'Company'}})).statusCode,400);
+ assert.equal((await api('create_record',{objectTypeId:contact.id,values:{contact_kind:person}})).statusCode,400);
+ const blockedKind=await api('update_record',{objectTypeId:contact.id,recordId:ap.id,version:ap.version,values:{contact_kind:individual}});assert.equal(blockedKind.statusCode,400);
+ assert.equal((await ok('get_record',{objectTypeId:contact.id,recordId:ap.id})).version,ap.version);
+ assert.equal((await tool('update_record',{objectTypeId:contact.id,recordId:ap.id,version:ap.version,values:{contact_kind:person}})).contact_kind,person);
+ assert.equal((await api('configure_form_layout',{objectTypeId:contact.id,version:contact.version,layout:{groups:[{id:'core',labels:{en:'Core'},fields:[{fieldId:kind.id,width:'half'}]}]}})).statusCode,400);
+
+ assert.ok(contact.contactProfile);assert.equal(contact.contactProfile.fields.contact_kind,kind.id);
+ const extra=await ok('create_field',{objectTypeId:contact.id,technicalName:'contact_extension',labels:{en:'Extension',de:'Ergänzung'},kind:'text'});
+ const currentContact=await ok('get_object_type',{objectTypeId:contact.id});
+ await tool('configure_form_layout',{objectTypeId:contact.id,version:currentContact.version,layout:{groups:[{id:'extension',labels:{en:'Additional',de:'Zusätzlich'},fields:[{fieldId:extra.id,width:'full'}]}]}});
+ assert.deepEqual((await ok('get_object_type',{objectTypeId:contact.id})).formLayouts.default.groups[0].fields,[{fieldId:extra.id,width:'full'}]);
+
+ const emails=contact.fields.find((f:any)=>f.technicalName==='emails'),contextId=randomUUID();
+ const configured=await ok('configure_field',{fieldId:emails.id,required:false,config:{...emails.config,options:[...emails.config.options,{id:contextId,labels:{en:'Service',de:'Service'},active:true}]}});
+ assert.equal(configured.fields.find((f:any)=>f.id===emails.id).config.options.at(-1).id,contextId);
+ assert.equal((await api('configure_field',{fieldId:emails.id,required:false,config:{...emails.config,schema:'url_entries'}})).statusCode,403);
+ const historical=(await ok('list_system_journal',{workspaceId:ws.id,entityKind:'record'})).entries.find((e:any)=>e.field_id===contact.contactProfile.fields.first_name&&e.entity_id===ap.id);
+ assert.equal(historical.value_context.after.kind,'structured');assert.equal(historical.value_context.after.config.schema,'name_components');
+ const relations=await ok('list_relationship_types',{workspaceId:ws.id}),membership=relations.find((r:any)=>r.technicalName==='contact_person');assert.equal(membership.moduleKey,'contacts');assert.equal(membership.isProtected,true);
+ await ok('update_record',{objectTypeId:contact.id,recordId:ap.id,version:ap.version,relationships:[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:contact.id,recordId:org.id}]}]});
+ assert.equal((await ok('get_record',{objectTypeId:contact.id,recordId:ap.id})).keyword,'Doe, Jane (ITextreme)');
+ await ok('update_record',{objectTypeId:contact.id,recordId:org.id,version:(await ok('get_record',{objectTypeId:contact.id,recordId:org.id})).version,values:{company_name:'ITX'}});
+ assert.equal((await ok('get_record',{objectTypeId:contact.id,recordId:ap.id})).keyword,'Doe, Jane (ITX)');
+ const group=await ok('create_record',{objectTypeId:list.id,keyword:'Partners'}),members=relations.find((r:any)=>r.technicalName==='distribution_members');
+ await ok('update_record',{objectTypeId:list.id,recordId:group.id,version:group.version,relationships:[{relationshipTypeId:members.id,version:members.version,side:'left',targets:[{objectTypeId:contact.id,recordId:org.id},{objectTypeId:contact.id,recordId:standalone.id}]}]});
+ assert.equal((await ok('get_record_relationships',{objectTypeId:list.id,recordId:group.id})).dossier.length,2);
+ assert.equal((await ok('search_workspace',{workspaceId:ws.id,query:'ITX'})).records.length,2);
+ assert.equal((await ok('list_records',{objectTypeId:contact.id,sortBy:'keyword'})).total,3);
+ assert.equal((await tool('list_workspace_records',{workspaceId:ws.id,query:'ITX'})).total,2);
+ assert.equal((await ok('get_workspace_dashboard',{workspaceId:ws.id})).total,4);
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:1});
+ assert.equal((await ok('list_object_types',{workspaceId:ws.id})).filter((t:any)=>t.technicalName==='contacts').length,1);
+ assert.equal((await ok('get_record',{objectTypeId:contact.id,recordId:org.id})).keyword,'ITX');
+});
+
+test('Contacts derived values never bypass source-field rights, membership cardinality or protected kind identities',async()=>{
+ const ws=await ok('create_workspace',{name:'Contact security',code:'contactsecurity'});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const summary=(await ok('list_object_types',{workspaceId:ws.id})).find((row:any)=>row.technicalName==='contacts');
+ const model=await ok('get_object_type',{objectTypeId:summary.id}),kind=model.fields.find((f:any)=>f.technicalName==='contact_kind');
+ const [organization,,person]=kind.config.options.map((o:any)=>o.id),name=(text:string)=>[{id:randomUUID(),text}];
+ const org=await ok('create_record',{objectTypeId:model.id,values:{contact_kind:organization,company_name:'Restricted Company'}});
+ const other=await ok('create_record',{objectTypeId:model.id,values:{contact_kind:organization,company_name:'Other Company'}});
+ const ap=await tool('create_record',{objectTypeId:model.id,values:{contact_kind:person,last_name:name('Private'),first_name:name('Person')}});
+ const membership=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.technicalName==='contact_person');
+ const payload={relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:model.id,recordId:org.id}]};
+ const linked=await ok('update_record',{objectTypeId:model.id,recordId:ap.id,version:ap.version,relationships:[payload]});
+ assert.equal(linked.keyword,'Private, Person (Restricted Company)');
+ assert.equal((await api('update_record',{objectTypeId:model.id,recordId:ap.id,version:linked.version,relationships:[{...payload,targets:[...payload.targets,{objectTypeId:model.id,recordId:other.id}]}]})).statusCode,409);
+ assert.equal((await ok('get_record',{objectTypeId:model.id,recordId:ap.id})).version,linked.version);
+ assert.equal((await api('configure_field',{fieldId:kind.id,required:false})).statusCode,403);
+ assert.equal((await api('configure_field',{fieldId:kind.id,required:true,config:{...kind.config,options:[...kind.config.options,{id:randomUUID(),labels:{en:'Fourth kind'},active:true}]}})).statusCode,400);
+ assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:membership.id,version:membership.version,configuration:Object.fromEntries(['labels','leftLabels','rightLabels','directed','leftMin','leftMax','rightMin','rightMax','allowAll','pairs','active','leftApplicability','rightApplicability'].map(key=>[key,key==='rightMax'?null:membership[key]]))})).statusCode,403);
+ const unrelated=await ok('create_object_type',{workspaceId:ws.id,technicalName:'unrelated',labels:{en:'Unrelated'}});
+ const unrelatedField=await ok('create_field',{objectTypeId:unrelated.id,technicalName:'name',labels:{en:'Name'}});
+ await assert.rejects(sql`INSERT INTO sys_module_field_bindings(workspace_id,object_key,field_key,field_id) VALUES(${ws.id}::uuid,'contact','forged',${unrelatedField.id}::uuid)`.execute(runtime.db),{code:'23503'});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const company=model.fields.find((f:any)=>f.technicalName==='company_name');
+ const permissions=await ok('get_content_permissions',{objectTypeId:model.id});
+ await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'edit',fields:{[company.id]:'none'}}]});
+ const visible=(await api('get_record',{objectTypeId:model.id,recordId:ap.id},userCookie)).json();assert.equal(visible.keyword,ap.id);assert.equal(visible.organization_name,null);
+ assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Restricted'},userCookie)).json().records.length,0);
+ const history=(await api('list_record_journal',{objectTypeId:model.id,recordId:ap.id},userCookie)).json();assert.ok(!JSON.stringify(history).includes('Restricted Company'));
+ const dossier=(await api('get_record_relationships',{objectTypeId:model.id,recordId:ap.id},userCookie)).json();assert.ok(!JSON.stringify(dossier).includes('Restricted Company'));
+ const global=await ok('list_system_journal',{workspaceId:ws.id});assert.ok(global.entries.some((e:any)=>e.entity_name==='Private, Person (Restricted Company)'));
+ assert.equal((await ok('list_records',{objectTypeId:model.id,sortBy:'keyword'})).total,3);
+ const before=(await ok('get_definition_journal',{objectTypeId:model.id})).length;
+ assert.equal((await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:2})).version,2);
+ assert.equal((await ok('get_definition_journal',{objectTypeId:model.id})).length,before);
+});
+
+test('Contact salutations and academic titles are configurable independent choices, with visible name fields and permission-aware formatting',async()=>{
+ const ws=await ok('create_workspace',{name:'Contact names',code:'contactnames'});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const summary=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');
+ const model=await ok('get_object_type',{objectTypeId:summary.id}),profile=model.contactProfile;
+ const field=(key:string)=>model.fields.find((f:any)=>f.id===profile.fields[key]);
+ const title=field('name_prefix'),salutation=field('salutation'),gender=field('gender');
+ for(const [purpose,schema] of [['emails','email_entries'],['phones','phone_entries'],['addresses','address_entries'],['websites','url_entries']]){
+  const collection=field(purpose);assert.equal(collection.config.schema,schema);assert.notEqual(collection.config.fixedOptions,true);
+  assert.deepEqual(collection.config.options.map((o:any)=>o.labels.en),purpose==='phones'?['Work','Home','Mobile','Voice calls','Fax','SMS / text','Video','Pager','Textphone']:['Work','Home']);
+  assert.ok(collection.config.options.every((o:any)=>o.labels.de&&o.id));
+ }
+ assert.equal(gender.kind,'single_choice');assert.equal(gender.required,false);assert.equal(gender.labels.de,'Geschlecht');assert.equal(gender.config.fixedOptions,false);
+ const other=gender.config.options.find((o:any)=>o.labels.en==='Other').id,male=gender.config.options.find((o:any)=>o.labels.en==='Male').id;
+ assert.equal(title.kind,'single_choice');assert.equal(title.config.fixedOptions,false);assert.equal(title.labels.de,'Titel');
+ assert.equal(salutation.kind,'single_choice');assert.equal(salutation.labels.de,'Anrede');assert.equal(field('additional_names').labels.de,'Weitere Vornamen');assert.equal(field('name_suffix').labels.de,'Namenszusatz');
+ const name=(text:string)=>[{id:randomUUID(),text}],dr=title.config.options.find((o:any)=>o.labels.en==='Dr.').id,ms=salutation.config.options.find((o:any)=>o.labels.en==='Ms').id;
+ const row=await tool('create_record',{objectTypeId:model.id,values:{contact_kind:profile.kinds.person,salutation:ms,gender:other,name_prefix:dr,first_name:name('Jane'),additional_names:name('Marie'),last_name:name('Doe'),name_suffix:name('Jr.')}});
+ assert.equal(row.formatted_name,'Dr. Jane Marie Doe Jr.');assert.equal(row.keyword,'Doe, Jane');assert.equal(row.salutation,ms);assert.equal(row.gender,other);
+ const added={id:randomUUID(),labels:{en:'Dr. habil.',de:'Dr. habil.'},active:true};
+ await ok('configure_field',{fieldId:title.id,required:false,config:{...title.config,options:[...title.config.options,added]}});
+ const changed=await ok('update_record',{objectTypeId:model.id,recordId:row.id,version:row.version,values:{name_prefix:added.id,gender:male}});
+ assert.equal(changed.formatted_name,'Dr. habil. Jane Marie Doe Jr.');assert.equal(changed.gender,male);assert.equal(changed.salutation,ms);
+ const genderHistory=(await ok('list_record_journal',{objectTypeId:model.id,recordId:row.id})).entries.find((entry:any)=>entry.field_id===gender.id&&entry.new_value===male);assert.equal(genderHistory.value_context.after.kind,'single_choice');
+ assert.equal((await api('create_record',{objectTypeId:model.id,values:{contact_kind:profile.kinds.organization,company_name:'Company',gender:male}})).statusCode,400);
+ const history=(await ok('list_record_journal',{objectTypeId:model.id,recordId:row.id})).entries.find((entry:any)=>entry.field_id===title.id&&entry.new_value===added.id);
+ assert.equal(history.value_context.after.kind,'single_choice');assert.ok(history.value_context.after.config.options.some((o:any)=>o.id===added.id));
+ assert.equal((await api('create_record',{objectTypeId:model.id,values:{contact_kind:profile.kinds.organization,company_name:'Company',salutation:ms}})).statusCode,400);
+});
+
+
+test('telephone usage and capabilities are independent configurable UUID groups with lossless multi-label history',async()=>{
+ const ws=await ok('create_workspace',{name:'Phone groups',code:'phonegroups'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'people',labels:{en:'People'}});
+ const work={id:randomUUID(),labels:{en:'Work',de:'Geschäftlich'},active:true,group:'usage'},home={id:randomUUID(),labels:{en:'Home',de:'Privat'},active:true,group:'usage'},mobile={id:randomUUID(),labels:{en:'Mobile',de:'Mobil'},active:true,group:'phone_type'};
+ const config={schema:'phone_entries',options:[work,home,mobile]};
+ const field=await ok('create_field',{objectTypeId:object.id,technicalName:'phones',labels:{en:'Telephone numbers'},kind:'structured',config});
+ const entry={id:randomUUID(),value:'+4989123456',contexts:[work.id,home.id,mobile.id],preference:1};
+ const row=await tool('create_record',{objectTypeId:object.id,values:{phones:[entry]}});assert.deepEqual(row.phones[0].contexts,entry.contexts);
+ const changed=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{phones:[{...entry,contexts:[home.id,mobile.id]}]}});assert.deepEqual(changed.phones[0].contexts,[home.id,mobile.id]);
+ const history=(await ok('list_record_journal',{objectTypeId:object.id,recordId:row.id})).entries.find((e:any)=>e.field_id===field.id&&e.old_value!==null);
+ assert.deepEqual(history.old_value[0].contexts,entry.contexts);assert.equal(history.value_context.after.config.options.find((o:any)=>o.id===mobile.id).group,'phone_type');
+ assert.equal((await api('configure_field',{fieldId:field.id,version:field.version,required:false,config:{...config,options:[{...work,group:'phone_type'},home,mobile]}})).statusCode,400);
+ assert.equal((await api('create_field',{objectTypeId:object.id,technicalName:'missing_group',labels:{en:'Invalid'},kind:'structured',config:{schema:'phone_entries',options:[{id:randomUUID(),labels:{en:'Unknown'},active:true}]}})).statusCode,400);
+ assert.equal((await api('create_field',{objectTypeId:object.id,technicalName:'wrong_group',labels:{en:'Invalid'},kind:'structured',config:{schema:'email_entries',options:[work]}})).statusCode,400);
+});
+
+
+test('collection order derives consecutive preferences for every contact collection and journals reorder/removal atomically',async()=>{
+ const ws=await ok('create_workspace',{name:'Ordered preferences',code:'orderedpreferences'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'entries',labels:{en:'Entries'}});
+ for(const [schema,samples] of [['email_entries',['one@example.test','two@example.test']],['phone_entries',['+4989123456','+4989123457']],['url_entries',['https://one.example.test','https://two.example.test']],['address_entries',['One Road','Two Road']]] as const){
+  const field=await ok('create_field',{objectTypeId:object.id,technicalName:schema,labels:{en:schema},kind:'structured',config:{schema}});
+  const entries=samples.map((value,i)=>({id:randomUUID(),contexts:[],...(i===0?{preference:99}:{}),...(schema==='address_entries'?{address:{poBox:'',extended:'',streetLines:[value],houseNumber:'',postalCode:'',locality:'',region:'',country:'',formatted:''}}:{value})}));
+  const row=await tool('create_record',{objectTypeId:object.id,values:{[schema]:entries}});assert.deepEqual(row[schema].map((e:any)=>e.preference),[1,2]);
+  const reversed=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{[schema]:[row[schema][1],row[schema][0]]}});assert.deepEqual(reversed[schema].map((e:any)=>[e.id,e.preference]),[[entries[1].id,1],[entries[0].id,2]]);
+  const history=(await ok('list_record_journal',{objectTypeId:object.id,recordId:row.id})).entries.find((e:any)=>e.field_id===field.id&&e.old_value!==null);assert.ok(history.detail_context.changes.some((c:any)=>c.path==='$order'));assert.equal(history.new_value[0].preference,1);assert.equal(history.old_value[0].id,entries[0].id);
+  const removed=await tool('update_record',{objectTypeId:object.id,recordId:row.id,version:reversed.version,values:{[schema]:[reversed[schema][1]]}});assert.equal(removed[schema][0].preference,1);
+ }
 });

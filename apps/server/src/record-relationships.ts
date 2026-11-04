@@ -29,7 +29,7 @@ async function reference(tx:Executor,ref:RecordReference,workspace:string):Promi
   const model=await modelFor(tx,ref.objectTypeId);
   if(model.workspace_id!==workspace)throw new AppError(400,'Relationship endpoints must share a workspace');
   const hasKeyword=(await sql`SELECT 1 FROM sys_fields WHERE object_type_id=${model.id}::uuid AND technical_name='keyword' AND state<>'deleted'`.execute(tx)).rows.length;
-  const row=(await sql<{keyword:string}>`SELECT ${hasKeyword?sql`keyword`:sql`id::text`} AS keyword FROM ${sql.table(table(model))} WHERE id=${ref.recordId}::uuid`.execute(tx)).rows[0];
+  const row=(await sql<{keyword:string}>`SELECT ${await contentAccess().keywordValue(model.id)} AS keyword FROM ${sql.table(table(model))} WHERE id=${ref.recordId}::uuid`.execute(tx)).rows[0];
   if(!row)throw new AppError(404,'Related record not found');
   return {...ref,keyword:row.keyword||ref.recordId,objectTechnicalName:model.technical_name,objectLabels:model.labels,state:model.state as 'active'|'inactive'};
 }
@@ -183,7 +183,7 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
   const model=await modelFor(tx,objectTypeId),definitions=await relationshipTypes(tx,model.workspace_id);
   await sql`INSERT INTO sys_record_identities(workspace_id,object_type_id,record_id) VALUES(${model.workspace_id}::uuid,${objectTypeId}::uuid,${recordId}::uuid) ON CONFLICT DO NOTHING`.execute(tx);
   const chain=await primaryChain(tx,model.workspace_id);
-  const focus={objectTypeId,recordId},touched=new Map<string,RecordReference>(),affected=new Set<string>(),seen=new Set<string>();
+  const focus={objectTypeId,recordId},touched=new Map<string,RecordReference>(),affected=new Set<string>(),seen=new Set<string>(),addedJournal:{edge:Edge;type:RelationshipType}[]=[];
   for(const write of writes??[]) {
     const type=definitions.find(d=>d.id===write.relationshipTypeId);
     if(!type||type.version!==write.version)throw new AppError(409,'Relationship definition version conflict');
@@ -215,13 +215,14 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
       await validateEndpointPair(tx,type,a,b);
       const edge:Edge={id:v7(),workspace_id:model.workspace_id,relationship_type_id:type.id,left_object_type_id:a.objectTypeId,left_record_id:a.recordId,right_object_type_id:b.objectTypeId,right_record_id:b.recordId};
       await sql`INSERT INTO sys_relationships(id,workspace_id,relationship_type_id,left_object_type_id,left_record_id,right_object_type_id,right_record_id,created_by) VALUES(${edge.id}::uuid,${model.workspace_id}::uuid,${type.id}::uuid,${a.objectTypeId}::uuid,${a.recordId}::uuid,${b.objectTypeId}::uuid,${b.recordId}::uuid,${actor})`.execute(tx);
-      await journalEdge(tx,edge,type,actor,changeId,true);touched.set(key(a),a);touched.set(key(b),b);
+      addedJournal.push({edge,type});touched.set(key(a),a);touched.set(key(b),b);
     }
   }
   for(const type of definitions.filter(type=>type.rulesState==='active'&&(type.leftApplicability||type.rightApplicability)&&((eligible(type,objectTypeId,'left')&&type.leftMin)||(eligible(type,objectTypeId,'right')&&type.rightMin))))affected.add(type.id);
   if(newRecord)for(const type of definitions.filter(d=>d.rulesState==='active'&&((eligible(d,objectTypeId,'left')&&d.leftMin)||(eligible(d,objectTypeId,'right')&&d.rightMin))))affected.add(type.id);
   for(const type of definitions.filter(d=>affected.has(d.id)))await validateChangedRelationships(tx,type,[focus,...touched.values()]);
   await validateConditionalRecord(tx,objectTypeId,recordId,definitions);
+  for(const {edge,type} of addedJournal)await journalEdge(tx,edge,type,actor,changeId,true);
   for(const ref of touched.values()) {
     if(alreadyTouched&&key(ref)===key(focus))continue;
     const target=await modelFor(tx,ref.objectTypeId);

@@ -56,6 +56,7 @@ CREATE TABLE public.sys_fields (
     technical_name text NOT NULL,
     labels jsonb NOT NULL,
     kind text NOT NULL,
+    value_mode text NOT NULL DEFAULT 'stored' CHECK(value_mode IN ('stored','derived')),
     config jsonb DEFAULT '{}'::jsonb NOT NULL,
     input_rules jsonb DEFAULT '{"description":{},"helpText":{},"defaultValue":null,"unique":false}'::jsonb NOT NULL,
     applicability jsonb,
@@ -63,7 +64,7 @@ CREATE TABLE public.sys_fields (
     is_protected boolean DEFAULT false NOT NULL,
     state text DEFAULT 'active'::text NOT NULL,
     version integer DEFAULT 1 NOT NULL,
-    CONSTRAINT sys_fields_kind_check CHECK ((kind = ANY (ARRAY['text'::text, 'multiline'::text, 'integer'::text, 'decimal'::text, 'money'::text, 'boolean'::text, 'date'::text, 'datetime'::text, 'single_choice'::text, 'multiple_choice'::text, 'email'::text, 'phone'::text, 'url'::text, 'reference'::text, 'type'::text, 'status'::text, 'category'::text]))),
+    CONSTRAINT sys_fields_kind_check CHECK ((kind = ANY (ARRAY['structured'::text, 'text'::text, 'multiline'::text, 'integer'::text, 'decimal'::text, 'money'::text, 'boolean'::text, 'date'::text, 'datetime'::text, 'single_choice'::text, 'multiple_choice'::text, 'email'::text, 'phone'::text, 'url'::text, 'reference'::text, 'type'::text, 'status'::text, 'category'::text]))),
     CONSTRAINT sys_fields_state_check CHECK ((state = ANY (ARRAY['active'::text, 'inactive'::text, 'deleted'::text]))),
     CONSTRAINT sys_fields_version_check CHECK ((version > 0))
 );
@@ -109,6 +110,7 @@ CREATE TABLE public.sys_journal (
     entity_id uuid NOT NULL,
     field_id uuid,
     field_key text NOT NULL,
+    detail_context jsonb,
     old_value jsonb,
     new_value jsonb,
     actor_id text NOT NULL,
@@ -482,3 +484,41 @@ CREATE TABLE public.sys_number_allocations (
     PRIMARY KEY (object_type_id, record_id),
     UNIQUE (object_type_id, number)
 );
+
+CREATE TABLE public.sys_module_field_bindings (
+ workspace_id uuid NOT NULL,
+ object_key text NOT NULL,
+ field_key text NOT NULL,
+ field_id uuid NOT NULL REFERENCES public.sys_fields(id) ON DELETE RESTRICT,
+ option_keys jsonb NOT NULL DEFAULT '{}'::jsonb,
+ PRIMARY KEY(workspace_id,object_key,field_key),
+ UNIQUE(field_id),
+ FOREIGN KEY(workspace_id,object_key) REFERENCES public.sys_module_object_bindings(workspace_id,object_key) ON DELETE RESTRICT
+);
+CREATE TABLE public.sys_module_relationship_bindings (
+ workspace_id uuid NOT NULL REFERENCES public.sys_workspaces(id) ON DELETE RESTRICT,
+ module_key text NOT NULL REFERENCES public.sys_modules(key) ON DELETE RESTRICT,
+ relationship_key text NOT NULL,
+ relationship_type_id uuid NOT NULL,
+ FOREIGN KEY(relationship_type_id,workspace_id) REFERENCES public.sys_relationship_types(id,workspace_id) ON DELETE RESTRICT,
+ PRIMARY KEY(workspace_id,relationship_key),UNIQUE(relationship_type_id)
+);
+
+-- A field-purpose binding can only reference a field on its own supplied object.
+CREATE FUNCTION public.sys_check_module_field_binding() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF NOT EXISTS (
+   SELECT 1 FROM sys_module_object_bindings b JOIN sys_fields f ON f.object_type_id=b.object_type_id
+   WHERE b.workspace_id=NEW.workspace_id AND b.object_key=NEW.object_key AND f.id=NEW.field_id
+ ) OR jsonb_typeof(NEW.option_keys)<>'object' THEN
+   RAISE EXCEPTION 'Invalid module field binding scope' USING ERRCODE='23503';
+ END IF;
+ IF EXISTS (
+   SELECT 1 FROM jsonb_each_text(NEW.option_keys) semantic
+   WHERE NOT EXISTS (SELECT 1 FROM sys_fields f CROSS JOIN LATERAL jsonb_array_elements(COALESCE(f.config->'options','[]')) option
+     WHERE f.id=NEW.field_id AND option->>'id'=semantic.value)
+ ) THEN RAISE EXCEPTION 'Invalid module option binding' USING ERRCODE='23503'; END IF;
+ RETURN NULL;
+END $$;
+CREATE CONSTRAINT TRIGGER sys_module_field_binding_scope AFTER INSERT OR UPDATE ON public.sys_module_field_bindings
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.sys_check_module_field_binding();
