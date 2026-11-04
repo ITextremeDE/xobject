@@ -5,12 +5,12 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp src/schema.sql src/module-catalog.json dist/",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "dev": "tsx src/main.ts",
-    "db:migrate": "tsx src/cli.ts migrate",
-    "admin:create": "tsx src/cli.ts create-admin"
+    "admin:create": "tsx src/cli.ts create-admin",
+    "db:init": "tsx src/cli.ts initialize"
   },
   "dependencies": {
     "@fastify/static": "10.1.8",

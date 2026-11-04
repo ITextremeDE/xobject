@@ -25,47 +25,20 @@ export async function configureWorkspaceLanguages(tx: Executor, args: WorkspaceL
 }
 export async function workspaceGroups(tx: Executor, workspaceId: string): Promise<WorkspaceGroup[]> {
   if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id = ${workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404, 'Workspace not found');
-  return (await sql<WorkspaceGroup>`SELECT g.id, g.workspace_id AS "workspaceId", g.name, g.active, g.version, COALESCE(array_agg(m.user_id ORDER BY m.user_id) FILTER (WHERE m.user_id IS NOT NULL), ARRAY[]::text[]) AS "memberIds" FROM sys_groups g LEFT JOIN sys_group_members m ON m.group_id = g.id WHERE g.workspace_id = ${workspaceId}::uuid GROUP BY g.id ORDER BY g.name, g.id`.execute(tx)).rows;
+  const result = (await sql<WorkspaceGroup>`SELECT g.id, g.workspace_id AS "workspaceId", g.name, g.active, g.version FROM sys_groups g LEFT JOIN sys_group_members m ON m.group_id = g.id WHERE g.workspace_id = ${workspaceId}::uuid GROUP BY g.id ORDER BY g.name, g.id`.execute(tx)).rows;
+  for(const group of result)group.members=(await sql<import('@xobject/contracts').GradedMember>`SELECT 'user' AS kind,user_id AS id,level FROM sys_group_members WHERE group_id=${group.id}::uuid UNION ALL SELECT 'group',member_group_id::text,level FROM sys_group_nesting WHERE group_id=${group.id}::uuid ORDER BY kind,id`.execute(tx)).rows;
+  return result;
 }
-async function validateGroupMembers(tx: Executor, workspaceId: string, members: string[]) {
-  for (const id of members) if (!(await sql`SELECT 1 FROM sys_users u WHERE u.id = ${id} AND (u.is_admin OR EXISTS (SELECT 1 FROM sys_workspace_members m WHERE m.user_id = u.id AND m.workspace_id = ${workspaceId}::uuid))`.execute(tx)).rows.length) throw new AppError(400, 'Group member must belong to workspace');
+export async function createWorkspaceGroup(tx:Executor,args:{workspaceId:string;name:string},journal:ConfigurationJournal):Promise<WorkspaceGroup>{
+ const id=v7(),change=v7();await sql`INSERT INTO sys_groups(id,workspace_id,name) VALUES(${id}::uuid,${args.workspaceId}::uuid,${args.name})`.execute(tx);
+ await journal('group',id,change,'name',null,args.name);return (await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===id)!;
 }
-export async function createWorkspaceGroup(tx: Executor, args: { workspaceId: string; name: string; memberIds?: string[] }, journal: ConfigurationJournal) {
-  if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404, 'Workspace not found');
-  await validateGroupMembers(tx, args.workspaceId, args.memberIds ?? []);
-  const id = v7(), change = v7();
-  await sql`INSERT INTO sys_groups (id, workspace_id, name) VALUES (${id}::uuid, ${args.workspaceId}::uuid, ${args.name})`.execute(tx);
-  await journal('group', id, change, 'name', null, args.name);
-  for (const userId of args.memberIds ?? []) {
-    await sql`INSERT INTO sys_group_members (group_id, user_id) VALUES (${id}::uuid, ${userId})`.execute(tx);
-    await journal('group', id, change, `member:${userId}`, false, true);
-  }
-  return { id };
-}
-export async function configureGroup(tx: Executor, args: { workspaceId: string; groupId: string; version: number; name?: string; active?: boolean; memberIds?: string[] }, journal: ConfigurationJournal): Promise<WorkspaceGroup> {
-  const before = (await workspaceGroups(tx, args.workspaceId)).find(group => group.id === args.groupId);
-  if (!before) throw new AppError(404, 'Group not found in workspace');
-  if (before.version !== args.version) throw new AppError(409, 'Group version conflict');
-  const name = args.name ?? before.name;
-  const active = args.active ?? before.active;
-  const members = args.memberIds ? [...args.memberIds].sort() : before.memberIds;
-  if (args.memberIds && !before.active) throw new AppError(400, 'Group is inactive');
-  if (args.memberIds) await validateGroupMembers(tx, args.workspaceId, members);
-  const changed = name !== before.name || active !== before.active || !isDeepStrictEqual(members, before.memberIds);
-  if (changed) {
-    const change = v7();
-    await sql`UPDATE sys_groups SET name = ${name}, active = ${active}, version = version + 1 WHERE id = ${args.groupId}::uuid`.execute(tx);
-    if (name !== before.name) await journal('group', before.id, change, 'name', before.name, name);
-    if (active !== before.active) await journal('group', before.id, change, 'active', before.active, active);
-    for (const id of new Set([...before.memberIds, ...members])) {
-      const was = before.memberIds.includes(id), now = members.includes(id);
-      if (was === now) continue;
-      if (now) await sql`INSERT INTO sys_group_members (group_id, user_id) VALUES (${before.id}::uuid, ${id})`.execute(tx);
-      else await sql`DELETE FROM sys_group_members WHERE group_id = ${before.id}::uuid AND user_id = ${id}`.execute(tx);
-      await journal('group', before.id, change, `member:${id}`, was, now);
-    }
-  }
-  return { ...before, name, active, memberIds: members, version: before.version + (changed ? 1 : 0) };
+export async function configureGroup(tx:Executor,args:{workspaceId:string;groupId:string;version:number;name?:string;active?:boolean},journal:ConfigurationJournal):Promise<WorkspaceGroup>{
+ const before=(await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===args.groupId);if(!before)throw new AppError(404,'Group not found');if(before.version!==args.version)throw new AppError(409,'Group version conflict');
+ const name=args.name??before.name,active=args.active??before.active;
+ if(name!==before.name||active!==before.active){const change=v7();await sql`UPDATE sys_groups SET name=${name},active=${active},version=version+1 WHERE id=${before.id}::uuid`.execute(tx);
+ if(name!==before.name)await journal('group',before.id,change,'name',before.name,name);if(active!==before.active)await journal('group',before.id,change,'active',before.active,active);}
+ return (await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===args.groupId)!;
 }
 
 /** Inactive definition languages remain stored, but cannot be silently changed through API/MCP. */

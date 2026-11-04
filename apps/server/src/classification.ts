@@ -31,7 +31,8 @@ export function validateRules(config: ClassificationRules, previous: Classificat
   }
 }
 
-export function validateChoices(config: ClassificationRules, value: Choices, previous?: Choices) {
+export function validateChoices(config: ClassificationRules, input: Partial<Choices>, previous?: Partial<Choices>) {
+  const value:Choices={type:input.type??null,status:input.status??null,category:input.category??[]};
   const options = new Map(config.options.map(option => [option.id, option]));
   if ((config.type.required && !value.type) || (config.status.required && !value.status) || (config.category.required && !value.category.length)) throw new AppError(400, 'Required classification value missing');
   if ((!config.category.multiple && value.category.length > 1) || new Set(value.category).size !== value.category.length) throw new AppError(400, 'Invalid Category cardinality');
@@ -39,17 +40,17 @@ export function validateChoices(config: ClassificationRules, value: Choices, pre
     const values = kind === 'category' ? value.category : value[kind] ? [value[kind]!] : [];
     for (const id of values) {
       const option = options.get(id);
-      const retained = kind === 'category' ? previous?.category.includes(id) : previous?.[kind] === id;
+      const retained = kind === 'category' ? previous?.category?.includes(id) : previous?.[kind] === id;
       if (!option || option.kind !== kind || (!option.active && !retained)) throw new AppError(400, 'Unknown or inactive classification option');
       if (kind === 'status' && option.typeId !== value.type) throw new AppError(400, 'Status does not belong to the selected Type');
     }
   }
 }
 
-export function resolveChoices(config: ClassificationConfig, input: Partial<Choices>, previous?: Choices): Choices {
-  const type = input.type !== undefined ? input.type : previous ? previous.type : config.type.defaultId;
-  const status = input.status !== undefined ? input.status : previous ? previous.status : config.status.defaults.find(initial => initial.typeId === type)?.statusId ?? null;
-  const category = [...(input.category ?? (previous ? previous.category : config.category.defaultIds))].sort();
+export function resolveChoices(config: ClassificationConfig, input: Partial<Choices>, previous?: Partial<Choices>): Choices {
+  const type = input.type !== undefined ? input.type : previous ? previous.type??null : config.type.defaultId;
+  const status = input.status !== undefined ? input.status : previous ? previous.status??null : config.status.defaults.find(initial => initial.typeId === type)?.statusId ?? null;
+  const category = [...(input.category ?? (previous ? previous.category??[] : config.category.defaultIds))].sort();
   const result = { type, status, category };
   validateChoices(config, result, previous);
   return result;

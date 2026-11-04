@@ -20,15 +20,13 @@ New workspaces start with Projects disabled. Its retained inactive system defini
 
 The activation boundary and protected base-object installation are implemented. It does not provision complete Projects/Cases/Tasks templates, activate Contacts, adopt arbitrary custom definitions or implement the complete module update/deactivation lifecycle. Contact-person/main Organization remains assigned to future Contacts provisioning.
 
-## Migration and recovery
+## Current installation
 
-The additive migration preserves records, authentication rows, relationship identities and edges. A workspace with existing Primary edges adopts Projects as enabled; unused legacy prototype defaults become unavailable until explicit activation. Convert system definitions to unrestricted scope, remove their old pair rows and journal every changed property. General is immediately active. Repeating migration is a no-op for state and journals.
-
-Custom definitions already containing one pair retain their identity/configuration. If a legacy custom definition is unrestricted or has zero/multiple pairs, fail the application migration atomically with a review instruction. Do not silently split, repurpose or delete definitions or historical edges. The unique pair index is installed only after this preflight succeeds. A verified private backup and a restored staging-copy migration precede the local development migration; retain the backups for recovery.
+The current schema directly enforces the protected General/Primary meanings, one pair per custom definition and workspace-scoped endpoint identities. There is no adoption of earlier relationship schemas. New workspaces start with General available and Projects inactive; module activation supplies its fixed bindings and base objects atomically. Existing application links still prevent unsafe deactivation or incompatible rule changes.
 
 ## Validation
 
-Integration tests cover new-workspace defaults, all-object availability including later object types, API/MCP parity, role/version boundaries, blocked deactivation with existing links, journal rollback, fixed historical object pairs, SQL pair uniqueness, legacy-scope refusal, preservation and repeat migration. Shared record cardinality, Primary cycle and tree tests continue to use the same definitions and data.
+Integration tests cover new-workspace defaults, all-object availability including later object types, API/MCP parity, role/version boundaries, blocked deactivation with existing links, journal rollback, fixed historical object pairs, SQL pair uniqueness, current initialization and scoped constraints. Shared record cardinality, Primary cycle and tree tests continue to use the same definitions and data.
 
 ## Subsequent refinement
 
@@ -36,4 +34,4 @@ Integration tests cover new-workspace defaults, all-object availability includin
 
 ## Module catalog and base installation
 
-Migration 7 adds the complete database-backed catalog with the agreed descriptive names and planned/available status. Workspace Modules is the dedicated activation area. Projects & Tasks installs protected base Contacts, Projects, Cases and Tasks and fixed Contact → Project → Case UUID roles atomically. Contacts & Relations and Documents & Communication remain visibly planned; complete domain templates and shared module membership remain later work. Technical names supplied by any catalog module are reserved against custom creation through UI/API/MCP, including disabled and planned modules. Existing conflicting custom definitions are preserved and block activation without implicit adoption.
+The initial catalog contains the complete database-backed module definitions with the agreed descriptive names and planned/available status. Workspace Modules is the dedicated activation area. Projects & Tasks installs protected base Contacts, Projects, Cases and Tasks and fixed Contact → Project → Case UUID roles atomically. Contacts & Relations and Documents & Communication remain visibly planned; complete domain templates and shared module membership remain later work. Technical names supplied by any catalog module are reserved against custom creation through UI/API/MCP, including disabled and planned modules. Existing conflicting custom definitions are preserved and block activation without implicit adoption.

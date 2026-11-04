@@ -1,13 +1,11 @@
-import {installContentPermissions} from './migrations/0008-content-permissions.js';
-import {installModuleCatalog} from './migrations/0007-module-catalog.js';
-import {materializeLegacyFormLayouts} from './migrations/0006-materialize-form-layouts.js';
-import { hardenStorage } from './storage-integrity.js';
-import { migratePrototypeBaseline } from './migrations/0001-prototype-baseline.js';
-import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
-import { Pool, types } from 'pg';
-import { getMigrations } from 'better-auth/db/migration';
-import { v7 } from 'uuid';
-import { authOptions } from './auth.js';
+import {Kysely,PostgresDialect,sql,type Transaction} from 'kysely';
+import {Pool,types} from 'pg';
+import {getMigrations} from 'better-auth/db/migration';
+import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {v7} from 'uuid';
+import {authOptions} from './auth.js';
+import {seedModuleCatalog,moduleCatalogFile} from './module-catalog.js';
 
 // Dynamic definitions are validated at runtime, not represented as compile-time tables.
 export type Database = Kysely<Record<string, never>>;
@@ -19,65 +17,30 @@ export function connect(connectionString: string) {
   return { pool, db };
 }
 
-/** Explicit development migration command; never run implicitly on HTTP startup. */
-export async function migrate(connectionString: string, secret: string, baseURL: string) {
-  const { db, pool } = connect(connectionString);
-  const lock = await pool.connect().catch(async (error: unknown) => { await db.destroy(); throw error; });
-  try {
-    await lock.query("SELECT pg_advisory_lock(hashtext('xobject:migrations'))");
-    await sql`CREATE TABLE IF NOT EXISTS sys_schema_migrations(version integer PRIMARY KEY CHECK(version>0),name text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())`.execute(db);
-    const applied=(await sql<{version:number}>`SELECT version FROM sys_schema_migrations ORDER BY version`.execute(db)).rows.map(row=>row.version);
-    if (applied.some(version=>version>8)) throw new Error('Database schema is newer than this application');
-    if (!applied.includes(1)) {
-      const authMigration = await getMigrations(authOptions(pool, secret, baseURL));
-      await authMigration.runMigrations();
-      await db.transaction().execute(async (tx) => {
-        await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-        await migratePrototypeBaseline(tx);
-        await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(1,'prototype_baseline')`.execute(tx);
-      });
-    }
-    if (!applied.includes(2)) await db.transaction().execute(async tx=>{
-      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-      await hardenStorage(tx);
-      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(2,'definition_versions_integrity_and_indexes')`.execute(tx);
-    });
-    if (!applied.includes(3)) await db.transaction().execute(async tx=>{
-      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-      await sql`ALTER TABLE sys_fields ADD COLUMN IF NOT EXISTS applicability jsonb`.execute(tx);
-      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(3,'field_applicability')`.execute(tx);
-    });
-    if (!applied.includes(4)) await db.transaction().execute(async tx=>{
-      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-      await sql`CREATE TABLE sys_primary_chain_levels(workspace_id uuid NOT NULL REFERENCES sys_workspaces(id),role text NOT NULL CHECK(role IN('contact','project','case')),object_type_id uuid NOT NULL,PRIMARY KEY(workspace_id,role),UNIQUE(workspace_id,object_type_id),FOREIGN KEY(object_type_id,workspace_id) REFERENCES sys_object_types(id,workspace_id) ON DELETE RESTRICT)`.execute(tx);
-      await sql`ALTER TABLE sys_relationship_types ADD COLUMN left_applicability jsonb,ADD COLUMN right_applicability jsonb`.execute(tx);
-      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(4,'primary_chain_and_relationship_conditions')`.execute(tx);
-    });
-    if(!applied.includes(5))await db.transaction().execute(async tx=>{
-      await sql`ALTER TABLE sys_object_types ADD COLUMN form_layouts jsonb NOT NULL DEFAULT '{}'::jsonb CHECK(jsonb_typeof(form_layouts)='object')`.execute(tx);
-      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(5,'object_form_layouts')`.execute(tx);
-    });
-    if(!applied.includes(6))await db.transaction().execute(async tx=>{
-      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-      await materializeLegacyFormLayouts(tx);
-      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(6,'materialize_existing_form_layouts')`.execute(tx);
-    });
-    if(!applied.includes(7))await db.transaction().execute(async tx=>{
-      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-      await installModuleCatalog(tx);
-      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(7,'module_catalog_and_fixed_primary_roles')`.execute(tx);
-    });
-    if(!applied.includes(8))await db.transaction().execute(async tx=>{
-      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
-      await installContentPermissions(tx);
-      await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(8,'content_permissions')`.execute(tx);
-    });
-  } finally {
-    try { await lock.query("SELECT pg_advisory_unlock(hashtext('xobject:migrations'))"); }
-    finally { lock.release(); await db.destroy(); }
-  }
+const schemaFile=new URL('./schema.sql',import.meta.url);
+async function schemaDefinition(){const [source,catalog]=await Promise.all([readFile(schemaFile,'utf8'),readFile(moduleCatalogFile,'utf8')]);return {source,hash:createHash('sha256').update(source).update(catalog).digest('hex')};}
+export async function assertCurrentSchema(pool:Pool){
+ const {hash}=await schemaDefinition();
+ const exists=(await pool.query("SELECT to_regclass('public.sys_schema_version') AS name")).rows[0]?.name;
+ if(!exists)throw new Error('Initialize an empty database with db:init before starting xObject');
+ const current=(await pool.query('SELECT version,definition_hash FROM sys_schema_version WHERE singleton')).rows[0];
+ if(current?.version!==1||current.definition_hash!==hash)throw new Error('Database does not match the current unreleased installation. Recreate the development database; upgrades are not supported before release.');
 }
-
+/** Install the current model into an empty database; never adopt older development schemas. */
+export async function initializeDatabase(connectionString:string,secret:string,baseURL:string){
+ const {db,pool}=connect(connectionString),lock=await pool.connect();
+ try{
+  await lock.query("SELECT pg_advisory_lock(hashtext('xobject:installation'))");
+  const tables=(await pool.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows;
+  if(tables.length){await assertCurrentSchema(pool);return;}
+  const {source,hash}=await schemaDefinition();
+  const auth=await getMigrations(authOptions(pool,secret,baseURL));await auth.runMigrations();
+  await db.transaction().execute(async tx=>{
+   await sql.raw(source).execute(tx);await seedModuleCatalog(tx);
+   await sql`INSERT INTO sys_schema_version(singleton,version,definition_hash) VALUES(true,1,${hash})`.execute(tx);
+  });
+ }finally{try{await lock.query("SELECT pg_advisory_unlock(hashtext('xobject:installation'))");}finally{lock.release();await db.destroy();if(!pool.ended)await pool.end();}}
+}
 
 export async function addClassificationFields(tx: Executor, objectTypeId: string, table: string, names = ['type', 'status', 'category']) {
   const fields = [

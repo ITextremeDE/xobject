@@ -1,0 +1,128 @@
+[
+  {
+    "key": "contacts",
+    "labels": {
+      "de": "Kontakte & Beziehungen",
+      "en": "Contacts & Relations"
+    },
+    "description": {
+      "de": "Kontakte für Kunden, Lieferanten, Partner und weitere Beziehungen.",
+      "en": "Contacts for customers, suppliers, partners and other relationships."
+    },
+    "available": false,
+    "position": 1,
+    "objects": [
+      {
+        "key": "contact",
+        "labels": {
+          "de": "Kontakte",
+          "en": "Contacts"
+        },
+        "technicalName": "contacts",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ]
+      }
+    ]
+  },
+  {
+    "key": "projects",
+    "labels": {
+      "de": "Projekte & Aufgaben",
+      "en": "Projects & Tasks"
+    },
+    "description": {
+      "de": "Kontakte, Projekte, Vorgänge und Aufgaben mit fester Hauptzuordnung.",
+      "en": "Contacts, Projects, Cases and Tasks with a fixed Primary association chain."
+    },
+    "available": true,
+    "position": 2,
+    "objects": [
+      {
+        "key": "contact",
+        "labels": {
+          "de": "Kontakte",
+          "en": "Contacts"
+        },
+        "technicalName": "contacts",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ]
+      },
+      {
+        "key": "project",
+        "labels": {
+          "de": "Projekte",
+          "en": "Projects"
+        },
+        "technicalName": "projects",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ]
+      },
+      {
+        "key": "case",
+        "labels": {
+          "de": "Vorgänge",
+          "en": "Cases"
+        },
+        "technicalName": "cases",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ]
+      },
+      {
+        "key": "task",
+        "labels": {
+          "de": "Aufgaben",
+          "en": "Tasks"
+        },
+        "technicalName": "tasks",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ]
+      }
+    ]
+  },
+  {
+    "key": "documents",
+    "labels": {
+      "de": "Dokumente & Kommunikation",
+      "en": "Documents & Communication"
+    },
+    "description": {
+      "de": "E-Mails und Dokumente. Die Fachfunktionen folgen später.",
+      "en": "Emails and Documents. Domain features will follow later."
+    },
+    "available": false,
+    "position": 3,
+    "objects": [
+      {
+        "key": "email",
+        "labels": {
+          "de": "E-Mails",
+          "en": "Emails"
+        },
+        "technicalName": "emails"
+      },
+      {
+        "key": "document",
+        "labels": {
+          "de": "Dokumente",
+          "en": "Documents"
+        },
+        "technicalName": "documents"
+      }
+    ]
+  }
+]

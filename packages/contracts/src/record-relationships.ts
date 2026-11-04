@@ -39,7 +39,7 @@ export interface RelationshipTreeBranch {
 
 export const linkedRecordSourceSchema=z.object({objectTypeId:uuidSchema,recordId:uuidSchema,recordVersion:z.number().int().positive(),relationshipTypeId:uuidSchema,version:z.number().int().positive(),side:z.enum(['left','right'])}).strict();
 export type LinkedRecordSource=z.infer<typeof linkedRecordSourceSchema>;
-export interface RecordLinkOption {objectType:{id:string;technicalName:string;labels:Record<string,string>};relationships:{relationshipTypeId:string;side:'left'|'right';canCreate:boolean}[]}
+export interface RecordLinkOption {objectType:{id:string;technicalName:string;labels:Record<string,string>};relationships:{relationshipTypeId:string;side:'left'|'right';canCreate:boolean;canLink?:boolean}[]}
 export function oppositeRelationshipSide(type:RelationshipType,side:'left'|'right'):'left'|'right'{
  const symmetric=!type.directed&&(type.allowAll||type.pairs.some(p=>type.pairs.some(other=>other.leftObjectTypeId===p.rightObjectTypeId)));
  return symmetric?'left':side==='left'?'right':'left';

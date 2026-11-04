@@ -10,9 +10,9 @@ import { Client as PgClient } from 'pg';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { buildServer } from '../src/server.js';
-import { migrate } from '../src/database.js';
+import { initializeDatabase } from '../src/database.js';
 import { createAuth } from '../src/auth.js';
-import { defaultRegionalSettings, defaultWorkspaceAppearance, moveClassificationOption, type ClassificationRules } from '@xobject/contracts';
+import { defaultRecordSecurity,defaultRegionalSettings, defaultWorkspaceAppearance, moveClassificationOption, type ClassificationRules } from '@xobject/contracts';
 import type { Operation } from '../src/domain.js';
 
 process.env.LOG_LEVEL ??= 'silent';
@@ -35,16 +35,18 @@ async function login(email: string, password: string) {
 }
 
 // Existing scenarios use fresh metadata; conflict scenarios pass explicit versions.
-async function versionedInput(operation:Operation,input:unknown) {
-  if(!['configure_field','set_field_required','set_labels'].includes(operation)||!input||typeof input!=='object')return input;
-  const args=input as Record<string,unknown>;
+async function versionedInput(operation:Operation,input:unknown,actorForInput=adminId) {
+  const args=input as Record<string,any>;
+  if(operation==='configure_user_localization'&&!Object.hasOwn(args,'expectedLanguage')){const current=(await sql<{language:string|null;time_zone:string|null}>`SELECT language,time_zone FROM sys_users WHERE id=${actorForInput}`.execute(runtime.db)).rows[0];return {...args,timeZone:current.time_zone,expectedLanguage:current.language,expectedTimeZone:current.time_zone};}
+  if(operation==='configure_workspace_languages'&&Object.hasOwn(args,'language')){const ws=(await sql<any>`SELECT * FROM sys_workspaces WHERE id=${args.workspaceId}::uuid`.execute(runtime.db)).rows[0];const {language,...rest}=args;return {...rest,version:ws?.language_version??1,availableLanguages:ws?.available_languages??['de','en'],labelLanguages:ws?.label_languages??['de','en'],defaultLanguage:language};}
+  if(!['configure_field','set_labels'].includes(operation)||!input||typeof input!=='object')return input;
   if(args.version!==undefined)return args;
   const table=args.kind==='object_type'?'sys_object_types':'sys_fields';
   const row=(await sql<{version:number}>`SELECT version FROM ${sql.table(table)} WHERE id=${args.fieldId??args.id}::uuid`.execute(runtime.db)).rows[0];
   return {...args,version:row?.version??1};
 }
 async function api(operation: Operation, payload: unknown, cookie = adminCookie) {
-  payload = await versionedInput(operation,payload);
+  payload = await versionedInput(operation,payload,cookie===userCookie?(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0].id:adminId);
   return runtime.app.inject({ method: 'POST', url: `/api/v1/${operation}`,
     headers: { host: '127.0.0.1:4100', cookie, 'x-xobject-request': '1', 'content-type': 'application/json' }, payload: JSON.stringify(payload) });
 }
@@ -65,6 +67,10 @@ async function tool(operation: Operation, args: Record<string, unknown>) {
   return JSON.parse((result.content as { type: string; text: string }[])[0].text);
 }
 
+async function journalEntries(args:{objectTypeId:string;recordId:string},viaMcp=false){
+ const entries:any[]=[];for(let offset=0;;offset+=100){const page=viaMcp?await tool('list_record_journal',{...args,offset,limit:100}):await ok('list_record_journal',{...args,offset,limit:100});entries.push(...page.entries);if(offset+100>=page.total)break;}return entries.reverse();
+}
+
 before(async () => {
   // Real, disposable PostgreSQL. No connection to existing user databases.
   await exec('docker', ['run', '--detach', '--rm', '--name', container,
@@ -82,9 +88,12 @@ before(async () => {
     finally { await probe.end().catch(() => {}); }
   }
   assert.ok(ready, 'Temporary PostgreSQL must accept SQL over its published TCP endpoint');
-  await migrate(databaseURL, secret, baseURL);
-  await migrate(databaseURL, secret, baseURL); // Explicit migration is repeatable.
+  await initializeDatabase(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL); // Identical current initialization is repeatable.
   runtime = buildServer({ databaseURL, authSecret: secret, baseURL });
+  // Shared fault injection belongs to setup so selected scenarios run independently.
+  await sql`CREATE FUNCTION reject_test_journal() RETURNS trigger LANGUAGE plpgsql AS
+    $$ BEGIN RAISE EXCEPTION 'Induced journal failure'; END $$`.execute(runtime.db);
   // Provisioning has its own pool and is never an HTTP endpoint.
   const { Pool } = await import('pg');
   const provisionPool = new Pool({ connectionString: databaseURL });
@@ -142,7 +151,7 @@ test('API and real MCP share definitions, data, UUIDv7 identities and per-field 
   assert.equal(updated.version, 2);
   const readback = await tool('get_record', { objectTypeId: type.id, recordId: record.id });
   assert.equal(readback.registration, 'ITX 2');
-  const journal = await tool('get_journal', { objectTypeId: type.id, recordId: record.id });
+  const journal = await journalEntries({ objectTypeId: type.id, recordId: record.id },true);
   assert.equal(journal.length, 4);
   const changes = journal.filter((e: { old_value: unknown }) => e.old_value !== null);
   assert.equal(changes.length, 2);
@@ -158,7 +167,7 @@ test('API and real MCP share definitions, data, UUIDv7 identities and per-field 
   assert.equal(stale.statusCode, 409);
   const invalid = await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 2, values: { unknown: 'invalid' } });
   assert.equal(invalid.statusCode, 400);
-  assert.equal((await ok('get_journal', { objectTypeId: type.id, recordId: record.id })).length, 4);
+  assert.equal((await journalEntries({ objectTypeId: type.id, recordId: record.id })).length, 4);
 });
 
 test('names are validated and same object names in different workspaces remain separate', async () => {
@@ -201,8 +210,6 @@ test('journal failure rolls back record writes and schema/metadata changes', asy
   const ws = await ok('create_workspace', { name: 'Rollback test', code: 'rollback' });
   const type = await ok('create_object_type', { standardFields: ['keyword', 'type_status', 'category'], workspaceId: ws.id, technicalName: 'items', labels: { en: 'Items' } });
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Original' });
-  await sql`CREATE FUNCTION reject_test_journal() RETURNS trigger LANGUAGE plpgsql AS
-    $$ BEGIN RAISE EXCEPTION 'Induced journal failure'; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER reject_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
   try {
     assert.equal((await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Should roll back' })).statusCode, 500);
@@ -210,8 +217,8 @@ test('journal failure rolls back record writes and schema/metadata changes', asy
     assert.equal((await api('create_object_type', { standardFields: ['keyword', 'type_status', 'category'], workspaceId: ws.id, technicalName: 'rolled_back', labels: { en: 'Rolled back' } })).statusCode, 500);
     assert.equal((await api('set_labels', { kind: 'object_type', id: type.id, labels: { de: 'Geändert' } })).statusCode, 500);
     assert.equal((await api('set_workspace_name', { workspaceId: ws.id, name: 'Must roll back' })).statusCode, 500);
-    assert.equal((await api('set_workspace_language', { workspaceId: ws.id, language: 'de' })).statusCode, 500);
-    assert.equal((await api('set_user_language', { language: 'de' })).statusCode, 500);
+    assert.equal((await api('configure_workspace_languages', { workspaceId: ws.id, language: 'de' })).statusCode, 500);
+    assert.equal((await api('configure_user_localization', { language: 'de' })).statusCode, 500);
   } finally { await sql`DROP TRIGGER reject_journal ON sys_journal`.execute(runtime.db); }
   const after = await ok('get_record', { objectTypeId: type.id, recordId: record.id });
   assert.equal((await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id).name, 'Rollback test');
@@ -240,7 +247,7 @@ test('concurrent edits cannot silently overwrite each other', async () => {
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Initial' });
   const results = await Promise.all(['First', 'Second'].map(keyword => api('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword })));
   assert.deepEqual(results.map(r => r.statusCode).sort(), [200, 409]);
-  const journal = await ok('get_journal', { objectTypeId: type.id, recordId: record.id });
+  const journal = await journalEntries({ objectTypeId: type.id, recordId: record.id });
   assert.equal(journal.length, 2);
 });
 
@@ -272,7 +279,7 @@ test('translated definitions use user/workspace fallback while contents and phys
   let definition = await ok('get_object_type', { objectTypeId: type.id });
   assert.equal(definition.label, 'Fahrzeuge');
   assert.deepEqual(definition.columns, ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category', 'registration']);
-  await tool('set_user_language', { language: 'en' });
+  await tool('configure_user_localization', { language: 'en' });
   definition = await ok('get_object_type', { objectTypeId: type.id });
   assert.equal(definition.label, 'Vehicles');
   assert.equal(definition.fields.find((f: { id: string }) => f.id === field.id).label, 'Registration');
@@ -281,74 +288,21 @@ test('translated definitions use user/workspace fallback while contents and phys
   definition = await tool('get_object_type', { objectTypeId: type.id });
   assert.equal(definition.fields.find((f: { id: string }) => f.id === field.id).label, 'Amtliches Kennzeichen');
   assert.equal((await ok('get_record', { objectTypeId: type.id, recordId: record.id })).keyword, 'Lieferwagen');
-  await ok('set_user_language', { language: null });
-  await tool('set_workspace_language', { workspaceId: workspace.id, language: 'en' });
+  await ok('configure_user_localization', { language: null });
+  await tool('configure_workspace_languages', { workspaceId: workspace.id, language: 'en' });
   assert.equal((await ok('get_object_type', { objectTypeId: type.id })).label, 'Vehicles');
   const fixedField = definition.fields.find((f: { technicalName: string }) => f.technicalName === 'keyword');
   assert.equal((await api('set_labels', { kind: 'field', id: fixedField.id, labels: { en: 'Wrong' } })).statusCode, 400);
   for (const invalid of [{}, { fr: 'Véhicules' }, { en: '' }]) {
     assert.equal((await api('set_labels', { kind: 'object_type', id: type.id, labels: invalid })).statusCode, 400);
   }
-  assert.equal((await api('set_user_language', { language: 'invalid' })).statusCode, 400);
-  assert.equal((await api('set_workspace_language', { workspaceId: workspace.id, language: 'invalid' })).statusCode, 400);
+  assert.equal((await api('configure_user_localization', { language: 'invalid' })).statusCode, 400);
+  assert.equal((await api('configure_workspace_languages', { workspaceId: workspace.id, language: 'invalid' })).statusCode, 400);
   const changes = await sql<{ field_id: string; new_value: unknown }>`SELECT field_id, new_value FROM sys_journal
     WHERE entity_id = ${field.id}::uuid AND field_key = 'labels' AND old_value <> 'null'::jsonb`.execute(runtime.db);
   assert.equal(changes.rows.length, 1);
   assert.equal(changes.rows[0].field_id, field.id);
   assert.deepEqual(changes.rows[0].new_value, { de: 'Amtliches Kennzeichen' });
-});
-
-test('upgrading legacy labels and administrator mappings preserves roles, identities, records, journal and old column order', async () => {
-  const { connect } = await import('../src/database.js');
-  await exec('docker', ['exec', container, 'createdb', '-U', 'postgres', 'xobject_legacy_test']);
-  const legacyURL = databaseURL.replace('/xobject_test', '/xobject_legacy_test');
-  await migrate(legacyURL, secret, baseURL);
-  const { db, pool } = connect(legacyURL);
-  const { Application } = await import('../src/domain.js');
-  try {
-    const auth = createAuth(pool, secret, baseURL, true);
-    const user = await auth.api.signUpEmail({ body: { email: 'legacy@example.test', name: 'Legacy', password: 'test-password-legacy' } });
-    await sql`UPDATE sys_users SET is_admin = true WHERE id = ${user.user.id}`.execute(db);
-    const regular = await auth.api.signUpEmail({ body: { email: 'legacy-user@example.test', name: 'Legacy user', password: 'test-password-legacy-user' } });
-    const application = new Application(db);
-    const workspace = await application.execute('create_workspace', { code: 'legacy', name: 'Legacy' }, user.user.id) as { id: string };
-    const type = await application.execute('create_object_type', { standardFields: ['keyword', 'type_status', 'category'], workspaceId: workspace.id, technicalName: 'items', labels: { en: 'Original label' } }, user.user.id) as { id: string };
-    const record = await application.execute('create_record', { objectTypeId: type.id, keyword: 'Existing record' }, user.user.id) as { id: string };
-    await sql`DELETE FROM sys_schema_migrations WHERE version=1`.execute(db);
-    // Simulate a database predating classification fields; only disposable test data is changed.
-    await sql`DELETE FROM sys_journal WHERE field_id IN (SELECT id FROM sys_fields WHERE kind <> 'text')`.execute(db);
-    await sql`DELETE FROM sys_fields WHERE kind <> 'text'`.execute(db);
-    await sql`ALTER TABLE legacy_items DROP COLUMN type, DROP COLUMN status, DROP COLUMN category`.execute(db);
-    await sql`ALTER TABLE sys_object_types DROP COLUMN classification`.execute(db);
-    // Recreate the previous scalar-label/preference schema in this disposable database.
-    for (const name of ['sys_object_types', 'sys_fields']) {
-      await sql`ALTER TABLE ${sql.table(name)} ALTER COLUMN labels TYPE text USING labels->>'en'`.execute(db);
-      await sql`ALTER TABLE ${sql.table(name)} RENAME COLUMN labels TO label`.execute(db);
-    }
-    await sql`ALTER TABLE sys_workspaces DROP COLUMN default_language`.execute(db);
-    await sql`ALTER TABLE sys_users DROP COLUMN language`.execute(db);
-    await sql`CREATE TABLE sys_administrators (user_id text PRIMARY KEY REFERENCES sys_users(id))`.execute(db);
-    await sql`INSERT INTO sys_administrators (user_id) VALUES (${user.user.id})`.execute(db);
-    await sql`ALTER TABLE sys_users DROP COLUMN is_admin`.execute(db);
-    const beforeColumns = await sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'legacy_items' ORDER BY ordinal_position`.execute(db);
-    const beforeJournal = await sql`SELECT * FROM sys_journal ORDER BY id`.execute(db);
-    await migrate(legacyURL, secret, baseURL);
-    await migrate(legacyURL, secret, baseURL);
-    const upgradedRoles = (await sql<{ id: string; is_admin: boolean }>`SELECT id, is_admin FROM sys_users`.execute(db)).rows;
-    assert.equal(upgradedRoles.find(item => item.id === user.user.id)?.is_admin, true);
-    assert.equal(upgradedRoles.find(item => item.id === regular.user.id)?.is_admin, false);
-    assert.equal((await sql<{ name: string | null }>`SELECT to_regclass('sys_administrators')::text AS name`.execute(db)).rows[0].name, null);
-    const labels = await sql<{ labels: unknown }>`SELECT labels FROM sys_object_types WHERE id = ${type.id}::uuid`.execute(db);
-    assert.deepEqual(labels.rows[0].labels, { und: 'Original label' });
-    const afterColumns = await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns WHERE table_name = 'legacy_items' ORDER BY ordinal_position`.execute(db);
-    assert.deepEqual(afterColumns.rows.slice(0, beforeColumns.rows.length), beforeColumns.rows);
-    assert.deepEqual(afterColumns.rows.slice(-3).map(column => column.column_name), ['type', 'status', 'category']);
-    assert.deepEqual((await sql`SELECT * FROM sys_journal ORDER BY id`.execute(db)).rows, beforeJournal.rows);
-    const readback = await application.execute('get_record', { objectTypeId: type.id, recordId: record.id }, user.user.id) as { keyword: string; type: string | null; status: string | null; category: string[] };
-    assert.equal(readback.type, null); assert.equal(readback.status, null); assert.deepEqual(readback.category, []);
-    assert.equal(readback.keyword, 'Existing record');
-    assert.equal((await application.execute('get_object_type', { objectTypeId: type.id }, user.user.id) as { label: string }).label, 'Original label');
-  } finally { await db.destroy(); }
 });
 
 test('object/record lists are scoped, localized, paginated and search literal keywords through API and MCP', async () => {
@@ -501,7 +455,7 @@ test('classification defaults, optional values, Type/Status scopes and API/MCP j
     assert.equal((await api('update_record', { objectTypeId: type.id, recordId: record.id, version: record.version, classification })).statusCode, 400);
   }
   const changed = await tool('update_record', { objectTypeId: type.id, recordId: record.id, version: record.version, classification: { type: typeB, status: statusB, category: [catB, catA] } });
-  const journal = await ok('get_journal', { objectTypeId: type.id, recordId: record.id });
+  const journal = await journalEntries({ objectTypeId: type.id, recordId: record.id });
   const entries = journal.slice(-3);
   assert.deepEqual(entries.map((entry: { field_key: string }) => entry.field_key).sort(), ['category', 'status', 'type']);
   assert.equal(new Set(entries.map((entry: { change_id: string }) => entry.change_id)).size, 1);
@@ -510,16 +464,16 @@ test('classification defaults, optional values, Type/Status scopes and API/MCP j
   assert.equal(entries.find((entry: { field_key: string }) => entry.field_key === 'type').new_value, typeB);
   const unchanged = await ok('update_record', { objectTypeId: type.id, recordId: record.id, version: changed.version, classification: { category: [catA, catB] } });
   assert.equal(unchanged.version, changed.version);
-  assert.equal((await ok('get_journal', { objectTypeId: type.id, recordId: record.id })).length, journal.length);
+  assert.equal((await journalEntries({ objectTypeId: type.id, recordId: record.id })).length, journal.length);
   assert.equal((await api('configure_classification', { objectTypeId: type.id, version: 1, config })).statusCode, 409);
   assert.equal((await api('configure_classification', { objectTypeId: type.id, version: 2, config }, userCookie)).statusCode, 403);
   assert.equal((await api('configure_classification', { objectTypeId: type.id, version: 2, config }, '')).statusCode, 401);
   assert.equal((await tool('configure_classification', { objectTypeId: type.id, version: 2, config })).classification.version, 2);
-  await ok('set_user_language', { language: 'de' });
+  await ok('configure_user_localization', { language: 'de' });
   assert.equal((await tool('get_object_type', { objectTypeId: type.id })).classification.options.find((option: { id: string }) => option.id === typeA).label, 'Intern');
-  await ok('set_user_language', { language: 'en' });
+  await ok('configure_user_localization', { language: 'en' });
   assert.equal((await ok('get_object_type', { objectTypeId: type.id })).classification.options.find((option: { id: string }) => option.id === typeA).label, 'Internal');
-  await ok('set_user_language', { language: null });
+  await ok('configure_user_localization', { language: null });
   const another = await ok('create_record', { objectTypeId: type.id, keyword: 'Sorting' });
   assert.equal((await ok('list_records', { objectTypeId: type.id, sortBy: 'type', sortDirection: 'asc', limit: 1 })).records[0].id, record.id);
   assert.equal((await ok('list_records', { objectTypeId: type.id, sortBy: 'status', sortDirection: 'asc', limit: 1 })).records[0].id, record.id);
@@ -576,7 +530,7 @@ test('journal failure rolls back classification configuration and record selecti
   await ok('configure_classification', { objectTypeId: type.id, version: 1, config });
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Rollback' });
   const before = await ok('get_object_type', { objectTypeId: type.id });
-  const history = await ok('get_journal', { objectTypeId: type.id, recordId: record.id });
+  const history = await journalEntries({ objectTypeId: type.id, recordId: record.id });
   await sql`CREATE FUNCTION reject_classification_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test journal failure'; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER reject_classification_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_classification_journal()`.execute(runtime.db);
   try {
@@ -589,7 +543,7 @@ test('journal failure rolls back classification configuration and record selecti
   }
   assert.deepEqual(await ok('get_object_type', { objectTypeId: type.id }), before);
   assert.deepEqual(await ok('get_record', { objectTypeId: type.id, recordId: record.id }), record);
-  assert.deepEqual(await ok('get_journal', { objectTypeId: type.id, recordId: record.id }), history);
+  assert.deepEqual(await journalEntries({ objectTypeId: type.id, recordId: record.id }), history);
 });
 
 
@@ -624,7 +578,7 @@ test('every business field exposes requiredness, validates writes and preflights
   let definition = await ok('get_object_type', { objectTypeId: type.id });
   const keyword = definition.fields.find((f: { technicalName: string }) => f.technicalName === 'keyword');
   assert.equal(keyword.required, false);
-  await ok('set_field_required', { fieldId: keyword.id, required: true });
+  await ok('configure_field', { fieldId: keyword.id, required: true });
   assert.equal(definition.fields.find((f: { id: string }) => f.id === field.id).required, true);
   assert.equal((await api('create_record', { objectTypeId: type.id, values: { reference: 'REF' } })).statusCode, 400);
   for (const values of [{}, { reference: null }, { reference: ' \t\n' }]) assert.equal((await api('create_record', { objectTypeId: type.id, keyword: 'Missing', values })).statusCode, 400);
@@ -632,30 +586,30 @@ test('every business field exposes requiredness, validates writes and preflights
   assert.equal((await api('create_field', { objectTypeId: type.id, technicalName: 'missing', labels: { en: 'Missing' }, required: true })).statusCode, 400);
   assert.equal((await api('update_record', { objectTypeId: type.id, recordId: record.id, version: record.version, values: { reference: ' ' } })).statusCode, 400);
   await ok('update_record', { objectTypeId: type.id, recordId: record.id, version: record.version, keyword: 'Still valid' });
-  await tool('set_field_required', { fieldId: field.id, required: false });
+  await tool('configure_field', { fieldId: field.id, required: false });
   const changed = await ok('get_record', { objectTypeId: type.id, recordId: record.id });
   await ok('update_record', { objectTypeId: type.id, recordId: record.id, version: changed.version, values: { reference: null } });
-  assert.equal((await api('set_field_required', { fieldId: field.id, required: true })).statusCode, 400);
-  await tool('set_field_required', { fieldId: keyword.id, required: false });
+  assert.equal((await api('configure_field', { fieldId: field.id, required: true })).statusCode, 400);
+  await tool('configure_field', { fieldId: keyword.id, required: false });
   const unnamed = await ok('create_record', { objectTypeId: type.id });
   assert.equal(unnamed.keyword, '');
-  assert.equal((await api('set_field_required', { fieldId: keyword.id, required: true })).statusCode, 400);
-  await migrate(databaseURL, secret, baseURL);
+  assert.equal((await api('configure_field', { fieldId: keyword.id, required: true })).statusCode, 400);
+  await initializeDatabase(databaseURL, secret, baseURL);
   definition = await ok('get_object_type', { objectTypeId: type.id });
   assert.equal(definition.fields.find((f: { id: string }) => f.id === keyword.id).required, false);
   const typeField = definition.fields.find((f: { kind: string }) => f.kind === 'type');
-  assert.equal((await api('set_field_required', { fieldId: typeField.id, required: true })).statusCode, 400);
-  assert.equal((await tool('set_field_required', { fieldId: typeField.id, required: false })).classification.type.required, false);
-  assert.equal((await api('set_field_required', { fieldId: field.id, required: true }, userCookie)).statusCode, 403);
-  assert.equal((await api('set_field_required', { fieldId: randomUUID(), required: false })).statusCode, 404);
+  assert.equal((await api('configure_field', { fieldId: typeField.id, required: true })).statusCode, 400);
+  assert.equal((await tool('configure_field', { fieldId: typeField.id, required: false })).classification.type.required, false);
+  assert.equal((await api('configure_field', { fieldId: field.id, required: true }, userCookie)).statusCode, 403);
+  assert.equal((await api('configure_field', { fieldId: randomUUID(), required: false })).statusCode, 404);
   const journals = (await sql<{ old_value: boolean; new_value: boolean }>`SELECT old_value, new_value FROM sys_journal WHERE entity_id = ${keyword.id}::uuid AND field_key = 'required' AND old_value IS NOT NULL AND old_value <> 'null'::jsonb ORDER BY id`.execute(runtime.db)).rows;
   assert.deepEqual(journals, [{ old_value: false, new_value: true }, { old_value: true, new_value: false }]);
   const filled = await ok('create_object_type', { standardFields: ['keyword', 'type_status', 'category'], workspaceId: ws.id, technicalName: 'filled', labels: { en: 'Filled' } });
   const filledDef = await ok('get_object_type', { objectTypeId: filled.id });
   const filledKeyword = filledDef.fields.find((f: { technicalName: string }) => f.technicalName === 'keyword');
-  await ok('set_field_required', { fieldId: filledKeyword.id, required: true });
+  await ok('configure_field', { fieldId: filledKeyword.id, required: true });
   await sql`CREATE TRIGGER reject_required_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
-  try { assert.equal((await api('set_field_required', { fieldId: filledKeyword.id, required: false })).statusCode, 500); }
+  try { assert.equal((await api('configure_field', { fieldId: filledKeyword.id, required: false })).statusCode, 500); }
   finally { await sql`DROP TRIGGER reject_required_journal ON sys_journal`.execute(runtime.db); }
   assert.equal((await ok('get_object_type', { objectTypeId: filled.id })).fields.find((f: { id: string }) => f.id === filledKeyword.id).required, true);
 });
@@ -760,7 +714,7 @@ test('safe field conversions preflight every row, preserve historical journals a
   finally { await sql`DROP TRIGGER reject_conversion_journal ON sys_journal`.execute(runtime.db); }
   assert.equal((await ok('get_object_type', { objectTypeId: type.id })).fields.find((item: { id: string }) => item.id === field.id).kind, 'integer');
   assert.equal((await sql<{ data_type: string }>`SELECT data_type FROM information_schema.columns WHERE table_name = 'conversions_items' AND column_name = 'amount'`.execute(runtime.db)).rows[0].data_type, 'bigint');
-  const beforeJournal = await ok('get_journal', { objectTypeId: type.id, recordId: first.id });
+  const beforeJournal = await journalEntries({ objectTypeId: type.id, recordId: first.id });
   assert.equal(beforeJournal.find((entry: { field_key: string; old_value: unknown }) => entry.field_key === 'amount' && entry.old_value === null).new_value, '12');
   const multi = await ok('create_field', { objectTypeId: type.id, technicalName: 'choices', kind: 'multiple_choice', config: { options: [{ id: randomUUID(), labels: { en: 'A' }, active: true }, { id: randomUUID(), labels: { en: 'B' }, active: true }] }, labels: { en: 'Choices' } });
   const def = await ok('get_object_type', { objectTypeId: type.id });
@@ -792,7 +746,7 @@ test('administrator flags cannot be set by profile input and authorization reads
     assert.deepEqual(await tool('get_access_context', {}), { isAdmin: false });
   } finally { await sql`UPDATE sys_users SET is_admin = true WHERE id = ${adminId}`.execute(runtime.db); }
   const before = (await sql`SELECT id, is_admin FROM sys_users ORDER BY id`.execute(runtime.db)).rows;
-  await migrate(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL);
   assert.deepEqual((await sql`SELECT id, is_admin FROM sys_users ORDER BY id`.execute(runtime.db)).rows, before);
   assert.equal((await api('list_workspaces', {})).statusCode, 200);
 });
@@ -804,7 +758,7 @@ test('manual choice ordering persists through API/MCP with per-field journals an
   config.options.push({ id: secondStatus, kind: 'status', labels: { en: 'Review' }, active: true, typeId: typeA });
   await ok('configure_classification', { objectTypeId: type.id, version: 1, config });
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Keep selections' });
-  const recordJournal = await ok('get_journal', { objectTypeId: type.id, recordId: record.id });
+  const recordJournal = await journalEntries({ objectTypeId: type.id, recordId: record.id });
   const reordered = structuredClone(config);
   reordered.options = moveClassificationOption(reordered.options, typeB, typeA);
   reordered.options = moveClassificationOption(reordered.options, secondStatus, statusA);
@@ -817,7 +771,7 @@ test('manual choice ordering persists through API/MCP with per-field journals an
   assert.equal(result.classification.version, 3);
   assert.equal(result.classification.type.defaultId, typeA);
   assert.deepEqual(await ok('get_record', { objectTypeId: type.id, recordId: record.id }), record);
-  assert.deepEqual(await ok('get_journal', { objectTypeId: type.id, recordId: record.id }), recordJournal);
+  assert.deepEqual(await journalEntries({ objectTypeId: type.id, recordId: record.id }), recordJournal);
   const fieldIds = result.fields.filter((field: { technicalName: string }) => ['type', 'status', 'category'].includes(field.technicalName)).map((field: { id: string }) => field.id);
   const entries = (await sql<{ field_id: string; change_id: string; old_value: string[]; new_value: string[] }>`SELECT field_id, change_id, old_value, new_value FROM sys_journal WHERE entity_id = ANY(${fieldIds}::uuid[]) AND field_key = 'option_order' AND old_value <> '[]'::jsonb`.execute(runtime.db)).rows;
   assert.equal(entries.length, 3); assert.equal(new Set(entries.map(entry => entry.change_id)).size, 1);
@@ -831,21 +785,21 @@ test('manual choice ordering persists through API/MCP with per-field journals an
   assert.deepEqual((await tool('get_object_type', { objectTypeId: type.id })).classification, result.classification);
 });
 
-test('standard fields are opt-in, can be added atomically through API/MCP and stay absent across migrations', async () => {
+test('standard fields are opt-in, can be added atomically through API/MCP and stay absent after repeated initialization', async () => {
   const ws = await ok('create_workspace', { name: 'Optional standards', code: 'optionalstandards' });
   const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'bare', labels: { en: 'Bare' } });
   let def = await ok('get_object_type', { objectTypeId: type.id });
   assert.deepEqual(def.fields, []);
   assert.deepEqual(def.columns, ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']);
   const record = await tool('create_record', { objectTypeId: type.id });
-  assert.equal(record.keyword, ''); assert.equal(record.type, null); assert.deepEqual(record.category, []);
+  assert.equal(record.keyword, record.id); for(const key of ['type','status','category'])assert.equal(Object.hasOwn(record,key),false);
   assert.equal((await ok('list_records', { objectTypeId: type.id, query: record.id, sortBy: 'id' })).total, 1);
   assert.equal((await tool('search_workspace', { workspaceId: ws.id, query: record.id })).records[0].id, record.id);
   assert.equal((await api('create_record', { objectTypeId: type.id, keyword: 'Missing field' })).statusCode, 400);
   assert.equal((await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, classification: { type: null } })).statusCode, 400);
   assert.equal((await api('configure_classification', { objectTypeId: type.id, version: 1, config: classificationFixture().config })).statusCode, 400);
-  await migrate(databaseURL, secret, baseURL);
-  assert.deepEqual((await ok('get_object_type', { objectTypeId: type.id })).fields, []);
+  await initializeDatabase(databaseURL, secret, baseURL);
+  assert.deepEqual((await ok('get_object_type', { objectTypeId: type.id })).fields, []);for(const key of ['type','status','category'])assert.equal(Object.hasOwn(record,key),false);
   assert.equal((await api('add_standard_field', { objectTypeId: type.id, field: 'keyword' }, userCookie)).statusCode, 403);
   await sql`CREATE TRIGGER reject_standard_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
   try { assert.equal((await api('add_standard_field', { objectTypeId: type.id, field: 'type_status' })).statusCode, 500); }
@@ -855,7 +809,7 @@ test('standard fields are opt-in, can be added atomically through API/MCP and st
   assert.deepEqual(def.fields.map((field: { technicalName: string }) => field.technicalName), ['category']);
   const categoryConfig = { type: { required: false, defaultId: null }, status: { required: false, defaults: [] }, category: { required: false, multiple: false, defaultIds: [] }, options: [] };
   assert.equal((await ok('configure_classification', { objectTypeId: type.id, version: 1, config: categoryConfig })).classification.version, 1);
-  await migrate(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL);
   assert.deepEqual((await ok('get_object_type', { objectTypeId: type.id })).fields.map((field: { technicalName: string }) => field.technicalName), ['category']);
   def = await ok('add_standard_field', { objectTypeId: type.id, field: 'type_status' });
   assert.deepEqual(def.fields.map((field: { technicalName: string }) => field.technicalName), ['category', 'type', 'status']);
@@ -941,12 +895,12 @@ test('instance Administrators assign workspace roles; users read settings and De
   assert.equal((await userRequest('list_workspace_members', { workspaceId: ws.id })).statusCode, 200);
   assert.equal((await userRequest('list_object_types', { workspaceId: other.id })).statusCode, 403);
   assert.equal((await userRequest('get_object_type', { objectTypeId: foreign.id })).statusCode, 403);
-  assert.equal((await userRequest('set_user_language', { language: 'de' })).statusCode, 200);
+  assert.equal((await userRequest('configure_user_localization', { language: 'de' })).statusCode, 200);
   for (const [operation, payload] of [
-    ['set_workspace_name', { workspaceId: ws.id, name: 'Denied' }], ['set_workspace_language', { workspaceId: ws.id, language: 'en' }],
+    ['set_workspace_name', { workspaceId: ws.id, name: 'Denied' }], ['configure_workspace_languages', { workspaceId: ws.id, language: 'en' }],
     ['create_object_type', { workspaceId: ws.id, technicalName: 'denied', labels: { en: 'Denied' } }], ['add_standard_field', { objectTypeId: type.id, field: 'category' }],
     ['create_field', { objectTypeId: type.id, technicalName: 'denied', labels: { en: 'Denied' } }], ['set_labels', { kind: 'object_type', id: type.id, labels: { en: 'Denied' } }],
-    ['set_field_required', { fieldId: (await ok('get_object_type', { objectTypeId: type.id })).fields[0].id, required: false }],
+    ['configure_field', { fieldId: (await ok('get_object_type', { objectTypeId: type.id })).fields[0].id, required: false }],
   ] as [Operation, unknown][]) assert.equal((await userRequest(operation, payload)).statusCode, 403);
   assert.equal((await userTool('create_field', { objectTypeId: type.id, technicalName: 'denied', labels: { en: 'Denied' } })).isError, true);
   assert.equal((await api('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: null })).statusCode, 409);
@@ -957,7 +911,7 @@ test('instance Administrators assign workspace roles; users read settings and De
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'user' });
   assert.equal((await userRequest('list_workspaces', {})).json()[0].role, 'designer');
   assert.equal((await userRequest('set_workspace_name', { workspaceId: ws.id, name: 'Designer workspace' })).statusCode, 200);
-  assert.equal((await userRequest('set_workspace_language', { workspaceId: ws.id, language: 'de' })).statusCode, 200);
+  assert.equal((await userRequest('configure_workspace_languages', { workspaceId: ws.id, language: 'de' })).statusCode, 200);
   const newField = await userTool('create_field', { objectTypeId: type.id, technicalName: 'detail', labels: { en: 'Detail' } }); assert.notEqual(newField.isError, true);
   const fieldId = JSON.parse(newField.content[0].text).id;
   assert.equal((await userRequest('configure_field', { fieldId, required: false, labels: { de: 'Angabe', en: 'Detail' } })).statusCode, 200);
@@ -971,7 +925,7 @@ test('instance Administrators assign workspace roles; users read settings and De
   assert.equal((await userRequest('configure_field', { fieldId: foreignDef.fields[0].id, required: false })).statusCode, 403);
   assert.equal((await userRequest('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'designer' })).statusCode, 403);
   assert.equal((await userRequest('list_users', {})).statusCode, 403);
-  for (const [operation, payload] of [['get_record', { objectTypeId: type.id, recordId: record.id }], ['list_records', { objectTypeId: type.id }], ['get_journal', { objectTypeId: type.id, recordId: record.id }], ['create_record', { objectTypeId: type.id, keyword: 'Denied' }], ['update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Denied' }], ] as [Operation, unknown][]) assert.equal((await userRequest(operation, payload)).statusCode, 403, 'Designer does not grant content rights');
+  for (const [operation, payload] of [['get_record', { objectTypeId: type.id, recordId: record.id }], ['list_records', { objectTypeId: type.id }], ['list_record_journal', { objectTypeId: type.id, recordId: record.id }], ['create_record', { objectTypeId: type.id, keyword: 'Denied' }], ['update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Denied' }], ] as [Operation, unknown][]) assert.equal((await userRequest(operation, payload)).statusCode, 403, 'Designer does not grant content rights');
   const permittedSearch=await userRequest('search_workspace',{workspaceId:ws.id,query:'Private'});assert.equal(permittedSearch.statusCode,200);assert.equal(permittedSearch.json().records.length,0,'Designer sees no ungranted contents');
   await tool('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: 'designer' });
   assert.equal((await userTool('create_field', { objectTypeId: type.id, technicalName: 'revoked', labels: { en: 'Revoked' } })).isError, true);
@@ -1022,7 +976,7 @@ test('field lifecycle preserves used values/history, supports preflighted reacti
   assert.equal((await api('configure_field', { fieldId: empty.id, required: false })).statusCode, 404);
   const journal = await tool('get_definition_journal', { objectTypeId: type.id });
   assert.ok(journal.some((entry: { field_id: string; new_value: unknown }) => entry.field_id === empty.id && entry.new_value === 'deleted'));
-  assert.equal((await ok('get_journal', { objectTypeId: type.id, recordId: record.id })).find((entry: { field_id: string }) => entry.field_id === used.id).new_value, '0');
+  assert.equal((await journalEntries({ objectTypeId: type.id, recordId: record.id })).find((entry: { field_id: string }) => entry.field_id === used.id).new_value, '0');
 });
 
 test('object lifecycle hides inactive objects from normal lists, preserves readable records and retains deleted metadata', async () => {
@@ -1058,7 +1012,7 @@ test('object lifecycle hides inactive objects from normal lists, preserves reada
   const replacement = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'empty', labels: { en: 'Replacement' } }); assert.notEqual(replacement.id, empty.id);
   assert.deepEqual((await ok('get_object_type', { objectTypeId: empty.id })).columns, []);
   assert.ok((await tool('get_definition_journal', { objectTypeId: empty.id })).some((entry: { field_key: string; new_value: string }) => entry.field_key === 'state' && entry.new_value === 'deleted'));
-  await migrate(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL);
   assert.equal((await ok('get_object_type', { objectTypeId: empty.id })).state, 'deleted');
   assert.deepEqual((await ok('get_object_type', { objectTypeId: replacement.id })).fields, []);
 });
@@ -1101,13 +1055,13 @@ test('empty classification-only records retain creation history through API/MCP 
   for (const [index, create] of [ok, tool].entries()) {
     const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: `items_${index}`, labels: { en: 'Items' }, standardFields: ['type_status', 'category'] });
     const record = await create('create_record', { objectTypeId: type.id });
-    const journal = await ok('get_journal', { objectTypeId: type.id, recordId: record.id });
+    const journal = await journalEntries({ objectTypeId: type.id, recordId: record.id });
     assert.equal(journal.length, 1);
     assert.equal(journal[0].field_key, 'created');
     assert.equal(journal[0].field_id, null);
     assert.equal(journal[0].new_value, true);
     await ok('update_record', { objectTypeId: type.id, recordId: record.id, version: record.version });
-    assert.deepEqual(await ok('get_journal', { objectTypeId: type.id, recordId: record.id }), journal);
+    assert.deepEqual(await journalEntries({ objectTypeId: type.id, recordId: record.id }), journal);
     await runtime.db.transaction().execute(async tx=>{await sql`DELETE FROM ${sql.table(`emptyhistory_items_${index}`)} WHERE id = ${record.id}::uuid`.execute(tx);await sql`DELETE FROM sys_record_identities WHERE object_type_id=${type.id}::uuid AND record_id=${record.id}::uuid`.execute(tx);});
     assert.equal((await api('set_definition_state', { kind: 'object_type', id: type.id, expectedState: 'active', state: 'deleted', confirm: true })).statusCode, 400);
     assert.equal((await ok('get_object_type', { objectTypeId: type.id })).canDelete, false);
@@ -1272,7 +1226,7 @@ test('workspace appearance is shared, versioned and journaled per property throu
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'designer' });
 });
 
-test('appearance persistence rolls back with its journal, survives repeat migration and rejects concurrent stale writes', async () => {
+test('appearance persistence rolls back with its journal, survives repeated initialization and rejects concurrent stale writes', async () => {
   const { defaultWorkspaceAppearance } = await import('@xobject/contracts');
   const ws = await ok('create_workspace', { name: 'Atomic appearance', code: 'atomicappearance' });
   const appearance = { ...defaultWorkspaceAppearance, font: 'lora', primaryColor: '#ffffff' };
@@ -1286,10 +1240,10 @@ test('appearance persistence rolls back with its journal, survives repeat migrat
   const parallel = await Promise.all([api('set_workspace_appearance', { workspaceId: ws.id, version: 1, appearance }), api('set_workspace_appearance', { workspaceId: ws.id, version: 1, appearance: { ...appearance, font: 'inter' } })]);
   assert.deepEqual(parallel.map(response => response.statusCode).sort(), [200, 409]);
   stored = (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === ws.id);
-  await migrate(databaseURL, secret, baseURL);
-  const migrated = (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === ws.id);
-  assert.deepEqual(migrated.appearance, stored.appearance);
-  assert.equal(migrated.appearance_version, stored.appearance_version);
+  await initializeDatabase(databaseURL, secret, baseURL);
+  const reloaded = (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === ws.id);
+  assert.deepEqual(reloaded.appearance, stored.appearance);
+  assert.equal(reloaded.appearance_version, stored.appearance_version);
 });
 
 test('custom color foregrounds provide at least 4.5:1 contrast for solid sRGB fills', async () => {
@@ -1317,24 +1271,6 @@ test('theme, chart palette and heading font share versioned API/MCP configuratio
   assert.equal((await tool('set_workspace_appearance', { workspaceId: ws.id, version: 2, appearance })).version, 2);
 });
 
-test('older workspace designs gain independent theme/chart and inherited headings without losing their saved choices', async () => {
-  const ws = await ok('create_workspace', { name: 'Older saved design', code: 'olderdesign' });
-  const old = { baseColor: 'mauve', primaryColor: '#2563eb', secondaryColor: null, radius: 'large', font: 'inter' };
-  await sql`DELETE FROM sys_schema_migrations WHERE version=1`.execute(runtime.db);
-  await sql`UPDATE sys_workspaces SET appearance = ${JSON.stringify(old)}::jsonb, appearance_version = 7 WHERE id = ${ws.id}::uuid`.execute(runtime.db);
-  await migrate(databaseURL, secret, baseURL);
-  const updated = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
-  assert.deepEqual(updated.appearance, { ...old, theme: 'mauve', chartColor: 'mauve', fontHeading: 'inherit', menuColor: 'default', menuAccent: 'subtle' });
-  assert.equal(updated.appearance_version, 7);
-  await tool('set_workspace_appearance', { workspaceId: ws.id, version: 7, appearance: { ...updated.appearance, theme: 'green', chartColor: 'violet', fontHeading: 'playfair-display' } });
-  await migrate(databaseURL, secret, baseURL);
-  const retained = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
-  assert.equal(retained.appearance.theme, 'green');
-  assert.equal(retained.appearance.chartColor, 'violet');
-  assert.equal(retained.appearance.fontHeading, 'playfair-display');
-  assert.equal(retained.appearance.primaryColor, old.primaryColor);
-});
-
 test('menu choices share strict API/MCP validation, workspace authorization, version checks and property journals', async () => {
   const ws = await ok('create_workspace', { name: 'Shared menus', code: 'sharedmenus' });
   const appearance = { ...defaultWorkspaceAppearance, menuColor: 'inverted-translucent', menuAccent: 'bold' };
@@ -1349,7 +1285,7 @@ test('menu choices share strict API/MCP validation, workspace authorization, ver
   const events = (await sql<{ field_key: string; new_value: string; change_id: string }>`SELECT field_key, new_value, change_id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%' ORDER BY field_key`.execute(runtime.db)).rows;
   assert.deepEqual(events.map(event => [event.field_key, event.new_value]), [['appearance.menuAccent', 'bold'], ['appearance.menuColor', 'inverted-translucent']]);
   assert.equal(new Set(events.map(event => event.change_id)).size, 1);
-  await migrate(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL);
   const retained = (await ok('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
   assert.deepEqual(retained.appearance, appearance);
 });
@@ -1366,7 +1302,7 @@ test('workspace language availability has independent label languages, effective
   const configured = await api('configure_workspace_languages', input, userCookie);
   assert.equal(configured.statusCode, 200, configured.body);
   assert.equal(configured.json().version, 2);
-  await api('set_user_language', { language: 'en' }, userCookie);
+  await api('configure_user_localization', { language: 'en' }, userCookie);
   const types = (await api('list_object_types', { workspaceId: ws.id }, userCookie)).json();
   assert.equal(types[0].label, 'Einträge');
   assert.equal((await sql<{ language: string }>`SELECT language FROM sys_users WHERE id = ${ordinary.id}`.execute(runtime.db)).rows[0].language, 'en');
@@ -1380,13 +1316,13 @@ test('workspace language availability has independent label languages, effective
   const blockedClassification = await api('configure_classification', { objectTypeId: type.id, version: definition.classification.version, config: { type: definition.classification.type, status: definition.classification.status, category: definition.classification.category, options: [{ id: randomUUID(), kind: 'category', typeId: null, labels: { en: 'Blocked' }, active: true }] } }, userCookie);
   assert.equal(blockedClassification.statusCode, 400);
   assert.equal(blockedClassification.json().error, 'Definition language is unavailable');
-  assert.equal((await api('set_workspace_language', { workspaceId: ws.id, language: 'en' })).statusCode, 400);
+  assert.equal((await api('configure_workspace_languages', { workspaceId: ws.id, language: 'en' })).statusCode, 400);
   for (const invalid of [{ ...input, version: 2, availableLanguages: [] }, { ...input, version: 2, defaultLanguage: 'en' }, { ...input, version: 2, labelLanguages: [] }, { ...input, version: 2, availableLanguages: ['fr'] }]) assert.equal((await api('configure_workspace_languages', invalid)).statusCode, 400);
   assert.equal((await api('configure_workspace_languages', input)).statusCode, 409);
   const eventsBefore = (await sql`SELECT id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid`.execute(runtime.db)).rows.length;
   assert.equal((await tool('configure_workspace_languages', { ...input, version: 2 })).version, 2);
   assert.equal((await sql`SELECT id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid`.execute(runtime.db)).rows.length, eventsBefore);
-  await migrate(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL);
   const retained = (await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
   assert.deepEqual(retained.available_languages, ['de']);
   assert.deepEqual(retained.label_languages, ['de']);
@@ -1415,7 +1351,7 @@ test('workspace groups enforce definition/member roles, scoped users and version
   const ordinary = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
   const ws = await ok('create_workspace', { name: 'Managed groups', code: 'managedgroups' });
   const other = await ok('create_workspace', { name: 'Other groups', code: 'othergroups' });
-  assert.equal((await api('create_group', { workspaceId: other.id, name: 'Out of scope', memberIds: [ordinary.id] })).statusCode, 400);
+  assert.equal((await api('create_group', { workspaceId: other.id, name: 'Out of scope', members:([ordinary.id]).map(id=>({kind:'user',id,level:'full'})) })).statusCode, 400);
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });
   assert.equal((await api('create_group', { workspaceId: ws.id, name: 'Not allowed' }, userCookie)).statusCode, 403);
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'user' });
@@ -1423,54 +1359,54 @@ test('workspace groups enforce definition/member roles, scoped users and version
   let current = (await tool('list_groups', { workspaceId: ws.id }))[0];
   assert.equal(current.id, group.id);
   assert.equal(current.version, 1);
-  assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 1, name: 'Team', memberIds: [ordinary.id] }, userCookie)).statusCode, 403);
-  assert.equal((await api('set_group_members', { workspaceId: ws.id, groupId: group.id, version: 1, memberIds: [ordinary.id] }, userCookie)).statusCode, 403);
+  assert.equal((await api('configure_group_inheritance', { workspaceId: ws.id, groupId: group.id, version: 1, members:([ordinary.id]).map(id=>({kind:'user',id,level:'full'})) }, userCookie)).statusCode, 403);
   assert.equal((await api('set_group_active', { workspaceId: ws.id, groupId: group.id, version: 1, active: false }, userCookie)).statusCode, 403);
   assert.equal((await api('configure_group', { workspaceId: other.id, groupId: group.id, version: 1, name: 'Foreign' })).statusCode, 404);
   assert.equal((await api('list_groups', { workspaceId: other.id }, userCookie)).statusCode, 403);
   assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 1, name: 'Team' }, userCookie)).statusCode, 200);
-  current = await tool('configure_group', { workspaceId: ws.id, groupId: group.id, version: 2, name: 'Delivery team', memberIds: [ordinary.id] });
-  assert.equal(current.version, 3);
-  assert.deepEqual(current.memberIds, [ordinary.id]);
+  await tool('configure_group', { workspaceId: ws.id, groupId: group.id, version: 2, name: 'Delivery team' });
+  current=await tool('configure_group_inheritance',{workspaceId:ws.id,groupId:group.id,version:3,members:[{kind:'user',id:ordinary.id,level:'full'}]});
+  assert.equal(current.version, 4);
+  assert.deepEqual(current.members.filter((m:any)=>m.kind==='user').map((m:any)=>m.id), [ordinary.id]);
   assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 2, name: 'Stale' })).statusCode, 409);
   await sql`CREATE FUNCTION reject_group_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.entity_kind = 'group' THEN RAISE EXCEPTION 'test group journal rejection'; END IF; RETURN NEW; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER reject_group_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_group_journal()`.execute(runtime.db);
   try {
-    assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 3, name: 'Rollback', memberIds: [] })).statusCode, 500);
+    assert.equal((await api('configure_group', { workspaceId: ws.id, groupId: group.id, version: 4, name: 'Rollback' })).statusCode, 500);
     assert.equal((await api('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'designer' })).statusCode, 500);
   } finally { await sql`DROP TRIGGER reject_group_journal ON sys_journal`.execute(runtime.db); }
   assert.deepEqual((await tool('list_groups', { workspaceId: ws.id }))[0], current);
   assert.equal((await api('list_groups', { workspaceId: ws.id }, userCookie)).statusCode, 200);
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'designer' });
   const cleaned = (await tool('list_groups', { workspaceId: ws.id }))[0];
-  assert.deepEqual(cleaned.memberIds, []);
-  assert.equal(cleaned.version, 4);
-  const events = (await sql<{ old_value: boolean; new_value: boolean }>`SELECT old_value, new_value FROM sys_journal WHERE entity_id = ${group.id}::uuid AND field_key = ${`member:${ordinary.id}`} ORDER BY id`.execute(runtime.db)).rows;
-  assert.deepEqual(events, [{ old_value: false, new_value: true }, { old_value: true, new_value: false }]);
+  assert.deepEqual(cleaned.members.filter((m:any)=>m.kind==='user').map((m:any)=>m.id), []);
+  assert.equal(cleaned.version, 5);
+  const events = (await sql<{ old_value: string|null; new_value: string|null }>`SELECT old_value, new_value FROM sys_journal WHERE entity_id = ${group.id}::uuid AND field_key = ${`membership.user:${ordinary.id}`} ORDER BY id`.execute(runtime.db)).rows;
+  assert.deepEqual(events, [{ old_value: null, new_value: 'full' }, { old_value: 'full', new_value: null }]);
 });
 
 test('inactive groups retain records, member identities and journals while preventing new assignments', async () => {
   const ws = await ok('create_workspace', { name: 'Inactive groups', code: 'inactivegroups' });
-  const group = await tool('create_group', { workspaceId: ws.id, name: 'Retained group', memberIds: [adminId] });
+  const group = await tool('create_group', { workspaceId: ws.id, name: 'Retained group', members:([adminId]).map(id=>({kind:'user',id,level:'full'})) });
   const type = await ok('create_object_type', { workspaceId: ws.id, technicalName: 'items', labels: { en: 'Items' }, standardFields: ['keyword'] });
   await ok('create_field', { objectTypeId: type.id, technicalName: 'team', labels: { en: 'Team' }, kind: 'reference', config: { referenceTarget: 'group', multiple: false } });
   const reference = { kind: 'group', id: group.id };
   const record = await ok('create_record', { objectTypeId: type.id, keyword: 'Retained', values: { team: reference } });
   const inactive = await tool('set_group_active', { workspaceId: ws.id, groupId: group.id, version: 1, active: false });
-  assert.deepEqual(inactive.memberIds, [adminId]);
+  assert.deepEqual(inactive.members.filter((m:any)=>m.kind==='user').map((m:any)=>m.id), [adminId]);
   const principals = await tool('list_field_principals', { workspaceId: ws.id });
   assert.equal(principals.find((item: { id: string }) => item.id === group.id).active, false);
   assert.equal((await api('create_record', { objectTypeId: type.id, keyword: 'Blocked', values: { team: reference } })).statusCode, 400);
-  assert.equal((await api('set_group_members', { workspaceId: ws.id, groupId: group.id, version: 2, memberIds: [] })).statusCode, 400);
+  assert.equal((await api('configure_group_inheritance', { workspaceId: ws.id, groupId: group.id, version: 2, members:([]).map(id=>({kind:'user',id,level:'full'})) })).statusCode, 400);
   const updated = await ok('update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Still retained' });
   assert.deepEqual(updated.team, reference);
-  const history = await tool('get_journal', { objectTypeId: type.id, recordId: record.id });
+  const history = await journalEntries({ objectTypeId: type.id, recordId: record.id },true);
   assert.deepEqual(history.find((event: { field_key: string }) => event.field_key === 'team').new_value, reference);
   await tool('set_group_active', { workspaceId: ws.id, groupId: group.id, version: 2, active: true });
   assert.equal((await api('create_record', { objectTypeId: type.id, keyword: 'Allowed again', values: { team: reference } })).statusCode, 200);
 });
 
-test('time zones share API/MCP policy, user ownership, workspace roles, versions and migration retention', async () => {
+test('time zones share API/MCP policy, user ownership, workspace roles, versions and initialization retention', async () => {
   const ordinary = (await sql<{ id: string; language: 'de' | 'en' | null }>`SELECT id, language FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
   const ws = await tool('create_workspace', { name: 'Time zones', code: 'timezones', timeZone: 'Europe/Berlin' });
   const catalog = await tool('get_time_zone_catalog', {});
@@ -1485,8 +1421,8 @@ test('time zones share API/MCP policy, user ownership, workspace roles, versions
   assert.equal((await tool('configure_workspace_languages', { ...input, version: 2 })).version, 2);
   assert.equal((await sql`SELECT id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid`.execute(runtime.db)).rows.length, events);
   for (const timeZone of ['+01:00', 'UTC+1', 'Unknown/Zone', '']) assert.equal((await api('configure_workspace_languages', { ...input, version: 2, timeZone })).statusCode, 400);
-  // Legacy language-only requests preserve the configured zone.
-  await ok('set_workspace_language', { workspaceId: ws.id, language: 'de' });
+  // Language preference updates preserve the configured zone.
+  await ok('configure_workspace_languages', { workspaceId: ws.id, language: 'de' });
   const pref = { language: 'de', timeZone: 'Asia/Tokyo', expectedLanguage: ordinary.language, expectedTimeZone: null };
   const own = await api('configure_user_localization', pref, userCookie);
   assert.equal(own.statusCode, 200, own.body);
@@ -1499,7 +1435,7 @@ test('time zones share API/MCP policy, user ownership, workspace roles, versions
   const personalEvents = (await sql`SELECT id FROM sys_journal WHERE entity_id = ${ordinary.id}::uuid AND field_key = 'time_zone'`.execute(runtime.db)).rows.length;
   assert.equal((await api('configure_user_localization', { ...pref, expectedLanguage: 'de', expectedTimeZone: 'Asia/Tokyo' }, userCookie)).statusCode, 200);
   assert.equal((await sql`SELECT id FROM sys_journal WHERE entity_id = ${ordinary.id}::uuid AND field_key = 'time_zone'`.execute(runtime.db)).rows.length, personalEvents);
-  await migrate(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL);
   const retained = (await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id);
   assert.equal(retained.time_zone, 'America/New_York');
   assert.equal((await sql<{ time_zone: string }>`SELECT time_zone FROM sys_users WHERE id = ${ordinary.id}`.execute(runtime.db)).rows[0].time_zone, 'Asia/Tokyo');
@@ -1534,7 +1470,7 @@ test('regional policies use shared versions, independent personal overrides and 
   assert.equal((await tool('configure_user_localization', personal)).regional.dateFormat, 'iso');
   assert.equal((await api('configure_user_localization', personal)).statusCode, 409);
   assert.equal((await api('configure_user_localization', { ...personal, regional: { ...pref, locale: 'unsupported' } })).statusCode, 400);
-  await migrate(databaseURL, secret, baseURL);
+  await initializeDatabase(databaseURL, secret, baseURL);
   assert.equal((await tool('list_workspaces', {})).find((item: { id: string }) => item.id === ws.id).regional.locale, 'de-CH');
   await tool('configure_user_localization', { ...personal, expectedRegional: pref, regional: { locale: null, dateFormat: null, hourCycle: null, numberFormat: null, weekStart: null } });
 });
@@ -1703,8 +1639,8 @@ test('journal read context resolves current localized names without exposing rec
 test('fictional demo fixtures use validated fields, canonical field order and actual idempotent demo relationships', async () => {
   const { seedDemoData } = await import('../src/demo-data.js');
   const result = await seedDemoData(runtime.db, adminId, 'demofixture');
-  assert.deepEqual(Object.keys(result.objects), ['contacts', 'projects', 'cases', 'tasks', 'vehicles']);
-  assert.equal(Object.values(result.records).flat().length, 54);
+  assert.deepEqual(Object.keys(result.objects), ['contacts', 'projects', 'cases', 'tasks', 'vehicles', 'contracts', 'devices', 'access_checks']);
+  assert.equal(Object.values(result.records).flat().length, 73);
   for (const [name, model] of Object.entries(result.objects)) {
     const definition = await ok('get_object_type', { objectTypeId: model.id });
     assert.deepEqual(definition.columns.slice(0, 10), ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category']);
@@ -1720,12 +1656,45 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   }
   assert.ok(result.records.tasks.some(row => !primaryChildren.has(row.id)), 'Standalone task is retained');
   assert.ok(result.records.projects.some(row => !primaryChildren.has(row.id)), 'Project without a contact is retained');
-  assert.ok((await ok('get_journal', { objectTypeId: result.objects.tasks.id, recordId: result.records.tasks[0].id })).some((entry: { old_value: unknown; new_value: unknown }) => entry.old_value === '1' && entry.new_value === '2.5'));
+  assert.ok((await journalEntries({ objectTypeId: result.objects.tasks.id, recordId: result.records.tasks[0].id })).some((entry: { old_value: unknown; new_value: unknown }) => entry.old_value === '1' && entry.new_value === '2.5'));
   const edgeCount=(await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count;
-  assert.equal(edgeCount,45);
+  assert.equal(edgeCount,51);
   const {connectDemoRelationships}=await import('../src/demo-data.js');
   await connectDemoRelationships(runtime.db,adminId,result.workspaceId,result.links);
-  assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count,45);
+  assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count,51);
+  const workspace=(await ok('list_workspaces',{})).find((item:any)=>item.id===result.workspaceId);
+  assert.equal(workspace.default_language,'en');
+  assert.deepEqual(workspace.available_languages,['de','en']);
+  assert.deepEqual(result.accounts.map(account=>[account.name,account.role]),[['Jane Doe','designer'],['James Doe','user']]);
+  const kinds = new Set<string>();
+  for(const model of Object.values(result.objects)) {
+    for(const item of [model,...model.fields,...model.classification.options,...Object.values(model.formLayouts??{}).flatMap(layout=>layout.groups)]) {
+      assert.ok(item.labels.en, 'English definition label');assert.ok(item.labels.de,'German definition label');
+    }
+    for(const item of model.fields)if(item.state==='active')kinds.add(item.kind);
+  }
+  for(const kind of (await import('@xobject/contracts')).customFieldKinds)assert.ok(kinds.has(kind),`Demo covers ${kind}`);
+  const {Application}=await import('../src/domain.js');const app=new Application(runtime.db);
+  // Exercise the real initial-password change gate before assessing role/content differences.
+  for(const account of result.accounts) {
+    assert.equal((await sql<{must_change_password:boolean}>`SELECT must_change_password FROM sys_users WHERE id=${account.id}`.execute(runtime.db)).rows[0].must_change_password,true);
+    const cookie=await login(account.email,account.password);
+    const session=(await sql<{id:string}>`SELECT id FROM sys_sessions WHERE user_id=${account.id}`.execute(runtime.db)).rows[0];
+    await app.execute('change_password',{currentPassword:account.password,newPassword:randomBytes(24).toString('base64url')},account.id,{sessionId:session.id});
+    assert.ok(cookie);
+  }
+  const [designer,member]=result.accounts;
+  for(const level of ['none','availability','read','duplicate','schedule','edit','delete','full']) {
+    const row=result.records.access_checks.find(row=>row.keyword===`Foreign access – ${level}`)!;
+    if(['none','availability'].includes(level))await assert.rejects(app.execute('get_record',{objectTypeId:result.objects.access_checks.id,recordId:row.id},member.id));
+    else {const actual=await app.execute('get_record',{objectTypeId:result.objects.access_checks.id,recordId:row.id},member.id) as any;assert.equal(actual.permissions.edit,['edit','delete','full'].includes(level));assert.equal(actual.permissions.full,level==='full');assert.equal(actual.permissions.delete,['delete','full'].includes(level));assert.equal(actual.permissions.duplicate,level!=='read');assert.equal(actual.permissions.schedule,['schedule','edit','delete','full'].includes(level));}
+  }
+  for(const privacy of ['personal','confidential'])await assert.rejects(app.execute('get_record',{objectTypeId:result.objects.access_checks.id,recordId:result.records.access_checks.find(row=>row.keyword===`Privacy – ${privacy}`)!.id},member.id));
+  const contract=await app.execute('get_record',{objectTypeId:result.objects.contracts.id,recordId:result.records.contracts[0].id},member.id) as any;
+  assert.equal(contract.internal_notes,undefined);
+  await assert.rejects(app.execute('create_field',{objectTypeId:result.objects.devices.id,technicalName:'forbidden',labels:{en:'Forbidden'}},member.id));
+  const designerField=await app.execute('create_field',{objectTypeId:result.objects.devices.id,technicalName:'designer_test',labels:{en:'Designer test',de:'Gestaltertest'}},designer.id) as any;assert.ok(designerField.id);
+  await app.execute('set_definition_state',{kind:'field',id:designerField.id,expectedState:'active',state:'deleted',confirm:true},designer.id);
   await assert.rejects(seedDemoData(runtime.db, adminId, 'demofixture'), /already exists/);
   assert.equal((await api('list_records', { objectTypeId: result.objects.contacts.id }, userCookie)).statusCode, 403);
 });
@@ -1778,7 +1747,7 @@ test('relationship definitions share API/MCP rules, protected system defaults, w
   await sql`CREATE TRIGGER reject_relationship_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_relationship_journal()`.execute(runtime.db);
   try {assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:created.id,version:2,configuration:{...base,rightLabels:{en:'Changed'},pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:a.id}]}})).statusCode,500);}finally{await sql`DROP TRIGGER reject_relationship_journal ON sys_journal`.execute(runtime.db);}
   assert.equal(JSON.stringify(await ok('list_relationship_types',{workspaceId:ws.id})),before);
-  await migrate(databaseURL,secret,baseURL);await migrate(databaseURL,secret,baseURL);
+  await initializeDatabase(databaseURL,secret,baseURL);await initializeDatabase(databaseURL,secret,baseURL);
   assert.equal(JSON.stringify(await ok('list_relationship_types',{workspaceId:ws.id})),before);
   assert.ok((await ok('list_system_journal',{workspaceId:ws.id,entityKind:'relationship_type'})).entries.some((entry:any)=>entry.entity_name==='Project work'));
   await ok('configure_workspace_languages',{workspaceId:ws.id,version:1,availableLanguages:['de','en'],defaultLanguage:'en',labelLanguages:['de']});
@@ -1810,7 +1779,7 @@ test('record relationships enforce final-state cardinalities, Primary uniqueness
   assert.equal((await update(tasks,e,'right',[ref(parents,a),ref(children,c)])).statusCode,409);
   const fields=await tool('get_record_relationships',{objectTypeId:tasks.id,recordId:d.id});
   assert.equal(fields.fields.find((f:any)=>f.definition.id===active.id&&f.side==='right').targets[0].recordId,c.id);
-  const journalC=await ok('get_journal',{objectTypeId:children.id,recordId:c.id}),journalD=await ok('get_journal',{objectTypeId:tasks.id,recordId:d.id});
+  const journalC=await journalEntries({objectTypeId:children.id,recordId:c.id}),journalD=await journalEntries({objectTypeId:tasks.id,recordId:d.id});
   const shared=journalD.find((j:any)=>j.entity_kind==='relationship');
   assert.ok(shared);assert.ok(journalC.some((j:any)=>j.id===shared.id));assert.equal(shared.new_value.left.keyword,'Child');
   const before=await ok('get_record',{objectTypeId:tasks.id,recordId:d.id});
@@ -1822,8 +1791,8 @@ test('record relationships enforce final-state cardinalities, Primary uniqueness
   const snapshot=await ok('list_relationship_types',{workspaceId:ws.id});
   const now=snapshot.find((t:any)=>t.id===active.id);
   assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:active.id,version:now.version,configuration:{...config,active:true,allowAll:false,pairs:[{leftObjectTypeId:parents.id,rightObjectTypeId:children.id}]}})).statusCode,400,'cannot restrict the global Primary scope');
-  await migrate(databaseURL,secret,baseURL);
-  assert.equal((await ok('get_record_relationships',{objectTypeId:tasks.id,recordId:d.id})).edges.length,1,'repeat migration preserves edges');
+  await initializeDatabase(databaseURL,secret,baseURL);
+  assert.equal((await ok('get_record_relationships',{objectTypeId:tasks.id,recordId:d.id})).edges.length,1,'repeated initialization preserves edges');
 });
 
 test('symmetric links, optimistic records and late journal failure preserve atomic record/edge state',async()=>{
@@ -1894,10 +1863,10 @@ test('undirected disjoint roles retain side labels and asymmetric cardinalities 
   assert.equal((await api('update_record',{objectTypeId:a.id,recordId:two.id,version:two.version,relationships:[{relationshipTypeId:type.id,version:type.version,side:'left',targets:[{objectTypeId:b.id,recordId:partner.id}]}]})).statusCode,409);
   const opposite=await ok('get_record_relationships',{objectTypeId:b.id,recordId:partner.id});
   assert.equal(opposite.fields[0].side,'right');assert.equal(opposite.fields[0].definition.rightLabels.en,'Owner');
-  const original=(await ok('get_journal',{objectTypeId:a.id,recordId:one.id})).find((e:any)=>e.entity_kind==='relationship');
+  const original=(await journalEntries({objectTypeId:a.id,recordId:one.id})).find((e:any)=>e.entity_kind==='relationship');
   await ok('update_record',{objectTypeId:a.id,recordId:one.id,version:saved.version,relationships:[{relationshipTypeId:type.id,version:type.version,side:'left',targets:[]}]});
   assert.equal((await ok('get_record_relationships',{objectTypeId:b.id,recordId:partner.id})).edges.length,0);
-  const historyA=await ok('get_journal',{objectTypeId:a.id,recordId:one.id}),historyB=await ok('get_journal',{objectTypeId:b.id,recordId:partner.id});
+  const historyA=await journalEntries({objectTypeId:a.id,recordId:one.id}),historyB=await journalEntries({objectTypeId:b.id,recordId:partner.id});
   assert.ok(historyB.some((e:any)=>e.id===original.id));
   const removed=historyA.find((e:any)=>e.entity_kind==='relationship'&&e.new_value===null);
   assert.ok(removed);assert.ok(historyB.some((e:any)=>e.id===removed.id));
@@ -1916,11 +1885,7 @@ test('custom relationships reject unrestricted and multiple object pairs through
   const malformed=await client.callTool({name:'create_relationship_type',arguments:{workspaceId:ws.id,technicalName:'multi',configuration:{...base,pairs:[...base.pairs,{leftObjectTypeId:b.id,rightObjectTypeId:c.id}]}}});
   assert.equal(malformed.isError,true);
   await assert.rejects(sql`INSERT INTO sys_relationship_type_pairs VALUES(${type.id}::uuid,${ws.id}::uuid,${b.id}::uuid,${c.id}::uuid)`.execute(runtime.db),{code:'23505'});
-  await sql`DELETE FROM sys_schema_migrations WHERE version=1`.execute(runtime.db);
-  await sql`DROP INDEX sys_relationship_type_single_pair_unique`.execute(runtime.db);
-  await sql`INSERT INTO sys_relationship_type_pairs VALUES(${type.id}::uuid,${ws.id}::uuid,${b.id}::uuid,${c.id}::uuid)`.execute(runtime.db);
-  try {await assert.rejects(migrate(databaseURL,secret,baseURL),/Resolve legacy custom relationships/);assert.equal((await ok('list_relationship_types',{workspaceId:ws.id})).find((d:any)=>d.id===type.id).pairs.length,2,'migration preserves unresolved legacy definitions');}
-  finally{await sql`DELETE FROM sys_relationship_type_pairs WHERE relationship_type_id=${type.id}::uuid AND left_object_type_id=${b.id}::uuid`.execute(runtime.db);await migrate(databaseURL,secret,baseURL);}
+
 });
 
 test('relationship tree requires the Projects module through both API and MCP',async()=>{
@@ -2029,29 +1994,6 @@ test('Projects activation gates global Primary while General is always available
   assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:disabled.version},userCookie)).statusCode,200);
 });
 
-test('legacy used Primary definitions adopt Projects without changing record or edge identities and repeat migration is journal-free',async()=>{
-  const ws=await ok('create_workspace',{code:'legacyprimary',name:'Legacy Primary'}),a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'parents',labels:{en:'Parents'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'}});
-  const ar=await ok('create_record',{objectTypeId:a.id}),br=await ok('create_record',{objectTypeId:b.id}),primary=await enableProjects(ws.id);
-  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects'),root=await ok('create_record',{objectTypeId:module.primaryChain.contact});
-  await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:br.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:module.primaryChain.contact,recordId:root.id}]}]});
-  const beforeA=await ok('get_record',{objectTypeId:a.id,recordId:ar.id}),beforeB=await ok('get_record',{objectTypeId:b.id,recordId:br.id});
-  const beforeEdges=(await sql`SELECT * FROM sys_relationships WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
-  await sql`DELETE FROM sys_schema_migrations WHERE version=1`.execute(runtime.db);
-  await sql`ALTER TABLE sys_relationship_types DROP CONSTRAINT sys_relationship_primary_scope`.execute(runtime.db);
-  await sql`UPDATE sys_relationship_types SET allow_all=false WHERE id=${primary.id}::uuid`.execute(runtime.db);
-  await sql`INSERT INTO sys_relationship_type_pairs VALUES(${primary.id}::uuid,${ws.id}::uuid,${a.id}::uuid,${b.id}::uuid)`.execute(runtime.db);
-  await sql`DELETE FROM sys_workspace_modules WHERE workspace_id=${ws.id}::uuid`.execute(runtime.db);
-  await migrate(databaseURL,secret,baseURL);
-  assert.equal((await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects').enabled,true);
-  const upgraded=(await ok('list_relationship_types',{workspaceId:ws.id})).find((t:any)=>t.kind==='primary');
-  assert.equal(upgraded.id,primary.id);assert.equal(upgraded.allowAll,true);assert.equal(upgraded.active,true);assert.deepEqual(upgraded.pairs,[]);
-  assert.deepEqual(await ok('get_record',{objectTypeId:a.id,recordId:ar.id}),beforeA);assert.deepEqual(await ok('get_record',{objectTypeId:b.id,recordId:br.id}),beforeB);
-  assert.deepEqual((await sql`SELECT * FROM sys_relationships WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows,beforeEdges);
-  const journal=(await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_journal`.execute(runtime.db)).rows[0].n;
-  await migrate(databaseURL,secret,baseURL);
-  assert.equal((await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_journal`.execute(runtime.db)).rows[0].n,journal);
-});
-
 test('definition versions reject stale API/MCP drafts and protected fields retain configurable input aids',async()=>{
   const ws=await ok('create_workspace',{code:'versionedmeta',name:'Versions'});
   const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
@@ -2123,13 +2065,12 @@ test('scalar saves avoid graph scans but changed endpoints still enforce minimum
   }finally{if(timer)globalThis.clearTimeout(timer);await holder.query('ROLLBACK');await holder.end();await request;}
 
   // Existing integration scenarios above cover changed-edge cardinalities and Primary cycles.
-  const definitions=(await sql<{version:number;name:string}>`SELECT version,name FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows;
-  assert.deepEqual(definitions.map(row=>row.version),[1,2,3,4,5,6,7,8]);
-  const before=(await sql`SELECT * FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows;
-  await migrate(databaseURL,secret,baseURL);assert.deepEqual((await sql`SELECT * FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows,before);
+  const before=(await sql`SELECT * FROM sys_schema_version`.execute(runtime.db)).rows;
+  await initializeDatabase(databaseURL,secret,baseURL);assert.deepEqual((await sql`SELECT * FROM sys_schema_version`.execute(runtime.db)).rows,before);
+
 });
 
-test('runtime role can manage dynamic objects and journal changes without superuser or journal/schema-ledger mutation rights',async()=>{
+test('runtime role can manage dynamic objects and journal changes without superuser or journal/installation-marker mutation rights',async()=>{
   const {provisionRuntimeRole}=await import('../src/database-roles.js');
   const {connect}=await import('../src/database.js');const {Application}=await import('../src/domain.js');
   const url=new URL(databaseURL);url.username='xobject_runtime_test';url.password=randomBytes(24).toString('hex');
@@ -2146,7 +2087,7 @@ test('runtime role can manage dynamic objects and journal changes without superu
     await app.execute('update_record',{objectTypeId:model.id,recordId:record.id,version:record.version,values:{detail:'New value'}},adminId);
     await assert.rejects(sql`DELETE FROM sys_journal WHERE false`.execute(db),{code:'42501'});
     await assert.rejects(sql`UPDATE sys_journal SET field_key=field_key WHERE false`.execute(db),{code:'42501'});
-    await assert.rejects(sql`INSERT INTO sys_schema_migrations(version,name) VALUES(99,'forbidden')`.execute(db),{code:'42501'});
+    await assert.rejects(sql`UPDATE sys_schema_version SET definition_hash='forbidden'`.execute(db),{code:'42501'});
     await assert.rejects(sql`ALTER TABLE sys_fields ADD COLUMN forbidden text`.execute(db),{code:'42501'});
     await assert.rejects(sql`CREATE ROLE forbidden_runtime_role`.execute(db),{code:'42501'});
     await assert.rejects(sql`DELETE FROM runtimerole_items WHERE id=${record.id}::uuid`.execute(db),{code:'23503'});
@@ -2154,27 +2095,6 @@ test('runtime role can manage dynamic objects and journal changes without superu
   }finally{await db.destroy();}
 });
 
-
-test('failed numbered upgrades roll back their ledger and registry safeguards without discarding invalid data',async()=>{
-  const ws=await ok('create_workspace',{code:'migrationguard',name:'Migration guard'});
-  const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
-  const ghost=randomUUID();
-  await sql`DELETE FROM sys_schema_migrations WHERE version=2`.execute(runtime.db);
-  await sql`ALTER TABLE sys_record_identities DISABLE TRIGGER xobject_registry_identity`.execute(runtime.db);
-  try {await sql`INSERT INTO sys_record_identities VALUES(${ws.id}::uuid,${type.id}::uuid,${ghost}::uuid)`.execute(runtime.db);}
-  finally {await sql`ALTER TABLE sys_record_identities ENABLE TRIGGER xobject_registry_identity`.execute(runtime.db);}
-  const before=(await sql`SELECT * FROM sys_journal ORDER BY id`.execute(runtime.db)).rows;
-  await assert.rejects(migrate(databaseURL,secret,baseURL),/registry mismatch/);
-  assert.equal((await sql`SELECT 1 FROM sys_schema_migrations WHERE version=2`.execute(runtime.db)).rows.length,0);
-  assert.equal((await sql`SELECT 1 FROM sys_record_identities WHERE record_id=${ghost}::uuid`.execute(runtime.db)).rows.length,1);
-  assert.deepEqual((await sql`SELECT * FROM sys_journal ORDER BY id`.execute(runtime.db)).rows,before);
-  await sql`DELETE FROM sys_record_identities WHERE record_id=${ghost}::uuid`.execute(runtime.db);
-  await migrate(databaseURL,secret,baseURL);
-  assert.equal((await sql`SELECT 1 FROM sys_schema_migrations WHERE version=2`.execute(runtime.db)).rows.length,1);
-  await sql`INSERT INTO sys_schema_migrations(version,name) VALUES(99,'future')`.execute(runtime.db);
-  try {await assert.rejects(migrate(databaseURL,secret,baseURL),/newer than this application/);}
-  finally{await sql`DELETE FROM sys_schema_migrations WHERE version=99`.execute(runtime.db);}
-});
 
 test('conditional fields enforce the final record through API and MCP and retain definition dependencies',async()=>{
   const ws=await ok('create_workspace',{name:'Conditional fields',code:'conditional'});
@@ -2204,7 +2124,7 @@ test('conditional fields enforce the final record through API and MCP and retain
   const foreign=await ok('create_object_type',{workspaceId:ws.id,technicalName:'foreign_model',labels:{en:'Foreign'}});
   assert.equal((await api('create_field',{objectTypeId:foreign.id,technicalName:'detail',labels:{en:'Detail'},kind:'text',applicability:rule})).statusCode,400);
   const bad=(await api('configure_field',{fieldId:detail.id,required:true,applicability:{fieldId:control.id,optionIds:[org]}}));assert.equal(bad.statusCode,400,bad.body);
-  await ok('set_field_required',{fieldId:detail.id,required:false});
+  await ok('configure_field',{fieldId:detail.id,required:false});
   const latest=await ok('get_object_type',{objectTypeId:model.id});assert.deepEqual(latest.fields.find((f:any)=>f.id===detail.id).applicability,rule);
   assert.equal((await api('list_record_journal',{objectTypeId:model.id,recordId:organization.id},userCookie)).statusCode,403);
 });
@@ -2223,8 +2143,8 @@ test('paged record journal reconstructs historical field kinds/config and keeps 
   await ok('configure_field',{fieldId:field.id,required:false,kind:'text'});
   history=await ok('list_record_journal',{objectTypeId:model.id,recordId:row.id,fieldId:field.id,offset:1,limit:1});
   assert.equal(history.entries[0].id,conversion.id);assert.deepEqual(history.entries[0].value_context,conversion.value_context);
-  const legacy=await ok('get_journal',{objectTypeId:model.id,recordId:row.id});
-  assert.equal(legacy.find((entry:any)=>entry.id===conversion.id).old_value,'true');
+  const historical=await journalEntries({objectTypeId:model.id,recordId:row.id});
+  assert.equal(historical.find((entry:any)=>entry.id===conversion.id).old_value,'true');
   const optionId=randomUUID(),oldConfig={options:[{id:optionId,labels:{en:'Original choice'},active:true}]};
   const choice=await ok('create_field',{objectTypeId:model.id,technicalName:'choice_value',labels:{en:'Choice'},kind:'single_choice',config:oldConfig});
   const currentChoiceRecord=await ok('get_record',{objectTypeId:model.id,recordId:row.id});
@@ -2361,8 +2281,7 @@ test('conditional relationship minima are validated when a scalar choice activat
 
 test('form layouts share object identities, reject foreign fields and stale writes, and journal atomically through API/MCP',async()=>{
   const registryBefore=(await sql`SELECT * FROM sys_record_identities ORDER BY workspace_id,object_type_id,record_id`.execute(runtime.db)).rows;
-  await sql`ALTER TABLE sys_object_types DROP COLUMN form_layouts;DELETE FROM sys_schema_migrations WHERE version>=5 AND version<8`.execute(runtime.db);
-  await migrate(databaseURL,secret,baseURL);
+  await initializeDatabase(databaseURL,secret,baseURL);
   assert.deepEqual((await sql`SELECT * FROM sys_record_identities ORDER BY workspace_id,object_type_id,record_id`.execute(runtime.db)).rows,registryBefore);
   const ws=await ok('create_workspace',{name:'Forms',code:'forms'});
   const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
@@ -2452,25 +2371,6 @@ test('new objects start with editable General, while added elements remain unass
  const result=await ok('configure_form_layout',{objectTypeId:type.id,version:saved.version,layout:placed});assert.deepEqual(result.formLayouts.default,placed);
 });
 
-test('migration 6 materializes implicit v5 forms, preserves authored groups and keeps content/history unchanged',async()=>{
- const ws=await ok('create_workspace',{name:'Legacy forms',code:'legacyforms'});
- const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
- const field=await ok('create_field',{objectTypeId:type.id,technicalName:'serial',labels:{en:'Serial'}});
- const model=await ok('get_object_type',{objectTypeId:type.id});
- const existing={groups:[{id:'business',labels:{en:'Custom name'},fields:[{fieldId:model.fields.find((f:any)=>f.technicalName==='keyword').id,width:'full'}]}]};
- const moduleLayout={groups:[{id:'modulegroup',labels:{en:'Module group'},fields:[]}]};
- await sql`UPDATE sys_object_types SET form_layouts=${JSON.stringify({default:existing,projects:moduleLayout})}::jsonb WHERE id=${type.id}::uuid`.execute(runtime.db);
- const implicit=await ok('create_object_type',{workspaceId:ws.id,technicalName:'implicit',labels:{en:'Implicit'},standardFields:['keyword']});await ok('create_field',{objectTypeId:implicit.id,technicalName:'description',labels:{en:'Description'}});
- await sql`UPDATE sys_object_types SET form_layouts='{}'::jsonb WHERE id=${implicit.id}::uuid`.execute(runtime.db);
- const before=(await sql`SELECT (SELECT count(*) FROM sys_record_identities)::int AS records,(SELECT count(*) FROM sys_relationships)::int AS links,(SELECT count(*) FROM sys_journal)::int AS journal`.execute(runtime.db)).rows[0];
- await sql`DELETE FROM sys_schema_migrations WHERE version=6`.execute(runtime.db);await migrate(databaseURL,secret,baseURL);
- const adopted=await ok('get_object_type',{objectTypeId:type.id});assert.equal(adopted.formLayouts.default.groups[0].labels.en,'Custom name');assert.equal(adopted.formLayouts.default.groups[0].fields[0].fieldId,existing.groups[0].fields[0].fieldId);assert.ok(adopted.formLayouts.default.groups[0].fields.some((entry:any)=>entry.fieldId===field.id));assert.deepEqual(adopted.formLayouts.projects,moduleLayout);
- const old=await ok('get_object_type',{objectTypeId:implicit.id});assert.deepEqual(old.formLayouts.default.groups.map((group:any)=>group.id),['general','business']);assert.equal(old.formLayouts.default.groups[0].fields.length,1);assert.equal(old.formLayouts.default.groups[1].fields.length,1);
- assert.deepEqual((await sql`SELECT (SELECT count(*) FROM sys_record_identities)::int AS records,(SELECT count(*) FROM sys_relationships)::int AS links,(SELECT count(*) FROM sys_journal)::int AS journal`.execute(runtime.db)).rows[0],before);
- const snapshot=(await sql`SELECT form_layouts,version FROM sys_object_types WHERE id=${type.id}::uuid`.execute(runtime.db)).rows[0];await migrate(databaseURL,secret,baseURL);assert.deepEqual((await sql`SELECT form_layouts,version FROM sys_object_types WHERE id=${type.id}::uuid`.execute(runtime.db)).rows[0],snapshot,'adoption is idempotent');
-});
-
-
 test('module catalog is complete and planned modules cannot activate; fixed installation is atomic and never adopts matching custom names',async()=>{
   const ws=await ok('create_workspace',{code:'modulecatalog',name:'Module catalog'});
   const catalog=await ok('list_workspace_modules',{workspaceId:ws.id});
@@ -2482,9 +2382,9 @@ test('module catalog is complete and planned modules cannot activate; fixed inst
     assert.equal((await api('create_object_type',{workspaceId:ws.id,technicalName:name,labels:{en:'Own object'}})).statusCode,400);
     const result=await client.callTool({name:'create_object_type',arguments:{workspaceId:ws.id,technicalName:name,labels:{en:'Own object'}}});assert.equal(result.isError,true);
   }
-  const custom=await ok('create_object_type',{workspaceId:ws.id,technicalName:'legacy_projects',labels:{en:'User data'}});
+  const custom=await ok('create_object_type',{workspaceId:ws.id,technicalName:'custom_project_data',labels:{en:'User data'}});
   // Simulate an object that pre-dates catalog reservation; never rename live user data.
-  await sql`ALTER TABLE modulecatalog_legacy_projects RENAME TO modulecatalog_projects`.execute(runtime.db);
+  await sql`ALTER TABLE modulecatalog_custom_project_data RENAME TO modulecatalog_projects`.execute(runtime.db);
   await sql`UPDATE sys_object_types SET technical_name='projects' WHERE id=${custom.id}::uuid`.execute(runtime.db);
   const history=(await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
   const rejected=await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:catalog[1].version,enabled:true});
@@ -2496,9 +2396,9 @@ test('module catalog is complete and planned modules cannot activate; fixed inst
 
   const clean=await ok('create_workspace',{code:'moduleatomic',name:'Module atomic'});
   const module=(await ok('list_workspace_modules',{workspaceId:clean.id})).find((m:any)=>m.key==='projects');
-  await sql`CREATE FUNCTION fail_initial_module() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='primary_chain.case' THEN RAISE EXCEPTION 'module journal rejected'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE FUNCTION fail_initial_module() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='module_binding' AND NEW.new_value='"case"'::jsonb THEN RAISE EXCEPTION 'module journal rejected'; END IF; RETURN NEW; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER fail_initial_module BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_initial_module()`.execute(runtime.db);
-  try{assert.equal((await api('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true})).statusCode,500);assert.deepEqual(await ok('list_object_types',{workspaceId:clean.id}),[]);assert.equal((await sql`SELECT 1 FROM sys_primary_chain_levels WHERE workspace_id=${clean.id}::uuid`.execute(runtime.db)).rows.length,0);}
+  try{assert.equal((await api('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true})).statusCode,500);assert.deepEqual(await ok('list_object_types',{workspaceId:clean.id}),[]);assert.equal((await sql`SELECT 1 FROM sys_module_object_bindings WHERE workspace_id=${clean.id}::uuid`.execute(runtime.db)).rows.length,0);}
   finally{await sql`DROP TRIGGER fail_initial_module ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_initial_module()`.execute(runtime.db);}
   const enabled=await tool('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true});
   const objects=await ok('list_object_types',{workspaceId:clean.id});assert.equal(objects.length,4);
@@ -2521,7 +2421,7 @@ test('content permissions combine groups, apply user and field overrides and gov
   const title=await ok('create_field',{objectTypeId:object.id,technicalName:'description',labels:{en:'Description'}}),secretField=await ok('create_field',{objectTypeId:object.id,technicalName:'secret',labels:{en:'Secret'}});
   const row=await ok('create_record',{objectTypeId:object.id,keyword:'Visible asset',values:{description:'Public',secret:'DO NOT DISCLOSE'}});
   assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,403,'membership alone grants no content access');
-  const groupA=await ok('create_group',{workspaceId:ws.id,name:'Editors',memberIds:[user.id]}),groupB=await ok('create_group',{workspaceId:ws.id,name:'Readers',memberIds:[user.id]});
+  const groupA=await ok('create_group',{workspaceId:ws.id,name:'Editors',members:([user.id]).map(id=>({kind:'user',id,level:'full'}))}),groupB=await ok('create_group',{workspaceId:ws.id,name:'Readers',members:([user.id]).map(id=>({kind:'user',id,level:'full'}))});
   const grant=async(grants:any[])=>{const current=await ok('get_content_permissions',{objectTypeId:object.id});return ok('configure_content_permissions',{...current,grants});};
   const groups=[{kind:'group',id:groupA.id,level:'edit',fields:{[secretField.id]:'none'}},{kind:'group',id:groupB.id,level:'read',fields:{[secretField.id]:'read'}}];
   await grant(groups);
@@ -2532,7 +2432,7 @@ test('content permissions combine groups, apply user and field overrides and gov
   await grant([...groups,{kind:'user',id:user.id,level:null,fields:{[secretField.id]:'none'}}]);
   response=await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie);assert.equal(response.statusCode,200);assert.ok(!Object.hasOwn(response.json(),'secret'));
   let journal=(await api('list_record_journal',{objectTypeId:object.id,recordId:row.id,limit:1},userCookie)).json();assert.equal(journal.total,2);assert.ok(!JSON.stringify(journal).includes('DO NOT DISCLOSE'));
-  assert.ok(!JSON.stringify((await api('get_journal',{objectTypeId:object.id,recordId:row.id},userCookie)).json()).includes('DO NOT DISCLOSE'));
+  assert.ok(!JSON.stringify((await api('list_record_journal',{objectTypeId:object.id,recordId:row.id},userCookie)).json()).includes('DO NOT DISCLOSE'));
   const kw=(await ok('get_object_type',{objectTypeId:object.id})).fields.find((f:any)=>f.technicalName==='keyword');
   await grant([...groups,{kind:'user',id:user.id,level:'read',fields:{[secretField.id]:'none',[kw.id]:'none'}}]);
   response=await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie);assert.equal(response.json().keyword,row.id);
@@ -2556,20 +2456,21 @@ test('sensitive records default to creator and enforce eligible principals, publ
   for(const id of [user.id,other.id])await ok('set_workspace_member',{workspaceId:ws.id,userId:id,role:'user',expectedRole:null});
   const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'notes',labels:{en:'Notes'},standardFields:['keyword']});
   const original=await ok('get_content_permissions',{objectTypeId:object.id});
-  const settings=await ok('configure_content_permissions',{...original,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',fields:{}},{kind:'user',id:other.id,level:'read',fields:{}}]});
+  const settings=await ok('configure_content_permissions',{...original,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}},{kind:'user',id:other.id,level:'read',fields:{}}]});
   const stale=await api('configure_content_permissions',{...original,sensitive:true,grants:[]});assert.equal(stale.statusCode,409);
-  let created=await api('create_record',{objectTypeId:object.id,keyword:'Private note'},userCookie);assert.equal(created.statusCode,200,created.body);let row=created.json();assert.deepEqual(row.access_principals,[{kind:'user',id:user.id}]);
+  let created=await api('create_record',{objectTypeId:object.id,keyword:'Private note'},userCookie);assert.equal(created.statusCode,200,created.body);let row=created.json();assert.deepEqual(row.access_principals,[{kind:'user',id:user.id,level:'full'}]);
   assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},otherCookie)).statusCode,403);
   assert.equal((await api('list_records',{objectTypeId:object.id},otherCookie)).json().total,0);
   assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Private'},otherCookie)).json().records.length,0);
   assert.equal((await api('get_workspace_dashboard',{workspaceId:ws.id},otherCookie)).json().total,0);
   assert.equal((await api('list_record_journal',{objectTypeId:object.id,recordId:row.id},otherCookie)).statusCode,403);
-  const publicResult=await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[]}},userCookie);assert.equal(publicResult.statusCode,200,publicResult.body);row=publicResult.json();
+  assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[]}},userCookie)).statusCode,400);
+  const policy=(await api('get_record_security',{objectTypeId:object.id,recordId:row.id},userCookie)).json().policy;const publicResult=await api('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:row.version,policy:{...policy,owners:[],publicLevel:'full'},confirmPublic:true},userCookie);assert.equal(publicResult.statusCode,200,publicResult.body);row=publicResult.json();
   assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},otherCookie)).statusCode,200);
   const ineligible=randomUUID();assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[{kind:'user',id:ineligible}]}},userCookie)).statusCode,400);
-  const group=await ok('create_group',{workspaceId:ws.id,name:'Private group',memberIds:[user.id]});
+  const group=await ok('create_group',{workspaceId:ws.id,name:'Private group',members:([user.id]).map(id=>({kind:'user',id,level:'full'}))});
   await ok('configure_content_permissions',{...settings,grants:[...settings.grants,{kind:'group',id:group.id,level:'edit',fields:{}}]});
-  row=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[{kind:'group',id:group.id}]}});
+  row=await ok('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:row.version,policy:defaultRecordSecurity([{kind:'group',id:group.id,level:'full'}])});
   assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,200);
   await ok('set_group_active',{workspaceId:ws.id,groupId:group.id,version:(await ok('list_groups',{workspaceId:ws.id})).find((g:any)=>g.id===group.id).version,active:false});
   assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,403,'existing session immediately loses record access when group is inactive');
@@ -2581,15 +2482,15 @@ test('content permissions protect relationship candidates, Primary context, tree
   const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
   const objects=await ok('list_object_types',{workspaceId:ws.id}),contact=objects.find((o:any)=>o.technicalName==='contacts'),project=objects.find((o:any)=>o.technicalName==='projects'),task=objects.find((o:any)=>o.technicalName==='tasks');
   for(const type of [contact,project,task]){const current=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...current,sensitive:true,grants:[{kind:'user',id:user.id,level:'edit',fields:{}}]});}
-  const hidden=await ok('create_record',{objectTypeId:contact.id,keyword:'Hidden organization',values:{access_principals:[{kind:'user',id:adminId}]}});
-  const parent=await ok('create_record',{objectTypeId:project.id,keyword:'Visible project',values:{access_principals:[]},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:contact.id,recordId:hidden.id}]}]});
-  await ok('create_record',{objectTypeId:task.id,keyword:'Hidden task',values:{access_principals:[{kind:'user',id:adminId}]},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:project.id,recordId:parent.id}]}]});
+  const hidden=await ok('create_record',{objectTypeId:contact.id,keyword:'Hidden organization',security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true}});
+  const parent=await ok('create_record',{objectTypeId:project.id,keyword:'Visible project',security:{policy:defaultRecordSecurity(),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:contact.id,recordId:hidden.id}]}]});
+  await ok('create_record',{objectTypeId:task.id,keyword:'Hidden task',security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:project.id,recordId:parent.id}]}]});
   const input={objectTypeId:project.id,recordId:parent.id};
   const tree=await api('get_relationship_tree_branch',input,userCookie);assert.equal(tree.statusCode,200,tree.body);assert.equal(tree.json().total,0);assert.equal(tree.json().ancestors.length,0);assert.ok(!tree.body.includes(hidden.id));
   const context=await api('get_primary_chain_context',input,userCookie);assert.equal(context.statusCode,200,context.body);assert.equal(context.json().direct,null);
   const relations=await api('get_record_relationships',input,userCookie);assert.equal(relations.statusCode,200);assert.equal(relations.json().dossier.length,0);assert.equal(relations.json().fields.find((f:any)=>f.definition.kind==='primary'&&f.side==='right').editable,false);
   const candidates=await api('search_relationship_candidates',{...input,relationshipTypeId:primary.id,side:'right'},userCookie);assert.equal(candidates.statusCode,200,candidates.body);assert.equal(candidates.json().total,0);
-  const history=await api('get_journal',input,userCookie);assert.ok(!history.body.includes('Hidden organization'));assert.ok(!history.body.includes('Hidden task'));
+  const history=await api('list_record_journal',input,userCookie);assert.ok(!history.body.includes('Hidden organization'));assert.ok(!history.body.includes('Hidden task'));
   let current=(await api('get_record',input,userCookie)).json();let changed=await api('update_record',{...input,version:current.version,keyword:'Changed project',relationships:[]},userCookie);assert.equal(changed.statusCode,200,changed.body);
   current=changed.json();assert.equal((await api('update_record',{...input,version:current.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[]}]},userCookie)).statusCode,403);
   assert.equal((await ok('get_record_relationships',input)).dossier.length,2,'hidden edges survive unrelated changes');
@@ -2609,10 +2510,10 @@ test('content permission changes are no-op stable, revocable, journaled and pres
  const deniedCreate=await api('create_record',{objectTypeId:object.id,keyword:'Missing hidden required'},userCookie);assert.equal(deniedCreate.statusCode,403);assert.ok(!deniedCreate.body.includes('Retain me'));
  let current=(await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).json();const updated=await api('update_record',{objectTypeId:object.id,recordId:record.id,version:current.version,keyword:'Changed'},userCookie);assert.equal(updated.statusCode,200,updated.body);assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:record.id})).hidden_value,'Retain me');
  assert.equal((await api('update_record',{objectTypeId:object.id,recordId:record.id,version:updated.json().version,values:{hidden_value:'Retain me'}},userCookie)).statusCode,403,'guessed no-ops cannot probe hidden values');
- assert.equal((await api('update_record',{objectTypeId:object.id,recordId:record.id,version:updated.json().version,values:{access_principals:[]}},userCookie)).statusCode,403,'Edit cannot set Access principals');
+ assert.equal((await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:updated.json().version,policy:defaultRecordSecurity(),confirmPublic:true},userCookie)).statusCode,403,'Edit cannot set Access principals');
  settings=await ok('configure_content_permissions',{...settings,grants:[{...grant,level:'full'}]});
- current=await ok('get_record',{objectTypeId:object.id,recordId:record.id});const transferred=await api('update_record',{objectTypeId:object.id,recordId:record.id,version:current.version,values:{access_principals:[{kind:'user',id:adminId}]}},userCookie);assert.equal(transferred.statusCode,200,transferred.body);assert.equal(transferred.json().permissions.read,false);assert.ok(!Object.hasOwn(transferred.json(),'hidden_value'));assert.equal(transferred.json().keyword,record.id);
- settings=await ok('configure_content_permissions',{...settings,sensitive:false});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,200);assert.ok(!(await ok('get_object_type',{objectTypeId:object.id})).fields.some((f:any)=>f.technicalName==='access_principals'));
+ current=await ok('get_record',{objectTypeId:object.id,recordId:record.id});const transferred=await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:current.version,policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}])},userCookie);assert.equal(transferred.statusCode,200,transferred.body);assert.equal(transferred.json().permissions.read,false);assert.ok(!Object.hasOwn(transferred.json(),'hidden_value'));assert.equal(transferred.json().keyword,record.id);
+ assert.equal((await api('configure_content_permissions',{...settings,sensitive:false})).statusCode,400);settings=await ok('configure_content_permissions',{...settings,sensitive:false,confirmWidening:true});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,200);assert.ok(!(await ok('get_object_type',{objectTypeId:object.id})).fields.some((f:any)=>f.technicalName==='access_principals'));
  settings=await ok('configure_content_permissions',{...settings,sensitive:true});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,403,'re-enabling sensitivity restores the retained list');
  await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:null,expectedRole:'user'});await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,403,'re-adding membership restores no prior grant');
  const final=await ok('get_content_permissions',{objectTypeId:object.id});assert.ok(!final.grants.some((g:any)=>g.kind==='user'&&g.id===user.id));assert.ok(final.version>settings.version);
@@ -2658,11 +2559,11 @@ test('object settings save labels and sensitivity atomically with both optimisti
  response=await api('configure_object_settings',{objectTypeId:object.id,version:changed.version,labels:{en:'Stale permission'},security:{version:def.permissionsVersion,sensitive:false}});assert.equal(response.statusCode,409);
  // A later label validation failure must also roll back the earlier security write.
  await sql`UPDATE sys_object_types SET is_protected=true WHERE id=${object.id}::uuid`.execute(runtime.db);
- response=await api('configure_object_settings',{objectTypeId:object.id,version:changed.version,labels:{en:'Protected rename'},security:{version:changed.permissionsVersion,sensitive:false}});
+ response=await api('configure_object_settings',{objectTypeId:object.id,version:changed.version,labels:{en:'Protected rename'},security:{version:changed.permissionsVersion,sensitive:false,confirmWidening:true}});
  assert.equal(response.statusCode,403);const rolledBack=await ok('get_object_type',{objectTypeId:object.id});assert.equal(rolledBack.sensitive,true);assert.equal(rolledBack.permissionsVersion,changed.permissionsVersion);
  await sql`UPDATE sys_object_types SET is_protected=false WHERE id=${object.id}::uuid`.execute(runtime.db);
  const renamed=await api('configure_object_settings',{objectTypeId:object.id,version:changed.version,labels:{en:'Designer label'}},userCookie);assert.equal(renamed.statusCode,200,renamed.body);
- def=renamed.json();const mcp=await tool('configure_object_settings',{objectTypeId:object.id,version:def.version,labels:{en:'MCP label'},security:{version:def.permissionsVersion,sensitive:false}});assert.equal(mcp.labels.en,'MCP label');assert.equal(mcp.sensitive,false);
+ def=renamed.json();const mcp=await tool('configure_object_settings',{objectTypeId:object.id,version:def.version,labels:{en:'MCP label'},security:{version:def.permissionsVersion,sensitive:false,confirmWidening:true}});assert.equal(mcp.labels.en,'MCP label');assert.equal(mcp.sensitive,false);
 });
 
 test('record link menus expose eligible pairs and linked creation atomically preserves source links, cardinalities and journals through API/MCP',async()=>{
@@ -2692,7 +2593,7 @@ test('linked record actions enforce both source and target rights and invert und
  const a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'sources',labels:{en:'Sources'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'targets',labels:{en:'Targets'}});
  const source=await ok('create_record',{objectTypeId:a.id});
  const relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'association',configuration:{labels:{en:'Association'},leftLabels:{en:'Targets'},rightLabels:{en:'Sources'},directed:false,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:b.id}],active:true}});const active=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
- async function grant(id:string,level:string){const p=await ok('get_content_permissions',{objectTypeId:id});await ok('configure_content_permissions',{...p,grants:[{kind:'user',id:user.id,level,fields:{}}]});}
+ async function grant(id:string,level:string){const p=await ok('get_content_permissions',{objectTypeId:id});await ok('configure_content_permissions',{...p,grants:[{kind:'user',id:user.id,level,create:level==='edit',fields:{}}]});}
  await grant(a.id,'edit');await grant(b.id,'read');
  let options=(await api('list_record_link_options',{objectTypeId:a.id,recordId:source.id},userCookie)).json();assert.equal(options.find((o:any)=>o.objectType.id===b.id).relationships.every((r:any)=>!r.canCreate),true);
  const from={objectTypeId:a.id,recordId:source.id,recordVersion:source.version,relationshipTypeId:active.id,version:active.version,side:'left'};
@@ -2702,4 +2603,292 @@ test('linked record actions enforce both source and target rights and invert und
  const reverse=await tool('create_record',{objectTypeId:a.id,linkFrom:{objectTypeId:b.id,recordId:target.json().id,recordVersion:target.json().version,relationshipTypeId:active.id,version:active.version,side:'right'}});assert.equal((await ok('get_record_relationships',{objectTypeId:b.id,recordId:target.json().id})).dossier.length,2);assert.ok(reverse.id);
  const other=await ok('create_workspace',{code:'linkedforeign',name:'Foreign'}),foreign=await ok('create_object_type',{workspaceId:other.id,technicalName:'assets',labels:{en:'Foreign'}});
  const current=await ok('get_record',{objectTypeId:a.id,recordId:source.id});assert.equal((await api('create_record',{objectTypeId:foreign.id,linkFrom:{...from,recordVersion:current.version}})).statusCode,400);assert.equal((await ok('list_records',{objectTypeId:foreign.id})).total,0);
+});
+
+test('ownership model enforces graded groups, foreign inheritance, privacy and per-record fields through shared API/MCP',async()=>{
+ const ws=await ok('create_workspace',{code:'ownershipmodel',name:'Ownership model'});
+ async function person(name:string){const user=await ok('create_user',{name,email:`ownership-${name.toLowerCase()}@example.test`,initialPassword:'ownership-model-password'});await sql`UPDATE sys_users SET must_change_password=false WHERE id=${user.id}`.execute(runtime.db);await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});return {...user,cookie:await login(`ownership-${name.toLowerCase()}@example.test`,'ownership-model-password')};}
+ const clara=await person('Clara'),hans=await person('Hans'),martin=await person('Martin');
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'activities',labels:{en:'Activities'},standardFields:['keyword']});
+ const detail=await ok('create_field',{objectTypeId:object.id,technicalName:'private_detail',labels:{en:'Private detail'}});
+ const before=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...before,sensitive:true,grants:[clara,hans,martin].map(u=>({kind:'user',id:u.id,level:'full',create:u.id===clara.id,fields:{}}))});
+ const salesId=(await ok('create_group',{workspaceId:ws.id,name:'Sales'})).id,managementId=(await ok('create_group',{workspaceId:ws.id,name:'Management'})).id;
+ for(const [groupId,user] of [[salesId,hans],[managementId,martin]])await tool('configure_group_inheritance',{workspaceId:ws.id,groupId,version:1,members:[{kind:'user',id:user.id,level:'full'}]});
+ let record=await ok('create_record',{objectTypeId:object.id,keyword:'Only Clara',values:{private_detail:'Secret detail'}});
+ let security=await ok('get_record_security',{objectTypeId:object.id,recordId:record.id});security.policy.owners=[{kind:'user',id:clara.id,level:'full'}];security.policy.publicLevel=null;
+ record=await tool('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:security.policy});
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},hans.cookie)).statusCode,403);
+ let foreign=await ok('get_foreign_access',{workspaceId:ws.id});foreign=await tool('configure_foreign_access',{...foreign,rules:[{id:randomUUID(),requester:{kind:'user',id:hans.id},owner:{kind:'user',id:clara.id},level:'edit',confidential:false,objects:{}}]});
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},hans.cookie)).json().permissions.edit,true);
+ assert.equal((await api('duplicate_record',{objectTypeId:object.id,recordId:record.id,version:record.version},hans.cookie)).statusCode,403);
+ assert.equal((await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:security.policy},hans.cookie)).statusCode,403);
+ security=await ok('get_record_security',{objectTypeId:object.id,recordId:record.id});const keyword=(await ok('get_object_type',{objectTypeId:object.id})).fields.find((f:any)=>f.technicalName==='keyword');security.policy.fields=[{kind:'user',id:hans.id,fields:{[detail.id]:'none',[keyword.id]:'none'}}];
+ record=await ok('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:security.policy});
+ const visible=(await api('get_record',{objectTypeId:object.id,recordId:record.id},hans.cookie)).json();assert.equal(visible.private_detail,undefined);assert.equal(visible.fieldAccess[detail.id].read,false);assert.equal(visible.keyword,record.id);
+ assert.equal((await api('list_records',{objectTypeId:object.id,query:'Only Clara'},hans.cookie)).json().total,0);
+ assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Only Clara'},hans.cookie)).json().records.length,0);
+ assert.equal((await api('list_workspace_records',{workspaceId:ws.id,query:'Only Clara'},hans.cookie)).json().total,0);
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:record.id,version:record.version,values:{private_detail:'Denied'}},hans.cookie)).statusCode,403);
+ assert.equal((await api('list_records',{objectTypeId:object.id,sortBy:'private_detail'},hans.cookie)).statusCode,403);
+ assert.equal((await api('list_record_journal',{objectTypeId:object.id,recordId:record.id},hans.cookie)).json().entries.some((e:any)=>e.field_id===detail.id),false);
+ security=await ok('get_record_security',{objectTypeId:object.id,recordId:record.id});security.policy.privacy='personal';record=await ok('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:security.policy});
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},hans.cookie)).statusCode,403);
+ security=await ok('get_record_security',{objectTypeId:object.id,recordId:record.id});security.policy.privacy='normal';security.policy.owners=[{kind:'user',id:hans.id,level:'full'}];record=await ok('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:security.policy});
+ foreign=await ok('configure_foreign_access',{...foreign,rules:[{id:randomUUID(),requester:{kind:'group',id:managementId},owner:{kind:'group',id:salesId},level:'edit',confidential:false,objects:{}}]});
+ const inherited=(await api('get_record_security',{objectTypeId:object.id,recordId:record.id},martin.cookie)).json();assert.equal(inherited.effective.level,'edit');assert.equal(inherited.effective.source,'foreign');
+ assert.equal(inherited.policy.owners.some((p:any)=>p.id===martin.id||p.id===managementId),false);
+ foreign=await ok('configure_foreign_access',{...foreign,users:[{userId:martin.id,inherit:false,manageOwn:false}]});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},martin.cookie)).statusCode,403);
+ // No widening to public is accepted without an explicit confirmation, and stale writes preserve history.
+ security=await ok('get_record_security',{objectTypeId:object.id,recordId:record.id});const publicPolicy={...security.policy,owners:[],publicLevel:'full'};
+ assert.equal((await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:publicPolicy})).statusCode,400);
+ const publicRecord=await ok('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:publicPolicy,confirmPublic:true});
+ assert.equal((await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:publicPolicy,confirmPublic:true})).statusCode,409);
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},martin.cookie)).statusCode,200);
+ assert.ok(publicRecord.version>record.version);
+});
+
+test('nested group membership rejects cycles, preserves grades on name edits and limits participating-group ownership',async()=>{
+ const ws=await ok('create_workspace',{code:'gradedgroups',name:'Graded groups'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const a=(await ok('create_group',{workspaceId:ws.id,name:'Team'})).id,b=(await ok('create_group',{workspaceId:ws.id,name:'Division'})).id;
+ await ok('configure_group_inheritance',{workspaceId:ws.id,groupId:a,version:1,members:[{kind:'user',id:user.id,level:'read'}]});
+ await ok('configure_group_inheritance',{workspaceId:ws.id,groupId:b,version:1,members:[{kind:'group',id:a,level:'full'}]});
+ const cycle=await api('configure_group_inheritance',{workspaceId:ws.id,groupId:a,version:2,members:[{kind:'group',id:b,level:'full'}]});assert.equal(cycle.statusCode,400);
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'work',labels:{en:'Work'},standardFields:['keyword']});const cfg=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...cfg,sensitive:true,grants:[{kind:'group',id:b,level:'full',fields:{}}]});
+ const record=await ok('create_record',{objectTypeId:object.id,keyword:'Group owned',security:{policy:defaultRecordSecurity([{kind:'group',id:b,level:'full'}]),confirmPublic:true}});
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).json().permissions.edit,false);
+ const renamed=await ok('configure_group',{workspaceId:ws.id,groupId:a,version:2,name:'Renamed team'});assert.equal(renamed.members[0].level,'read');
+ const foreignWorkspace=await ok('create_workspace',{code:'gradedforeign',name:'Other'}),foreignGroup=(await ok('create_group',{workspaceId:foreignWorkspace.id,name:'Foreign group'})).id;
+ assert.equal((await api('configure_group_inheritance',{workspaceId:ws.id,groupId:a,version:renamed.version,members:[{kind:'group',id:foreignGroup,level:'full'}]})).statusCode,400);
+});
+
+test('delegated foreign administration remains owner-scoped on reads, no-ops and writes and revokes immediately',async()=>{
+ const ws=await ok('create_workspace',{code:'foreignself',name:'Foreign self'}),users=(await ok('list_users',{})),user=users.find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}}),cfg=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...cfg,sensitive:true,grants:[{kind:'user',id:user.id,level:'edit',fields:{}}]});
+ assert.equal((await api('get_foreign_access',{workspaceId:ws.id},userCookie)).statusCode,403);
+ let all=await ok('get_foreign_access',{workspaceId:ws.id});const unrelated={id:randomUUID(),requester:{kind:'user',id:user.id},owner:{kind:'user',id:adminId},level:'read',confidential:false,objects:{}};
+ all=await ok('configure_foreign_access',{...all,rules:[unrelated],users:[{userId:user.id,inherit:true,manageOwn:true}]});
+ assert.equal((await api('get_foreign_access_capabilities',{workspaceId:ws.id},userCookie)).json().manageOwn,true);
+ let own=(await api('get_foreign_access',{workspaceId:ws.id},userCookie)).json();assert.deepEqual(own.rules,[]);
+ const noOp=await api('configure_foreign_access',own,userCookie);assert.equal(noOp.statusCode,200,noOp.body);assert.deepEqual(noOp.json().rules,[]);
+ const delegated={id:randomUUID(),requester:{kind:'user',id:adminId},owner:{kind:'user',id:user.id},level:'edit',confidential:false,objects:{}};
+ assert.equal((await api('configure_foreign_access',{...own,rules:[{...delegated,level:'full'}]},userCookie)).statusCode,403);
+ assert.equal((await api('configure_foreign_access',{...own,rules:[unrelated]},userCookie)).statusCode,403);
+ assert.equal((await api('configure_foreign_access',{...own,users:[]},userCookie)).statusCode,403);
+ const saved=await api('configure_foreign_access',{...own,rules:[delegated]},userCookie);assert.equal(saved.statusCode,200,saved.body);assert.equal(saved.json().rules.length,1);
+ all=await ok('get_foreign_access',{workspaceId:ws.id});assert.equal(all.rules.length,2);assert.ok(all.rules.some((r:any)=>r.id===unrelated.id));
+ await ok('configure_foreign_access',{...all,users:[{userId:user.id,inherit:true,manageOwn:false}]});
+ assert.equal((await api('get_foreign_access',{workspaceId:ws.id},userCookie)).statusCode,403);assert.equal((await api('configure_foreign_access',saved.json(),userCookie)).statusCode,403);
+});
+
+test('Create is independent of existing Read and duplication copies only accessible initial values',async()=>{
+ const ws=await ok('create_workspace',{code:'createonly',name:'Create only'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']}),visible=await ok('create_field',{objectTypeId:object.id,technicalName:'detail',labels:{en:'Detail'}}),hidden=await ok('create_field',{objectTypeId:object.id,technicalName:'secret',labels:{en:'Secret'}});
+ let cfg=await ok('get_content_permissions',{objectTypeId:object.id});cfg=await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'none',create:true,fields:{[hidden.id]:'none'}}]});
+ const definition=(await api('get_object_type',{objectTypeId:object.id},userCookie)).json();assert.equal(definition.permissions.create,true);assert.equal(definition.fields.find((f:any)=>f.id===visible.id).fieldPermissions.create,true);
+ assert.equal((await api('get_record_relationships',{objectTypeId:object.id},userCookie)).statusCode,200,'Create-only forms can load their empty relationship controls');
+ const created=await api('create_record',{objectTypeId:object.id,keyword:'New only',values:{detail:'Initial'}},userCookie);assert.equal(created.statusCode,200,created.body);assert.equal(created.json().permissions.read,false);
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:created.json().id},userCookie)).statusCode,403);assert.equal((await api('list_records',{objectTypeId:object.id},userCookie)).statusCode,403);
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{secret:'Denied'}},userCookie)).statusCode,403);
+ const sourceType=await ok('create_object_type',{workspaceId:ws.id,technicalName:'sources',labels:{en:'Sources'}}),sourceGrant=await ok('get_content_permissions',{objectTypeId:sourceType.id});await ok('configure_content_permissions',{...sourceGrant,grants:[{kind:'user',id:user.id,level:'edit',create:false,fields:{}}]});
+ const parent=await ok('create_record',{objectTypeId:sourceType.id}),general=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.kind==='general');
+ const options=(await api('list_record_link_options',{objectTypeId:sourceType.id,recordId:parent.id},userCookie)).json().find((o:any)=>o.objectType.id===object.id);assert.ok(options.relationships.some((r:any)=>r.canCreate&&!r.canLink));
+ const linked=await api('create_record',{objectTypeId:object.id,linkFrom:{objectTypeId:sourceType.id,recordId:parent.id,recordVersion:parent.version,relationshipTypeId:general.id,version:general.version,side:'left'}},userCookie);assert.equal(linked.statusCode,200,linked.body);assert.equal(linked.json().permissions.read,false);assert.equal((await ok('get_record_relationships',{objectTypeId:sourceType.id,recordId:parent.id})).edges.length,1);
+ const source=await ok('create_record',{objectTypeId:object.id,keyword:'Source',values:{detail:'Copy this',secret:'Never copy'}});
+ cfg=await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'duplicate',create:true,fields:{[hidden.id]:'none'}}]});
+ const copy=await api('duplicate_record',{objectTypeId:object.id,recordId:source.id,version:source.version},userCookie);assert.equal(copy.statusCode,200,copy.body);
+ const full=await ok('get_record',{objectTypeId:object.id,recordId:copy.json().id});assert.equal(full.detail,'Copy this');assert.equal(full.secret,null);assert.notEqual(full.id,source.id);
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:source.id,version:source.version,values:{detail:'Denied'}},userCookie)).statusCode,403);
+ cfg=await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'edit',create:null,fields:{}}]});
+ assert.equal((await api('create_record',{objectTypeId:object.id},userCookie)).statusCode,403,'Edit does not implicitly grant Create');
+ const group=await ok('create_group',{workspaceId:ws.id,name:'Creators',members:([user.id]).map(id=>({kind:'user',id,level:'full'}))});
+ cfg=await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'none',create:null,fields:{}},{kind:'group',id:group.id,level:'none',create:true,fields:{}}]});
+ assert.equal((await api('create_record',{objectTypeId:object.id},userCookie)).statusCode,200,'Missing user Create inherits a group despite an explicit object None');
+ cfg=await ok('configure_content_permissions',{...cfg,grants:cfg.grants.map((g:any)=>g.kind==='user'?{...g,create:false}:g)});
+ assert.equal((await api('create_record',{objectTypeId:object.id},userCookie)).statusCode,403,'Explicit user Create denial wins');
+
+});
+
+test('security, foreign and membership journal failures roll back policy rows and optimistic versions',async()=>{
+ const ws=await ok('create_workspace',{code:'securityrollback',name:'Security rollback'}),group=await ok('create_group',{workspaceId:ws.id,name:'Rollback group'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}}),cfg=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...cfg,sensitive:true,grants:[]});
+ const record=await ok('create_record',{objectTypeId:object.id}),security=await ok('get_record_security',{objectTypeId:object.id,recordId:record.id}),foreign=await ok('get_foreign_access',{workspaceId:ws.id});
+ await sql`CREATE FUNCTION fail_security_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key LIKE 'access.%' OR NEW.field_key LIKE 'foreign.%' OR NEW.field_key LIKE 'membership.%' THEN RAISE EXCEPTION 'security journal rejected'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+ await sql`CREATE TRIGGER fail_security_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_security_journal()`.execute(runtime.db);
+ try{
+  assert.equal((await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:{...security.policy,foreignMax:'read'}})).statusCode,500);
+  assert.equal((await api('configure_foreign_access',{...foreign,rules:[{id:randomUUID(),requester:{kind:'user',id:user.id},owner:{kind:'user',id:adminId},level:'read',confidential:false,objects:{}}]})).statusCode,500);
+  assert.equal((await api('configure_group_inheritance',{workspaceId:ws.id,groupId:group.id,version:1,members:[{kind:'user',id:user.id,level:'read'}]})).statusCode,500);
+ }finally{await sql`DROP TRIGGER fail_security_journal ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_security_journal()`.execute(runtime.db);}
+ assert.deepEqual(await ok('get_record_security',{objectTypeId:object.id,recordId:record.id}),security);assert.deepEqual(await ok('get_foreign_access',{workspaceId:ws.id}),foreign);assert.equal((await ok('list_groups',{workspaceId:ws.id}))[0].version,1);
+});
+
+test('record Full preserves stronger retained field restrictions without allowing new delegation above a field ceiling',async()=>{
+ const ws=await ok('create_workspace',{code:'retainedfieldcaps',name:'Retained field caps'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}}),secret=await ok('create_field',{objectTypeId:object.id,technicalName:'secret',labels:{en:'Secret'}}),cfg=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...cfg,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',fields:{[secret.id]:'none'}}]});
+ let record=await ok('create_record',{objectTypeId:object.id,values:{secret:'Preserved value'}}),policy=(await ok('get_record_security',{objectTypeId:object.id,recordId:record.id})).policy;
+ policy={...policy,owners:[{kind:'user',id:user.id,level:'full'}],fields:[{kind:'user',id:adminId,fields:{[secret.id]:'edit'}}]};record=await ok('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy});
+ const retained=await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:{...policy,foreignMax:'read'}},userCookie);assert.equal(retained.statusCode,200,retained.body);record=retained.json();assert.equal(record.secret,undefined);
+ const forbidden=await api('configure_record_security',{objectTypeId:object.id,recordId:record.id,version:record.version,policy:{...policy,foreignMax:'read',fields:[...policy.fields,{kind:'user',id:user.id,fields:{[secret.id]:'edit'}}]}},userCookie);assert.equal(forbidden.statusCode,403);
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:record.id})).secret,'Preserved value');
+ await ok('set_definition_state',{kind:'object_type',id:object.id,expectedState:'active',state:'inactive',confirm:true});const inactive=(await api('get_record_security',{objectTypeId:object.id,recordId:record.id},userCookie));assert.equal(inactive.statusCode,200,inactive.body);assert.equal(inactive.json().canManage,false);
+});
+
+test('fresh installation creates only the current schema/catalog, is repeatable and rejects noncurrent databases without adopting them',async()=>{
+ const {Pool}=await import('pg'),operator=new Pool({connectionString:databaseURL});
+ const freshName=`install_${randomUUID().replaceAll('-','')}`,url=new URL(databaseURL);url.pathname='/'+freshName;await operator.query(`CREATE DATABASE "${freshName}"`);const inspection=new Pool({connectionString:url.href});
+ try{
+  await initializeDatabase(url.href,secret,baseURL);await initializeDatabase(url.href,secret,baseURL);
+  assert.equal((await inspection.query('SELECT count(*)::int AS n FROM sys_users')).rows[0].n,0);
+  for(const table of ['sys_sessions','sys_accounts','sys_verifications','sys_workspaces','sys_groups','sys_object_types','sys_fields','sys_record_identities','sys_record_security','sys_journal'])assert.equal((await inspection.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n,0,table);
+  assert.equal((await inspection.query('SELECT count(*)::int AS n FROM sys_modules')).rows[0].n,3);
+  assert.equal((await inspection.query('SELECT version FROM sys_schema_version')).rows[0].version,1);
+  assert.equal((await inspection.query("SELECT count(*)::int AS n FROM pg_tables WHERE schemaname='public' AND tablename IN('sys_primary_chain_levels','sys_schema_migrations','sys_administrators')")).rows[0].n,0);
+  await inspection.query("UPDATE sys_schema_version SET definition_hash='different' WHERE singleton");await assert.rejects(initializeDatabase(url.href,secret,baseURL),/does not match/);
+  await inspection.query('DROP TABLE sys_schema_version');await assert.rejects(initializeDatabase(url.href,secret,baseURL),/empty database/);
+  assert.equal((await inspection.query('SELECT count(*)::int AS n FROM sys_modules')).rows[0].n,3,'Rejected initialization does not modify an existing schema');
+ }finally{await inspection.end();await operator.query(`DROP DATABASE "${freshName}"`);await operator.end();}
+});
+
+test('sensitive policy is the sole ownership storage, covers sensitivity changes and is enforced by deferred integrity',async()=>{
+ const ws=await ok('create_workspace',{code:'currentsecurity',name:'Current security'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+ const first=await ok('create_record',{objectTypeId:object.id}),second=await ok('create_record',{objectTypeId:object.id});let cfg=await ok('get_content_permissions',{objectTypeId:object.id});cfg=await ok('configure_content_permissions',{...cfg,sensitive:true});
+ assert.equal((await sql`SELECT 1 FROM information_schema.columns WHERE table_name='currentsecurity_items' AND column_name='access_principals'`.execute(runtime.db)).rows.length,0);
+ for(const record of [first,second])assert.equal((await ok('get_record_security',{objectTypeId:object.id,recordId:record.id})).policy.publicLevel,'full');
+ await assert.rejects(sql`DELETE FROM sys_record_security WHERE object_type_id=${object.id}::uuid AND record_id=${first.id}::uuid`.execute(runtime.db),{code:'23503'});
+ cfg=await ok('configure_content_permissions',{...cfg,sensitive:false,confirmWidening:true});const third=await ok('create_record',{objectTypeId:object.id});await ok('configure_content_permissions',{...cfg,sensitive:true});assert.equal((await ok('get_record_security',{objectTypeId:object.id,recordId:third.id})).policy.publicLevel,'full');
+ const created=await ok('create_record',{objectTypeId:object.id});assert.deepEqual(created.access_principals,[{kind:'user',id:adminId,level:'full'}]);assert.equal((await api('list_records',{objectTypeId:object.id,sortBy:'access_principals'})).statusCode,400);
+});
+
+test('permission editing retains inactive principals, exposes truthful snapshots and rejects new inactive memberships',async()=>{
+ const ws=await ok('create_workspace',{name:'Permission lifecycle',code:'permissionlife'});
+ const user=await ok('create_user',{name:'Inactive security sample',email:'inactive-security@example.test',initialPassword:randomBytes(24).toString('base64url')});
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const team=await ok('create_group',{workspaceId:ws.id,name:'Retained team',members:[{kind:'user',id:user.id,level:'read'}]});
+ const destination=await ok('create_group',{workspaceId:ws.id,name:'New memberships'});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+ const detail=await ok('create_field',{objectTypeId:object.id,technicalName:'detail',labels:{en:'Detail'}});
+ let rights=await ok('get_content_permissions',{objectTypeId:object.id});
+ rights=await ok('configure_content_permissions',{...rights,sensitive:true,grants:[{kind:'group',id:team.id,level:'full',fields:{}},{kind:'user',id:user.id,level:'full',fields:{}}]});
+ const row=await ok('create_record',{objectTypeId:object.id,values:{detail:'Retain me'}});
+ let security=await ok('get_record_security',{objectTypeId:object.id,recordId:row.id});
+ const policy={...security.policy,owners:[{kind:'group',id:team.id,level:'full'}],fields:[{kind:'group',id:team.id,fields:{[detail.id]:'none'}},{kind:'user',id:user.id,fields:{[detail.id]:'read'}}]};
+ await ok('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:security.version,policy});
+ await ok('set_group_active',{workspaceId:ws.id,groupId:team.id,version:team.version,active:false});
+ await ok('configure_user',{userId:user.id,version:user.version,name:user.name,active:false,isAdmin:false});
+ const members=await ok('list_workspace_members',{workspaceId:ws.id});assert.equal(members.find((p:any)=>p.id===user.id).active,false);
+ const principalList=await ok('list_field_principals',{workspaceId:ws.id});assert.equal(principalList.find((p:any)=>p.id===user.id).active,false);
+ security=await ok('get_record_security',{objectTypeId:object.id,recordId:row.id});
+ assert.equal(security.principals.find((p:any)=>p.id===team.id).name,'Retained team');assert.equal(security.principals.find((p:any)=>p.id===team.id).assignable,false);
+ assert.equal(security.principals.find((p:any)=>p.id===user.id).active,false);assert.deepEqual(security.fieldAccess[detail.id],{read:true,edit:true});
+ const changed=await ok('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:security.version,policy:{...security.policy,privacy:'personal'}});assert.equal(changed.version,security.version+1);
+ for(const member of [{kind:'user',id:user.id,level:'full'},{kind:'group',id:team.id,level:'full'}])assert.equal((await api('configure_group_inheritance',{workspaceId:ws.id,groupId:destination.id,version:destination.version,members:[member]})).statusCode,400);
+ await ok('set_group_active',{workspaceId:ws.id,groupId:team.id,version:team.version+1,active:true});
+ const retained=await ok('configure_group_inheritance',{workspaceId:ws.id,groupId:team.id,version:team.version+2,members:team.members});assert.equal(retained.version,team.version+2);
+ assert.equal((await api('configure_group_inheritance',{workspaceId:ws.id,groupId:team.id,version:retained.version,members:[{kind:'user',id:user.id,level:'full'}]})).statusCode,400);
+ await ok('configure_group_inheritance',{workspaceId:ws.id,groupId:team.id,version:retained.version,members:[]});
+});
+
+test('workspace removal journals Create grants and security snapshots enforce record field ceilings and stale drafts',async()=>{
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ const ws=await ok('create_workspace',{name:'Rights snapshot',code:'rightssnapshot'});
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+ const field=await ok('create_field',{objectTypeId:object.id,technicalName:'detail',labels:{en:'Detail'}});
+ let rights=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...rights,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const row=await ok('create_record',{objectTypeId:object.id,values:{detail:'Restricted'}});
+ let security=await ok('get_record_security',{objectTypeId:object.id,recordId:row.id});
+ await ok('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:security.version,policy:{...security.policy,owners:[{kind:'user',id:user.id,level:'full'}],fields:[{kind:'user',id:user.id,fields:{[field.id]:'read'}}]}});
+ const snapshot=await api('get_record_security',{objectTypeId:object.id,recordId:row.id},userCookie);assert.equal(snapshot.statusCode,200,snapshot.body);security=snapshot.json();assert.deepEqual(security.fieldAccess[field.id],{read:true,edit:false});
+ assert.equal((await api('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:security.version,policy:{...security.policy,fields:[{kind:'user',id:user.id,fields:{[field.id]:'edit'}}]}},userCookie)).statusCode,403);
+ const changed=await ok('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:security.version,policy:{...security.policy,foreignMax:'read'}});
+ assert.equal((await api('configure_record_security',{objectTypeId:object.id,recordId:row.id,version:security.version,policy:security.policy},userCookie)).statusCode,409);
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).version,changed.version);
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:null,expectedRole:'user'});
+ const journal=await ok('list_system_journal',{workspaceId:ws.id,fieldKey:`permission.user:${user.id}.create`,limit:100});
+ assert.ok(journal.entries.some((entry:any)=>entry.old_value===true&&entry.new_value===null));
+ assert.equal((await api('get_record_security',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,403);
+});
+
+test('foreign settings retain deleted object overrides without blocking edits and reject newly inactive principals',async()=>{
+ const ws=await ok('create_workspace',{name:'Foreign lifecycle',code:'foreignlife'});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const group=await ok('create_group',{workspaceId:ws.id,name:'Foreign owner'});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'unused',labels:{en:'Unused'}});
+ let foreign=await ok('get_foreign_access',{workspaceId:ws.id});
+ const rule={id:randomUUID(),requester:{kind:'user',id:user.id},owner:{kind:'group',id:group.id},level:'read',confidential:false,objects:{[object.id]:{level:'none'}}};
+ foreign=await ok('configure_foreign_access',{...foreign,rules:[rule]});
+ await ok('set_definition_state',{kind:'object_type',id:object.id,expectedState:'active',state:'deleted',confirm:true});
+ foreign=await ok('configure_foreign_access',{...foreign,users:[{userId:user.id,inherit:false,manageOwn:false}]});
+ assert.equal(foreign.rules[0].objects[object.id].level,'none');
+ assert.equal((await api('configure_foreign_access',{...foreign,rules:[{...rule,objects:{[object.id]:{level:'full'}}}]})).statusCode,400);
+ foreign=await ok('configure_foreign_access',{...foreign,rules:[{...rule,objects:{}}]});
+ await ok('set_group_active',{workspaceId:ws.id,groupId:group.id,version:group.version,active:false});
+ assert.equal((await api('configure_foreign_access',{...foreign,rules:[{...foreign.rules[0],level:'edit'}]})).statusCode,400);
+ const unchanged=await ok('configure_foreign_access',foreign);assert.equal(unchanged.version,foreign.version);
+ foreign=await ok('configure_foreign_access',{...foreign,rules:[]});assert.equal(foreign.rules.length,0);
+ assert.equal((await api('configure_foreign_access',{...foreign,rules:[{...rule,objects:{}}]})).statusCode,400);
+});
+
+test('record form saves contents, links and security atomically with one version and change ID',async()=>{
+ const ws=await ok('create_workspace',{name:'Atomic record access',code:'atomicaccess'});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const cfg=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...cfg,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const row=await ok('create_record',{objectTypeId:object.id,keyword:'Before'}),target=await ok('create_record',{objectTypeId:object.id,keyword:'Target'});
+ const general=(await ok('list_relationship_types',{workspaceId:ws.id})).find((type:any)=>type.kind==='general');
+ const policy={...defaultRecordSecurity([{kind:'user',id:user.id,level:'full'}]),foreignMax:'read' as const};
+ const changed=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,keyword:'After',security:{policy},relationships:[{relationshipTypeId:general.id,version:general.version,side:'left',targets:[{objectTypeId:object.id,recordId:target.id}]}]});
+ assert.equal(changed.version,row.version+1);assert.equal(changed.keyword,'After');
+ const entries=(await journalEntries({objectTypeId:object.id,recordId:row.id})).filter((entry:any)=>entry.old_value==='Before'||entry.field_key==='access.foreignMax'&&entry.old_value==='full'||entry.entity_kind==='relationship');
+ assert.equal(new Set(entries.map((entry:any)=>entry.change_id)).size,1);assert.ok(entries.length>=3);
+ const noOp=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:changed.version,security:{policy}});assert.equal(noOp.version,changed.version);
+ const publicPolicy={...policy,owners:[],publicLevel:'full'};
+ const invalid=await api('update_record',{objectTypeId:object.id,recordId:row.id,version:changed.version,keyword:'Must roll back',security:{policy:publicPolicy}});assert.equal(invalid.statusCode,400);
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).keyword,'After');
+ const before=await ok('get_record_security',{objectTypeId:object.id,recordId:row.id});
+ const narrowed=await api('update_record',{objectTypeId:object.id,recordId:row.id,version:changed.version,keyword:'Delegated',security:{policy:{...policy,owners:[{kind:'user',id:adminId,level:'full'}]}}},userCookie);
+ assert.equal(narrowed.statusCode,200,narrowed.body);assert.equal(narrowed.json().permissions.read,false);assert.equal(narrowed.json().version,changed.version+1);
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,403);
+ const current=await ok('get_record',{objectTypeId:object.id,recordId:row.id});assert.equal(current.keyword,'Delegated');
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:before.version,security:{policy}})).statusCode,409);
+});
+
+test('record-form security changes require Full and journal failure rolls back the whole edit',async()=>{
+ const ws=await ok('create_workspace',{name:'Guarded access form',code:'guardedaccess'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ let cfg=await ok('get_content_permissions',{objectTypeId:object.id});cfg=await ok('configure_content_permissions',{...cfg,sensitive:true,grants:[{kind:'user',id:user.id,level:'edit',fields:{}}]});
+ const policy=defaultRecordSecurity([{kind:'user',id:user.id,level:'full'}]);
+ const row=await ok('create_record',{objectTypeId:object.id,keyword:'Original',security:{policy}});
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,keyword:'Denied',security:{policy:{...policy,foreignMax:'none'}}},userCookie)).statusCode,403);
+ await sql`CREATE TRIGGER reject_access_form BEFORE INSERT ON sys_journal FOR EACH ROW WHEN (NEW.field_key='access.foreignMax') EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try {assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,keyword:'Rollback',security:{policy:{...policy,foreignMax:'read'}}})).statusCode,500);}
+ finally{await sql`DROP TRIGGER reject_access_form ON sys_journal`.execute(runtime.db);}
+ const stored=await ok('get_record',{objectTypeId:object.id,recordId:row.id});assert.equal(stored.keyword,'Original');assert.equal(stored.version,row.version);
+ assert.equal((await ok('get_record_security',{objectTypeId:object.id,recordId:row.id})).policy.foreignMax,'full');
+});
+
+test('Designer can place the protected Access principals field without changing security or introducing a business column',async()=>{
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ const ws=await ok('create_workspace',{name:'Security form design',code:'securitylayout'});
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'designer',expectedRole:null});
+ const created=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const cfg=await ok('get_content_permissions',{objectTypeId:created.id});await ok('configure_content_permissions',{...cfg,sensitive:true,grants:[]});
+ const row=await ok('create_record',{objectTypeId:created.id,keyword:'Protected'});
+ const before=await ok('get_record_security',{objectTypeId:created.id,recordId:row.id});
+ let object=await ok('get_object_type',{objectTypeId:created.id});const field=object.fields.find((f:any)=>f.technicalName==='access_principals'),keyword=object.fields.find((f:any)=>f.technicalName==='keyword');
+ assert.equal(field.isProtected,true);
+ const layout={groups:[{id:'custom',labels:{en:'My section',de:'Mein Bereich'},fields:[{fieldId:field.id,width:'half'},{fieldId:keyword.id,width:'half'}]}]};
+ const response=await api('configure_form_layout',{objectTypeId:object.id,version:object.version,layout},userCookie);assert.equal(response.statusCode,200,response.body);object=response.json();
+ assert.deepEqual(object.formLayouts.default,layout);
+ assert.deepEqual(await ok('get_record_security',{objectTypeId:object.id,recordId:row.id}),before);
+ assert.equal((await api('configure_field',{fieldId:field.id,version:field.version,required:false,labels:{en:'Changed'}},userCookie)).statusCode,403);
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[]}})).statusCode,400);
+ assert.ok(!object.columns.includes('access_principals'));
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:'designer'});
+ assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:object.version,layout},userCookie)).statusCode,403);
+ const history=await ok('get_definition_journal',{objectTypeId:object.id});assert.ok(history.some((entry:any)=>entry.field_key==='form_layout.default'&&entry.new_value.groups[0].fields[0].fieldId===field.id));
 });

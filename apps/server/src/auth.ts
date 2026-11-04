@@ -12,7 +12,7 @@ export function authOptions(pool: Pool, secret: string, baseURL: string, allowLo
     secret,
     baseURL,
     trustedOrigins: [new URL(baseURL).origin],
-    emailAndPassword: { enabled: true, disableSignUp: !allowLocalProvisioning, minPasswordLength: 12, maxPasswordLength: 128, password: passwordCrypto },
+    emailAndPassword: { enabled: true, autoSignIn: !allowLocalProvisioning, disableSignUp: !allowLocalProvisioning, minPasswordLength: 12, maxPasswordLength: 128, password: passwordCrypto },
     user: {
       modelName: 'sys_users',
       fields: { emailVerified: 'email_verified', createdAt: 'created_at', updatedAt: 'updated_at' },

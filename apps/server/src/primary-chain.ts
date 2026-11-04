@@ -4,7 +4,7 @@ import type { Executor } from './database.js';
 import { AppError } from './errors.js';
 
 export async function primaryChain(tx:Executor,workspaceId:string):Promise<PrimaryChain|null> {
-  const rows=(await sql<{role:keyof PrimaryChain;object_type_id:string}>`SELECT role,object_type_id FROM sys_primary_chain_levels WHERE workspace_id=${workspaceId}::uuid AND EXISTS(SELECT 1 FROM sys_workspace_modules m WHERE m.workspace_id=${workspaceId}::uuid AND m.module_key='projects' AND m.enabled)`.execute(tx)).rows;
+  const rows=(await sql<{role:keyof PrimaryChain;object_type_id:string}>`SELECT object_key AS role,object_type_id FROM sys_module_object_bindings WHERE object_key IN('contact','project','case') AND workspace_id=${workspaceId}::uuid AND EXISTS(SELECT 1 FROM sys_workspace_modules m WHERE m.workspace_id=${workspaceId}::uuid AND m.module_key='projects' AND m.enabled)`.execute(tx)).rows;
   return rows.length===3?Object.fromEntries(rows.map(row=>[row.role,row.object_type_id])) as PrimaryChain:null;
 }
 export async function validatePrimaryChain(tx:Executor,workspaceId:string,chain:PrimaryChain) {

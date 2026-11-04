@@ -107,7 +107,7 @@ function ObjectAttributes({ user, canReadContents = false, showDeleted = false, 
   const labelsDirty = !sameLabels(labels, baseline);
   const dirty = labelsDirty||securityDirty;
   const mutation = useMutation({ mutationFn: async () => {
-    return api('configure_object_settings', {objectTypeId:definition.id,version:baselineVersion,labels:cleanLabels(labels),...(securityDirty?{security:{version:securityBaseline.version,sensitive}}:{})});
+    return api('configure_object_settings', {objectTypeId:definition.id,version:baselineVersion,labels:cleanLabels(labels),...(securityDirty?{security:{version:securityBaseline.version,sensitive,confirmWidening:securityBaseline.sensitive&&!sensitive}}:{})});
   }, onError: async () => { await client.invalidateQueries({ queryKey: ['definition', definition.id] }); }, onSuccess: async result => {
     setBaselineVersion(result.version); setBaseline(result.labels); setLabels(result.labels); setSensitive(Boolean(result.sensitive));setSecurityBaseline({sensitive:Boolean(result.sensitive),version:result.permissionsVersion??1});setSaved(true);
     await client.invalidateQueries({ queryKey: ['types', workspace.id] });
