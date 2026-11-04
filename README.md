@@ -8,9 +8,11 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 **Early development.** A local PostgreSQL-backed prototype supports configurable typed objects, classification, workspace roles/groups, shared API/MCP operations and atomic journals. Its React/Vite interface includes searchable tables, full-page record forms, Settings, a Form designer, relationship controls, Dossier and a Projects-owned Primary tree. Dashboard statistics/chart content remains exploratory; its record table is normal application UI.
 
-The initial content ACL supports user/group object grants, field exceptions and sensitive-record Access principals. Membership and Designer status grant no content by themselves; Administrators retain installation-wide content access. The expanded graded ownership/foreign-access model is specified in [PRD section 4](docs/PRD.md#4-permissions) and is not yet implemented. [ADR 0026](docs/adr/0026-content-permissions.md) describes the current local policy.
+The local permission model combines user/group object and field ceilings, separate Create rights, graded ownership and nested-group/foreign-access inheritance. Sensitive records configure Access principals, public access, Personal/Confidential privacy, foreign maxima and field exceptions. Membership and Designer status grant no content by themselves; Administrators retain installation-wide content access. See [PRD section 4](docs/PRD.md#4-permissions) and [ADR 0027](docs/adr/0027-ownership-and-foreign-access.md). Calendar-only operations and notification delivery remain later work.
 
 Projects & Tasks supplies protected base objects and the fixed Contact → Project → Case chain. The complete catalog is visible, but Contacts & Relations and Documents & Communication activation, full domain templates, record recycling and complete version-1 acceptance remain open. Personal/account management, language/region and shared workspace design are implemented locally. See the [documentation index](docs/README.md) for the applicable decisions and the [development guide](docs/development.md) for setup and the recorded validation status.
+
+Before the first release, development instances are rebuilt from the current installation definition; older development schemas and APIs are not supported. See [ADR 0028](docs/adr/0028-current-installation-baseline.md).
 
 There is no installable application release. The [PRD](docs/PRD.md) defines 47 requirements and acceptance scenarios; it describes intended behavior, not a declaration that all requirements are delivered. Local verification, Git publication, CI and deployment are separate states.
 
@@ -28,7 +30,7 @@ Workspaces keep data and configuration separate. The Projects module supplies a 
 | **Projects** | Shared Contacts, projects, cases and tasks, including separate responsibility and task assignment. |
 | **Custom data models** | User-defined object types, fields and relationship types alongside protected module definitions. |
 | **Classification** | Configurable types, type-dependent statuses and single- or multiple-choice categories. |
-| **Access control** | Object/field ceilings, graded ownership, foreign access and group inheritance on sensitive records. Administrators have installation-wide access; the expanded model is specified, not yet implemented. |
+| **Access control** | Object/field ceilings, graded ownership, foreign access and group inheritance on sensitive records. Administrators have installation-wide access. Implemented in the local prototype; calendar and notifications remain separate. |
 | **Views** | Searchable tables, module-specific forms and record details with a relationship tree, dossier and journal. |
 | **History and lifecycle** | One journal entry per field change, relationship history and a recycle bin with controlled permanent deletion. |
 | **API and MCP** | Every application capability available through shared backend rules; agents act with their user's rights. |
@@ -49,7 +51,7 @@ Documents & Communication is a planned additional module for Emails and Document
 
 PostgreSQL will hold application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject will not require a Git account or a user-owned repository.
 
-The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Evaluated versions are recorded in the package manifests and lockfile. The local prototype now has numbered migrations, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). The expanded permission target, production installation/upgrade packaging, external credentials and deployment design remain open.
+The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Evaluated versions are recorded in the package manifests and lockfile. The local prototype uses a current fresh-installation baseline, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Complete product permission acceptance, production installation/upgrade packaging, external credentials and deployment design remain open.
 
 ## Documentation and development
 

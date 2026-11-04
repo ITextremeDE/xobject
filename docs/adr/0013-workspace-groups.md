@@ -7,13 +7,17 @@
 
 The prototype could create a named workspace group and use its identity in reference fields, but had no group-management UI or direct memberships. Future content permissions depend on group identities; this slice must not grant content access prematurely.
 
+## Later refinement
+
+[ADR 0027](0027-ownership-and-foreign-access.md) adds graded user/nested-group memberships and explicit foreign-access paths. Direct user memberships described below remain supported; group membership alone never grants coworker access.
+
 ## Decision
 
 Extend `sys_groups` with `active` and positive `version`. Store direct user memberships in `sys_group_members` with group/user foreign keys and unique pairs. Groups remain workspace-scoped; nested groups are outside this slice. Users may belong to multiple groups.
 
 Administrators can create/rename groups, change memberships and deactivate/reactivate them. Designers can create empty groups and rename them, but cannot submit membership changes or activation operations. Regular users may inspect groups in their own workspace. Every operation resolves current server-side roles and checks the stored group's workspace. Eligible members are installation Administrators or currently assigned workspace users.
 
-`create_group`, `configure_group`, `set_group_members`, `set_group_active` and `list_groups` share the common API/MCP application transaction. Updates require the expected group version. Names and each added/removed membership get individual journal entries under one change ID; related name/member changes are atomic. No-op changes retain the version. Existing per-workspace name uniqueness remains enforced.
+`create_group`, `configure_group`, `configure_group_inheritance`, `set_group_active` and `list_groups` share the common API/MCP application transaction. Updates require the expected group version. Names and each added/removed membership get individual journal entries under one change ID; related name/member changes are atomic. No-op changes retain the version. Existing per-workspace name uniqueness remains enforced.
 
 Removing workspace membership removes that user's direct memberships in the same workspace, increments affected group versions and journals cleanup under the same change ID as the workspace removal. A failure preserves both workspace and group memberships.
 

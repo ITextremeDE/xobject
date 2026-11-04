@@ -16,7 +16,7 @@ Inactive fields leave ordinary record columns and input controls. Existing value
 
 ## Deleting unused definitions
 
-A field is used if a current or historical record has a nonempty value for it. Zero and false count as values. Legacy journal entries without field IDs are conservatively matched by their technical field key. A Type/Status lifecycle action checks both fields. An object type is used if any current record or any record-journal event exists, including records whose current rows are gone.
+A field is used if a current or historical record has a nonempty value for it. Zero and false count as values. A Type/Status lifecycle action checks both fields. An object type is used if any current record or any record-journal event exists, including records whose current rows are gone.
 
 Used definitions can only be deactivated. Explicitly confirmed deletion of unused fields drops their empty columns; an unused object type drops its empty table. The metadata rows remain as deleted tombstones, preserving journal foreign keys, names, IDs and configuration evidence. IDs are never reused. Recreating an available technical name creates a new UUID; partial unique indexes reserve names for active/inactive definitions while permitting a fresh definition after deletion. Deleted definitions cannot be reactivated.
 

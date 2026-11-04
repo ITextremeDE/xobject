@@ -16,9 +16,9 @@ Custom relationship definitions may constrain each endpoint using the same uncon
 
 The definition editor reuses one applicability component for fields and relationship endpoints, with unique control IDs. The Contact fixture configures Organization → Contact person with a maximum of one Organization per Contact person. Identities is a symmetric multiple relationship among Contact persons and Individual contacts. It is a direct list on Contacts, with no Identity object type and no inferred transitive grouping. These are regular configured rules, not runtime branches based on object names. Full Contacts module templates, supplied-definition ownership, derived Keywords and dependent company/name requirements remain separate work.
 
-## Migration and identity handling
+## Installation and identity handling
 
-Migration 4 introduced additive role storage. Migration 7 adds the database-backed module catalog and freezes previously explicit UUID roles as module bindings, without name-based adoption. Preserve business rows, edges, authentication and original history; verify a backup before applying upgrades. Keep the original numbered migration behavior independent of newer read projections. Normal operator/runtime-role separation applies to the new table. Shared UUID schemas canonicalize identity spelling at channel boundaries, keeping technical/display names and arbitrary content separate.
+Supplied object UUIDs are stored in `sys_module_object_bindings`. Primary context reads its fixed Contact/Project/Case keys from that same table; no second role mapping is maintained. Fresh installation is defined in ADR 0028.
 
 ## Verification
 

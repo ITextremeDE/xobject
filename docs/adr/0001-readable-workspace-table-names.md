@@ -32,4 +32,4 @@ The normative naming, uniqueness and validation rules are specified in [PRD sect
 
 ## Subsequent implementation decisions
 
-Transactional schema changes and the evaluated stack are specified in [ADR 0002](0002-backend-technical-spike.md); typed collections/references in [ADR 0007](0007-custom-field-types.md); numbered migrations, scoped locks and runtime/operator isolation in [ADR 0022](0022-database-integrity-and-concurrency.md). Release packaging and production-scale acceptance remain open. This naming decision does not itself select those mechanisms.
+Transactional schema changes and the evaluated stack are specified in [ADR 0002](0002-backend-technical-spike.md); typed collections/references in [ADR 0007](0007-custom-field-types.md); current installation, scoped locks and runtime/operator isolation in [ADR 0022](0022-database-integrity-and-concurrency.md). Release packaging and production-scale acceptance remain open. This naming decision does not itself select those mechanisms.

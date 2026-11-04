@@ -17,20 +17,10 @@ Definition-label and preference changes go through the shared application layer 
 
 Create new object tables with the implemented fixed fields first: `id`, `keyword`, `created_at`, `created_by`, `updated_at`, `updated_by`, `version`. As the remaining shared fields are implemented, they belong before the audit metadata on newly created tables. Append subsequent custom columns in creation order. Preserve the physical layout of existing tables during routine application operations and upgrades. An explicitly authorized development-data rebuild is separate maintenance, with backup and verification of data/history preservation. Display ordering remains a separate setting.
 
-## Migration and compatibility
+## Current installation and verification
 
-The explicit development migration converts the earlier scalar `label` column to `labels` without changing definition IDs. Since the old model did not record the label language, preserve those values under `und` (undetermined); do not infer a language from their text. The known built-in `Keyword` default can be replaced with its fixed German/English translations. Known local sample labels are explicitly translated through the application afterward.
+The [current installation](0028-current-installation-baseline.md) creates translated JSONB definition labels directly. Inputs use supported language maps; there is no scalar-label conversion or undetermined-language representation. Language preferences use the current optimistic workspace/user localization operations. Business contents are never translated automatically. Real historical field values retain the representation they had when changed.
 
-Old journal entries stay unchanged, including their historical scalar-label representation. Record data and physical record-column order stay unchanged. Repeating the migration must be safe. Initialization remains experimental; a versioned production migration strategy is still open.
+System column order is defined directly in the current schema: identity/scope, attributes/configuration, lifecycle/version and audit metadata. Authentication columns follow Better Auth's schema. Dynamic business tables retain the metadata-first append order above; configured form order and alphabetical administration remain independent. No populated-table reorder or old-schema adoption path is part of initialization.
 
-The spike API now accepts `labels` objects instead of scalar `label` input for new object types and fields. This is a deliberate change to an unreleased experimental interface. Subsequent ADRs extend this representation to additional definitions and the web client; this ADR records the initial label-storage adoption.
-
-## Verification
-
-Integration tests cover API/MCP parity, label fallback, preference changes, fixed Keyword labels, invalid language/label input, append-only physical column order, journal rollback and a legacy-schema upgrade preserving records, IDs and historical journal rows. The existing field-conflict and denied-access tests remain applicable.
-
-The optional standard-field decision in ADR 0006 supersedes the initial automatic shared-column baseline for new objects: new tables contain system metadata only, and optional standard fields are appended when installed. Existing physical column order is retained.
-
-## Empty development rebuilds
-
-An explicitly authorized new empty development schema may group system columns semantically: identity/scope, attributes/configuration, lifecycle/version, then audit metadata. Keep relationship endpoint rules together and preserve auth-provider types/defaults. Generate this layout from a freshly migrated empty database, preserve all constraints/indexes/triggers/functions, compare schemas ignoring column order and copy only its fresh migration ledger. Do not maintain a separate schema snapshot or reorder populated tables through normal migrations. Dynamic object creation retains the existing metadata-first, append-only policy. See the development guide for safe archive/switch/reversal and first-Administrator provisioning.
+Integration coverage checks language fallback, preference changes, reserved standard labels, invalid inputs, physical column order, API/MCP parity and journal rollback. Current evidence is in [development](../development.md).

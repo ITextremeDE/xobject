@@ -1,46 +1,26 @@
-# ADR 0018: Relationship type definitions
+# ADR 0018: Relationship-type definitions
 
-- Status: Accepted for configuration in the local prototype
-- Date: 2026-11-02
-- Partially superseded by: [ADR 0019](0019-record-relationships.md), [ADR 0021](0021-relationship-scope-and-projects-module.md) and [ADR 0024](0024-primary-levels-and-relationship-conditions.md)
+- Status: Accepted
+- Date: 2026-11-04
 
-## Original decision
+## Decision
 
-[ADR 0021](0021-relationship-scope-and-projects-module.md) supersedes the original multi-pair/unrestricted custom scope and independent Primary provisioning below. General is now always active; Primary is unrestricted and gated by Projects activation; custom definitions have one pair. The following records the historical configuration-only design, not the current application boundary. ADR 0024 fixes module-supplied Primary parents; ADR 0025 records the complete module catalog/base-object installation. Content access now follows ADR 0026. The remaining sections are explicitly the original slice; later decisions take precedence.
+The current schema stores workspace-scoped relationship definitions with stable UUIDs, immutable readable technical names, translated definition/side labels, direction, endpoint minima/maxima, availability, draft/active rules and optimistic versions. Custom definitions have exactly one object pair in `sys_relationship_type_pairs`. Composite workspace/object foreign keys and a unique definition index enforce that scope. Used pairs/direction remain fixed; labels and compatible configuration remain editable. Referenced definitions cannot be removed while dependencies remain.
 
-Keep workspace-owned relationship definitions in `sys_relationship_types`. Store permitted ordered object pairs in `sys_relationship_type_pairs`; composite foreign keys include workspace identity for both endpoint objects and the owning relationship type. An allowed pair is schema metadata, not a connection between records. Object definitions referenced by pairs cannot be deleted; removing a pair does not delete records or history. Inactive objects remain readable in retained pairs, but cannot be newly assigned to a definition.
+General is an always-active symmetric core relationship for every object type. Primary is directed, owned by Projects and available only while that module is active. Its fixed Contact/Project/Case parents come from module-object bindings. System names and meanings are protected. New workspaces receive the current definitions directly. The Contact-person/Organization relationship remains a future Contacts-module feature; the generic conditional fixture does not establish supplied module delivery.
 
-In the original definition-only slice, supply two system definitions per workspace independently of future module activation. Creation/migration installs them idempotently with journal evidence. The reserved technical names and system meanings cannot be changed through API/MCP:
+[ADR 0021](0021-relationship-scope-and-projects-module.md) specifies scope/activation, [ADR 0024](0024-primary-levels-and-relationship-conditions.md) fixed roles and endpoint conditions, [ADR 0019](0019-record-relationships.md) record edges and [ADR 0020](0020-relationship-tree.md) Primary tree/context. The current installation is defined in [ADR 0028](0028-current-installation-baseline.md).
 
-- `primary_association`: directed, parent on the left / child on the right, `0..n` children per parent and at most one direct parent per child. Parent optionality (`0..1`/`1..1`) and explicit allowed object pairs can be configured. No pair initially means no eligible target pairing; it never means unrestricted.
-- `general_relation`: undirected, `0..n` on both sides, for all object types. Side labels are symmetric.
+## Authorization and changes
 
-Custom definitions have an immutable readable technical name, translated definition/side labels, directed/undirected flag, independent per-side minima (`0` or `1`) and maxima (`1` or unlimited), explicit allowed pairs or an unrestricted flag, availability and optimistic version. Cardinality counts direct neighbours on each side, not inherited ancestors. Left-side labels describe what the left record calls its connected right records, and conversely. With non-overlapping endpoint object types, undirected relationships may retain distinct roles/cardinalities. With overlapping endpoint sets, including unrestricted undirected relationships, require identical side labels and cardinalities so record orientation cannot arbitrarily determine meaning. Reject reversed duplicate undirected object pairs.
+Workspace Users inspect definitions; Designers and installation Administrators configure them. UI/API/MCP share the application transaction, expected versions, scope/state/language checks and structural protection. Journal each changed property under one change ID. A failure rolls back the entire mutation; no-ops create no events or versions. Availability and rule activation are distinct. Activating or tightening rules preflights affected records under the model/workspace barriers; no existing edge may become invalid silently.
 
-Use one shared API/MCP application layer under the existing model lock. Workspace Users read definitions; Designers and installation Administrators configure them. Version checks, structural protection, workspace/state/language validation, pair updates and one journal event per changed property share a transaction. No-op writes add no events or version increments. Own definitions may be deactivated; no hard-delete operation is introduced. System defaults remain available. Retain unavailable translations read-only under the existing language policy.
+## Cardinality and editor
 
-## Future module ownership
+Cardinality counts direct neighbours, not inherited ancestors. A left label describes the connected right records from the left record's perspective, and conversely. Disjoint undirected object roles retain distinct labels/cardinalities; symmetric same-object relationships share side semantics and canonical edge orientation. Reject self-links and reversed duplicates.
 
-General relationship remains in the application core. The Contact-person / main Organization relationship belongs to the future Contacts module; Primary association belongs to the future Projects module. The local `contact_person` fixture is currently a custom prototype definition, not an installed protected Contacts definition. In that initial slice Primary association was a protected prototype default. This was superseded by Projects activation and fixed base-object installation under ADRs 0021/0024/0025.
+The shared editor starts with object pair/direction, then applicable side labels and technical identity. It displays one conventional left:right cardinality (`1:1`, `1:n`, `n:1`, `n:m`) and separate required-link controls. `1:n` means an unlimited left-endpoint neighbour maximum and a right-endpoint maximum of one. Symmetric relationships offer only `1:1` or `n:m` and one required-link setting. Irrelevant controls are hidden; protected values are read-only. Separate mode drafts preserve intentional input without changing persisted rules until Save.
 
-Implement provisioning, supplied-definition protection, updates/deactivation and conflict-safe adoption when module management is introduced. Preserve existing definition identities, record links and journals during that transition; never claim ownership from a matching technical name alone. No module activation or ownership flag is introduced by this slice.
+## Verification and boundary
 
-## Original staging boundary
-
-The following describes the initial definition-only slice. [ADR 0019](0019-record-relationships.md) extends it with explicit activation, record edges, count checks, journal projections and record controls. [ADR 0020](0020-relationship-tree.md) subsequently implements tree navigation and derived Primary context.
-
-### Initial scope
-
-These definitions are explicitly stored/exposed as `rulesState: draft` (`rules_state` in PostgreSQL). Availability is independent of constraint activation. This slice configures future relationships; it introduces no record-edge table, record linking API, Primary selector, permissions inheritance, dossier or tree. Existing record writes remain unchanged. Minimum-one configurations are therefore saved drafts, not silently activated constraints over the current data.
-
-Before activation, the relationship engine must specify record identity/foreign-key storage, direct edge uniqueness and self/cycle rules, global Primary uniqueness across all permitted object pairs, transactional minimum/maximum checks, concurrency-safe preflight of all affected existing records (R-023), endpoint deletion/lifecycle policy, journalled edge operations and object-specific required-chain rules. A configured `1..1` applies to the right-side scope of the definition; it does not yet implement independently required ancestor levels.
-
-## UI and validation
-
-Workspace Settings has an alphabetical searchable/paginated Relationship types table and one responsive create/edit dialog. Side labels/cardinalities are adjacent on desktop and stacked on mobile. Symmetric values mirror from the left; immutable system controls are read-only. The same draft/pending/conflict guards and action placement as existing definition editors apply.
-
-Isolated PostgreSQL tests cover API/MCP parity, system defaults/protection, workspace User/Designer boundaries, direct composite foreign-key checks, duplicate/symmetric pairing rules, reserved names, optimistic/no-op behavior, rollback on journal failure, translation policy and repeat migration. The original checks used Administrator-only contents; current local content access is defined in ADR 0026. Local fixture pairs prepare Contacts → Projects → Cases → Tasks, plus direct Contact/Project Tasks and a directed Contact-person relationship; they do not apply the separately stored record-link plan.
-
-## Cardinality presentation
-
-The settings list and editor display one conventional left:right cardinality (`1:1`, `1:n`, `n:1`, `n:m`) following the selected object-pair order. The left endpoint maximum counts right records, so `1:n` maps to `leftMax = null` and `rightMax = 1`. Each endpoint minimum remains a separate required-link setting with the object name; symmetric undirected relationships share one minimum and offer only `1:1` or `n:m`. Existing normalization, permissions, applicability, rule activation and protected system limits remain authoritative. This is a UI projection of the existing contract, with no schema migration or stored-data rewrite.
+Current PostgreSQL tests exercise pair uniqueness, workspace isolation, system protection, expected versions, activation preflight, journal rollback, final-state cardinalities and identity stability. Editors use shared shadcn fields/selectors/actions with pending/dirty guards and keyboard access. Complete Contacts provisioning and independently required Primary ancestor sections remain separate requirements; current record linking and tree navigation are implemented.
