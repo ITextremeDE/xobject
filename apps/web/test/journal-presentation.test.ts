@@ -65,3 +65,29 @@ test('form journals present translated groups/settings and resolve metadata name
  assert.deepEqual(layout,before,'presentation does not rewrite stored audit snapshots');
  assert.equal(journalValueSummary(layout,'en','None','Yes','No',(kind,count)=>`${count} ${kind}`),'1 groups · 3 elements');
 });
+
+test('record lifecycle labels are translated without interpreting business field values',async()=>{
+ const {journalLifecycleValue}=await import('../src/lib/journal-presentation.js');
+ const i18n=i18next.createInstance();await i18n.init({lng:'de',resources:{de:{translation:{recordLifecycle:'Datensatz-Lebenszyklus',recordActive:'Aktiv',recordRecycled:'Im Papierkorb'}}}});const t=i18n.t.bind(i18n);
+ const entry={entity_kind:'record',field_key:'lifecycle',field_id:null};
+ assert.equal(journalEntryTitle({...entry,old_value:'active',new_value:'recycled'},t),'Datensatz-Lebenszyklus');
+ assert.equal(journalLifecycleValue(entry,'recycled',t),'Im Papierkorb');assert.equal(journalLifecycleValue(entry,'active',t),'Aktiv');
+ assert.equal(journalLifecycleValue({...entry,field_id:'custom-business-field'},'active',t),undefined);
+});
+
+test('security history translates owners and grades without interpreting business values or mutating snapshots',async()=>{
+ const {journalSecurityValue}=await import('../src/lib/journal-presentation.js');
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{accessPrincipalsLabel:'Access principals',reference_user:'User',reference_group:'Group',permission_full:'Full access',permission_read:'Read',recordFieldExceptions:'Field exceptions',workspacePublic:'All (workspace)',privacy_confidential:'Confidential',journalNotSet:'Not set',journalUnknownPrincipal:'Unavailable',permissionInherit:'Inherit'}},de:{translation:{accessPrincipalsLabel:'Zugriffsberechtigte',reference_user:'Benutzer',reference_group:'Gruppe',permission_full:'Vollzugriff',permission_read:'Lesen',workspacePublic:'Alle (Arbeitsbereich)',privacy_confidential:'Vertraulich'}}}});
+ const entry={entity_kind:'record',field_key:'access.owners',field_label:'access.owners',old_value:null,new_value:[{kind:'user',id:'one',level:'full'},{kind:'group',id:'two',level:'read'}],security_context:{principals:{'user:one':'John Doe','group:two':'Sales'}}};
+ const snapshot=structuredClone(entry);
+ assert.equal(journalEntryTitle(entry,i18n.t),'Access principals');
+ assert.equal(journalSecurityValue(entry,entry.new_value,i18n.t),'John Doe (User) · Full access; Sales (Group) · Read');
+ assert.equal(journalSecurityValue(entry,[],i18n.t),'All (workspace)');
+ assert.equal(journalSecurityValue({...entry,security_context:undefined},entry.new_value,i18n.t),'Unavailable (User) · Full access; Unavailable (Group) · Read');
+ assert.equal(journalSecurityValue({...entry,field_key:'access.field.user:one.field'},'read',i18n.t),'John Doe (User) · Read');
+ assert.equal(journalSecurityValue({...entry,field_key:'access.field.user:one.field'},null,i18n.t),'John Doe (User) · Inherit');
+ assert.equal(journalSecurityValue({...entry,field_key:'access.privacy'},'confidential',i18n.t),'Confidential');
+ assert.equal(journalSecurityValue({...entry,field_key:'business_field'},'full',i18n.t),undefined);
+ await i18n.changeLanguage('de');assert.equal(journalEntryTitle(entry,i18n.t),'Zugriffsberechtigte');assert.equal(journalSecurityValue(entry,entry.new_value,i18n.t),'John Doe (Benutzer) · Vollzugriff; Sales (Gruppe) · Lesen');
+ assert.deepEqual(entry,snapshot);
+});

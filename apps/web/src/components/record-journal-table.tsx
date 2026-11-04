@@ -6,7 +6,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useRegional } from '@/lib/regional-context';
 import { useTimeZone } from '@/lib/time-zone-context';
 import { formatRegionalDate } from '@/lib/regional';
-import { journalEntryTitle } from '@/lib/journal-presentation';
+import { journalEntryTitle,journalLifecycleValue,journalSecurityValue } from '@/lib/journal-presentation';
 import { journalValueSummary } from '@/lib/journal-value-summary';
 import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
@@ -31,7 +31,7 @@ export function RecordJournalTable({ entries, filters, total, page, pageSize, bu
   const title = (entry: Entry) => journalEntryTitle(entry, t, i18n.language);
   const summary = (entry: Entry, side: 'before' | 'after') => {
     const value = side === 'before' ? entry.old_value : entry.new_value;
-    return renderValue?.(entry, value, side) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count}));
+    return journalSecurityValue(entry,value,t) ?? journalLifecycleValue(entry,value,t) ?? renderValue?.(entry, value, side) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count}));
   };
   const columns: RecordColumn<Entry>[] = [
     { key: 'created_at', label: t('changedAt'), sortable: false, cell: entry => formatRegionalDate(entry.created_at, regional, timeZone, true) },
@@ -47,7 +47,7 @@ export function RecordJournalTable({ entries, filters, total, page, pageSize, bu
     {error ? <ErrorNotice error={error} retry={onRetry} /> : <RecordDataTable loading={loading} compact={contextColumns} rows={entries} columns={columns} hidden={hidden} total={total} page={page} pageSize={pageSize} sort={{ by: 'created_at', direction: 'desc' }} disabled={busy} selectedRecord={selected?.id} onSort={() => {}} onPage={onPage} onPageSize={onPageSize} onOpen={setSelected} rowName={entry=>`${title(entry)}${contextColumns?` · ${entry.entity_name??entry.entity_id}`:''} · ${formatRegionalDate(entry.created_at,regional,timeZone,true)}`} ariaLabel={t('journal')} labels={{ open: t('journalShowDetails'), actions: t('journalEntryActions'), copyId: t('journalCopyEntryId'), empty: emptyLabel??t('noJournal'), selectRow: name=>t('journalSelectEntry',{name}) }} />}
     {selected ? <Dialog open onOpenChange={open => { if (!open) setSelected(null); }}><DialogContent className="flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-3xl" finalFocus={() => document.querySelector<HTMLElement>(`[data-journal-entry="${selected.id}"]`) ?? true}>
       <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{title(selected)}</DialogTitle><DialogDescription>{t('journalEntryDetailsHelp')}</DialogDescription></DialogHeader>
-      <div className="min-h-0 overflow-y-auto px-4 pb-4"><JournalEntryDetails compact={!contextColumns} memberName={memberName?.(selected)} entry={selected} renderValue={selected.field_id ? (value, side) => renderValue?.(selected, value, side) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count})) : undefined} /></div>
+      <div className="min-h-0 overflow-y-auto px-4 pb-4"><JournalEntryDetails compact={!contextColumns} memberName={memberName?.(selected)} entry={selected} renderValue={selected.field_id && !selected.field_key.startsWith('access.') ? (value, side) => renderValue?.(selected, value, side) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count})) : undefined} /></div>
       <DialogActions onClose={() => setSelected(null)} />
     </DialogContent></Dialog> : null}
   </FieldGroup>;

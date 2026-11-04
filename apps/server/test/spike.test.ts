@@ -400,7 +400,7 @@ test('workspace search shares API/MCP behavior, isolates workspaces and treats t
 });
 
 test('web deep links serve only the application shell and preserve API/asset errors', { skip: !existsSync(new URL('../../web/dist/index.html', import.meta.url)) }, async () => {
-  for (const url of ['/settings', '/w/itx', '/w/itx/objects/vehicles?q=sample&sort=keyword&direction=asc&page=2', '/w/itx/objects/vehicles/new', `/w/itx/objects/vehicles/${randomUUID()}`]) {
+  for (const url of ['/settings', '/w/itx', '/w/itx/recycle-bin', '/w/itx/objects/vehicles?q=sample&sort=keyword&direction=asc&page=2', '/w/itx/objects/vehicles/new', `/w/itx/objects/vehicles/${randomUUID()}`]) {
     const response = await runtime.app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4100', accept: 'text/html' } });
     assert.equal(response.statusCode, 200, response.body);
     assert.match(response.headers['content-type']!, /text\/html/);
@@ -2842,6 +2842,11 @@ test('record form saves contents, links and security atomically with one version
  const policy={...defaultRecordSecurity([{kind:'user',id:user.id,level:'full'}]),foreignMax:'read' as const};
  const changed=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,keyword:'After',security:{policy},relationships:[{relationshipTypeId:general.id,version:general.version,side:'left',targets:[{objectTypeId:object.id,recordId:target.id}]}]});
  assert.equal(changed.version,row.version+1);assert.equal(changed.keyword,'After');
+ const securityHistory=(await journalEntries({objectTypeId:object.id,recordId:row.id})).find((entry:any)=>entry.field_key==='access.owners'&&entry.new_value?.some((p:any)=>p.id===user.id));
+ assert.equal(securityHistory.security_context.principals[`user:${user.id}`],user.name);
+ assert.deepEqual(securityHistory.new_value,[{kind:'user',id:user.id,level:'full'}],'current names supplement immutable ownership snapshots');
+ const systemHistory=await ok('list_system_journal',{workspaceId:ws.id,fieldKey:'access.owners',limit:100});
+ assert.ok(systemHistory.entries.some((entry:any)=>entry.id===securityHistory.id&&entry.security_context?.principals[`user:${user.id}`]===user.name));
  const entries=(await journalEntries({objectTypeId:object.id,recordId:row.id})).filter((entry:any)=>entry.old_value==='Before'||entry.field_key==='access.foreignMax'&&entry.old_value==='full'||entry.entity_kind==='relationship');
  assert.equal(new Set(entries.map((entry:any)=>entry.change_id)).size,1);assert.ok(entries.length>=3);
  const noOp=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:changed.version,security:{policy}});assert.equal(noOp.version,changed.version);
@@ -2891,4 +2896,102 @@ test('Designer can place the protected Access principals field without changing 
  await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:'designer'});
  assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:object.version,layout},userCookie)).statusCode,403);
  const history=await ok('get_definition_journal',{objectTypeId:object.id});assert.ok(history.some((entry:any)=>entry.field_key==='form_layout.default'&&entry.new_value.groups[0].fields[0].fieldId===field.id));
+});
+
+test('recycle bin excludes records from every normal projection, retains edges/history and restores through API/MCP',async()=>{
+ const ws=await ok('create_workspace',{name:'Recycle scope',code:'recycle'});
+ const objects=[];for(const name of ['devices','contracts'])objects.push(await ok('create_object_type',{workspaceId:ws.id,technicalName:name,labels:{en:name},standardFields:['keyword']}));
+ const [device,contract]=objects;
+ let a=await ok('create_record',{objectTypeId:device.id,keyword:'Recycle needle'});
+ let b=await ok('create_record',{objectTypeId:contract.id,keyword:'Retained contract'});
+ const general=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.kind==='general');
+ a=await ok('update_record',{objectTypeId:device.id,recordId:a.id,version:a.version,relationships:[{relationshipTypeId:general.id,version:general.version,side:'left',targets:[{objectTypeId:contract.id,recordId:b.id}]}]});
+ b=await ok('get_record',{objectTypeId:contract.id,recordId:b.id});const originalB=b.version;
+ const before=(await ok('list_record_journal',{objectTypeId:device.id,recordId:a.id})).total;
+ assert.equal((await api('recycle_record',{objectTypeId:device.id,recordId:a.id,version:a.version-1})).statusCode,409);
+ const receipt=await tool('recycle_record',{objectTypeId:device.id,recordId:a.id,version:a.version});
+ assert.equal(receipt.version,a.version+1);
+ for(const operation of ['get_record','get_record_security','duplicate_record','get_record_relationships','get_relationship_tree_branch','list_record_link_options','update_record'] as const){const input:any={objectTypeId:device.id,recordId:a.id};if(['duplicate_record','update_record'].includes(operation))input.version=receipt.version;assert.equal((await api(operation,input)).statusCode,404,operation);}
+ assert.equal((await ok('list_records',{objectTypeId:device.id})).total,0);
+ assert.equal((await ok('list_workspace_records',{workspaceId:ws.id})).total,1);
+ assert.equal((await ok('get_workspace_dashboard',{workspaceId:ws.id})).total,1);
+ const search=await ok('search_workspace',{workspaceId:ws.id,query:'Recycle needle'});assert.ok(!JSON.stringify(search).includes(a.id));
+ const candidates=await ok('search_relationship_candidates',{objectTypeId:contract.id,recordId:b.id,relationshipTypeId:general.id,side:'left',query:'Recycle needle'});assert.equal(candidates.total,0);
+ const other=await ok('get_record_relationships',{objectTypeId:contract.id,recordId:b.id});assert.equal(other.edges.length,0);assert.ok(other.fields.some((f:any)=>f.restricted));
+ const bin=await tool('list_recycled_records',{workspaceId:ws.id});assert.equal(bin.total,1);assert.equal(bin.records[0].id,a.id);assert.ok(bin.records[0].canRestore);
+ const snapshot=await ok('get_recycled_record',{objectTypeId:device.id,recordId:a.id});assert.equal(snapshot.keyword,'Recycle needle');
+ const history=await ok('list_record_journal',{objectTypeId:device.id,recordId:a.id,includeRecycled:true});assert.equal(history.total,before+1);assert.equal(history.entries.filter((e:any)=>e.field_key==='lifecycle').length,1);assert.ok(history.entries.some((e:any)=>e.entity_kind==='relationship'));
+ assert.equal((await ok('get_record',{objectTypeId:contract.id,recordId:b.id})).version,originalB);
+ const restored=await tool('restore_record',{objectTypeId:device.id,recordId:a.id,version:receipt.version});assert.equal(restored.version,receipt.version+1);
+ assert.equal((await ok('list_recycled_records',{workspaceId:ws.id})).total,0);assert.equal((await ok('list_records',{objectTypeId:device.id})).total,1);
+ assert.equal((await ok('get_record_relationships',{objectTypeId:contract.id,recordId:b.id})).edges.length,1);
+ assert.equal((await ok('get_record',{objectTypeId:contract.id,recordId:b.id})).version,originalB);
+});
+
+test('recycle bin uses current Delete/Full rights, redacts fields and hides foreign workspace records',async()=>{
+ const ws=await ok('create_workspace',{name:'Recycle rights',code:'recyclerights'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const field=await ok('create_field',{objectTypeId:object.id,technicalName:'secret',kind:'text',labels:{en:'Secret'}});
+ let config=await ok('get_content_permissions',{objectTypeId:object.id});
+ config=await ok('configure_content_permissions',{...config,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',fields:{[field.id]:'none'}}]});
+ const policy={...defaultRecordSecurity(),publicLevel:null,owners:[{kind:'user',id:user.id,level:'delete'}]};
+ let record=await ok('create_record',{objectTypeId:object.id,keyword:'Owned item',values:{secret:'private value'},security:{policy,confirmPublic:false}});
+ const recycled=await api('recycle_record',{objectTypeId:object.id,recordId:record.id,version:record.version},userCookie);assert.equal(recycled.statusCode,200,recycled.body);record={...record,...recycled.json()};
+ assert.equal((await api('restore_record',{objectTypeId:object.id,recordId:record.id,version:record.version},userCookie)).statusCode,403);
+ let bin=await api('list_recycled_records',{workspaceId:ws.id},userCookie);assert.equal(bin.statusCode,200);assert.equal(bin.json().records[0].canRestore,false);
+ const snapshot=await api('get_recycled_record',{objectTypeId:object.id,recordId:record.id},userCookie);assert.equal(snapshot.statusCode,200);assert.ok(!JSON.stringify(snapshot.json()).includes('private value'));
+ const journal=await api('list_record_journal',{objectTypeId:object.id,recordId:record.id,includeRecycled:true},userCookie);assert.equal(journal.statusCode,200);assert.ok(!JSON.stringify(journal.json()).includes('private value'));
+ config=await ok('configure_content_permissions',{...config,grants:[{kind:'user',id:user.id,level:'none',fields:{}}]});
+ bin=await api('list_recycled_records',{workspaceId:ws.id},userCookie);assert.equal(bin.json().total,0);
+ assert.equal((await api('get_recycled_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,403);
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,403,'normal reads do not disclose recycled state after revocation');
+ const foreign=await ok('create_workspace',{name:'Other bin',code:'foreignbin'});assert.equal((await api('list_recycled_records',{workspaceId:foreign.id},userCookie)).statusCode,403);
+ await ok('restore_record',{objectTypeId:object.id,recordId:record.id,version:record.version});
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:record.id})).keyword,'Owned item');
+});
+
+test('recycle and restore roll back on journal failure and restore rejects changed required fields or inactive objects',async()=>{
+ const ws=await ok('create_workspace',{name:'Recycle validation',code:'recyclevalidation'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ let record=await ok('create_record',{objectTypeId:object.id,keyword:'Rollback'});
+ await sql`CREATE TRIGGER reject_recycle_journal BEFORE INSERT ON sys_journal FOR EACH ROW WHEN(NEW.field_key='lifecycle') EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('recycle_record',{objectTypeId:object.id,recordId:record.id,version:record.version})).statusCode,500);assert.equal((await ok('list_recycled_records',{workspaceId:ws.id})).total,0);assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:record.id})).version,record.version);}finally{await sql`DROP TRIGGER reject_recycle_journal ON sys_journal`.execute(runtime.db);}
+ record={...record,...await ok('recycle_record',{objectTypeId:object.id,recordId:record.id,version:record.version})};
+ await sql`CREATE TRIGGER reject_recycle_journal BEFORE INSERT ON sys_journal FOR EACH ROW WHEN(NEW.field_key='lifecycle') EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('restore_record',{objectTypeId:object.id,recordId:record.id,version:record.version})).statusCode,500);assert.equal((await ok('get_recycled_record',{objectTypeId:object.id,recordId:record.id})).version,record.version);}finally{await sql`DROP TRIGGER reject_recycle_journal ON sys_journal`.execute(runtime.db);}
+ const field=await ok('create_field',{objectTypeId:object.id,technicalName:'required_later',labels:{en:'Required later'},kind:'text'});
+ // Definitions normally preflight retained contents; simulate an invalid restored backup to exercise the boundary.
+ await sql`UPDATE sys_fields SET required=true WHERE id=${field.id}::uuid`.execute(runtime.db);
+ assert.equal((await api('restore_record',{objectTypeId:object.id,recordId:record.id,version:record.version})).statusCode,400);
+ assert.equal((await ok('list_recycled_records',{workspaceId:ws.id})).total,1);
+ await sql`UPDATE sys_fields SET required=false WHERE id=${field.id}::uuid`.execute(runtime.db);
+ await ok('set_definition_state',{kind:'object_type',id:object.id,expectedState:'active',state:'inactive'});
+ assert.equal((await ok('list_recycled_records',{workspaceId:ws.id})).total,1);assert.equal((await ok('list_recycled_records',{workspaceId:ws.id})).records[0].canRestore,false);
+ assert.equal((await api('restore_record',{objectTypeId:object.id,recordId:record.id,version:record.version})).statusCode,400);
+ await ok('set_definition_state',{kind:'object_type',id:object.id,expectedState:'inactive',state:'active'});
+ const results=await Promise.all([api('restore_record',{objectTypeId:object.id,recordId:record.id,version:record.version}),api('restore_record',{objectTypeId:object.id,recordId:record.id,version:record.version})]);
+ assert.deepEqual(results.map(r=>r.statusCode).sort(),[200,409]);
+});
+
+test('recycle bin keeps Primary children active and cardinality slots reserved until restoration',async()=>{
+ const ws=await ok('create_workspace',{code:'recycleprimary',name:'Recycle Primary'});
+ const primary=await enableProjects(ws.id),context=await ok('get_primary_chain_context',{objectTypeId:(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='projects').id}),chain=context.configuration;
+ let parent=await ok('create_record',{objectTypeId:chain.contact,keyword:'Parent contact'});
+ let project=await ok('create_record',{objectTypeId:chain.project,keyword:'Project remains',relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:chain.contact,recordId:parent.id}]}]});
+ parent=await ok('get_record',{objectTypeId:chain.contact,recordId:parent.id});
+ const oldProject=project.version;
+ parent={...parent,...await ok('recycle_record',{objectTypeId:chain.contact,recordId:parent.id,version:parent.version})};
+ const hidden=await tool('get_primary_chain_context',{objectTypeId:chain.project,recordId:project.id});assert.equal(hidden.direct,null);assert.equal(hidden.unavailable,true);assert.ok(!JSON.stringify(hidden).includes('Parent contact'));
+ assert.equal((await ok('get_record',{objectTypeId:chain.project,recordId:project.id})).version,oldProject);
+ const relations=await ok('get_record_relationships',{objectTypeId:chain.project,recordId:project.id});assert.ok(relations.fields.some((f:any)=>f.restricted&&f.definition.kind==='primary'));
+ await ok('restore_record',{objectTypeId:chain.contact,recordId:parent.id,version:parent.version});assert.equal((await ok('get_primary_chain_context',{objectTypeId:chain.project,recordId:project.id})).direct.recordId,parent.id);
+ const a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'licenses',labels:{en:'Licenses'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'machines',labels:{en:'Machines'}});
+ const config={labels:{en:'Assigned'},leftLabels:{en:'Machine'},rightLabels:{en:'License'},directed:true,leftMin:0,leftMax:1,rightMin:0,rightMax:1,allowAll:false,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:b.id}],active:true};
+ let relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'assignment',configuration:config});relation=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
+ let first=await ok('create_record',{objectTypeId:a.id}),target=await ok('create_record',{objectTypeId:b.id});
+ first=await ok('update_record',{objectTypeId:a.id,recordId:first.id,version:first.version,relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'left',targets:[{objectTypeId:b.id,recordId:target.id}]}]});
+ first={...first,...await ok('recycle_record',{objectTypeId:a.id,recordId:first.id,version:first.version})};
+ const second=await ok('create_record',{objectTypeId:a.id});
+ assert.equal((await api('update_record',{objectTypeId:a.id,recordId:second.id,version:second.version,relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'left',targets:[{objectTypeId:b.id,recordId:target.id}]}]})).statusCode,409);
+ await ok('restore_record',{objectTypeId:a.id,recordId:first.id,version:first.version});
 });

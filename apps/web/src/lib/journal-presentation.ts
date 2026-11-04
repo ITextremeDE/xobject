@@ -1,4 +1,4 @@
-import type { SystemJournalEntry } from '@xobject/contracts';
+import {accessLevels, type SystemJournalEntry} from '@xobject/contracts';
 import type { TFunction } from 'i18next';
 
 export const journalEntityKinds = ['object_permissions','user', 'workspace', 'workspace_member', 'group', 'object_type', 'field', 'classification_field', 'classification_option', 'relationship_type', 'relationship', 'record', 'account_security', 'session'] as const;
@@ -8,6 +8,7 @@ const regionLabels: Record<string, string> = { locale: 'regionalFormat', dateFor
 
 export function journalEntityLabel(kind: string, t: TFunction): string { return t(entityLabels[kind] ?? 'journalOtherEntity'); }
 export function journalPropertyLabel(key: string, t: TFunction, technicalFallback = false): string {
+  if(key.startsWith('access.'))return t(({owners:'accessPrincipalsLabel',publicLevel:'publicLevel',privacy:'recordPrivacy',foreignMax:'foreignLimit'} as Record<string,string>)[key.slice(7)]??'recordFieldExceptions');
   if(key==='sensitive')return t('userSensitive');
   if(key.startsWith('access_principals.'))return `${t('accessPrincipalsLabel')} · ${t(key.endsWith('.state')?'definitionState':'journalDefinition')}`;
   if(key.startsWith('permission.'))return t(key.includes('.field.')?'fieldPermissionExceptions':'objectPermission');
@@ -21,7 +22,9 @@ export function journalPropertyLabel(key: string, t: TFunction, technicalFallbac
   if (key.startsWith('regional.')) return t(regionLabels[key.slice(9)] ?? 'displayFormats');
   return properties[key] ? t(properties[key]) : technicalFallback ? key : t('journalOtherProperty');
 }
-export function journalEntryTitle(entry: Pick<SystemJournalEntry, 'field_key' | 'entity_kind' | 'old_value' | 'new_value' | 'field_label'>, t: TFunction, language='en'): string {
+export function journalEntryTitle(entry: Pick<SystemJournalEntry, 'field_key' | 'entity_kind' | 'old_value' | 'new_value' | 'field_label'> & {field_id?:string|null}, t: TFunction, language='en'): string {
+  if(entry.entity_kind==='record'&&entry.field_key.startsWith('access.'))return journalPropertyLabel(entry.field_key,t)+(entry.field_key.startsWith('access.field.')?` · ${entry.field_label??t('fieldName')}`:'');
+  if(entry.entity_kind==='record'&&entry.field_key==='lifecycle'&&!entry.field_id)return t('recordLifecycle');
   if (entry.entity_kind==='relationship') {const snapshot=(entry.new_value??entry.old_value) as {labels?:Record<string,string>}|null;return snapshot?.labels?.[language]??snapshot?.labels?.en??snapshot?.labels?.de??t('link');}
   if (entry.field_key.startsWith('member:')) {
     if (entry.entity_kind === 'group') return t(entry.new_value === true ? 'journalGroupMemberAdded' : 'journalGroupMemberRemoved');
@@ -30,4 +33,18 @@ export function journalEntryTitle(entry: Pick<SystemJournalEntry, 'field_key' | 
   if(entry.entity_kind==='object_permissions'&&entry.field_label)return `${t('fieldPermissionExceptions')} · ${entry.field_label}`;
   if (entry.entity_kind === 'record') return entry.field_label ?? journalPropertyLabel(entry.field_key, t, true);
   return journalPropertyLabel(entry.field_key, t, true);
+}
+
+export function journalLifecycleValue(entry:{entity_kind:string;field_key:string;field_id?:string|null},value:unknown,t:TFunction):string|undefined {
+ return entry.entity_kind==='record'&&entry.field_key==='lifecycle'&&!entry.field_id&&(value==='active'||value==='recycled')?t(value==='active'?'recordActive':'recordRecycled'):undefined;
+}
+
+export function journalSecurityValue(entry:Pick<SystemJournalEntry,'entity_kind'|'field_key'|'security_context'>,value:unknown,t:TFunction):string|undefined {
+ if(entry.entity_kind!=='record'||!entry.field_key.startsWith('access.'))return undefined;
+ const principal=(key:string)=>entry.security_context?.principals[key]??t('journalUnknownPrincipal');
+ const level=(item:unknown)=>typeof item==='string'&&accessLevels.includes(item as typeof accessLevels[number])?t(`permission_${item}`):t('journalNotSet');
+ if(entry.field_key==='access.owners')return value===null?t('journalNotSet'):Array.isArray(value)&&value.length?value.map(p=>`${principal(`${p.kind}:${p.id}`)} (${t(`reference_${p.kind}`)}) · ${level(p.level)}`).join('; '):t('workspacePublic');
+ if(entry.field_key==='access.privacy')return typeof value==='string'&&['normal','personal','confidential'].includes(value)?t(`privacy_${value}`):t('journalNotSet');
+ const match=/^access\.field\.(user|group):([^.]+)\./.exec(entry.field_key);
+ return match?`${principal(`${match[1]}:${match[2]}`)} (${t(`reference_${match[1]}`)}) · ${value===null?t('permissionInherit'):level(value)}`:level(value);
 }

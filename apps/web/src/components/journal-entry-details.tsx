@@ -1,5 +1,5 @@
 import { ChevronDownIcon } from 'lucide-react';
-import { journalEntityLabel, journalEntryTitle, journalPropertyLabel } from '@/lib/journal-presentation';
+import { journalSecurityValue,journalLifecycleValue,journalEntityLabel, journalEntryTitle, journalPropertyLabel } from '@/lib/journal-presentation';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {formLayoutSchema,type SystemJournalEntry} from '@xobject/contracts';
@@ -16,6 +16,8 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
   const { t, i18n } = useTranslation();
   const regional = useRegional(), timeZone = useTimeZone();
   function value(item: unknown, key = entry.field_key, depth = 0): ReactNode {
+    const security=journalSecurityValue(entry,item,t);if(security!==undefined)return security;
+    const lifecycle=journalLifecycleValue(entry,item,t);if(lifecycle!==undefined)return lifecycle;
     if(entry.field_key.startsWith('form_layout.')&&formLayoutSchema.safeParse(item).success)return <JournalFormLayoutValue value={item} context={entry.form_layout_context}/>;
     if (item === null || item === undefined) return <span className="text-muted-foreground">{t('journalNotSet')}</span>;
     if (typeof item==='object' && !Array.isArray(item) && 'relationshipTypeId' in item && 'left' in item && 'right' in item) {
@@ -65,6 +67,7 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
             ].map(([label, text]) => <div key={label} className="min-w-0"><dt className="text-xs">{label}</dt><dd className="wrap-anywhere text-foreground">{text}</dd></div>)}
           </dl>}
         </div>
+      {entry.field_key.startsWith('access.')?<FieldDescription>{t('journalSecurityNamesHelp')}</FieldDescription>:null}
       {entry.field_key.startsWith('form_layout.')?<FieldDescription>{t('formSnapshotNamesHelp')}</FieldDescription>:null}
         <dl className="grid min-w-0 grid-cols-1 divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
           {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className={entry.field_key.startsWith('form_layout.')?'sm:max-h-80 overflow-auto whitespace-pre-wrap wrap-anywhere':'sm:max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere'}>{renderValue ? renderValue(item,index===0?'before':'after') : value(item)}</dd></div>)}
@@ -77,7 +80,7 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
             <dl className="grid min-w-0 gap-3 border-t p-3 sm:grid-cols-2">
               {details.map(([label, text]) => <div key={label} className="min-w-0"><dt className="mb-1 text-xs text-muted-foreground">{label}</dt><dd className="select-text font-mono text-xs wrap-anywhere">{text}</dd></div>)}
             </dl>
-            {entry.field_key.startsWith('form_layout.')?<div className="grid gap-3 border-t p-3 sm:grid-cols-2">{[[t('before'),entry.old_value],[t('after'),entry.new_value]].map(([label,value])=><div key={String(label)} className="min-w-0"><p className="text-xs text-muted-foreground">{String(label)}</p><pre className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere text-xs">{JSON.stringify(value,null,2)}</pre></div>)}</div>:null}
+            {entry.field_key.startsWith('form_layout.')||entry.field_key.startsWith('access.')?<div className="grid gap-3 border-t p-3 sm:grid-cols-2">{[[t('before'),entry.old_value],[t('after'),entry.new_value]].map(([label,value])=><div key={String(label)} className="min-w-0"><p className="text-xs text-muted-foreground">{String(label)}</p><pre className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere text-xs">{JSON.stringify(value,null,2)}</pre></div>)}</div>:null}
           </CollapsibleContent>
         </Collapsible>
     </FieldGroup></article>;

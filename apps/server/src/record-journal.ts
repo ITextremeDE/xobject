@@ -1,9 +1,11 @@
 import { sql } from 'kysely';
+import {enrichRecordSecurityContext} from './journal-context.js';
 import type { Executor } from './database.js';
 import type { JournalEntry, FieldConfig } from '@xobject/contracts';
 /** Reconstruct formatting from immutable definition events, including conversions in the same save. */
 export async function journalValueContexts(tx:Executor,entries:JournalEntry[]):Promise<JournalEntry[]> {
   if(!entries.length)return entries;
+  entries=await enrichRecordSecurityContext(tx,entries);
   const ids=entries.filter(e=>e.entity_kind==='record'&&e.field_id).map(e=>e.id);
   if(!ids.length)return entries;
   const fields=(await sql<{id:string;kind:string;config:FieldConfig}>`SELECT id,kind,config FROM sys_fields WHERE id IN(SELECT field_id FROM sys_journal WHERE id=ANY(${ids}::uuid[]))`.execute(tx)).rows;

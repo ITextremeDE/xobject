@@ -2,7 +2,7 @@ import { resourceLinks } from '@/lib/resource-links';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SearchIcon, DatabaseIcon, FileTextIcon, LayoutDashboardIcon, SettingsIcon, KeyboardIcon } from 'lucide-react';
+import { SearchIcon, DatabaseIcon, FileTextIcon, LayoutDashboardIcon, SettingsIcon, KeyboardIcon, Trash2Icon } from 'lucide-react';
 import type { ObjectSummary } from '@xobject/contracts';
 import { keyboardCommands, workspaceSearchShortcutLabel } from '@/lib/keyboard';
 import { Kbd } from '@/components/ui/kbd';
@@ -12,7 +12,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command';
 import { SidebarGroup, SidebarGroupContent, SidebarMenuButton, useSidebar } from '@/components/ui/sidebar';
 import { ErrorNotice } from './feedback';
-type Destination = 'dashboard' | 'settings' | 'keyboard';
+type Destination = 'dashboard' | 'settings' | 'keyboard' | 'recycle-bin';
 export function HeaderSearch({ workspaceId, workspaceName, language, disabled, canSearchRecords, objectTypes, onNavigate, onOpenResult }: { workspaceId?: string; workspaceName?: string; language: string; disabled: boolean; canSearchRecords: boolean; objectTypes: ObjectSummary[]; onNavigate: (target: Destination) => void; onOpenResult: (objectTypeId: string, recordId?: string) => void }) {
   const { t } = useTranslation();
   const { isMobile, state, setOpenMobile } = useSidebar();
@@ -24,7 +24,7 @@ export function HeaderSearch({ workspaceId, workspaceName, language, disabled, c
   const ready = input.trim().length >= 2 && input.trim() === query;
   const result = useQuery({ queryKey: ['workspace-search', workspaceId, language, query], queryFn: () => api('search_workspace', { workspaceId: workspaceId!, query }), enabled: open && canSearchRecords && Boolean(workspaceId) && query.length >= 2 && ready });
   const matches = (label: string) => label.toLocaleLowerCase(language).includes(input.trim().toLocaleLowerCase(language));
-  const navigation = [{ id: 'dashboard' as const, label: t('dashboard'), icon: LayoutDashboardIcon }, { id: 'settings' as const, label: t('settings'), icon: SettingsIcon }, { id: 'keyboard' as const, label: t('keyboardHelp'), icon: KeyboardIcon }].filter(item => matches(item.label));
+  const navigation = [{ id: 'dashboard' as const, label: t('dashboard'), icon: LayoutDashboardIcon }, ...(workspaceId ? [{ id: 'recycle-bin' as const, label: t('recycleBin'), icon: Trash2Icon }] : []), { id: 'settings' as const, label: t('settings'), icon: SettingsIcon }, { id: 'keyboard' as const, label: t('keyboardHelp'), icon: KeyboardIcon }].filter(item => matches(item.label));
   const objects = objectTypes.filter(type => (!type.state || type.state === 'active') && matches(type.label));
   const resources = resourceLinks.map(item => ({ label: t(item.label), url: item.href, icon: item.icon })).filter(item => matches(item.label));
   const remoteReady = canSearchRecords && workspaceId && input.trim().length >= 2;

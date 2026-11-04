@@ -18,7 +18,7 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0006](adr/0006-record-classification.md) | Keyword/Type/Status/Category | Optional installation, dictionaries, requiredness and ordering. |
 | [0007](adr/0007-custom-field-types.md) | Typed fields/conversion | Regional handling refined by 0014; applicability by 0023. |
 | [0008](adr/0008-workspace-roles.md) | Administrator/User/Designer | Configuration roles; content rights remain separate. |
-| [0009](adr/0009-definition-lifecycle.md) | Definition lifecycle | Implemented; separate from the pending record recycle bin. |
+| [0009](adr/0009-definition-lifecycle.md) | Definition lifecycle | Implemented; record recycling/restoration is separate under ADR 0029. |
 | [0010](adr/0010-account-security.md) | Own password/sessions | Instance provisioning refined by 0015. |
 | [0011](adr/0011-workspace-appearance.md) | Shared appearance | Workspace tokens/previews; browser mode remains personal. |
 | [0012](adr/0012-workspace-languages.md) | Installed/available languages | Interface and definition policy, retained preferences. |
@@ -38,6 +38,7 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0026](adr/0026-content-permissions.md) | Object/field ceilings | Current object/field grants; record policy in 0027. |
 | [0027](adr/0027-ownership-and-foreign-access.md) | Ownership and foreign access | Local graded ownership/membership, privacy, foreign paths, Create and record security UI; calendar/notifications later. |
 | [0028](adr/0028-current-installation-baseline.md) | Current unreleased installation | One empty installation definition, explicit local reset, schema fingerprint and current contracts without compatibility paths. |
+| [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; permanent erasure remains pending. |
 
 ## Ownership of repeated information
 
