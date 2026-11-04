@@ -27,7 +27,7 @@ export async function provisionRuntimeRole(operatorURL:string,runtimeURL:string)
     const system=(await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'sys\\_%' ESCAPE '\\'")).rows;
     for(const {tablename} of system) {
       await client.query(`REVOKE ALL ON TABLE ${id(tablename)} FROM ${id(role)}`);
-      const rights=tablename==='sys_schema_version'?'SELECT':['sys_journal','sys_relationship_journal_endpoints'].includes(tablename)?'SELECT,INSERT':'SELECT,INSERT,UPDATE,DELETE,REFERENCES';
+      const rights=tablename==='sys_schema_version'?'SELECT':['sys_journal','sys_relationship_journal_endpoints','sys_number_allocations'].includes(tablename)?'SELECT,INSERT':'SELECT,INSERT,UPDATE,DELETE,REFERENCES';
       await client.query(`GRANT ${rights} ON TABLE ${id(tablename)} TO ${id(role)}`);
     }
     const tables=(await client.query("SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.state<>'deleted'")).rows;

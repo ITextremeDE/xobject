@@ -43,11 +43,11 @@ export async function configureGroup(tx:Executor,args:{workspaceId:string;groupI
 
 /** Inactive definition languages remain stored, but cannot be silently changed through API/MCP. */
 export async function validateDefinitionLanguages(tx: Executor, operation: string, args: Record<string, unknown>) {
-  if (!['configure_object_settings','create_object_type', 'create_field', 'configure_field', 'set_labels', 'configure_classification'].includes(operation)) return;
+  if (!['add_standard_field','configure_object_settings','create_object_type', 'create_field', 'configure_field', 'set_labels', 'configure_classification'].includes(operation)) return;
   let workspaceId = args.workspaceId as string | undefined;
   let previous: { labels?: Record<string, string>; config?: { options?: { id: string; labels: Record<string, string> }[] }; classification?: { options?: { id: string; labels: Record<string, string> }[] } } | undefined;
   if (operation === 'configure_field' || (operation === 'set_labels' && args.kind === 'field')) {
-    const row = (await sql<typeof previous & { workspace_id: string }>`SELECT f.labels, f.config, o.workspace_id FROM sys_fields f JOIN sys_object_types o ON o.id = f.object_type_id WHERE f.id = ${args.fieldId ?? args.id}::uuid`.execute(tx)).rows[0];
+    const row = (await sql<typeof previous & { workspace_id: string }>`SELECT f.labels, f.config, f.input_rules, o.workspace_id FROM sys_fields f JOIN sys_object_types o ON o.id = f.object_type_id WHERE f.id = ${args.fieldId ?? args.id}::uuid`.execute(tx)).rows[0];
     previous = row; workspaceId = row?.workspace_id;
   } else if (args.objectTypeId || (operation === 'set_labels' && args.kind === 'object_type')) {
     const row = (await sql<typeof previous & { workspace_id: string }>`SELECT labels, classification, workspace_id FROM sys_object_types WHERE id = ${args.objectTypeId ?? args.id}::uuid`.execute(tx)).rows[0];
@@ -60,6 +60,7 @@ export async function validateDefinitionLanguages(tx: Executor, operation: strin
   const validate = (labels: Record<string, string>, old: Record<string, string> = {}) => {
     for (const code of new Set([...Object.keys(labels), ...Object.keys(old)])) if (!workspace.label_languages.includes(code) && labels[code] !== old[code]) throw new AppError(400, 'Definition language is unavailable');
   };
+  if(args.inputRules){const rules=args.inputRules as {description:Record<string,string>;helpText:Record<string,string>};const old=(previous as {input_rules?:typeof rules})?.input_rules;validate(rules.description,old?.description);validate(rules.helpText,old?.helpText);}
   if (args.labels) validate(args.labels as Record<string, string>, previous?.labels);
   const config = args.config as { options?: { id: string; labels: Record<string, string> }[] } | undefined;
   const oldOptions = previous?.config?.options ?? previous?.classification?.options ?? [];

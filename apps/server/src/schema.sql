@@ -57,6 +57,7 @@ CREATE TABLE public.sys_fields (
     labels jsonb NOT NULL,
     kind text NOT NULL,
     config jsonb DEFAULT '{}'::jsonb NOT NULL,
+    input_rules jsonb DEFAULT '{"description":{},"helpText":{},"defaultValue":null,"unique":false}'::jsonb NOT NULL,
     applicability jsonb,
     required boolean DEFAULT false NOT NULL,
     is_protected boolean DEFAULT false NOT NULL,
@@ -136,6 +137,7 @@ CREATE TABLE public.sys_object_types (
     labels jsonb NOT NULL,
     classification jsonb DEFAULT '{"type": {"required": false, "defaultId": null}, "status": {"defaults": [], "required": false}, "options": [], "version": 1, "category": {"multiple": false, "required": false, "defaultIds": []}}'::jsonb NOT NULL,
     form_layouts jsonb DEFAULT '{}'::jsonb NOT NULL,
+    numbering jsonb DEFAULT '{"enabled":false,"prefix":"","suffix":"","start":"1","increment":"1","padding":1,"restart":"never"}'::jsonb NOT NULL,
     is_sensitive boolean DEFAULT false NOT NULL,
     is_protected boolean DEFAULT false NOT NULL,
     state text DEFAULT 'active'::text NOT NULL,
@@ -465,3 +467,18 @@ ALTER TABLE ONLY public.sys_workspaces
 CREATE TABLE public.sys_schema_version (singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), version integer NOT NULL CHECK(version=1), definition_hash text NOT NULL);
 
 CREATE CONSTRAINT TRIGGER xobject_security_identity AFTER INSERT OR UPDATE OR DELETE ON public.sys_record_security DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.sys_check_registry_identity();
+
+-- Counters and issued numbers are distinct from mutable business contents. Never reuse issued numbers.
+CREATE TABLE public.sys_number_counters (
+    object_type_id uuid NOT NULL REFERENCES public.sys_object_types(id),
+    period text NOT NULL,
+    next_value numeric(31,0) NOT NULL CHECK (next_value > 0),
+    PRIMARY KEY (object_type_id, period)
+);
+CREATE TABLE public.sys_number_allocations (
+    object_type_id uuid NOT NULL REFERENCES public.sys_object_types(id),
+    record_id uuid NOT NULL,
+    number text NOT NULL,
+    PRIMARY KEY (object_type_id, record_id),
+    UNIQUE (object_type_id, number)
+);

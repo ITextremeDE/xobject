@@ -77,6 +77,7 @@ export class ContentAccess {
  fields(id:string){let fields=this.fieldMetadata.get(id);if(!fields){fields=sql<{id:string;technical_name:string;applicability?:import('@xobject/contracts').FieldApplicability}>`SELECT id,technical_name,applicability FROM sys_fields WHERE object_type_id=${id}::uuid`.execute(this.tx).then(result=>result.rows);this.fieldMetadata.set(id,fields);}return fields;}
  async canField(id:string,name:string,mode:'read'|'edit'='read',recordId?:string){const p=await this.policy(id);const field=(await this.fields(id)).find(f=>f.technical_name===name);return field?p.field(field.id,recordId)[mode]:false;}
  async canCreateField(id:string,name:string){const p=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);return Boolean(field&&p.creationField(field.id));}
+ async fieldValueByName(id:string,name:string,alias?:string){const policy=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);return field?policy.fieldValue(field.id,name,alias):sql`NULL::text`;}
  async keywordValue(id:string,alias?:string){const p=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name==='keyword');return field?p.fieldValue(field.id,'keyword',alias,sql`${sql.ref(alias?`${alias}.id`:'id')}::text`):sql`${sql.ref(alias?`${alias}.id`:'id')}::text`;}
  async project(id:string,row:Record<string,unknown>,includeRecycled=false){
   const policy=await this.policy(id),result={...row},recordId=String(row.id);

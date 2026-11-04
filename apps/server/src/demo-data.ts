@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { v7 } from 'uuid';
 import type { ContentPermissions, ForeignSettings, ManagedUser, RecordSecurity, Workspace, WorkspaceGroup, FormEntry, AccessLevel, ClassificationRules, CustomFieldKind, FieldConfig, FieldValue, ObjectDefinition, DataRecord } from '@xobject/contracts';
+import {emptyFieldInputRules,defaultNumbering} from '@xobject/contracts';
 import { Application } from './domain.js';
 import type { Database } from './database.js';
 
@@ -40,7 +41,16 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     let model = await app.execute('get_object_type', { objectTypeId: created.id }, actorId) as ObjectDefinition;
     const keyword = model.fields.find(item => item.technicalName === 'keyword')!;
     await app.execute('configure_field', { fieldId: keyword.id, version: keyword.version, required: true }, actorId);
-    for (const item of fields) await app.execute('create_field', { objectTypeId: created.id, technicalName: item.name, labels: item.labels, kind: item.kind ?? 'text', config: item.config, required: item.required ?? false }, actorId);
+    for (const item of fields) {
+      const rules=emptyFieldInputRules();
+      if(['registration_number','serial_number','contract_number'].includes(item.name)){rules.unique=true;rules.description=labels('Eindeutige Kennung dieses Datensatzes.','Unique identifier for this record.');rules.helpText=labels('Eine bereits verwendete Kennung darf nicht erneut vergeben werden.','An identifier already in use cannot be assigned again.');}
+      if(item.name==='country'){rules.defaultValue='Germany';rules.description=labels('Land der Anschrift.','Country of the postal address.');rules.helpText=labels('Den englischen Ländernamen verwenden.','Use the English country name.');}
+      if(item.name==='completed')rules.defaultValue=false;
+      if(item.name==='mileage'){rules.defaultValue='0';rules.description=labels('Aktueller Kilometerstand des Fahrzeugs.','Current vehicle mileage.');rules.helpText=labels('Ganze Kilometer ohne Einheit eingeben.','Enter whole kilometres without a unit.');}
+      await app.execute('create_field', { objectTypeId: created.id, technicalName: item.name, labels: item.labels, kind: item.kind ?? 'text', config: item.config, required: item.required ?? false,inputRules:rules }, actorId);
+    }
+    model=await app.execute('get_object_type',{objectTypeId:created.id},actorId) as ObjectDefinition;
+    await app.execute('configure_object_settings',{objectTypeId:model.id,version:model.version,labels:model.labels,numbering:{...defaultNumbering(),enabled:true,prefix:({contacts:'CON',projects:'PRJ',cases:'CAS',tasks:'TSK',vehicles:'VEH',contracts:'CTR',devices:'DEV',access_checks:'CHK'} as Record<string,string>)[name]+'-',padding:5}},actorId);
     const typeOptions = types.map(name => ({ id: v7(), kind: 'type' as const, labels: choiceLabels(name), typeId: null, active: true }));
     const statusOptions = [null, ...typeOptions.map(item => item.id)].flatMap(typeId => statuses.map(name => ({ id: v7(), kind: 'status' as const, labels: choiceLabels(name), typeId, active: true })));
     const config: ClassificationRules = { type: { required: false, defaultId: typeOptions[0]?.id ?? null }, status: { required: false, defaults: [null, ...typeOptions.map(item => item.id)].map(typeId => ({ typeId, statusId: statusOptions.find(item => item.typeId === typeId)!.id })) }, category: { required: false, multiple: true, defaultIds: [] }, options: [...typeOptions, ...statusOptions, ...['Intern', 'Kundenarbeit', 'Priorität'].map(name => ({ id: v7(), kind: 'category' as const, labels: choiceLabels(name), typeId: null, active: true }))] };
@@ -225,7 +235,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     let model=await app.execute('get_object_type',{objectTypeId:objects[name].id},actorId) as ObjectDefinition;
     const general:FormEntry[]=[],details:FormEntry[]=[],relations:FormEntry[]=[];
     for(const item of model.fields.filter(item=>item.state==='active')) {
-      const standard=['keyword','type','status','category','access_principals'].includes(item.technicalName);
+      const standard=['keyword','business_number','type','status','category','access_principals'].includes(item.technicalName);
       (standard?general:details).push({fieldId:item.id,width:['keyword','category','access_principals'].includes(item.technicalName)||['multiline','multiple_choice'].includes(item.kind)?'full':'half'});
     }
     for(const item of model.formRelationships??[])relations.push(item.definition.kind==='primary'?{primary:true,width:'full',visible:true}:{relationshipTypeId:item.definition.id,side:item.side,width:(item.side==='left'?item.definition.leftMax:item.definition.rightMax)===1?'half':'full',visible:true,expanded:'open'});

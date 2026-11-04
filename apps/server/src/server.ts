@@ -31,7 +31,7 @@ export function buildServer(config: Config) {
     if (origin && origin !== base.origin) throw new AppError(403, 'Unexpected Origin');
   });
   app.setErrorHandler((error, request, reply) => {
-    if (error instanceof AppError) return reply.code(error.status).send({ error: error.message });
+    if (error instanceof AppError) return reply.code(error.status).send({ error: error.message,...(error.details?{details:error.details}:{}) });
     if (error instanceof ZodError) return reply.code(400).send({ error: 'Invalid input', issues: error.issues });
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: 'Invalid request' });
@@ -92,7 +92,7 @@ export function buildServer(config: Config) {
           return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
         } catch (error) {
           const message = error instanceof AppError || error instanceof ZodError ? error.message : 'Internal server error';
-          return { isError: true, content: [{ type: 'text' as const, text: message }] };
+          return { isError: true, content: [{ type: 'text' as const, text: error instanceof AppError&&error.details?JSON.stringify({error:message,details:error.details}):message }] };
         }
       });
     }

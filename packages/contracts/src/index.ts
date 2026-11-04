@@ -1,3 +1,5 @@
+import {fieldInputRulesSchema,numberingSchema,type FieldInputRules,type Numbering} from './field-input-rules.js';
+export * from './field-input-rules.js';
 import {recordSecuritySchema,foreignRuleSchema,membershipSchema,type RecordSecurity,type ForeignSettings,type AccessExplanation} from './ownership.js';
 export * from './ownership.js';
 import {contentGrantSchema,type ContentPermissions,type ContentCapabilities,type FieldCapabilities} from './content-permissions.js';
@@ -50,9 +52,9 @@ export const schemas = {
   recycle_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive()}).strict(),
   restore_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive()}).strict(),
   get_recycled_record:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
-  list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
+  list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['business_number','keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
   duplicate_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),keyword:z.string().trim().max(200).optional()}).strict(),
-  configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
+  configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,numbering:numberingSchema.optional(),security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
   get_content_permissions:z.object({objectTypeId:uuid}).strict(),
   configure_content_permissions:z.object({objectTypeId:uuid,version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false),grants:z.array(contentGrantSchema).max(1000)}).strict(),
   list_access_principals:z.object({objectTypeId:uuid}).strict(),
@@ -88,7 +90,7 @@ export const schemas = {
   configure_user_localization: z.object({ language: language.nullable(), timeZone: timeZoneSchema.nullable(), expectedLanguage: language.nullable(), expectedTimeZone: timeZoneSchema.nullable(), regional: personalRegionalSchema.optional(), expectedRegional: personalRegionalSchema.nullable().optional() }).strict().refine(args => args.regional === undefined || args.expectedRegional !== undefined, 'Expected regional settings required'),
   configure_workspace_languages: workspaceLanguageSchema.safeExtend({ workspaceId: uuid, version: z.number().int().positive(), timeZone: timeZoneSchema.optional(), regional: regionalSchema.optional() }),
   list_groups: z.object({ workspaceId: uuid }).strict(),
-  configure_group: z.object({ workspaceId: uuid, groupId: uuid, version: z.number().int().positive(), name: label }).strict(),
+  configure_group: z.object({ workspaceId: uuid, groupId: uuid, version: z.number().int().positive(), name: label,members:z.array(membershipSchema).max(1000).optional() }).strict(),
   set_group_active: z.object({ workspaceId: uuid, groupId: uuid, version: z.number().int().positive(), active: z.boolean() }).strict(),
   create_group: z.object({ workspaceId: uuid, name: label, members:z.array(membershipSchema).max(1000).default([]) }).strict(),
   list_field_principals: z.object({ workspaceId: uuid }).strict(),
@@ -96,18 +98,18 @@ export const schemas = {
   search_workspace: z.object({ workspaceId: uuid, query: z.string().trim().min(2).max(200), limit: z.number().int().min(1).max(50).default(20) }).strict(),
   list_object_types: z.object({ workspaceId: uuid, includeInactive: z.boolean().default(false), includeDeleted: z.boolean().default(false) }).strict(),
   get_workspace_dashboard: z.object({ workspaceId: uuid, days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(90) }).strict(),
-  list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
+  list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['business_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   list_records: z.object({ objectTypeId: uuid, query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(3).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
-  add_standard_field: z.object({ objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => args.field === 'keyword' ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
-  create_field: z.object({ objectTypeId: uuid, applicability: fieldApplicabilitySchema.optional(), technicalName, labels, kind: customFieldKindSchema.default('text'), config: fieldConfigSchema.optional(), required: z.boolean().default(false) }).strict(),
+  add_standard_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => args.field === 'keyword' ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
+  create_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid, applicability: fieldApplicabilitySchema.optional(), technicalName, labels, kind: customFieldKindSchema.default('text'), config: fieldConfigSchema.optional(), required: z.boolean().default(false) }).strict(),
   get_object_type: z.object({ objectTypeId: uuid }).strict(),
-  configure_field: z.object({ fieldId: uuid, applicability: fieldApplicabilitySchema.optional(), version: z.number().int().positive(), labels: labels.optional(), kind: customFieldKindSchema.optional(), config: fieldConfigSchema.optional(), required: z.boolean() }).strict(),
+  configure_field: z.object({ inputRules:fieldInputRulesSchema.optional(),fieldId: uuid, applicability: fieldApplicabilitySchema.optional(), version: z.number().int().positive(), labels: labels.optional(), kind: customFieldKindSchema.optional(), config: fieldConfigSchema.optional(), required: z.boolean() }).strict(),
   set_labels: z.object({ kind: z.enum(['object_type', 'field']), id: uuid, version: z.number().int().positive(), labels }).strict(),
   set_workspace_name: z.object({ workspaceId: uuid, name: label }).strict(),
   set_workspace_appearance: z.object({ workspaceId: uuid, version: z.number().int().positive(), appearance: workspaceAppearanceSchema }).strict(),
   set_user_profile: z.object({ name: label }).strict(),
-  configure_classification: z.object({ objectTypeId: uuid, version: z.number().int().positive(), config: classificationRulesSchema }).strict(),
+  configure_classification: z.object({ fieldInputRules:z.array(z.object({fieldId:uuid,version:z.number().int().positive(),inputRules:fieldInputRulesSchema}).strict()).max(3).refine(items=>new Set(items.map(item=>item.fieldId)).size===items.length,'Field IDs must be unique').optional(),objectTypeId: uuid, version: z.number().int().positive(), config: classificationRulesSchema }).strict(),
   create_record: z.object({ objectTypeId: uuid, keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional(),security:recordSecurityWrite.optional() }).strict(),
   update_record: z.object({ security:recordSecurityWrite.optional(), objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional() }).strict(),
   get_record: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
@@ -119,11 +121,11 @@ export type Labels = Record<string, string>;
 export interface Workspace { id: string; code: string; name: string; default_language: Language; available_languages: Language[]; label_languages: Language[]; language_version: number; time_zone: string; regional: RegionalSettings; created_by: string; created_by_name: string; created_at: string; appearance: WorkspaceAppearance; appearance_version: number; role: 'administrator' | 'designer' | 'user' }
 export type DefinitionState = 'active' | 'inactive' | 'deleted';
 export interface ObjectSummary { permissions?:ContentCapabilities; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
-export interface FieldDefinition extends ObjectSummary { fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
-export interface ObjectDefinition extends ObjectSummary { permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
+export interface FieldDefinition extends ObjectSummary { inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
+export interface ObjectDefinition extends ObjectSummary {numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
 export interface DataRecord { fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
-export interface SearchRecord { id: string; keyword: string; objectTypeId: string; objectLabel: string }
+export interface SearchRecord { businessNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
 export interface JournalEntry { security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
@@ -136,7 +138,7 @@ export interface AccountSecurity { hasPassword: boolean; sessions: AccountSessio
 export interface ManagedUser extends UserSummary { active: boolean; mustChangePassword: boolean; version: number }
 export interface SystemJournalEntry extends JournalEntry { entity_kind: string; entity_id: string; workspace_id: string | null; workspace_name: string | null; actor_name: string; entity_name: string | null }
 export interface RecycledRecord extends WorkspaceRecord {recycled_at:string;recycled_by:string;recycledByName:string;canRestore:boolean}
-export interface WorkspaceRecord { id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
+export interface WorkspaceRecord { business_number?:string|null; id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
   get_foreign_access_capabilities:{manageOwn:boolean};
   get_foreign_access:ForeignSettings;
@@ -211,6 +213,6 @@ export interface Outputs {
   list_record_journal: {entries:JournalEntry[];total:number;limit:number;offset:number};
 }
 
-const reservedStandardFieldNames = new Set(['access_principals','access principals','zugriffsberechtigte','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
+const reservedStandardFieldNames = new Set(['business_number','business number','fachliche nummer','access_principals','access principals','zugriffsberechtigte','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
 export function isReservedStandardFieldName(value: string) { return reservedStandardFieldNames.has(value.normalize('NFKC').trim().toLowerCase()); }
 export function hasReservedStandardFieldLabel(labels: Record<string, string>) { return Object.values(labels).some(isReservedStandardFieldName); }
