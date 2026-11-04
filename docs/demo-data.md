@@ -88,3 +88,5 @@ For an explicitly authorized clean test rebuild, stop writers, run the guarded `
 The seed uses several normal application transactions. If interrupted, it refuses to continue against the partially populated workspace; rebuild the disposable development database explicitly before starting again. This is not a production import/export facility. Uploads, attachments, email delivery, SSO, calendar actions and notification delivery are not implemented by this fixture.
 
 Sensitive demo objects place Access principals in General at full width, using the same field UUID layout entries as ordinary fields. Its group, order and half/full width can be changed in the Form designer; record security remains protected.
+
+Every active object has protected automatic business numbers: Contacts `CON-`, Projects `PRJ-`, Cases `CAS-`, Tasks `TSK-`, Vehicles `VEH-`, Contracts `CTR-`, Devices `DEV-`, Access checks `CHK-`, each with five minimum digits and no restart. Registration, serial and contract numbers demonstrate uniqueness. Country, mileage and completion fields demonstrate typed defaults; selected fields have translated descriptions and input hints.

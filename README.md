@@ -20,6 +20,8 @@ There is no installable application release. The [PRD](docs/PRD.md) defines 47 r
 
 Start with a shared object platform and activate the modules you need. An object type can belong to multiple modules, each contributing its own fields and views while using the same records and shared values.
 
+Fields support translated descriptions and input hints, typed defaults and scalar uniqueness. Per-object automatic business numbers support prefixes, suffixes and never/yearly/monthly sequences.
+
 Workspaces keep data and configuration separate. The Projects module supplies a fixed primary chain connecting **Contact → Project → Case**, with tasks and other records attached at the appropriate level. Associations are optional by default; required context can be configured per object type.
 
 ## Planned first version
