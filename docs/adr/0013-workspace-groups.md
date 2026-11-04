@@ -25,7 +25,7 @@ Use reversible deactivation instead of hard deletion. Retain group identity, nam
 
 Successful create/save closes the editor and returns focus to its originating button; validation/conflict failures retain the draft. Activation controls remain explicit reversible actions. The shared settings editor supports name/member drafts, Save/Reset, pending and unsaved-close guards, read-only roles, and Administrator-only activation controls. It uses the standard shadcn table, fields, checkboxes and dialog actions. Removing workspace access refreshes group views as well.
 
-This slice defines group identity/lifecycle and direct memberships. [ADR 0026](0026-content-permissions.md) subsequently adds explicit group content grants; [PRD section 4](../PRD.md#4-permissions) specifies graded/nested memberships and foreign inheritance as the next target, not current behavior. Membership and ordinary assignment alone are not content grants.
+This slice defines group identity/lifecycle and direct memberships. [ADR 0026](0026-content-permissions.md) subsequently adds explicit group content grants; [PRD section 4](../PRD.md#4-permissions) specifies the graded/nested memberships and foreign inheritance implemented under ADR 0027. Membership and ordinary assignment alone are not content grants.
 
 ## Validation
 

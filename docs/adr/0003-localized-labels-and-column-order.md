@@ -15,7 +15,7 @@ Store an optional preference in `sys_users.language` and the workspace default i
 
 Definition-label and preference changes go through the shared application layer and are journaled transactionally. User-language changes are installation-level journal events, so `sys_journal.workspace_id` permits null for those events. This does not grant access to another workspace or broaden content rights; the current local boundary is ADR 0026. The Better Auth language field is not writable through generic auth-profile input.
 
-Create new object tables with the implemented fixed fields first: `id`, `keyword`, `created_at`, `created_by`, `updated_at`, `updated_by`, `version`. As the remaining shared fields are implemented, they belong before the audit metadata on newly created tables. Append subsequent custom columns in creation order. Preserve the physical layout of existing tables during routine application operations and upgrades. An explicitly authorized development-data rebuild is separate maintenance, with backup and verification of data/history preservation. Display ordering remains a separate setting.
+The original fixed-Keyword layout is refined by [ADR 0006](0006-record-classification.md): new business tables start with `id`, `created_at`, `created_by`, `updated_at`, `updated_by`, `version`. Optional standard fields and custom fields append when installed; [ADR 0030](0030-field-input-rules-and-business-numbers.md) adds the protected business-number field on numbering enablement. Preserve physical columns during ordinary operations and future released upgrades; display order remains separate. Disposable unreleased instances are recreated under ADR 0028, with unrelated recovery artifacts retained.
 
 ## Current installation and verification
 

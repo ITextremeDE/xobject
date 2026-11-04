@@ -11,7 +11,7 @@ xObject is in early development. A local application prototype and public projec
 - Object/field ceilings, explicit Create, graded ownership and nested/transitive foreign-access inheritance, record privacy/maxima and field exceptions. Versioned settings, the quick Access-principals field and tabbed rights drafts expose effective rights and optional own-record delegation. Contents, links and security save atomically with one record version/change ID. Shared UI/API/MCP enforcement protects contents, search/counts, relationships, Dashboard and current-rights history; membership alone grants no contents.
 - Transactional business numbers with prefix/suffix, exact start/increment, padding and never/yearly/monthly counters; immutable issued values, workspace-zone periods and rollback with failed record/journal writes.
 - Versioned relationship definitions for one custom object pair, General core links, Projects-owned Primary context/tree, final-state cardinalities, endpoint conditions and activation preflight. Linked creation and existing-record linking share source/version/permission checks and atomic journals. Dossier/Journal use the common data table.
-- Complete visible module catalog; Projects & Tasks base-object installation supplies protected Contacts/Projects/Cases/Tasks and fixed Contact → Project → Case roles. Contacts & Relations and Documents & Communication activation remain planned, as do complete domain templates and shared-module ownership/update handling.
+- Current three-entry module catalog; Projects & Tasks base-object installation supplies protected Contacts/Projects/Cases/Tasks and fixed Contact → Project → Case roles. Contacts & Relations and Documents & Communication activation remain planned, as do complete domain templates and shared-module ownership/update handling.
 - Configurable standard forms for actual objects: editable groups, Unassigned elements, scalar/relationship order/width, protected Access-principals placement and width, optional visibility and initial table state. Module-keyed metadata is retained; module-specific form selection awaits real object/module assignments.
 - Consistent shadcn shell, settings, full-width record forms, shared searchable tables/pagination, keyboard navigation, responsive loading/dialogs and account/view-scoped presentation preferences. Dashboard table is regular application UI; real statistics/chart content remains exploratory.
 - Shared workspace appearance/fonts, installed German/English interface/definition policies, named zones and per-property personal localization overrides, exact regional numeric/money/date/time editing and DST handling.
@@ -30,8 +30,9 @@ The independent Astro project homepage introduces the product and links canonica
 | --- | --- |
 | Permissions and identity | Production user-bound API/MCP credentials, session hardening, representative-volume permission/query performance and product acceptance. The local ownership/foreign-access model and current installation are implemented. |
 | Configurable object platform | Measured data/query scaling and complete shared-definition evolution. Field input rules and business numbers are implemented locally under ADR 0030. |
-| Contacts and Projects | Complete supplied templates, derived Contact Keywords, single-Organization Contact persons, direct Identities lists, domain roles and configurable responsibility/assignment. Existing generic fixtures do not establish full module delivery. |
+| Contacts & Relations and Projects & Tasks | Deliver the [22-object V1 catalog](docs/PRD.md#6-supplied-domain-models): complete the 18 additional domain profiles, supplied templates, derived Contact Keywords, single-Organization Contact persons, direct Identities lists, domain roles and responsibility/assignment. Existing generic fixtures do not establish module delivery. |
 | Shared modules/forms | Actual cross-module object/field ownership and view selection, protected-definition updates and conflict-safe activation/deactivation without copied records or values. |
+| Personal table layout | Persist column order and widths as required by R-030; the local prototype currently retains column visibility, not these additional layout preferences. |
 | Relationships and lifecycle | Independently required Primary ancestor sections; confirmed permanent deletion, linked-history erasure and invalid-link handling. |
 | Delivery and acceptance | Interactive first-Administrator container setup, prebuilt images, Linux Compose installation, release migration/backup/restore tooling, performance/accessibility targets and PRD end-to-end acceptance. |
 | Public documentation | Astro/Starlight at the selected documentation URL, canonical changelog/roadmap reuse, release notes and versioned documentation. |
@@ -40,7 +41,8 @@ Every capability must use the same backend authorization, validation and journal
 
 ## Later — Beyond version 1
 
-- Documents & Communication module and email handling; file uploads, attachments and versioning.
+- Documents & Communication (including supplied Documents, Emails and Phone calls), Operations & Finance, IT Service Management, Configuration Management Database, Events & Registrations and Knowledge & Insights. Their shared V1 objects remain in the V1 catalog; later module membership adds no present delivery claim.
+- Email handling, file uploads, attachments and versioning.
 - Verified email-address changes and profile-image handling, after their mail/upload dependencies exist.
 - Notification delivery, alarms/subscriptions, calendar availability/time-only rights, calendar and Kanban views.
 - Import/export, external SSO, desktop clients (Electron or Tauri selection pending), separate mobile clients, offline operation/synchronization and hosted cloud service.

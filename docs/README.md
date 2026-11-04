@@ -27,14 +27,14 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0015](adr/0015-instance-administration-and-journal.md) | Instance users/system journal | Shared Journal presentation refined by 0023. |
 | [0016](adr/0016-dashboard-and-shared-table-navigation.md) | Dashboard/tables/command menu | Current content policy from 0027 applies to all projections. |
 | [0017](adr/0017-record-pages-and-local-demo-data.md) | Record pages and seed | Groups/order refined by 0025; linked source return by 0019. |
-| [0018](adr/0018-relationship-type-definitions.md) | Initial definition-only slice | Historical scope refined by 0019, 0021 and 0024; not current module/edge limitations. |
+| [0018](adr/0018-relationship-type-definitions.md) | Relationship definitions | Current pairs, cardinalities and editor; record edges in 0019, module scope in 0021 and conditions in 0024. |
 | [0019](adr/0019-record-relationships.md) | Record edges and linked creation | One custom pair, cardinality fields/tables and atomic creation. |
 | [0020](adr/0020-relationship-tree.md) | Primary tree/context | Projects-only read model; General/custom links stay in Dossier. |
 | [0021](adr/0021-relationship-scope-and-projects-module.md) | Scope and activation | Fixed roles refined by 0024, catalog/base installation by 0025. |
 | [0022](adr/0022-database-integrity-and-concurrency.md) | Versions/locks/installation/roles | Local storage safeguards; release packaging remains open. |
 | [0023](adr/0023-record-journal-and-conditional-fields.md) | Journal/applicability | Current-rights projections refined by 0026 and 0027. |
 | [0024](adr/0024-primary-levels-and-relationship-conditions.md) | Fixed Primary roles/conditions | Protected supplied UUID roles, conditional endpoints. |
-| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Standard forms/base installation implemented; full domain/shared-module views remain open. |
+| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Standard forms/base installation implemented; PRD defines the expanded V1 target, while domain/shared-module views remain open. |
 | [0026](adr/0026-content-permissions.md) | Object/field ceilings | Current object/field grants; record policy in 0027. |
 | [0027](adr/0027-ownership-and-foreign-access.md) | Ownership and foreign access | Local graded ownership/membership, privacy, foreign paths, Create and record security UI; calendar/notifications later. |
 | [0028](adr/0028-current-installation-baseline.md) | Current unreleased installation | One empty installation definition, explicit local reset, schema fingerprint and current contracts without compatibility paths. |

@@ -14,7 +14,7 @@ Undirected symmetric edges use a canonical endpoint order, have one shared contr
 
 ## Rule activation and validation
 
-Custom rules begin as drafts. [ADR 0021](0021-relationship-scope-and-projects-module.md) makes General always active and gates unrestricted Primary by workspace Projects activation. `activate_relationship_type` requires Designer/Administrator configuration rights and preflights the current graph before atomically activating/versioning/journaling the definition. Editing an active rule preflights the proposed final state, including permitted pairs and minima/maxima. Used direction is fixed once relationship history exists. Availability and rule activation are independent; inactive definitions retain history/links and accept no new links.
+Custom rules begin as drafts. [ADR 0021](0021-relationship-scope-and-projects-module.md) makes General always active and gates Primary by workspace Projects activation; ADR 0024 restricts its parent roles to the supplied Contact/Project/Case definitions. `activate_relationship_type` requires Designer/Administrator configuration rights and preflights the current graph before atomically activating/versioning/journaling the definition. Editing an active rule preflights the proposed final state, including permitted pairs and minima/maxima. Used direction is fixed once relationship history exists. Availability and rule activation are independent; inactive definitions retain history/links and accept no new links.
 
 Under [ADR 0022](0022-database-integrity-and-concurrency.md), record writes validate changed endpoints and newly required connections; activation/configuration retains full-graph preflight. Replacing a mandatory single partner is atomic. For initially empty models with mutually required partners, bootstrap with optional rules, create/connect records and then tighten the rules; multi-record batch creation is not implemented. The workspace write barrier serializes mutations/preflight in that workspace while readers share locks and other workspaces can progress. Schema changes retain an exclusive global barrier; this is not a production load claim.
 
@@ -28,7 +28,7 @@ The Primary right side uses the configured level chain under ADR 0024. The objec
 
 ## Validation
 
-Disposable PostgreSQL integration tests cover directed/undirected links, symmetric no-ops, endpoint/workspace checks, minima, both sides of 1:1, Primary uniqueness/cycles, concurrent versions, definition conflicts, atomic replacement/creation, late-journal rollback, shared endpoint history, activation preflight and migration idempotency. The fictional seed now applies its 45-link plan through the common operations; repeated application retains existing links and adds no duplicates.
+Disposable PostgreSQL integration tests cover directed/undirected links, symmetric no-ops, endpoint/workspace checks, minima, both sides of 1:1, Primary uniqueness/cycles, concurrent versions, definition conflicts, atomic replacement/creation, late-journal rollback, shared endpoint history, activation preflight and current initialization. The fictional seed applies the versioned plan documented in [Demo data](../demo-data.md#relationships) through common operations; repeated connection-plan application retains existing links and adds no duplicates.
 
 ## Record header actions and linked creation
 

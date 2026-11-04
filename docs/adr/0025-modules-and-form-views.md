@@ -6,6 +6,8 @@
 
 ## Modules
 
+Scope refinement, 2026-11-04: V1 supplies Contacts & Relations and Projects & Tasks with the [22-object catalog and domain-profile specification process](../PRD.md#6-supplied-domain-models). Documents & Communication and the five other target modules are later scope under [PRD section 3](../PRD.md#module-catalog-and-shared-forms). The initial selections below describe the current prototype seed; they do not limit the agreed V1 catalog or establish complete domain delivery. Shared-definition/view/lifecycle architecture must support future contributors without duplicating records.
+
 | Stable key | Short English name | English description | German description | Initial object selection |
 | --- | --- | --- | --- | --- |
 | contacts | Contacts | Contacts & Relations | Kontakte & Beziehungen | Contacts |
@@ -16,7 +18,7 @@ These are initial selections, not a closed catalog. Additional objects and modul
 
 Objects, field definitions and values are shared across modules. A Contact viewed from Contacts or Projects has the same UUID and storage. Modules select relevant fields and may contribute protected fields without copying records or redefining a shared field. Human-facing names may change without renaming the existing `projects` key. Earlier references to CRM or Project Management describe Contacts and Projects respectively.
 
-The dedicated Workspace Modules area reads its complete catalog from PostgreSQL, with the full descriptive names above. Contacts & Relations and Documents & Communication are explicitly planned and cannot activate yet. Projects & Tasks activation atomically supplies protected base Contacts, Projects, Cases and Tasks with standard fields and fixed Contact → Project → Case UUID roles. No role reassignment is offered through UI/API/MCP. Full domain templates, shared object/module membership, module update/adoption and Documents capabilities remain separate work. This decision does not bring uploads, attachments or email transport into version 1.
+The current dedicated Workspace Modules area reads its three-entry catalog from PostgreSQL, with the full descriptive names above. Contacts & Relations and Documents & Communication are explicitly planned and cannot activate yet. Projects & Tasks activation atomically supplies protected base Contacts, Projects, Cases and Tasks with standard fields and fixed Contact → Project → Case UUID roles. No role reassignment is offered through UI/API/MCP. Full domain templates, shared object/module membership, module update/adoption and Documents capabilities remain separate work. This decision does not bring uploads, attachments or email transport into version 1.
 
 ## Form configuration
 

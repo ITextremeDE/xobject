@@ -10,7 +10,7 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 The local permission model combines user/group object and field ceilings, separate Create rights, graded ownership and nested-group/foreign-access inheritance. Sensitive records configure Access principals, public access, Personal/Confidential privacy, foreign maxima and field exceptions. Membership and Designer status grant no content by themselves; Administrators retain installation-wide content access. See [PRD section 4](docs/PRD.md#4-permissions) and [ADR 0027](docs/adr/0027-ownership-and-foreign-access.md). Calendar-only operations and notification delivery remain later work.
 
-Projects & Tasks supplies protected base objects and the fixed Contact → Project → Case chain. The complete catalog is visible, but Contacts & Relations and Documents & Communication activation, full domain templates, permanent deletion/history erasure and complete version-1 acceptance remain open. Record recycling and guarded restoration are implemented locally under [ADR 0029](docs/adr/0029-record-recycle-bin.md). Personal/account management, language/region and shared workspace design are implemented locally. See the [documentation index](docs/README.md) for the applicable decisions and the [development guide](docs/development.md) for setup and the recorded validation status.
+Projects & Tasks supplies protected base objects and the fixed Contact → Project → Case chain. The current three-entry catalog is visible. V1 targets Contacts & Relations and Projects & Tasks with the [22-object catalog](docs/PRD.md#6-supplied-domain-models); additional profiles, shared-module behavior, full templates, permanent deletion/history erasure and overall V1 acceptance remain open. Documents & Communication and the other target modules are later scope. Record recycling and guarded restoration are implemented locally under [ADR 0029](docs/adr/0029-record-recycle-bin.md). Personal/account management, language/region and shared workspace design are implemented locally. See the [documentation index](docs/README.md) for the applicable decisions and the [development guide](docs/development.md) for setup and the recorded validation status.
 
 Before the first release, development instances are rebuilt from the current installation definition; older development schemas and APIs are not supported. See [ADR 0028](docs/adr/0028-current-installation-baseline.md).
 
@@ -28,8 +28,8 @@ Workspaces keep data and configuration separate. The Projects module supplies a 
 
 | Area | Scope |
 | --- | --- |
-| **Contacts** | Contacts with separate kinds for organizations, individual contacts and contact persons; organization relationships and domain roles. |
-| **Projects** | Shared Contacts, projects, cases and tasks, including separate responsibility and task assignment. |
+| **Contacts & Relations** | The 13 object memberships in the V1 catalog, including Contacts with separate organization/individual/contact-person kinds, organization relationships and domain roles. |
+| **Projects & Tasks** | The 10 object memberships in the V1 catalog, including shared Contacts, Projects, Cases, Tasks and Appointments; separate responsibility and task assignment. |
 | **Custom data models** | User-defined object types, fields and relationship types alongside protected module definitions. |
 | **Classification** | Configurable types, type-dependent statuses and single- or multiple-choice categories. |
 | **Access control** | Object/field ceilings, graded ownership, foreign access and group inheritance on sensitive records. Administrators have installation-wide access. Implemented in the local prototype; calendar and notifications remain separate. |
@@ -39,7 +39,7 @@ Workspaces keep data and configuration separate. The Projects module supplies a 
 
 Uploads, attachments, import/export, SSO, desktop and mobile clients, offline synchronization, Kanban and calendar views are outside the first-version scope.
 
-Documents & Communication is a planned additional module for Emails and Documents, beyond the initial Contacts/Projects delivery. No email handling or uploads are implemented. Modules may share one object and record while using different field selections and form layouts. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
+Documents & Communication is a later module, including supplied Emails, Documents and Phone calls. No email handling or uploads are implemented. Modules may share one object and record while using different field selections and form layouts. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
 
 ## Planned technology
 
