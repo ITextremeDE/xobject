@@ -1643,14 +1643,31 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   assert.equal(Object.values(result.records).flat().length, 74);
   for (const [name, model] of Object.entries(result.objects)) {
     const definition = await ok('get_object_type', { objectTypeId: model.id });
-    for(const field of definition.fields.filter((f:any)=>f.kind==='multiline')){if(name==='distribution_lists'&&field.technicalName==='description'){assert.equal(field.config.formatted,false);assert.equal(result.records[name][0].description.split('\n').length,3);continue;}assert.equal(field.config.formatted,true);for(const row of result.records[name]){assert.match(row[field.technicalName],/### Working notes/);assert.match(row[field.technicalName],/\(John Doe\) -----\n/);assert.match(row[field.technicalName],/\(Jane Doe\) -----\n/);assert.ok(row[field.technicalName].length>350);}}
+    for (const field of definition.fields.filter((f:any) => f.kind === 'multiline')) {
+      if (name === 'distribution_lists' && field.technicalName === 'description') {
+        assert.equal(field.config.formatted, false);
+        const description = result.records[name][0].description;
+        assert.ok(typeof description === 'string');
+        assert.equal(description.split('\n').length, 3);
+        continue;
+      }
+      assert.equal(field.config.formatted, true);
+      for (const row of result.records[name]) {
+        const text = row[field.technicalName];
+        assert.ok(typeof text === 'string');
+        assert.match(text, /### Working notes/);
+        assert.match(text, /\(John Doe\) -----\n/);
+        assert.match(text, /\(Jane Doe\) -----\n/);
+        assert.ok(text.length > 350);
+      }
+    }
     const expected=['id','created_at','created_by','updated_at','updated_by','version',...(name==='contacts'?[]:['keyword']),'type','status','category'];
     assert.deepEqual(definition.columns.slice(0,expected.length),expected);
     assert.ok(definition.fields.find((field: { technicalName: string; required: boolean }) => field.technicalName === 'keyword').required);
     assert.equal((await ok('list_records', { objectTypeId: model.id, limit: 100 })).total, result.records[name].length);
     if(name!=='contacts'){const groups=definition.formLayouts.default.groups;assert.equal(groups[0].labels.en,'General');assert.ok(groups.find((g:any)=>g.labels.en==='Classification'));const primary=groups.findIndex((g:any)=>g.labels.en==='Primary association');if(primary>=0)assert.ok(primary<groups.findIndex((g:any)=>g.labels.en==='Classification'));assert.ok(groups[0].fields.some((e:any)=>e.fieldId===definition.fields.find((f:any)=>f.technicalName==='keyword').id));if(name==='vehicles'||name==='distribution_lists')assert.equal(groups.at(-1).labels.en,'Notes');assert.ok(!groups[0].fields.some((e:any)=>definition.fields.some((f:any)=>f.id===e.fieldId&&['type','status','category','notes'].includes(f.technicalName))));}
   }
-  assert.equal(result.objects.distribution_lists.numbering.enabled,false);assert.ok(!result.objects.distribution_lists.fields.some((f:any)=>f.technicalName==='business_number'));
+  assert.ok(result.objects.distribution_lists.numbering);assert.equal(result.objects.distribution_lists.numbering.enabled,false);assert.ok(!result.objects.distribution_lists.fields.some((f:any)=>f.technicalName==='business_number'));
   const identities = new Map(Object.entries(result.records).flatMap(([name, rows]) => rows.map(row => [row.id, result.objects[name].id])));
   const primaryChildren = new Set<string>();
   for (const link of result.links) {
