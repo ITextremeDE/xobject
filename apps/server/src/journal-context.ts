@@ -59,6 +59,7 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     const records = (await sql<{ id: string; keyword: string | null }>`SELECT id, keyword FROM ${sql.table(`${type.code}_${type.technical_name}`)} WHERE id = ANY(${ids}::uuid[])`.execute(tx)).rows;
     for (const record of records) if (record.keyword) names.set(`${type.id}:${record.id}`, record.keyword);
   }
+  rows = await enrichRecordSecurityContext(tx, rows);
   return rows.map(row => {
     const type = typeMap.get(String(row.object_type_id)), field = fieldMap.get(String(row.field_id));
     return { ...row,
@@ -70,4 +71,22 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
         : names.get(`${row.object_type_id}:${row.entity_id}`) ?? row.entity_name ?? null),
     };
   });
+}
+
+/** Resolve only identities actually present in already-authorized security events. */
+export async function enrichRecordSecurityContext<T extends {field_key?:unknown;old_value?:unknown;new_value?:unknown}>(tx:Executor,rows:T[]):Promise<T[]> {
+ const keys=new Set<string>();
+ for(const row of rows){
+  if(!String(row.field_key).startsWith('access.'))continue;
+  const match=/^access\.field\.(user|group):([^.]+)\./.exec(String(row.field_key));if(match)keys.add(`${match[1]}:${match[2]}`);
+  if(row.field_key==='access.owners')for(const value of [row.old_value,row.new_value])if(Array.isArray(value))for(const p of value)if(p&&['user','group'].includes(p.kind)&&typeof p.id==='string')keys.add(`${p.kind}:${p.id}`);
+ }
+ if(!keys.size)return rows;
+ const ids=[...keys].map(key=>key.slice(key.indexOf(':')+1));
+ const names=new Map((await sql<{kind:string;id:string;name:string}>`SELECT 'user' AS kind,id,name FROM sys_users WHERE id=ANY(${ids}::text[]) UNION ALL SELECT 'group',id::text,name FROM sys_groups WHERE id::text=ANY(${ids}::text[])`.execute(tx)).rows.map(p=>[`${p.kind}:${p.id}`,p.name]));
+ return rows.map(row=>{
+  const used=new Set<string>(),match=/^access\.field\.(user|group):([^.]+)\./.exec(String(row.field_key));if(match)used.add(`${match[1]}:${match[2]}`);
+  if(row.field_key==='access.owners')for(const value of [row.old_value,row.new_value])if(Array.isArray(value))for(const p of value)if(p&&['user','group'].includes(p.kind))used.add(`${p.kind}:${p.id}`);
+  return used.size?{...row,security_context:{principals:Object.fromEntries([...used].filter(key=>names.has(key)).map(key=>[key,names.get(key)!]))}}:row;
+ });
 }

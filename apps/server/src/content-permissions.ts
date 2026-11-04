@@ -33,9 +33,11 @@ export class ObjectAccess {
   return true;
  }
  fieldReadableEverywhere(id:string){return this.field(id).read&&[...this.records.keys()].filter(id=>this.recordLevel(id)>=2).every(record=>this.field(id,record).read);}
- predicate(alias?:string):RawBuilder<boolean>{
-  if(this.level<2)return sql<boolean>`false`;if(this.admin||!this.sensitive)return sql<boolean>`true`;
-  const ids=[...this.records.keys()].filter(id=>this.recordLevel(id)>=2);return sql<boolean>`${sql.ref(alias?`${alias}.id`:'id')}=ANY(${ids}::uuid[])`;
+ predicate(alias?:string,lifecycle:'active'|'recycled'|'all'='active'):RawBuilder<boolean>{
+  const id=sql.ref(alias?`${alias}.id`:'id');
+  const state=lifecycle==='all'?sql`true`:sql`${id} IN (SELECT record_id FROM sys_record_identities WHERE object_type_id=${this.id}::uuid AND ${lifecycle==='active'?sql`recycled_at IS NULL`:sql`recycled_at IS NOT NULL`})`;
+  if(this.level<2)return sql<boolean>`false`;if(this.admin||!this.sensitive)return sql<boolean>`${state}`;
+  const ids=[...this.records.keys()].filter(id=>this.recordLevel(id)>=2);return sql<boolean>`${state} AND ${id}=ANY(${ids}::uuid[])`;
  }
  fieldValue(id:string,column:string,alias?:string,fallback?:RawBuilder<unknown>):RawBuilder<unknown>{
   const value=sql.ref(alias?`${alias}.${column}`:column),otherwise=fallback??sql`NULL`;
@@ -66,18 +68,19 @@ export class ContentAccess {
   }
   return new ObjectAccess(id,model.workspace_id,model.is_sensitive,admin,level,grants,groups,this.actor,canCreate,records);
  }
- async readable(id:string,recordId:string){const policy=await this.policy(id);if(!policy.capabilities.read||policy.recordLevel(recordId)<2)return false;const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(this.tx)).rows[0];return Boolean(model&&(await sql`SELECT 1 FROM ${sql.table(model.name)} WHERE id=${recordId}::uuid AND ${policy.predicate()}`.execute(this.tx)).rows.length);}
- async require(id:string,recordId:string|undefined,level:'read'|'edit'|'full'|'create'|'duplicate'='read'){
+ async readable(id:string,recordId:string,includeRecycled=false){const policy=await this.policy(id);if(!policy.capabilities.read||policy.recordLevel(recordId)<2)return false;const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(this.tx)).rows[0];return Boolean(model&&(await sql`SELECT 1 FROM ${sql.table(model.name)} WHERE id=${recordId}::uuid AND ${policy.predicate(undefined,includeRecycled?'all':'active')}`.execute(this.tx)).rows.length);}
+ async require(id:string,recordId:string|undefined,level:'read'|'edit'|'full'|'create'|'duplicate'|'delete'='read',includeRecycled=false){
   const p=await this.policy(id),cap=recordId?p.recordCapabilities(recordId):p.capabilities;
-  if(!cap[level]||(recordId&&!p.admin&&!await this.readable(id,recordId)))throw new AppError(403,'Content access denied');return p;
+  if(!cap[level])throw new AppError(403,'Content access denied');
+  if(recordId&&!await this.readable(id,recordId,includeRecycled))throw new AppError(p.admin?404:403,p.admin?'Record not found':'Content access denied');return p;
  }
  fields(id:string){let fields=this.fieldMetadata.get(id);if(!fields){fields=sql<{id:string;technical_name:string;applicability?:import('@xobject/contracts').FieldApplicability}>`SELECT id,technical_name,applicability FROM sys_fields WHERE object_type_id=${id}::uuid`.execute(this.tx).then(result=>result.rows);this.fieldMetadata.set(id,fields);}return fields;}
  async canField(id:string,name:string,mode:'read'|'edit'='read',recordId?:string){const p=await this.policy(id);const field=(await this.fields(id)).find(f=>f.technical_name===name);return field?p.field(field.id,recordId)[mode]:false;}
  async canCreateField(id:string,name:string){const p=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);return Boolean(field&&p.creationField(field.id));}
  async keywordValue(id:string,alias?:string){const p=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name==='keyword');return field?p.fieldValue(field.id,'keyword',alias,sql`${sql.ref(alias?`${alias}.id`:'id')}::text`):sql`${sql.ref(alias?`${alias}.id`:'id')}::text`;}
- async project(id:string,row:Record<string,unknown>){
+ async project(id:string,row:Record<string,unknown>,includeRecycled=false){
   const policy=await this.policy(id),result={...row},recordId=String(row.id);
-  if(!await this.readable(id,recordId))return {id:row.id,version:row.version,keyword:recordId,permissions:contentCapabilities(0)};
+  if(!await this.readable(id,recordId,includeRecycled))return {id:row.id,version:row.version,keyword:recordId,permissions:contentCapabilities(0)};
   const fields=await this.fields(id);for(const field of fields)if(!policy.field(field.id,recordId).read)delete result[field.technical_name];
   const dependent=fields.filter(field=>field.applicability&&policy.field(field.id,recordId).read&&!policy.field(field.applicability.fieldId,recordId).read);
   if(dependent.length)result.applicableFieldIds=dependent.filter(field=>applies(field,fields,row)).map(field=>field.id);
@@ -124,7 +127,7 @@ export async function configureContentPermissions(tx:Executor,args:{objectTypeId
 }
 
 /** Apply current rights to immutable history before counting/paging; never rewrite stored events. */
-export async function readableRecordJournal(objectTypeId:string,entries:import('@xobject/contracts').JournalEntry[]){
+export async function readableRecordJournal(objectTypeId:string,entries:import('@xobject/contracts').JournalEntry[],includeRecycled=false){
   const access=contentAccess(),policy=await access.policy(objectTypeId),result:import('@xobject/contracts').JournalEntry[]=[];
   for(const entry of entries){
     if(entry.entity_kind==='record'){
@@ -136,7 +139,7 @@ export async function readableRecordJournal(objectTypeId:string,entries:import('
     for(const name of ['old_value','new_value'] as const){
       const value=structuredClone(entry[name]) as {left?:{objectTypeId:string;recordId:string;keyword:string};right?:{objectTypeId:string;recordId:string;keyword:string}}|null;
       if(value)for(const endpoint of [value.left,value.right]){
-        if(!endpoint||!await access.readable(endpoint.objectTypeId,endpoint.recordId)){visible=false;break;}
+        if(!endpoint||!await access.readable(endpoint.objectTypeId,endpoint.recordId,includeRecycled)){visible=false;break;}
         if(!await access.canField(endpoint.objectTypeId,'keyword','read',endpoint.recordId))endpoint.keyword=endpoint.recordId;
       }
       projected[name]=value;

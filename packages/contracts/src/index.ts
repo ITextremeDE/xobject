@@ -47,6 +47,10 @@ export const schemas = {
   configure_group_inheritance:z.object({workspaceId:uuid,groupId:uuid,version:z.number().int().positive(),members:z.array(membershipSchema).max(1000)}).strict(),
   get_record_security:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
   configure_record_security:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),policy:recordSecuritySchema,confirmPublic:z.boolean().default(false)}).strict(),
+  recycle_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive()}).strict(),
+  restore_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive()}).strict(),
+  get_recycled_record:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
+  list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
   duplicate_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),keyword:z.string().trim().max(200).optional()}).strict(),
   configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
   get_content_permissions:z.object({objectTypeId:uuid}).strict(),
@@ -107,7 +111,7 @@ export const schemas = {
   create_record: z.object({ objectTypeId: uuid, keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional(),security:recordSecurityWrite.optional() }).strict(),
   update_record: z.object({ security:recordSecurityWrite.optional(), objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional() }).strict(),
   get_record: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
-  list_record_journal: z.object({objectTypeId:uuid,recordId:uuid,fieldId:uuid.optional(),entityKind:z.enum(['record','relationship']).optional(),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).max(1000000).default(0)}).strict(),
+  list_record_journal: z.object({includeRecycled:z.boolean().default(false),objectTypeId:uuid,recordId:uuid,fieldId:uuid.optional(),entityKind:z.enum(['record','relationship']).optional(),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).max(1000000).default(0)}).strict(),
 };
 export type Operation = keyof typeof schemas;
 
@@ -121,7 +125,7 @@ export interface DataRecord { fieldAccess?:Record<string,FieldCapabilities>; acc
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
 export interface SearchRecord { id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
-export interface JournalEntry { form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
+export interface JournalEntry { security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
 export type Inputs = { [K in Operation]: z.input<(typeof schemas)[K]> };
 export interface WorkspaceGroup { id: string; workspaceId: string; name: string; active: boolean; version: number; members:import('./ownership.js').GradedMember[] }
@@ -131,6 +135,7 @@ export interface AccountSession { id: string; current: boolean; createdAt: strin
 export interface AccountSecurity { hasPassword: boolean; sessions: AccountSession[] }
 export interface ManagedUser extends UserSummary { active: boolean; mustChangePassword: boolean; version: number }
 export interface SystemJournalEntry extends JournalEntry { entity_kind: string; entity_id: string; workspace_id: string | null; workspace_name: string | null; actor_name: string; entity_name: string | null }
+export interface RecycledRecord extends WorkspaceRecord {recycled_at:string;recycled_by:string;recycledByName:string;canRestore:boolean}
 export interface WorkspaceRecord { id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
   get_foreign_access_capabilities:{manageOwn:boolean};
@@ -139,6 +144,10 @@ export interface Outputs {
   configure_group_inheritance:WorkspaceGroup;
   get_record_security:{policy:RecordSecurity;version:number;effective:AccessExplanation;canManage:boolean;principals:(FieldPrincipal&{assignable:boolean})[];fieldAccess:Record<string,FieldCapabilities>};
   configure_record_security:DataRecord;
+  recycle_record:{id:string;version:number};
+  restore_record:{id:string;version:number};
+  get_recycled_record:DataRecord;
+  list_recycled_records:{records:RecycledRecord[];total:number;limit:number;offset:number};
   duplicate_record:DataRecord;
   configure_object_settings:ObjectDefinition;
   get_content_permissions:ContentPermissions;

@@ -7,7 +7,7 @@ import { applies, validateApplicability, applicabilityDependents } from './field
 import { journalValueContexts } from './record-journal.js';
 import { lockOperation } from './operation-locks.js';
 import { installObjectIntegrity } from './storage-integrity.js';
-import {recordLinkOptions,linkedRecordWrites, primaryChainContext, relationshipTreeBranch, recordRelationships, searchRelationshipCandidates, activateRelationship, writeRecordRelationships } from './record-relationships.js';
+import {validateRestoredRelationships,recordLinkOptions,linkedRecordWrites, primaryChainContext, relationshipTreeBranch, recordRelationships, searchRelationshipCandidates, activateRelationship, writeRecordRelationships } from './record-relationships.js';
 import { workspaceModules, configureWorkspaceModule, installSystemRelationships, relationshipTypes, configureRelationship } from './relationship-types.js';
 import { enrichJournalContext } from './journal-context.js';
 import { listWorkspaceRecords, workspaceDashboard } from './dashboard.js';
@@ -83,6 +83,16 @@ export class Application {
           case 'configure_group_inheritance':return configureGroupInheritance(tx,schemas.configure_group_inheritance.parse(parsed),configJournal);
           case 'get_record_security': {const a=schemas.get_record_security.parse(parsed);return recordSecurity(tx,a.objectTypeId,a.recordId);}
           case 'configure_record_security': {const a=schemas.configure_record_security.parse(parsed),t=await this.objectType(tx,a.objectTypeId);return saveRecordSecurity(tx,a,userId,(change,key,before,after,field)=>this.journal(tx,userId,t.workspace_id,t.id,'record',a.recordId,change,key,before,after,field));}
+          case 'recycle_record':
+          case 'restore_record': return this.recordLifecycle(tx,schemas.recycle_record.parse(parsed),userId,operation==='restore_record');
+          case 'get_recycled_record': {
+            const a=schemas.get_recycled_record.parse(parsed),type=await this.objectType(tx,a.objectTypeId);
+            await contentAccess().require(type.id,a.recordId,'read',true);
+            const state=(await sql`SELECT 1 FROM sys_record_identities WHERE object_type_id=${type.id}::uuid AND record_id=${a.recordId}::uuid AND recycled_at IS NOT NULL`.execute(tx)).rows.length;
+            if(!state)throw new AppError(404,'Recycled record not found');
+            return contentAccess().project(type.id,await this.record(tx,type,a.recordId),true);
+          }
+          case 'list_recycled_records':return listWorkspaceRecords(tx,schemas.list_recycled_records.parse(parsed),userId,true);
           case 'duplicate_record': {
             const a=schemas.duplicate_record.parse(parsed),type=await this.objectType(tx,a.objectTypeId);await contentAccess().require(type.id,a.recordId,'duplicate');await contentAccess().require(type.id,undefined,'create');const source=await this.record(tx,type,a.recordId);if(source.version!==a.version)throw new AppError(409,'Record version conflict');
             const policy=await contentAccess().policy(type.id),fields=await this.fields(tx,type,{});const values:Record<string,FieldValue>={};for(const f of fields)if(f.state==='active'&&isCustomFieldKind(f.kind)&&!['keyword','access_principals'].includes(f.technical_name)&&policy.field(f.id,a.recordId).read&&policy.creationField(f.id))values[f.technical_name]=source[f.technical_name] as FieldValue;
@@ -255,11 +265,12 @@ export class Application {
           }
           case 'list_record_journal': {
             const args=schemas.list_record_journal.parse(parsed),type=await this.objectType(tx,args.objectTypeId);
+            await contentAccess().require(type.id,args.recordId,'read',args.includeRecycled);
             await this.record(tx,type,args.recordId);
             if(args.fieldId&&!(await sql`SELECT 1 FROM sys_fields WHERE id=${args.fieldId}::uuid AND object_type_id=${type.id}::uuid`.execute(tx)).rows.length)throw new AppError(400,'Unknown journal field');
             const where=sql`j.workspace_id=${type.workspace_id}::uuid AND ((j.object_type_id=${type.id}::uuid AND j.entity_kind='record' AND j.entity_id=${args.recordId}::uuid) OR EXISTS(SELECT 1 FROM sys_relationship_journal_endpoints ep WHERE ep.journal_id=j.id AND ep.workspace_id=${type.workspace_id}::uuid AND ep.object_type_id=${type.id}::uuid AND ep.record_id=${args.recordId}::uuid)) AND ${args.fieldId?sql`j.field_id=${args.fieldId}::uuid`:sql`true`} AND ${args.entityKind?sql`j.entity_kind=${args.entityKind}`:sql`true`}`;
             const all=(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,a.name AS actor_name FROM sys_journal j LEFT JOIN sys_users a ON a.id=j.actor_id WHERE ${where} ORDER BY j.created_at DESC,j.id DESC`.execute(tx)).rows;
-            const visible=await readableRecordJournal(type.id,all);
+            const visible=await readableRecordJournal(type.id,all,args.includeRecycled);
             return {entries:await journalValueContexts(tx,visible.slice(args.offset,args.offset+args.limit)),total:visible.length,offset:args.offset,limit:args.limit};
           }
 
@@ -276,6 +287,16 @@ export class Application {
     if (!user || !user.active) throw new AppError(403, 'Access denied');
     if (user.must_change_password && !['get_account_security', 'change_password'].includes(operation)) throw new AppError(403, 'Password change required');
     if (isAccountSecurityOperation(operation)) return { isAdmin: user.is_admin };
+    const recycledRead=operation==='get_recycled_record'||operation==='restore_record'||(operation==='list_record_journal'&&args.includeRecycled===true);
+    if(typeof args.objectTypeId==='string'&&typeof args.recordId==='string'&&!recycledRead){
+      await contentAccess().require(args.objectTypeId,args.recordId,'read',true);
+      const recycled=(await sql`SELECT 1 FROM sys_record_identities WHERE object_type_id=${args.objectTypeId}::uuid AND record_id=${args.recordId}::uuid AND recycled_at IS NOT NULL`.execute(tx)).rows.length;
+      if(recycled)throw new AppError(404,'Record is in the recycle bin');
+    }
+    if(['recycle_record','restore_record','get_recycled_record'].includes(operation)){
+      await contentAccess().require(String(args.objectTypeId),String(args.recordId),operation==='recycle_record'?'delete':operation==='restore_record'?'full':'read',recycledRead);return {isAdmin:user.is_admin};
+    }
+    if(operation==='list_record_journal'&&recycledRead){await contentAccess().require(String(args.objectTypeId),String(args.recordId),'read',true);return {isAdmin:user.is_admin};}
     if (user.is_admin) return { isAdmin: true };
     if (operation==='create_group' && Array.isArray(args.members)&&args.members.length) throw new AppError(403, 'Only Administrators manage group memberships');
     if (['get_time_zone_catalog', 'configure_user_localization', 'get_language_catalog', 'get_access_context', 'list_workspaces',  'set_user_profile'].includes(operation)) return { isAdmin: false };
@@ -283,7 +304,7 @@ export class Application {
     if(['get_foreign_access','configure_foreign_access','configure_group_inheritance','get_content_permissions','configure_content_permissions'].includes(operation))throw new AppError(403,'Only Administrators manage content permissions');
     const contentOperations=['duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
     if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||(['get_record_relationships','get_primary_chain_context','search_relationship_candidates'].includes(operation)&&!args.recordId)?'create':operation==='update_record'?'edit':operation==='configure_record_security'?'full':operation==='duplicate_record'?'duplicate':'read');return {isAdmin:false};}
-    if(['get_workspace_dashboard','list_workspace_records','search_workspace'].includes(operation)){if(!(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${args.workspaceId}::uuid AND user_id=${actor}`.execute(tx)).rows.length)throw new AppError(403,'Access denied');return {isAdmin:false};}
+    if(['list_recycled_records','get_workspace_dashboard','list_workspace_records','search_workspace'].includes(operation)){if(!(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${args.workspaceId}::uuid AND user_id=${actor}`.execute(tx)).rows.length)throw new AppError(403,'Access denied');return {isAdmin:false};}
     // Other instance operations remain Administrator-only.
     if (['get_primary_chain_context', 'get_relationship_tree_branch', 'get_record_relationships', 'search_relationship_candidates', 'list_record_journal', 'get_workspace_dashboard', 'list_workspace_records', 'list_managed_users', 'create_user', 'configure_user', 'list_system_journal',  'set_group_active', 'create_workspace', 'list_users', 'set_workspace_member', 'search_workspace', 'list_records', 'get_record',  'create_record', 'update_record'].includes(operation)) throw new AppError(403, 'Access denied');
     let workspaceId: string | undefined;
@@ -895,6 +916,26 @@ export class Application {
     const relationships=args.linkFrom?await linkedRecordWrites(tx,type.id,args.linkFrom,args.relationships):args.relationships;
     await writeRecordRelationships(tx,type.id,id,relationships,actor,change,true,true);
     return contentAccess().project(type.id,await this.record(tx, type, id));
+  }
+
+  private async recordLifecycle(tx:Executor,args:z.infer<typeof schemas.recycle_record>,actor:string,restore:boolean){
+    const type=await this.objectType(tx,args.objectTypeId);
+    await contentAccess().require(type.id,args.recordId,restore?'full':'delete',restore);
+    this.requireActive(type);
+    const row=await this.record(tx,type,args.recordId);
+    if(row.version!==args.version)throw new AppError(409,'Record version conflict');
+    const identity=(await sql<{recycled_at:Date|null}>`SELECT recycled_at FROM sys_record_identities WHERE object_type_id=${type.id}::uuid AND record_id=${args.recordId}::uuid`.execute(tx)).rows[0];
+    if(Boolean(identity?.recycled_at)!==restore)throw new AppError(409,'Record lifecycle conflict');
+    if(restore){
+      const fields=await this.fields(tx,type,{});
+      await this.normalizeRecordFields(tx,type,fields.filter(f=>f.technical_name!=='access_principals'),{},row);
+      resolveChoices(this.effectiveClassification(type.classification,fields),{},row as unknown as Choices);
+      await validateRestoredRelationships(tx,type.id,args.recordId);
+    }
+    await sql`UPDATE sys_record_identities SET recycled_at=${restore?sql`NULL`:sql`now()`},recycled_by=${restore?null:actor} WHERE object_type_id=${type.id}::uuid AND record_id=${args.recordId}::uuid`.execute(tx);
+    await sql`UPDATE ${sql.table(tableName(type))} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${args.recordId}::uuid`.execute(tx);
+    await this.journal(tx,actor,type.workspace_id,type.id,'record',args.recordId,v7(),'lifecycle',restore?'recycled':'active',restore?'active':'recycled');
+    return {id:args.recordId,version:row.version+1};
   }
 
   private async updateRecord(tx: Executor, args: z.infer<typeof schemas.update_record>, actor: string) {

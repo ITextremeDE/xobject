@@ -153,6 +153,20 @@ async function validateChangedRelationships(tx:Executor,type:RelationshipType,re
     }
   }
 }
+/** Retained edges reserve their slots while recycled. Restore validates only this record and its edges. */
+export async function validateRestoredRelationships(tx:Executor,objectTypeId:string,recordId:string){
+ const model=await modelFor(tx,objectTypeId),definitions=await relationshipTypes(tx,model.workspace_id),focus={objectTypeId,recordId};
+ const edges=(await edgesFor(tx,model.workspace_id)).filter(edge=>key(left(edge))===key(focus)||key(right(edge))===key(focus));
+ for(const definition of definitions.filter(type=>type.rulesState==='active')){
+  const own=edges.filter(edge=>edge.relationship_type_id===definition.id);
+  for(const edge of own){
+   if(!permits(definition,edge.left_object_type_id,edge.right_object_type_id)&&!(symmetric(definition)&&permits(definition,edge.right_object_type_id,edge.left_object_type_id)))throw new AppError(409,'Retained relationship pair is no longer valid');
+   if(definition.kind==='primary'){const chain=await primaryChain(tx,model.workspace_id);if(!chain||!primaryPairAllowed(chain,edge.left_object_type_id,edge.right_object_type_id))throw new AppError(409,'Retained Primary association is no longer valid');}
+   await validateEndpointPair(tx,definition,left(edge),right(edge));
+  }
+  await validateChangedRelationships(tx,definition,[focus,...own.flatMap(edge=>[left(edge),right(edge)])]);
+ }
+}
 export async function activateRelationship(tx:Executor,args:{workspaceId:string;relationshipTypeId:string;version:number},actor:string) {
   const type=(await relationshipTypes(tx,args.workspaceId)).find(d=>d.id===args.relationshipTypeId);
   if(!type)throw new AppError(404,'Relationship type not found');if(type.version!==args.version)throw new AppError(409,'Relationship version conflict');
@@ -167,7 +181,7 @@ export async function activateRelationship(tx:Executor,args:{workspaceId:string;
 /** Replace only supplied relationship fields, with explicit definition versions. Both endpoints' versions change. */
 export async function writeRecordRelationships(tx:Executor,objectTypeId:string,recordId:string,writes:RelationshipWrite[]|undefined,actor:string,changeId:string,alreadyTouched:boolean,newRecord=false) {
   const model=await modelFor(tx,objectTypeId),definitions=await relationshipTypes(tx,model.workspace_id);
-  await sql`INSERT INTO sys_record_identities VALUES(${model.workspace_id}::uuid,${objectTypeId}::uuid,${recordId}::uuid) ON CONFLICT DO NOTHING`.execute(tx);
+  await sql`INSERT INTO sys_record_identities(workspace_id,object_type_id,record_id) VALUES(${model.workspace_id}::uuid,${objectTypeId}::uuid,${recordId}::uuid) ON CONFLICT DO NOTHING`.execute(tx);
   const chain=await primaryChain(tx,model.workspace_id);
   const focus={objectTypeId,recordId},touched=new Map<string,RecordReference>(),affected=new Set<string>(),seen=new Set<string>();
   for(const write of writes??[]) {
@@ -257,11 +271,11 @@ export async function primaryChainContext(tx:Executor,args:{objectTypeId:string;
   if(parent===undefined&&args.recordId){const current=(await sql<{objectTypeId:string;recordId:string}>`SELECT e.left_object_type_id AS "objectTypeId",e.left_record_id AS "recordId" FROM sys_relationships e JOIN sys_relationship_types t ON t.id=e.relationship_type_id WHERE t.kind='primary' AND e.right_object_type_id=${model.id}::uuid AND e.right_record_id=${args.recordId}::uuid`.execute(tx)).rows[0];parent=current??null;}
   if(!chain)return {configuration:null,levels:[],direct:null};
   const roles=primaryRolesForObject(chain,model.id);
-  let path:RelatedRecord[]=[];
-  if(parent&&!await contentAccess().readable(parent.objectTypeId,parent.recordId)){if(args.parent)throw new AppError(403,'Content access denied');parent=null;}
+  let path:RelatedRecord[]=[];let unavailable=false;
+  if(parent&&!await contentAccess().readable(parent.objectTypeId,parent.recordId)){if(args.parent)throw new AppError(403,'Content access denied');parent=null;unavailable=true;}
   if(parent){if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');if(!primaryPairAllowed(chain,parent.objectTypeId,model.id))throw new AppError(400,'Primary association does not follow configured levels');const branch=await relationshipTreeBranch(tx,{objectTypeId:parent.objectTypeId,recordId:parent.recordId,offset:0,limit:1},actor);if(branch.record.objectTypeId!==parent.objectTypeId)throw new AppError(400,'Invalid Primary context');if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');path=[...branch.ancestors,branch.record];}
   const direct=path.at(-1)??null;
-  return {configuration:chain,direct,levels:roles.map(role=>({role,objectTypeId:chain[role],record:path.find(row=>row.objectTypeId===chain[role])??null,inherited:Boolean(direct&&direct.objectTypeId!==chain[role])}))};
+  return {configuration:chain,direct,unavailable,levels:roles.map(role=>({role,objectTypeId:chain[role],record:path.find(row=>row.objectTypeId===chain[role])??null,inherited:Boolean(direct&&direct.objectTypeId!==chain[role])}))};
 }
 
 /** Catalog entries describe eligible object pairs, even when no matching records exist yet. */

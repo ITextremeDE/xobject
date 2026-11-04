@@ -149,8 +149,13 @@ CREATE TABLE public.sys_object_types (
 CREATE TABLE public.sys_record_identities (
     workspace_id uuid NOT NULL,
     object_type_id uuid NOT NULL,
-    record_id uuid NOT NULL
+    record_id uuid NOT NULL,
+    recycled_at timestamp with time zone,
+    recycled_by text REFERENCES public.sys_users(id),
+    CONSTRAINT sys_record_recycle_pair CHECK ((recycled_at IS NULL) = (recycled_by IS NULL))
 );
+
+CREATE INDEX sys_record_recycle_idx ON public.sys_record_identities(workspace_id, recycled_at DESC, record_id) WHERE recycled_at IS NOT NULL;
 
 CREATE TABLE public.sys_record_security (
     workspace_id uuid NOT NULL,
