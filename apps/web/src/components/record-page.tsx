@@ -1,3 +1,5 @@
+import {RecordFormGroups} from './record-form-groups';
+import {RecordLifecycleAction} from './record-lifecycle-action';
 import {useNavigate} from 'react-router';
 import {RecordAccessField} from './record-access-field';
 import {sameRecordSecurity,validRecordSecurityDraft} from '@/lib/record-access';
@@ -5,7 +7,7 @@ import {RecordSecurityDialog} from './record-security';
 import {isCalendarDate} from '@/lib/temporal-input';
 import {SettingsSection} from './settings-section';
 import {RecordPageLoading} from './loading';
-import {resolveFormLayout,formEntryKey,formLayoutEntries,type FormEntry,type FieldDefinition} from '@xobject/contracts';
+import {resolveFormLayout,formLayoutEntries,type FormEntry,type FieldDefinition} from '@xobject/contracts';
 import {localizedFieldDraft,normalizedFieldDraft,numericDraftError,sameFieldDraft,reformatNumericDrafts} from '@/lib/numeric-input';
 import { RecordTree } from './record-tree';
 import {RecordLinkActions} from './record-link-actions';
@@ -209,6 +211,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     {formatChangePending?<Alert><AlertDescription>{t('regionalFormatChangePending')}</AlertDescription></Alert>:null}
     {dirty?<Alert><AlertDescription role="status" className="flex flex-wrap items-center justify-between gap-2">{t('recordDraftPending')}{tab!=='details'?<Button type="button" variant="outline" size="sm" onClick={()=>setTab('details')}>{t('keepEditing')}</Button>:null}</AlertDescription></Alert>:null}
     {record?<div className="flex flex-wrap items-center gap-2">
+      {record.permissions?.delete?<RecordLifecycleAction objectTypeId={definition.id} recordId={record.id} version={version!} name={record.keyword||record.id} disabled={inactiveObject||dirty||mutation.isPending||duplicate.isPending} onBusyChange={onBusyChange} onDone={()=>{onBusyChange(false);onAccessLost?.();}}/>:null}
       {record.permissions?.duplicate&&definition.permissions?.create?<Button type="button" variant="outline" disabled={inactiveObject||dirty||mutation.isPending||duplicate.isPending} onClick={()=>duplicate.mutate()}><CopyIcon data-icon="inline-start"/>{t('duplicateRecord')}</Button>:null}
     </div>:null}
     {duplicate.isError?<ErrorNotice error={duplicate.error}/>:null}
@@ -222,7 +225,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
       {saved ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
       {!record?<FieldDescription>{t('recordCreateHelp')}</FieldDescription>:null}
       {hiddenRelationships?<Button type="button" variant="outline" className="self-start" onClick={()=>setShowHiddenRelationships(value=>!value)}>{t(showHiddenRelationships?'formHideOptionalRelationships':'formShowOptionalRelationships',{count:hiddenRelationships})}</Button>:null}
-      {layout.groups.filter(group=>group.fields.length).map(group=><SettingsSection key={group.id}><FieldSet className="min-w-0"><FieldLegend>{groupLabel(group.labels)}</FieldLegend><FieldGroup className="grid min-w-0 items-start gap-6 md:grid-cols-2">{group.fields.map(entry=>{return <div key={formEntryKey(entry)} className={entry.width==='full'?'min-w-0 md:col-span-2':'min-w-0'}>{renderEntry(entry)}</div>;})}</FieldGroup></FieldSet></SettingsSection>)}
+      <RecordFormGroups layout={layout} renderEntry={renderEntry}/>
       {record && inactiveFields.length ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-inactive" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3"/>}>{t('inactiveFields')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-inactive:rotate-180"/></CollapsibleTrigger><CollapsibleContent><Separator/><FieldSet className="p-4"><FieldLegend className="sr-only">{t('inactiveFields')}</FieldLegend><FieldGroup>
         {inactiveFields.filter(field => isCustomFieldKind(field.kind)).map(field => <CustomFieldControl key={field.id} field={field} value={localizedFieldDraft(field,record[field.technicalName] as FieldValue ?? null,regional)} workspaceId={definition.workspaceId} disabled onChange={() => {}} />)}
         <ClassificationFields fields={inactiveFields} config={definition.classification} value={{ type: record.type??null, status: record.status??null, category: record.category??[] }} disabled onChange={() => {}} />
@@ -241,20 +244,20 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
 
 }
 
-function Journal({ definition, recordId, user, record, workspaceName }: { definition: ObjectDefinition; recordId: string; user: AuthUser; workspaceName: string; record: DataRecord }) {
+export function Journal({ definition, recordId, user, record, workspaceName,includeRecycled=false }: { definition: ObjectDefinition; recordId: string; user: AuthUser; workspaceName: string; record: DataRecord;includeRecycled?:boolean }) {
   const { t, i18n } = useTranslation();
   const regional=useRegional(),timeZone=useTimeZone();
   const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
   const [fieldId,setFieldId]=useState('all'),[kind,setKind]=useState('all'),[page,setPage]=useState(1),[pageSize,setPageSize]=useState(10);
   const allFields=[...definition.fields,...(definition.historicalFields??[])];
-  const result = useQuery({ placeholderData:keepPreviousData, queryKey: ['journal', definition.id, recordId,fieldId,kind,page,pageSize], queryFn: () => api('list_record_journal', { objectTypeId: definition.id, recordId,fieldId:fieldId==='all'?undefined:fieldId,entityKind:kind==='all'?undefined:kind as 'record'|'relationship',offset:(page-1)*pageSize,limit:pageSize }) });
+  const result = useQuery({ placeholderData:keepPreviousData, queryKey: ['journal', definition.id, recordId,includeRecycled,fieldId,kind,page,pageSize], queryFn: () => api('list_record_journal', {includeRecycled, objectTypeId: definition.id, recordId,fieldId:fieldId==='all'?undefined:fieldId,entityKind:kind==='all'?undefined:kind as 'record'|'relationship',offset:(page-1)*pageSize,limit:pageSize }) });
   const fields=[{value:'all',label:t('journalAllFields')},...allFields.map(field=>({value:field.id,label:field.label})).sort((a,b)=>a.label.localeCompare(b.label,i18n.language))];
   const kinds=[{value:'all',label:t('journalAllChanges')},{value:'record',label:t('journalFieldChanges')},{value:'relationship',label:t('recordRelationships')}];
   const filters=<FieldGroup className="w-full gap-4 sm:flex-row sm:items-end sm:max-w-xl"><Field><FieldLabel htmlFor="record-journal-kind">{t('recordJournalChangeFilter')}</FieldLabel><Select items={kinds} value={kind} onValueChange={value=>{if(value){setKind(value);setFieldId('all');setPage(1);}}}><SelectTrigger id="record-journal-kind" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{kinds.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
   {kind!=='relationship'?<Field><FieldLabel htmlFor="record-journal-field">{t('field')}</FieldLabel><Select items={fields} value={fieldId} onValueChange={value=>{if(value){setFieldId(value);setPage(1);}}}><SelectTrigger id="record-journal-field" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{fields.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>:null}</FieldGroup>;
   const entries=(result.data?.entries??[]).map(entry=>{
     const field=allFields.find(field=>field.id===entry.field_id);
-    return {...entry,entity_kind:entry.entity_kind??'record',entity_id:entry.entity_id??recordId,workspace_id:definition.workspaceId,workspace_name:workspaceName,object_type_name:definition.label,actor_name:entry.actor_name??(entry.actor_id===user.id?user.name:entry.actor_id),entity_name:record.keyword||record.id,field_label:field?.label??entry.field_key};
+    return {...entry,entity_kind:entry.entity_kind??'record',entity_id:entry.entity_id??recordId,workspace_id:definition.workspaceId,workspace_name:workspaceName,object_type_name:definition.label,actor_name:entry.actor_name??(entry.actor_id===user.id?user.name:entry.actor_id),entity_name:record.keyword||record.id,field_label:field?.label??entry.field_label??null};
   });
   function renderValue(entry:JournalEntry,value:unknown,side:'before'|'after') {
     const field=allFields.find(field=>field.id===entry.field_id);

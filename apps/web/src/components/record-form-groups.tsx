@@ -1,0 +1,11 @@
+import type {ReactNode} from 'react';
+import {useTranslation} from 'react-i18next';
+import {formEntryKey,type FormLayout,type FormEntry} from '@xobject/contracts';
+import {SettingsSection} from './settings-section';
+import {FieldSet,FieldLegend,FieldGroup} from '@/components/ui/field';
+
+/** Shared group surfaces, translated headings and widths for record forms and read-only previews. */
+export function RecordFormGroups({layout,renderEntry}:{layout:FormLayout;renderEntry:(entry:FormEntry)=>ReactNode}){
+ const {i18n}=useTranslation();
+ return <>{layout.groups.filter(group=>group.fields.length).map(group=><SettingsSection key={group.id}><FieldSet className="min-w-0"><FieldLegend>{group.labels[i18n.language as 'en'|'de']??group.labels.en??group.labels.de??Object.values(group.labels)[0]}</FieldLegend><FieldGroup className="grid min-w-0 items-start gap-6 md:grid-cols-2">{group.fields.map(entry=><div key={formEntryKey(entry)} className={entry.width==='full'?'min-w-0 md:col-span-2':'min-w-0'}>{renderEntry(entry)}</div>)}</FieldGroup></FieldSet></SettingsSection>)}</>;
+}

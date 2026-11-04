@@ -56,7 +56,7 @@ export function FieldEditorDialog({ standardKind, onDeleted, readOnly = false, f
   const [lifeBusy, setLifeBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const dirty = JSON.stringify(applicability) !== JSON.stringify(baseline.applicability) || required !== baseline.required || kind !== baseline.kind || JSON.stringify(config) !== JSON.stringify(baseline.config) || technicalName !== baseline.technicalName || !sameLabels(labels, baseline.labels) || pendingChoice;
-  const reservedName = !fixed && (hasReservedStandardFieldLabel(labels) || (!field && isReservedStandardFieldName(technicalName)));
+  const reservedName = !fixed && !protectedField && (hasReservedStandardFieldLabel(labels) || (!field && isReservedStandardFieldName(technicalName)));
   const valid = (!applicability || applicability.optionIds.length > 0) && !reservedName && (fixed || hasLabel(labels)) && Boolean(technicalName) && !pendingChoice && (config.options ?? []).every(option => hasLabel(option.labels));
   const mutation = useMutation({ mutationFn: async () => {
     const cleanedConfig = { ...config, ...(config.options ? { options: config.options.map(option => ({ ...option, labels: cleanLabels(option.labels) })) } : {}) };
@@ -85,7 +85,7 @@ export function FieldEditorDialog({ standardKind, onDeleted, readOnly = false, f
         {reservedName ? <Alert variant="destructive"><AlertDescription>{t('reservedStandardName')}</AlertDescription></Alert> : null}
         {owner.isError ? <ErrorNotice error={owner.error} /> : null}
         {saved && !dirty ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
-        <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('fieldIdentity')}</FieldLegend><TranslatedLabelInput compactHelp id="field-label" autoFocus={!field} value={labels} readOnly={fixed || protectedField || readOnly} readOnlyHelp={!fixed ? t('readOnlyLabelHelp') : undefined} disabled={pending} onChange={next => {
+        <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('fieldIdentity')}</FieldLegend><TranslatedLabelInput compactHelp id="field-label" autoFocus={!field} value={labels} readOnly={fixed || protectedField || readOnly} readOnlyHelp={protectedField ? t('protectedFieldHelp') : !fixed && readOnly ? t('readOnlyLabelHelp') : undefined} disabled={pending} onChange={next => {
           if (!field && !nameTouched) setTechnicalName((next.en ?? next.de ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+|_+$/g, ''));
           setLabels(next); setSaved(false);
         }} />

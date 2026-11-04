@@ -1,5 +1,5 @@
 import {linkedCreationSchema} from '@/lib/linked-record';
-import {WorkspaceLoading,DashboardLoading,RecordPageLoading,RecordListLoading,SettingsLoading} from './loading';
+import {RecycleBinLoading,WorkspaceLoading,DashboardLoading,RecordPageLoading,RecordListLoading,SettingsLoading} from './loading';
 import {TablePreferencesProvider} from '@/lib/column-preferences';
 import { recordReturnPath } from '@/lib/record-navigation';
 import { resourceLinks } from '@/lib/resource-links';
@@ -15,7 +15,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useBlocker, useLocation, matchPath, useNavigate } from 'react-router';
-import { DatabaseIcon, PlusIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
+import { Trash2Icon, DatabaseIcon, PlusIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
 import { type AuthUser } from '@xobject/contracts';
 import { api, signOut } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,7 @@ import { HeaderSearch } from './header-search';
 import { KeyboardHelp } from './keyboard-help';
 import { ThemeDropdown } from './theme-dropdown';
 import { RecordList } from './record-list';
+const RecycleBin=lazy(()=>import('./recycle-bin').then(module=>({default:module.RecycleBin})));
 const Dashboard = lazy(() => import('./dashboard').then(module => ({ default: module.Dashboard })));
 const SettingsPage = lazy(() => import('./settings-page').then(module => ({ default: module.SettingsPage })));
 
@@ -53,16 +54,17 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const location = useLocation();
   const routeNavigate = useNavigate();
   const settingsOpen = location.pathname === '/settings';
-  const settingsBackground = settingsOpen && typeof location.state?.backgroundPath === 'string' && /^\/w\/[^/?]+(?:\/objects\/[^/?]+(?:\/[^/?]+)?)?(?:\?.*)?$/.test(location.state.backgroundPath) ? location.state.backgroundPath : null;
+  const settingsBackground = settingsOpen && typeof location.state?.backgroundPath === 'string' && /^\/w\/[^/?]+(?:\/objects\/[^/?]+(?:\/[^/?]+)?|\/recycle-bin)?(?:\?.*)?$/.test(location.state.backgroundPath) ? location.state.backgroundPath : null;
   const contentPath = settingsOpen ? (settingsBackground?.split('?')[0] ?? (location.state?.workspaceCode ? `/w/${location.state.workspaceCode}` : '/')) : location.pathname;
   const objectRoute = matchPath('/w/:code/objects/:name/:recordId?', contentPath);
+  const recycleRoute=matchPath('/w/:code/recycle-bin',contentPath);
   const dashboardRoute = matchPath('/w/:code', contentPath);
-  const workspaceCode = objectRoute?.params.code ?? dashboardRoute?.params.code ?? (location.pathname === '/settings' && typeof location.state?.workspaceCode === 'string' ? location.state.workspaceCode : undefined);
-  const view = objectRoute ? 'records' : 'dashboard';
+  const workspaceCode = objectRoute?.params.code ?? recycleRoute?.params.code ?? dashboardRoute?.params.code ?? (location.pathname === '/settings' && typeof location.state?.workspaceCode === 'string' ? location.state.workspaceCode : undefined);
+  const view = recycleRoute?'recycle-bin':objectRoute ? 'records' : 'dashboard';
   const recordId = objectRoute?.params.recordId ?? null;
   const linkedDraft=linkedCreationSchema.safeParse(location.state?.linkedCreation);
   const validRecordId = !recordId || recordId === 'new' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recordId);
-  const validRoute = validRecordId && Boolean(objectRoute || dashboardRoute || location.pathname === '/' || location.pathname === '/settings');
+  const validRoute = validRecordId && Boolean(recycleRoute || objectRoute || dashboardRoute || location.pathname === '/' || location.pathname === '/settings');
   const [returnAfterAccessLoss,setReturnAfterAccessLoss]=useState(false);
   const [savedRecordId, setSavedRecordId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -118,7 +120,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
       void queryClient.invalidateQueries({ predicate: ({ queryKey }) =>
         (queryKey[0] === 'workspaces' && queryKey[1] === user.id) ||
         (queryKey[0] === 'types' && queryKey[1] === workspace?.id) ||
-        (['dashboard', 'workspace-records'].includes(String(queryKey[0])) && queryKey[1] === workspace?.id) ||
+        (['dashboard', 'workspace-records','recycled-records'].includes(String(queryKey[0])) && queryKey[1] === workspace?.id) ||
         (selectedType && ['definition', 'records'].includes(String(queryKey[0])) && queryKey[1] === selectedType.id) === true,
       });
     });
@@ -155,7 +157,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
     }
   }
   const closeSettings=()=>{if(busy)return;if(settingsBackground)void routeNavigate(-1);else void routeNavigate(dashboardPath,{replace:true});};
-  const pageLoading=view==='dashboard'?<DashboardLoading/>:recordId?<RecordPageLoading isNew={recordId==='new'}/>:<RecordListLoading title={selectedType?.label}/>;
+  const pageLoading=view==='recycle-bin'?<RecycleBinLoading/>:view==='dashboard'?<DashboardLoading/>:recordId?<RecordPageLoading isNew={recordId==='new'}/>:<RecordListLoading title={selectedType?.label}/>;
   const panelDefinition = definition.data?.id === selectedType?.id ? definition.data : undefined;
   return <RegionalProvider value={effectiveRegionalSettings(workspace?.regional, user.regionalPreferences)}><TimeZoneProvider value={effectiveTimeZone(user.timeZone, workspace?.time_zone)}><WorkspaceLanguageProvider languages={workspace?.label_languages}><WorkspaceMenuAppearanceProvider appearance={workspace?.appearance}>
     <Sidebar collapsible="icon" variant="inset" mobileTitle={t('menu')} mobileDescription={t('selectObject')}>
@@ -180,12 +182,12 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
             </DropdownMenuItem></DropdownMenuGroup></> : null}
           </DropdownMenuContent></DropdownMenu>
         </SidebarMenuItem></SidebarMenu>
-          <HeaderSearch key={workspace?.id} workspaceId={workspace?.id} workspaceName={workspace?.name} language={language} disabled={busy} canSearchRecords={true} objectTypes={(types.data??[]).filter(type=>type.permissions?.read===true)} onNavigate={(target) => { if (target === 'settings') showPage('settings'); else if (target === 'keyboard') showKeyboardHelp(null); else if (target === 'dashboard') navigateSidebar(dashboardPath); }} onOpenResult={(id, recordId) => { const selected = types.data?.find(type => type.id === id); if (selected && !busy) void routeNavigate(`${dashboardPath}/objects/${selected.technicalName}${recordId ? `/${recordId}` : ''}`); }} />
+          <HeaderSearch key={workspace?.id} workspaceId={workspace?.id} workspaceName={workspace?.name} language={language} disabled={busy} canSearchRecords={true} objectTypes={(types.data??[]).filter(type=>type.permissions?.read===true)} onNavigate={(target) => { if (target === 'settings') showPage('settings'); else if (target === 'keyboard') showKeyboardHelp(null); else if (target === 'dashboard') navigateSidebar(dashboardPath); else if (target === 'recycle-bin') navigateSidebar(`${dashboardPath}/recycle-bin`); }} onOpenResult={(id, recordId) => { const selected = types.data?.find(type => type.id === id); if (selected && !busy) void routeNavigate(`${dashboardPath}/objects/${selected.technicalName}${recordId ? `/${recordId}` : ''}`); }} />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem>
           <SidebarMenuButton isActive={view === 'dashboard'} tooltip={t('dashboard')} disabled={busy} onClick={() => navigateSidebar(dashboardPath)}><LayoutDashboardIcon /><span>{t('dashboard')}</span></SidebarMenuButton>
-        </SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>
+        </SidebarMenuItem><SidebarMenuItem><SidebarMenuButton isActive={view==='recycle-bin'} tooltip={t('recycleBin')} disabled={busy||!workspace} onClick={()=>navigateSidebar(`${dashboardPath}/recycle-bin`)}><Trash2Icon/><span>{t('recycleBin')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>
         <SidebarGroup><SidebarGroupLabel>{t('objects')}</SidebarGroupLabel><SidebarGroupContent>
           {types.isPending && workspace ? <Loading variant="sidebar"/> : types.isError ? <ErrorNotice error={types.error} retry={() => { void types.refetch(); }} /> : <SidebarMenu className="gap-1">{types.data?.filter(type => (type.permissions?.read===true||type.permissions?.create===true)&&(!type.state || type.state === 'active')).map(type => <SidebarMenuItem key={type.id}>
             <SidebarMenuButton isActive={selectedType?.id === type.id} onClick={() => navigateSidebar(`${dashboardPath}/objects/${type.technicalName}`)} tooltip={type.label} disabled={busy}><DatabaseIcon /><span>{type.label}</span></SidebarMenuButton>
@@ -206,7 +208,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           <Separator orientation="vertical" className="mr-2 data-vertical:h-4 data-vertical:self-auto" />
           <Breadcrumb className="min-w-0" aria-label={t('menu')}><BreadcrumbList className="flex-nowrap">
             {workspace ? <><BreadcrumbItem className="min-w-0"><BreadcrumbLink className="max-w-40 truncate" render={<Link to={dashboardPath} />} aria-disabled={busy || undefined} onClick={event => { if (busy) event.preventDefault(); }}>{workspace.name}</BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator className="hidden sm:block" /></> : null}
-            <BreadcrumbItem className="hidden min-w-0 sm:inline-flex">{recordId && selectedType ? <BreadcrumbLink className="max-w-48 truncate" render={<Link to={objectPath} />} onClick={event => { if (busy) event.preventDefault(); }}>{selectedType.label}</BreadcrumbLink> : <BreadcrumbPage className="truncate">{view === 'dashboard' ? t('dashboard') : selectedType?.label ?? workspace?.name ?? 'xObject'}</BreadcrumbPage>}</BreadcrumbItem>{recordId ? <><BreadcrumbSeparator className="hidden md:block" /><BreadcrumbItem className="hidden min-w-0 md:inline-flex"><BreadcrumbPage className="truncate">{t(recordId === 'new' ? 'newRecord' : 'details')}</BreadcrumbPage></BreadcrumbItem></> : null}
+            <BreadcrumbItem className="hidden min-w-0 sm:inline-flex">{recordId && selectedType ? <BreadcrumbLink className="max-w-48 truncate" render={<Link to={objectPath} />} onClick={event => { if (busy) event.preventDefault(); }}>{selectedType.label}</BreadcrumbLink> : <BreadcrumbPage className="truncate">{view === 'recycle-bin'?t('recycleBin'):view === 'dashboard' ? t('dashboard') : selectedType?.label ?? workspace?.name ?? 'xObject'}</BreadcrumbPage>}</BreadcrumbItem>{recordId ? <><BreadcrumbSeparator className="hidden md:block" /><BreadcrumbItem className="hidden min-w-0 md:inline-flex"><BreadcrumbPage className="truncate">{t(recordId === 'new' ? 'newRecord' : 'details')}</BreadcrumbPage></BreadcrumbItem></> : null}
           </BreadcrumbList></Breadcrumb>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-x-2 pr-4 sm:gap-x-3">
@@ -222,6 +224,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           : workspaces.isPending ? pageLoading : workspaces.isError ? <ErrorNotice error={workspaces.error} retry={() => { void workspaces.refetch(); }} />
           : !workspace ? user.isAdmin ? <Welcome title={t('noWorkspace')} description={t('noWorkspaceDescription')} action={t('newWorkspace')} onAction={() => setDialog('workspace')} /> : <Empty><EmptyHeader><EmptyTitle>{t('noWorkspace')}</EmptyTitle><EmptyDescription>{t('noWorkspaceAssigned')}</EmptyDescription></EmptyHeader></Empty>
           : types.isError ? <ErrorNotice error={types.error} /> : types.isPending ? pageLoading
+          : view === 'recycle-bin'?<Suspense fallback={<RecycleBinLoading/>}><RecycleBin key={workspace.id} workspace={workspace} user={user} onBusyChange={setBusy} types={types.data.filter(type=>type.permissions?.read===true)}/></Suspense>
           : view === 'dashboard' ? <Suspense fallback={<DashboardLoading/>}><Dashboard canReadContent={true} canManage={canManage} workspace={workspace} types={types.data.filter(type => (type.permissions?.read===true||type.permissions?.create===true)&&(!type.state || type.state === 'active'))} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`, { state: recordId ? { recordOrigin: `${location.pathname}${location.search}` } : null }); }); }} onCreate={() => setDialog('object')} /></Suspense>
           : !selectedType ? <RouteNotFound onBack={() => showPage('dashboard')} />
           : definition.isPending ? pageLoading : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
