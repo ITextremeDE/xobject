@@ -38,7 +38,7 @@ export function displayFieldValue(field: FieldDefinition, value: unknown, langua
   if (field.kind === 'decimal' || field.kind === 'integer') return formatRegionalNumber(String(value), regional, field.kind === 'integer' ? 0 : field.config.scale ?? 2);
   return String(value);
 }
-export function CustomFieldControl({ field, value, workspaceId, disabled, onChange }: { field: FieldDefinition; value: FieldValue; workspaceId: string; disabled: boolean; onChange: (value: FieldValue) => void }) {
+export function CustomFieldControl({ field, value, workspaceId, objectTypeId, disabled, onChange }: { field: FieldDefinition; value: FieldValue; workspaceId: string; objectTypeId?:string; disabled: boolean; onChange: (value: FieldValue) => void }) {
   const { t, i18n } = useTranslation();
   const regional=useRegional();
   const numericError=numericDraftError(field,value,regional);
@@ -46,7 +46,7 @@ export function CustomFieldControl({ field, value, workspaceId, disabled, onChan
   const string = typeof value === 'string' ? value : '';
   const changeInput=(next:string)=>onChange(next||null);
   if(field.kind==='date'||field.kind==='datetime')return <Suspense fallback={<TemporalFieldSkeleton label={`${field.label}${field.required?' *':''}`} datetime={field.kind==='datetime'}/>}><RegionalTemporalField field={field} value={value} disabled={disabled} onChange={onChange}/></Suspense>;
-  if (field.kind === 'reference') return <ReferenceControl field={field} value={value} workspaceId={workspaceId} disabled={disabled} onChange={onChange} />;
+  if (field.kind === 'reference') return <ReferenceControl field={field} value={value} workspaceId={workspaceId} objectTypeId={objectTypeId} disabled={disabled} onChange={onChange} />;
   if (field.kind === 'multiple_choice') {
     const ids = Array.isArray(value) ? value as string[] : [];
     return <FieldSet><FieldLegend variant="label">{field.label}{field.required ? ' *' : ''}</FieldLegend><FieldGroup className="gap-3">{field.config.options?.filter(option => option.active || ids.includes(option.id)).map(option => <Field data-disabled={disabled || undefined} key={option.id} orientation="horizontal"><Checkbox id={`${id}-${option.id}`} checked={ids.includes(option.id)} disabled={disabled || (!option.active && !ids.includes(option.id))} onCheckedChange={checked => onChange((checked ? [...ids, option.id] : ids.filter(value => value !== option.id)).sort())} /><FieldLabel htmlFor={`${id}-${option.id}`}>{optionName(option.labels, i18n.language)}{!option.active ? ` (${t('inactiveChoice')})` : ''}</FieldLabel></Field>)}</FieldGroup></FieldSet>;
@@ -60,15 +60,17 @@ export function CustomFieldControl({ field, value, workspaceId, disabled, onChan
     {field.kind === 'phone' ? <FieldDescription>{t('phoneHelp')}</FieldDescription> : field.kind === 'decimal' || field.kind === 'money' ? <FieldDescription>{t('regionalDecimalHelp', { scale: field.config.scale ?? 2,decimal:numericSeparators(regional).decimal })}</FieldDescription> : null}
   </Field>;
 }
-function ReferenceControl({ field, value, workspaceId, disabled, onChange }: { field: FieldDefinition; value: FieldValue; workspaceId: string; disabled: boolean; onChange: (value: FieldValue) => void }) {
+function ReferenceControl({ field, value, workspaceId, objectTypeId, disabled, onChange }: { field: FieldDefinition; value: FieldValue; workspaceId: string; objectTypeId?:string; disabled: boolean; onChange: (value: FieldValue) => void }) {
   const { t } = useTranslation();
-  const principals = useQuery({ queryKey: ['field-principals', workspaceId], queryFn: () => api('list_field_principals', { workspaceId }) });
+  const access=field.technicalName==='access_principals'&&objectTypeId;
+  const principals = useQuery({ queryKey: access?['access-principals',objectTypeId]:['field-principals', workspaceId], queryFn: () => access?api('list_access_principals',{objectTypeId:objectTypeId!}):api('list_field_principals', { workspaceId }) });
   const refs = (Array.isArray(value) ? value : value ? [value] : []) as ReferenceValue[];
-  const allowed = (principals.data ?? []).filter(item => (field.config.referenceTarget === 'both' || field.config.referenceTarget === item.kind) && (item.active !== false || refs.some(ref => ref.kind === item.kind && ref.id === item.id)));
+  const candidates=[...(principals.data??[]),...refs.filter(ref=>!principals.data?.some(item=>item.kind===ref.kind&&item.id===ref.id)).map(ref=>({...ref,name:ref.id,active:false}))];
+  const allowed = candidates.filter(item => (field.config.referenceTarget === 'both' || field.config.referenceTarget === item.kind) && (item.active !== false || refs.some(ref => ref.kind === item.kind && ref.id === item.id)));
   const label = (item: { kind: string; name: string; active?: boolean }) => `${item.name} (${t(`reference_${item.kind}`)})${item.active === false ? ` (${t('inactive')})` : ''}`;
   if (principals.isPending) return <Loading variant="field" label={field.label}/>;
   if (principals.isError) return <ErrorNotice error={principals.error} retry={() => { void principals.refetch(); }} />;
-  if (field.config.multiple) return <FieldSet><FieldLegend variant="label">{field.label}{field.required ? ' *' : ''}</FieldLegend>{allowed.map(item => <Field data-disabled={disabled || undefined} key={`${item.kind}:${item.id}`} orientation="horizontal"><Checkbox id={`reference-${field.id}-${item.kind}-${item.id}`} checked={refs.some(ref => ref.id === item.id && ref.kind === item.kind)} disabled={disabled || (item.active === false && !refs.some(ref => ref.id === item.id && ref.kind === item.kind))} onCheckedChange={checked => onChange(checked ? [...refs, { kind: item.kind, id: item.id }] : refs.filter(ref => ref.id !== item.id || ref.kind !== item.kind))} /><FieldLabel htmlFor={`reference-${field.id}-${item.kind}-${item.id}`}>{label(item)}</FieldLabel></Field>)}{!allowed.length ? <FieldDescription>{t('noReferenceTargets')}</FieldDescription> : null}</FieldSet>;
+  if (field.config.multiple) return <FieldSet><FieldLegend variant="label">{field.label}{field.required ? ' *' : ''}</FieldLegend>{field.technicalName==='access_principals'?<FieldDescription>{t('recordAccessHelp')}</FieldDescription>:null}{allowed.map(item => <Field data-disabled={disabled || undefined} key={`${item.kind}:${item.id}`} orientation="horizontal"><Checkbox id={`reference-${field.id}-${item.kind}-${item.id}`} checked={refs.some(ref => ref.id === item.id && ref.kind === item.kind)} disabled={disabled || (item.active === false && !refs.some(ref => ref.id === item.id && ref.kind === item.kind))} onCheckedChange={checked => onChange(checked ? [...refs, { kind: item.kind, id: item.id }] : refs.filter(ref => ref.id !== item.id || ref.kind !== item.kind))} /><FieldLabel htmlFor={`reference-${field.id}-${item.kind}-${item.id}`}>{label(item)}</FieldLabel></Field>)}{!allowed.length ? <FieldDescription>{t('noReferenceTargets')}</FieldDescription> : null}</FieldSet>;
   const items = [{ value: 'none', label: t('noSelection') }, ...allowed.map(item => ({ value: `${item.kind}:${item.id}`, label: label(item) }))];
   return <Field data-disabled={disabled || undefined}><FieldLabel htmlFor={`reference-${field.id}`}>{field.label}{field.required ? ' *' : ''}</FieldLabel><Select items={items} value={refs[0] ? `${refs[0].kind}:${refs[0].id}` : 'none'} required={field.required} disabled={disabled} onValueChange={next => { const item = allowed.find(item => `${item.kind}:${item.id}` === next); onChange(item ? { kind: item.kind, id: item.id } : null); }}><SelectTrigger id={`reference-${field.id}`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value} disabled={allowed.find(principal => `${principal.kind}:${principal.id}` === item.value)?.active === false}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>;
 }

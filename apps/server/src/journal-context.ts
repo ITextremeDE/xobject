@@ -14,6 +14,12 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
   const types = objectIds.length ? (await sql<Context>`SELECT o.id, o.technical_name, o.labels, o.state, w.code, w.default_language, w.available_languages FROM sys_object_types o JOIN sys_workspaces w ON w.id = o.workspace_id WHERE o.id = ANY(${objectIds}::uuid[])`.execute(tx)).rows : [];
   const fieldIds = [...new Set(rows.map(row => row.field_id).filter((id): id is string => typeof id === 'string'))];
   const fields = fieldIds.length ? (await sql<{ id: string; labels: Labels }>`SELECT id, labels FROM sys_fields WHERE id = ANY(${fieldIds}::uuid[])`.execute(tx)).rows : [];
+  const principalKeys=rows.map(row=>/^permission\.(user|group):([^.]+)\./.exec(String(row.field_key))).filter((match):match is RegExpExecArray=>Boolean(match));
+  const principalNames=new Map<string,string>();
+  if(principalKeys.length){
+    const ids=principalKeys.map(match=>match[2]);
+    for(const row of (await sql<{kind:string;id:string;name:string}>`SELECT 'user' AS kind,id,name FROM sys_users WHERE id=ANY(${ids}::text[]) UNION ALL SELECT 'group',id::text,name FROM sys_groups WHERE id::text=ANY(${ids}::text[])`.execute(tx)).rows)principalNames.set(`${row.kind}:${row.id}`,row.name);
+  }
   const typeMap = new Map(types.map(type => [type.id, type]));
   const fieldMap = new Map(fields.map(field => [field.id, field]));
   const label = (labels: Labels, type: Context) => {
@@ -59,7 +65,7 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
       ...(layoutContexts.has(String(row.id))?{form_layout_context:layoutContexts.get(String(row.id))}:{}),
       object_type_name: type ? label(type.labels, type) : null,
       field_label: type && field ? label(field.labels, type) : null,
-      entity_name: (row.entity_kind==='relationship' ? (()=>{const snapshot=(row.new_value??row.old_value) as {left?:{keyword?:string};right?:{keyword?:string};directed?:boolean}|null;return snapshot?.left?.keyword&&snapshot.right?.keyword?`${snapshot.left.keyword} ${snapshot.directed?'→':'↔'} ${snapshot.right.keyword}`:undefined;})() : undefined) ?? (row.entity_kind === 'relationship_type' ? relationshipNames.get(String(row.entity_id)) : undefined) ?? (type && row.entity_kind === 'object_type' ? label(type.labels, type)
+      entity_name: (row.entity_kind==='object_permissions'&&type?`${label(type.labels,type)}${(()=>{const match=/^permission\.(user|group):([^.]+)\./.exec(String(row.field_key));return match?' · '+(principalNames.get(`${match[1]}:${match[2]}`)??match[2]):'';})()}`:undefined) ?? (row.entity_kind==='relationship' ? (()=>{const snapshot=(row.new_value??row.old_value) as {left?:{keyword?:string};right?:{keyword?:string};directed?:boolean}|null;return snapshot?.left?.keyword&&snapshot.right?.keyword?`${snapshot.left.keyword} ${snapshot.directed?'→':'↔'} ${snapshot.right.keyword}`:undefined;})() : undefined) ?? (row.entity_kind === 'relationship_type' ? relationshipNames.get(String(row.entity_id)) : undefined) ?? (type && row.entity_kind === 'object_type' ? label(type.labels, type)
         : type && field && ['field', 'classification_field'].includes(String(row.entity_kind)) ? label(field.labels, type)
         : names.get(`${row.object_type_id}:${row.entity_id}`) ?? row.entity_name ?? null),
     };

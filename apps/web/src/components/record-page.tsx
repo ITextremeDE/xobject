@@ -4,7 +4,9 @@ import {RecordPageLoading} from './loading';
 import {resolveFormLayout,formEntryKey,formLayoutEntries,type FormEntry,type FieldDefinition} from '@xobject/contracts';
 import {localizedFieldDraft,normalizedFieldDraft,numericDraftError,sameFieldDraft,reformatNumericDrafts} from '@/lib/numeric-input';
 import { RecordTree } from './record-tree';
-import { RecordRelationshipFields, RecordGeneralLinkAction, RecordDossier } from './record-relationships';
+import {RecordLinkActions} from './record-link-actions';
+import {seedLinkedFields,type LinkedCreation} from '@/lib/linked-record';
+import { RecordRelationshipFields, RecordDossier } from './record-relationships';
 import { RegionalProvider, useRegional } from '@/lib/regional-context';
 import { formatRegionalDate } from '@/lib/regional';
 import { isInstant } from '@/lib/time-zone';
@@ -34,8 +36,8 @@ import { CustomFieldControl, emptyCustomValue } from './custom-field-control';
 import { ErrorNotice } from './feedback';
 
 type Props = {
-  definition: ObjectDefinition; recordId: string; user: AuthUser; workspaceName: string; workspaceCode: string;
-  onClose: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
+  returnToSource?:boolean;linkedCreation?:LinkedCreation;definition: ObjectDefinition; recordId: string; user: AuthUser; workspaceName: string; workspaceCode: string;
+  onClose: () => void;onAccessLost?:()=>void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
   onSaved: (record: DataRecord) => void;
 };
 export function RecordPage(props: Props) {
@@ -46,20 +48,20 @@ export function RecordPage(props: Props) {
   if (relationships.isPending) return <RecordPageLoading definition={props.definition} isNew={props.recordId==='new'}/>;
   if (relationships.isError) return <ErrorNotice error={relationships.error} retry={()=>{void relationships.refetch();}}/>;
   if (props.recordId !== 'new' && record.isPending) return <RecordPageLoading definition={props.definition} treeAvailable={Boolean(relationships.data.primaryChain)}/>;
-  if (record.isError) return <FieldGroup><Button type="button" variant="outline" className="w-fit" onClick={props.onClose}><ArrowLeftIcon data-icon="inline-start" />{t('backToOverview')}</Button><ErrorNotice error={record.error} retry={() => { void record.refetch(); }} /></FieldGroup>;
+  if (record.isError) return <FieldGroup><Button type="button" variant="outline" className="w-fit" onClick={props.onClose}><ArrowLeftIcon data-icon="inline-start" />{t(props.returnToSource?'backToSource':'backToOverview')}</Button><ErrorNotice error={record.error} retry={() => { void record.refetch(); }} /></FieldGroup>;
   return <RecordForm key={props.recordId} {...props} record={record.data} relationships={relationships.data} />;
 }
 
-function RecordForm({ definition, record, recordId, user, workspaceName, workspaceCode, relationships, onClose, onDirtyChange, onBusyChange, onSaved }: Props & { record?: DataRecord; relationships:RecordRelationships }) {
+function RecordForm({ returnToSource,linkedCreation,definition, record, recordId, user, workspaceName, workspaceCode, relationships, onClose, onAccessLost, onDirtyChange, onBusyChange, onSaved }: Props & { record?: DataRecord; relationships:RecordRelationships }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
   const userName = (id: string) => id === user.id ? user.name : principals.data?.find(principal => principal.kind === 'user' && principal.id === id)?.name ?? id;
-  const [relationFields,setRelationFields]=useState(relationships.fields);
-  const [relationBaseline,setRelationBaseline]=useState(relationships.fields);
+  const [relationFields,setRelationFields]=useState(()=>seedLinkedFields(relationships.fields,linkedCreation));
+  const [relationBaseline,setRelationBaseline]=useState(()=>seedLinkedFields(relationships.fields,linkedCreation));
   const relationDirty=JSON.stringify(relationFields)!==JSON.stringify(relationBaseline);
-  useEffect(()=>{if(!relationDirty){setRelationFields(relationships.fields);setRelationBaseline(relationships.fields);}},[relationships,relationDirty]);
-  const relationshipWrites=()=>relationFields.map(field=>({relationshipTypeId:field.definition.id,version:field.definition.version,side:field.side,targets:field.targets.map(({objectTypeId,recordId})=>({objectTypeId,recordId}))}));
+  useEffect(()=>{if(!relationDirty){setRelationFields(seedLinkedFields(relationships.fields,linkedCreation));setRelationBaseline(seedLinkedFields(relationships.fields,linkedCreation));}},[relationships,relationDirty]);
+  const relationshipWrites=()=>relationFields.filter(field=>field.editable!==false&&(!record||JSON.stringify(field.targets)!==JSON.stringify(relationBaseline.find(item=>item.definition.id===field.definition.id&&item.side===field.side)?.targets))).map(field=>({relationshipTypeId:field.definition.id,version:field.definition.version,side:field.side,targets:field.targets.map(({objectTypeId,recordId})=>({objectTypeId,recordId}))}));
   const [tab, setTab] = useState('details');
   const treeAvailable=Boolean(relationships.primaryChain);
   useEffect(()=>{if(!treeAvailable&&tab==='tree')setTab('details');},[treeAvailable,tab]);
@@ -67,16 +69,19 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
   const [draftFormat,setDraftFormat]=useState(()=>({regional:requestedRegional,timeZone:requestedTimeZone}));
   const {regional,timeZone}=draftFormat;
   const formatChangePending=JSON.stringify(regional)!==JSON.stringify(requestedRegional)||timeZone!==requestedTimeZone;
-  const readOnly = Boolean(definition.state && definition.state !== 'active');
-  const activeFields = definition.fields.filter(field => !field.state || field.state === 'active');
-  const inactiveFields = definition.fields.filter(field => field.state === 'inactive');
+  const inactiveObject=Boolean(definition.state&&definition.state!=='active');
+  const readOnly = Boolean((record?.permissions??definition.permissions)?.edit===false||inactiveObject);
+  const activeFields = definition.fields.filter(field => field.fieldPermissions?.read!==false&&(!field.state || field.state === 'active'));
+  const inactiveFields = definition.fields.filter(field => field.fieldPermissions?.read!==false&&field.state === 'inactive');
   const hasKeyword = activeFields.some(field => field.technicalName === 'keyword');
-  const initial = () => ({ ...(hasKeyword ? { keyword: record?.keyword ?? '' } : {}), ...Object.fromEntries(activeFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, localizedFieldDraft(f,(record?.[f.technicalName] as FieldValue) ?? null,regional)])) });
+  const initial = () => ({ ...(hasKeyword ? { keyword: record?.keyword ?? '' } : {}), ...Object.fromEntries(activeFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, localizedFieldDraft(f,(record?.[f.technicalName] as FieldValue) ?? (!record&&f.technicalName==='access_principals'?[{kind:'user',id:user.id}]:null),regional)])) });
   const [baseline, setBaseline] = useState<Record<string, FieldValue>>(initial);
   const [values, setValues] = useState<Record<string, FieldValue>>(initial);
   const [applicabilityError,setApplicabilityError]=useState('');
-  const applicableFields=activeFields.filter(field=>fieldApplies(field,activeFields,values));
-  const [choices, setChoices] = useState<ClassificationValues>(() => record ? { type: record.type, status: record.status, category: record.category } : initialChoices(definition.classification));
+  const [dependencyContext,setDependencyContext]=useState(()=>({applicableFieldIds:record?.applicableFieldIds,allowedStatusIds:record?.allowedStatusIds}));
+  const appliesToDraft=(field:FieldDefinition,draft:Record<string,FieldValue>)=>field.applicability&&!activeFields.some(controller=>controller.id===field.applicability!.fieldId)?Boolean(dependencyContext.applicableFieldIds?.includes(field.id)):fieldApplies(field,activeFields,draft);
+  const applicableFields=activeFields.filter(field=>appliesToDraft(field,values));
+  const [choices, setChoices] = useState<ClassificationValues>(() => record ? { type: record.type??null, status: record.status??null, category: record.category??[] } : initialChoices(definition.classification));
   const [choiceBaseline, setChoiceBaseline] = useState(choices);
   const [showHiddenRelationships,setShowHiddenRelationships]=useState(false);
   const formRelationships=relationFields.filter(field=>(field.definition.kind==='custom'||(field.definition.kind==='primary'&&field.side==='right'))&&fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,values));
@@ -93,15 +98,16 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
   const valuesChanged=(next:Record<string,FieldValue>)=>Object.keys(next).some(key=>!sameFieldDraft(activeFields.find(field=>field.technicalName===key),next[key]??null,baseline[key]??null,regional));
   const choicesDirty = JSON.stringify(choices) !== JSON.stringify(choiceBaseline);
   const [version, setVersion] = useState(record?.version);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(false),[lostAccess,setLostAccess]=useState(false);
   const dirty = relationDirty || choicesDirty || valuesChanged(values);
   const mutation = useMutation({ mutationFn: async () => {
-    const data = Object.fromEntries(applicableFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, normalizedFieldDraft(f,values[f.technicalName]??null,regional)]));
-    const classification = Object.fromEntries(Object.entries(choices).filter(([key]) => activeFields.some(field => field.technicalName === key)));
-    const keyword = hasKeyword ? { keyword: String(values.keyword ?? '').trim() } : {};
+    const data = Object.fromEntries(applicableFields.filter(f => f.fieldPermissions?.edit!==false&&isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, normalizedFieldDraft(f,values[f.technicalName]??null,regional)]));
+    const classification = Object.fromEntries(Object.entries(choices).filter(([key]) => activeFields.some(field => field.technicalName === key&&field.fieldPermissions?.edit!==false)));
+    const keyword = hasKeyword&&activeFields.find(field=>field.technicalName==='keyword')?.fieldPermissions?.edit!==false ? { keyword: String(values.keyword ?? '').trim() } : {};
     if (record && version) return api('update_record', { objectTypeId: definition.id, recordId: record.id, version, ...keyword, values: data, classification, relationships:relationshipWrites() });
-    return api('create_record', { objectTypeId: definition.id, ...keyword, values: data, classification, relationships:relationshipWrites() });
+    return api('create_record', {linkFrom:linkedCreation?.linkFrom, objectTypeId: definition.id, ...keyword, values: data, classification, relationships:relationshipWrites() });
   }, onMutate: () => { onBusyChange(true); setSaved(false); }, onSuccess: async result => {
+      if(result.permissions?.read===false){setLostAccess(true);onDirtyChange(false);onBusyChange(false);onAccessLost?.();queryClient.removeQueries({queryKey:['record',definition.id,result.id]});void queryClient.invalidateQueries();return;}
     const latest=await api('get_record_relationships',{objectTypeId:definition.id,recordId:result.id}).catch(()=>null);
     if(latest){setRelationFields(latest.fields);setRelationBaseline(latest.fields);queryClient.setQueryData(['record-relationships',definition.id,result.id],latest);}else setRelationBaseline(relationFields);
     void queryClient.invalidateQueries({queryKey:['record-relationships']});
@@ -109,8 +115,10 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
     void queryClient.invalidateQueries({queryKey:['primary-chain-context']});
     void queryClient.invalidateQueries({queryKey:['relationship-candidates']});
     void queryClient.invalidateQueries({queryKey:['relationship-types']});
+    void queryClient.invalidateQueries({queryKey:['record-link-options']});
     void queryClient.invalidateQueries({queryKey:['record']});
     void queryClient.invalidateQueries({queryKey:['system-journal']});
+    setDependencyContext({applicableFieldIds:result.applicableFieldIds,allowedStatusIds:result.allowedStatusIds});
     setVersion(result.version); setBaseline({ ...values }); setChoiceBaseline(choices); onDirtyChange(false); setSaved(true);
     queryClient.setQueryData(['record', definition.id, result.id], result);
     void queryClient.invalidateQueries({ queryKey: ['records', definition.id] });
@@ -119,10 +127,11 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
     void queryClient.invalidateQueries({ queryKey: ['journal', definition.id, result.id] });
     onSaved(result);
   }, onSettled: () => onBusyChange(false) });
+  useEffect(()=>{if(lostAccess&&!mutation.isPending)onClose();},[lostAccess,mutation.isPending,onClose]);
   function update(key: string, value: FieldValue) {
     const next = { ...values, [key]: value };
-    const blocked=activeFields.filter(field=>fieldApplies(field,activeFields,values)&&!fieldApplies(field,activeFields,next)&&!emptyCustomValue(next[field.technicalName]));
-    const blockedRelations=relationFields.filter(field=>field.targets.length&&!fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,next));
+    const blocked=activeFields.filter(field=>appliesToDraft(field,values)&&!appliesToDraft(field,next)&&!emptyCustomValue(next[field.technicalName]));
+    const blockedRelations=relationFields.filter(field=>field.targets.length&&fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,values)&&!fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,next));
     if(blockedRelations.length){setShowHiddenRelationships(true);setApplicabilityError(t('clearInapplicableRelationships'));return;}
     if(blocked.length){setApplicabilityError(t('clearInapplicableFields',{fields:blocked.map(field=>field.label).join(', ')}));return;}
     setApplicabilityError('');setValues(next); setSaved(false);
@@ -130,12 +139,12 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
   }
   function renderEntry(entry:FormEntry){
     if('fieldId' in entry){const field=applicableFields.find(field=>field.id===entry.fieldId);return field?renderField(field):null;}
-    return <RecordRelationshipFields entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
+    return <RecordRelationshipFields entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly||Boolean(linkedCreation&&!record&&(('relationshipTypeId' in entry&&entry.relationshipTypeId===linkedCreation.linkFrom.relationshipTypeId)||('primary' in entry&&relationFields.some(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.definition.kind==='primary'))))} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
   }
   function renderField(field:FieldDefinition){
-    if(field.technicalName==='keyword')return <Field data-disabled={(mutation.isPending||readOnly)||undefined}><FieldLabel htmlFor="record-keyword">{field.label}{field.required?' *':''}</FieldLabel><Input id="record-keyword" value={String(values.keyword??'')} maxLength={200} required={field.required} disabled={mutation.isPending||readOnly} onChange={event=>update('keyword',event.target.value)}/></Field>;
-    if(['type','status','category'].includes(field.technicalName))return <ClassificationFields fields={[field]} config={definition.classification} value={choices} disabled={mutation.isPending||readOnly} onChange={next=>{setChoices(next);setSaved(false);onDirtyChange(relationDirty||JSON.stringify(next)!==JSON.stringify(choiceBaseline)||valuesChanged(values));}}/>;
-    return <CustomFieldControl field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} disabled={mutation.isPending||readOnly} onChange={value=>update(field.technicalName,value)}/>;
+    if(field.technicalName==='keyword')return <Field data-disabled={(mutation.isPending||readOnly)||undefined}><FieldLabel htmlFor="record-keyword">{field.label}{field.required?' *':''}</FieldLabel><Input id="record-keyword" value={String(values.keyword??'')} maxLength={200} required={field.required} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={event=>update('keyword',event.target.value)}/></Field>;
+    if(['type','status','category'].includes(field.technicalName))return <ClassificationFields allowedStatusIds={definition.fields.some(item=>item.technicalName==='type'&&item.fieldPermissions?.read===false)?dependencyContext.allowedStatusIds:undefined} fields={[field]} config={definition.classification} value={choices} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={next=>{setChoices(next);setSaved(false);onDirtyChange(relationDirty||JSON.stringify(next)!==JSON.stringify(choiceBaseline)||valuesChanged(values));}}/>;
+    return <CustomFieldControl field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} objectTypeId={definition.id} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={value=>update(field.technicalName,value)}/>;
   }
   useEffect(() => { document.querySelector<HTMLElement>('[data-record-page-title]')?.focus(); }, [recordId]);
   const title = record ? record.keyword || record.id : t('newRecord');
@@ -147,7 +156,10 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
       return labels[i18n.language] ?? labels.en ?? labels.de ?? Object.values(labels)[0];
     }),
   ];
-  const invalid = timestampInvalid || missingFields.length > 0 || applicableFields.some(field=>Boolean(numericDraftError(field,values[field.technicalName]??null,regional)));
+  const linkedField=linkedCreation?relationFields.find(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.targets.some(target=>target.objectTypeId===linkedCreation.source.objectTypeId&&target.recordId===linkedCreation.source.recordId)):undefined;
+  const linkedRule=linkedField?(linkedField.side==='left'?linkedField.definition.leftApplicability:linkedField.definition.rightApplicability):undefined;
+  const linkedConditionInvalid=Boolean(linkedCreation&&!record&&linkedRule&&!fieldApplies({applicability:linkedRule},activeFields,values));
+  const invalid = linkedConditionInvalid||timestampInvalid || missingFields.length > 0 || applicableFields.some(field=>Boolean(numericDraftError(field,values[field.technicalName]??null,regional)));
   useEffect(()=>{
     if(!formatChangePending||mutation.isPending||timestampInvalid)return;
     const next=reformatNumericDrafts(activeFields,values,regional,requestedRegional);
@@ -156,32 +168,35 @@ function RecordForm({ definition, record, recordId, user, workspaceName, workspa
     setValues(next);setBaseline(previous);setDraftFormat({regional:requestedRegional,timeZone:requestedTimeZone});
   },[formatChangePending,requestedRegional,requestedTimeZone,regional,activeFields,values,baseline,timestampInvalid,mutation.isPending]);
   function reset() {setApplicabilityError('');setRelationFields(relationBaseline); setValues({ ...baseline }); setChoices(choiceBaseline); setSaved(false); mutation.reset(); onDirtyChange(false); }
-  const general = relationFields.find(field=>field.definition.kind==='general' && field.definition.active);
+  const linkSourceValues=Object.fromEntries(relationFields.flatMap(field=>{const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;const controller=activeFields.find(item=>item.id===rule?.fieldId);return controller?[[controller.technicalName,values[controller.technicalName]??null]]:[];}));
   const updateRelationships = (next: typeof relationFields) => {
     setRelationFields(next);setSaved(false);
     onDirtyChange(JSON.stringify(next)!==JSON.stringify(relationBaseline)||choicesDirty||valuesChanged(values));
   };
+  if(lostAccess)return <ErrorNotice error={new Error(t('contentAccessDenied'))}/>;
   return <RegionalProvider value={regional}><TimeZoneProvider value={timeZone}><form id="record-form" data-shortcut-submit className="flex w-full min-w-0 flex-col gap-6 pb-6" onSubmit={event => { event.preventDefault(); if (tab === 'details' && !readOnly && !formatChangePending && !invalid && (!record || dirty) && !mutation.isPending) mutation.mutate(); }}>
     <header className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-3"><Button type="button" variant="ghost" className="w-fit -ml-2" disabled={mutation.isPending} onClick={onClose}><ArrowLeftIcon data-icon="inline-start" />{t('backToOverview')}</Button>
-      <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{definition.label}</Badge>{general&&!readOnly?<RecordGeneralLinkAction field={general} objectTypeId={definition.id} recordId={record?.id} disabled={mutation.isPending} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} onApply={targets=>{updateRelationships(relationFields.map(field=>field===general?{...field,targets}:field));setTab('details');}}/>:null}{readOnly?<Badge variant="outline">{t('definition_inactive')}</Badge>:null}</div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><Button type="button" variant="ghost" className="w-fit -ml-2" disabled={mutation.isPending} onClick={onClose}><ArrowLeftIcon data-icon="inline-start" />{t(returnToSource?'backToSource':'backToOverview')}</Button>
+      <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{definition.label}</Badge>{record&&!readOnly?<RecordLinkActions source={{objectTypeId:definition.id,recordId:record.id,keyword:record.keyword,objectTechnicalName:definition.technicalName,objectLabels:definition.labels,state:'active'}} version={version!} fields={relationFields} sourceValues={linkSourceValues} workspaceCode={workspaceCode} disabled={mutation.isPending} dirty={dirty||formatChangePending} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} onApply={(field,targets)=>{updateRelationships(relationFields.map(item=>item===field?{...item,targets}:item));setTab('details');}}/>:null}{readOnly?<Badge variant="outline">{t(inactiveObject?'definition_inactive':'readOnly')}</Badge>:null}</div></div>
       <h1 data-record-page-title tabIndex={-1} className="wrap-anywhere text-2xl font-semibold outline-none">{title}</h1>
-      <p className="text-sm text-muted-foreground">{t(readOnly?'inactiveObjectHelp':record?'recordDetails':'newRecordDescription')}</p>
+      <p className="text-sm text-muted-foreground">{t(inactiveObject?'inactiveObjectHelp':readOnly?'recordReadOnlyHelp':record?'recordDetails':'newRecordDescription')}</p>
     </header>
+    {linkedCreation&&!record?<Alert><AlertDescription>{t('linkedRecordContext',{relationship:groupLabel(linkedCreation.labels),source:linkedCreation.source.keyword})}{linkedConditionInvalid?<p>{t('linkedRecordConditionHelp',{field:activeFields.find(field=>field.id===linkedRule?.fieldId)?.label??t('fieldName')})}</p>:null}</AlertDescription></Alert>:null}
     {formatChangePending?<Alert><AlertDescription>{t('regionalFormatChangePending')}</AlertDescription></Alert>:null}
     {dirty?<Alert><AlertDescription role="status" className="flex flex-wrap items-center justify-between gap-2">{t('recordDraftPending')}{tab!=='details'?<Button type="button" variant="outline" size="sm" onClick={()=>setTab('details')}>{t('keepEditing')}</Button>:null}</AlertDescription></Alert>:null}
     <Tabs value={tab==='tree'&&!treeAvailable?'details':tab} onValueChange={value=>{setTab(value);if(value==='dossier')void queryClient.invalidateQueries({queryKey:['record-relationships',definition.id,recordId]});}} className="gap-4"><TabsList variant="line" aria-label={t('recordSections')} className="max-w-full"><TabsTrigger value="details">{t('details')}</TabsTrigger>{record?<>{treeAvailable?<TabsTrigger value="tree">{t('recordTree')}</TabsTrigger>:null}<TabsTrigger value="dossier">{t('recordDossier')}</TabsTrigger><TabsTrigger value="journal">{t('journal')}</TabsTrigger></>:null}</TabsList>
     <TabsContent value="details" keepMounted className="flex w-full min-w-0 flex-col gap-6 data-[hidden]:hidden">
       {applicabilityError?<Alert variant="destructive"><AlertDescription role="alert">{applicabilityError}</AlertDescription></Alert>:null}
       {mutation.isError ? <ErrorNotice error={mutation.error} /> : null}
-      {mutation.error instanceof ApiError && mutation.error.status === 409 ? <Button variant="outline" type="button" onClick={() => { window.location.reload(); }}>{t('reload')}</Button> : null}
+      {mutation.error instanceof ApiError && mutation.error.status === 409 ? <Button variant="outline" type="button" onClick={() => { if(linkedCreation)onClose();else window.location.reload(); }}>{t(linkedCreation?'backToSource':'reload')}</Button> : null}
+      {linkedCreation&&mutation.error instanceof ApiError&&mutation.error.status===409?<FieldDescription>{t('linkedRecordConflict')}</FieldDescription>:null}
       {saved ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
       {!record?<FieldDescription>{t('recordCreateHelp')}</FieldDescription>:null}
       {hiddenRelationships?<Button type="button" variant="outline" className="self-start" onClick={()=>setShowHiddenRelationships(value=>!value)}>{t(showHiddenRelationships?'formHideOptionalRelationships':'formShowOptionalRelationships',{count:hiddenRelationships})}</Button>:null}
       {layout.groups.filter(group=>group.fields.length).map(group=><SettingsSection key={group.id}><FieldSet className="min-w-0"><FieldLegend>{groupLabel(group.labels)}</FieldLegend><FieldGroup className="grid min-w-0 items-start gap-6 md:grid-cols-2">{group.fields.map(entry=>{return <div key={formEntryKey(entry)} className={entry.width==='full'?'min-w-0 md:col-span-2':'min-w-0'}>{renderEntry(entry)}</div>;})}</FieldGroup></FieldSet></SettingsSection>)}
       {record && inactiveFields.length ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-inactive" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3"/>}>{t('inactiveFields')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-inactive:rotate-180"/></CollapsibleTrigger><CollapsibleContent><Separator/><FieldSet className="p-4"><FieldLegend className="sr-only">{t('inactiveFields')}</FieldLegend><FieldGroup>
         {inactiveFields.filter(field => isCustomFieldKind(field.kind)).map(field => <CustomFieldControl key={field.id} field={field} value={localizedFieldDraft(field,record[field.technicalName] as FieldValue ?? null,regional)} workspaceId={definition.workspaceId} disabled onChange={() => {}} />)}
-        <ClassificationFields fields={inactiveFields} config={definition.classification} value={{ type: record.type, status: record.status, category: record.category }} disabled onChange={() => {}} />
+        <ClassificationFields fields={inactiveFields} config={definition.classification} value={{ type: record.type??null, status: record.status??null, category: record.category??[] }} disabled onChange={() => {}} />
       </FieldGroup></FieldSet></CollapsibleContent></Collapsible> : null}
       {record ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-tech" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3" />}>{t('journalTechnicalDetails')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-tech:rotate-180" /></CollapsibleTrigger><CollapsibleContent><Separator/><div className="p-4"><dl className="grid gap-4 sm:grid-cols-2">{[[t('entityId'), record.id], [t('technicalName'), definition.technicalName], [t('recordVersion'), String(version)]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="wrap-anywhere">{value}</dd></div>)}</dl></div></CollapsibleContent></Collapsible> : null}
     </TabsContent><TabsContent value="tree">{record&&treeAvailable?<RecordTree objectTypeId={definition.id} recordId={record.id} workspaceCode={workspaceCode}/>:null}</TabsContent><TabsContent value="dossier">{record?<RecordDossier data={relationships} recordId={record.id} workspaceCode={workspaceCode}/>:null}</TabsContent><TabsContent value="journal" className="flex flex-col gap-6">{record ? <>

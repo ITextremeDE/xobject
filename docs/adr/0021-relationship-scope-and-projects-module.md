@@ -32,7 +32,7 @@ Integration tests cover new-workspace defaults, all-object availability includin
 
 ## Subsequent refinement
 
-[ADR 0024](0024-primary-levels-and-relationship-conditions.md) adds fixed module-owned object-role bindings and ordering to the global Primary definition. Global availability applies to children of every object type; Primary parents come from the three fixed supplied levels. It also adds generic endpoint conditions, used for the local Contact-person/Organization and Identities definitions. Complete module provisioning/ownership remains separate work.
+[ADR 0024](0024-primary-levels-and-relationship-conditions.md) adds fixed module-owned object-role bindings and ordering to the global Primary definition. Global availability applies to children of every object type; Primary parents come from the three fixed supplied levels. It also adds generic endpoint conditions, used for the local Contact-person/Organization and Identities definitions. Complete domain templates, cross-module ownership/update/adoption remain separate work; base-object provisioning is implemented as described below.
 
 ## Module catalog and base installation
 

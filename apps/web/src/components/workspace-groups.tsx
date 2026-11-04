@@ -1,9 +1,11 @@
+import {SettingsSection} from './settings-section';
+import {PrincipalPermissions} from './content-permissions';
 import { SettingsTable, SettingsTableSearch, useSettingsTable } from './settings-table';
 import { ClientTablePagination } from './client-table-pagination';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { PlusIcon, PauseIcon, RotateCcwIcon } from 'lucide-react';
+import { PlusIcon, PauseIcon, RotateCcwIcon, ShieldCheckIcon } from 'lucide-react';
 import type { WorkspaceGroup, WorkspaceMember } from '@xobject/contracts';
 import { api } from '@/lib/api';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
@@ -20,8 +22,11 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { DialogActions } from './dialog-actions';
 import { ErrorNotice, Loading } from './feedback';
 
-export function WorkspaceGroups({ workspaceId, isAdmin, canManage, onDirtyChange, onBusyChange }: { workspaceId: string; isAdmin: boolean; canManage: boolean; onDirtyChange: (value: boolean) => void; onBusyChange: (value: boolean) => void }) {
+export function WorkspaceGroups({ workspaceId, isAdmin, canManage, onDirtyChange, onBusyChange,actionTarget }: { actionTarget?:HTMLElement|null; workspaceId: string; isAdmin: boolean; canManage: boolean; onDirtyChange: (value: boolean) => void; onBusyChange: (value: boolean) => void }) {
   const { t, i18n } = useTranslation();
+  const [rightsDirty,setRightsDirty]=useState(false),[rightsBusy,setRightsBusy]=useState(false);
+  const [permissionPrincipal,setPermissionPrincipal]=useState('');
+  function openPermissions(id:string){setPermissionPrincipal(id);requestAnimationFrame(()=>document.getElementById('permission-principal-group')?.focus());}
   const [selected, setSelected] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -29,18 +34,20 @@ export function WorkspaceGroups({ workspaceId, isAdmin, canManage, onDirtyChange
   const groups = useQuery({ queryKey: ['workspace-groups', workspaceId], queryFn: () => api('list_groups', { workspaceId }) });
   const { search, onSearch, pagination } = useSettingsTable([...(groups.data ?? [])].sort((a, b) => a.name.localeCompare(b.name, i18n.language)), group => `${group.name} ${t(group.active ? 'definition_active' : 'definition_inactive')}`);
   const members = useQuery({ queryKey: ['workspace-members', workspaceId], queryFn: () => api('list_workspace_members', { workspaceId }) });
-  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
-  useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
+  useEffect(() => { onDirtyChange(rightsDirty||dirty); }, [rightsDirty,dirty, onDirtyChange]);
+  useEffect(() => { onBusyChange(rightsBusy||busy); }, [rightsBusy,busy, onBusyChange]);
   function close() { if (busy) return; if (dirty) setConfirmClose(true); else setSelected(null); }
   const group = groups.data?.find(item => item.id === selected);
-  return <FieldGroup><FieldDescription>{t('groupsHelp')}</FieldDescription>
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><SettingsTableSearch value={search} onChange={onSearch} />{canManage ? <><Button type="button" variant="outline" data-group-create onClick={() => setSelected('new')}><PlusIcon data-icon="inline-start" />{t('createGroup')}</Button></> : null}</div>
-    {groups.isPending || members.isPending ? <Loading variant="table" headings={[t('objectName'),t('groupMembers'),t('definitionState')]}/> : groups.isError ? <ErrorNotice error={groups.error} /> : members.isError ? <ErrorNotice error={members.error} /> : !groups.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('noGroups')}</EmptyTitle></EmptyHeader></Empty> : <><SettingsTable aria-label={t('userGroups')}><TableHeader><TableRow><TableHead>{t('objectName')}</TableHead><TableHead>{t('groupMembers')}</TableHead><TableHead>{t('definitionState')}</TableHead></TableRow></TableHeader><TableBody>{!pagination.total ? <TableRow><TableCell colSpan={3}>{t('settingsNoMatches')}</TableCell></TableRow> : null}{pagination.rows.map(item => <TableRow key={item.id} onClick={event => {
+  return <FieldGroup><SettingsSection><FieldSet><FieldLegend>{t('userGroups')}</FieldLegend><FieldDescription>{t('groupsHelp')}</FieldDescription>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><SettingsTableSearch value={search} onChange={onSearch} />{canManage ? <><Button type="button" variant="outline" data-group-create disabled={rightsDirty||rightsBusy} onClick={() => setSelected('new')}><PlusIcon data-icon="inline-start" />{t('createGroup')}</Button></> : null}</div>
+    {groups.isPending || members.isPending ? <Loading variant="table" headings={[t('objectName'),t('groupMembers'),t('definitionState')]}/> : groups.isError ? <ErrorNotice error={groups.error} /> : members.isError ? <ErrorNotice error={members.error} /> : !groups.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('noGroups')}</EmptyTitle></EmptyHeader></Empty> : <><SettingsTable aria-label={t('userGroups')}><TableHeader><TableRow><TableHead>{t('objectName')}</TableHead><TableHead>{t('groupMembers')}</TableHead><TableHead>{t('definitionState')}</TableHead>{isAdmin?<TableHead className="w-12"><span className="sr-only">{t('actions')}</span></TableHead>:null}</TableRow></TableHeader><TableBody>{!pagination.total ? <TableRow><TableCell colSpan={isAdmin?4:3}>{t('settingsNoMatches')}</TableCell></TableRow> : null}{pagination.rows.map(item => <TableRow key={item.id} onClick={event => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString() || (event.target instanceof Element && event.target.closest('button, a, input'))) return;
-      setSelected(item.id);
-    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} className="h-auto w-full min-w-0 justify-start px-0 text-left" title={item.name} onClick={() => setSelected(item.id)}><span className="truncate">{item.name}</span></Button></TableCell><TableCell>{item.memberIds.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell></TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('groupCount', { count: pagination.total })} disabled={busy} /></>}
+      if(!rightsDirty&&!rightsBusy)setSelected(item.id);
+    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} disabled={rightsDirty||rightsBusy} className="h-auto w-full min-w-0 justify-start px-0 text-left" title={item.name} onClick={() => setSelected(item.id)}><span className="truncate">{item.name}</span></Button></TableCell><TableCell>{item.memberIds.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell>{isAdmin?<TableCell><Button type="button" variant="ghost" size="icon-sm" disabled={rightsDirty||rightsBusy||busy||dirty} aria-label={t('permissionsFor',{name:item.name})} onClick={()=>openPermissions(item.id)}><ShieldCheckIcon/></Button></TableCell>:null}</TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('groupCount', { count: pagination.total })} disabled={busy} /></>}
     {selected && (selected === 'new' || group) && members.data ? <GroupEditor key={selected} workspaceId={workspaceId} group={group} members={members.data} isAdmin={isAdmin} canManage={canManage} onClose={close} onCreated={() => { setDirty(false); setSelected(null); }} onDirtyChange={setDirty} onBusyChange={setBusy} /> : null}
     <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { setDirty(false); setSelected(null); setConfirmClose(false); }}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    </FieldSet></SettingsSection>
+    {isAdmin?<PrincipalPermissions selected={permissionPrincipal} onSelect={setPermissionPrincipal} actionTarget={actionTarget} workspaceId={workspaceId} kind="group" principals={groups.data??[]} onDirtyChange={setRightsDirty} onBusyChange={setRightsBusy}/>:null}
   </FieldGroup>;
 }
 

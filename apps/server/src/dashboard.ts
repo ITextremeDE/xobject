@@ -1,3 +1,4 @@
+import {contentAccess} from './content-permissions.js';
 import { sql, type RawBuilder } from 'kysely';
 import type { Executor } from './database.js';
 import type { z } from 'zod';
@@ -13,19 +14,21 @@ async function workspaceRows(tx: Executor, workspaceId: string, actor: string) {
   const types = (await sql<{ id: string; technical_name: string; labels: Record<string, string>; classification: { options: { id: string; labels: Record<string, string> }[] } }>`SELECT id, technical_name, labels, classification FROM sys_object_types WHERE workspace_id = ${workspaceId}::uuid AND state = 'active' ORDER BY technical_name`.execute(tx)).rows;
   const label = (labels: Record<string, string>) => [language, workspace.default_language, 'en', 'de', 'und'].map(key => labels[key]).find(Boolean) ?? Object.values(labels)[0] ?? '';
   const selects: RawBuilder<unknown>[] = [];
+  const accessibleTypes=[];
   for (const type of types) {
-    const fields = (await sql<{ technical_name: string }>`SELECT technical_name FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state = 'active'`.execute(tx)).rows;
-    const has = (name: string) => fields.some(field => field.technical_name === name);
+    const policy=await contentAccess().policy(type.id);if(!policy.capabilities.read)continue;accessibleTypes.push(type);
+    const fields = (await sql<{ id:string;technical_name: string }>`SELECT id,technical_name FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state = 'active'`.execute(tx)).rows;
+    const has = (name: string) => fields.some(field => field.technical_name === name&&policy.field(field.id).read);
     const choice = (kind: string) => {
       if (!has(kind)) return sql`NULL::text`;
       const cases = type.classification.options.map(option => sql`WHEN ${option.id}::uuid THEN ${label(option.labels)}`);
       if (!cases.length) return sql`NULL::text`;
       return kind === 'category' ? sql`(SELECT string_agg(CASE option_id ${sql.join(cases, sql` `)} ELSE option_id::text END, ', ' ORDER BY position) FROM unnest(r.category) WITH ORDINALITY AS choices(option_id, position))` : sql`CASE ${sql.ref(`r.${kind}`)} ${sql.join(cases, sql` `)} ELSE ${sql.ref(`r.${kind}`)}::text END`;
     };
-    selects.push(sql`SELECT r.id, ${type.id}::uuid AS "objectTypeId", ${type.technical_name}::text AS "objectTechnicalName", ${label(type.labels)}::text AS "objectLabel", ${has('keyword') ? sql`r.keyword` : sql`NULL::text`} AS keyword, ${choice('type')} AS type, ${choice('status')} AS status, ${choice('category')} AS category, r.created_at, r.updated_at, r.created_by, r.updated_by, creator.name AS "createdByName", editor.name AS "updatedByName", r.version FROM ${sql.table(`${workspace.code}_${type.technical_name}`)} r LEFT JOIN sys_users creator ON creator.id = r.created_by LEFT JOIN sys_users editor ON editor.id = r.updated_by`);
+    selects.push(sql`SELECT r.id, ${type.id}::uuid AS "objectTypeId", ${type.technical_name}::text AS "objectTechnicalName", ${label(type.labels)}::text AS "objectLabel", ${has('keyword') ? sql`r.keyword` : sql`NULL::text`} AS keyword, ${choice('type')} AS type, ${choice('status')} AS status, ${choice('category')} AS category, r.created_at, r.updated_at, r.created_by, r.updated_by, creator.name AS "createdByName", editor.name AS "updatedByName", r.version FROM ${sql.table(`${workspace.code}_${type.technical_name}`)} r LEFT JOIN sys_users creator ON creator.id = r.created_by LEFT JOIN sys_users editor ON editor.id = r.updated_by WHERE ${policy.predicate('r')}`);
   }
   const rows = selects.length ? sql.join(selects, sql` UNION ALL `) : sql`SELECT NULL::uuid AS id, NULL::uuid AS "objectTypeId", NULL::text AS "objectTechnicalName", NULL::text AS "objectLabel", NULL::text AS keyword, NULL::text AS type, NULL::text AS status, NULL::text AS category, NULL::timestamptz AS created_at, NULL::timestamptz AS updated_at, NULL::text AS created_by, NULL::text AS updated_by, NULL::text AS "createdByName", NULL::text AS "updatedByName", NULL::integer AS version WHERE false`;
-  return { rows, types, timeZone: effectiveTimeZone(user.time_zone, workspace.time_zone) };
+  return { rows, types:accessibleTypes, timeZone: effectiveTimeZone(user.time_zone, workspace.time_zone) };
 }
 export async function listWorkspaceRecords(tx: Executor, args: z.output<typeof schemas.list_workspace_records>, actor: string) {
   const { rows } = await workspaceRows(tx, args.workspaceId, actor);

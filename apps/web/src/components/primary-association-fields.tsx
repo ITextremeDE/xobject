@@ -20,7 +20,7 @@ export function PrimaryAssociationFields({configuration,field,objectTypeId,recor
   const roles=primaryRolesForObject(configuration,objectTypeId),directRole=target?primaryChainRoles.find(role=>configuration[role]===target.objectTypeId):undefined;
   const id=(role:PrimaryChainRole)=>`primary-${field.definition.id}-${role}`;
   const close=()=>{onPickerDirtyChange(false);setPicker(null);};
-  return <FieldSet className="min-w-0"><FieldLegend>{t('primaryChainTitle')}</FieldLegend><FieldDescription>{t('primaryChainHelp')}</FieldDescription>
+  return <FieldSet className="min-w-0"><FieldLegend>{t('primaryChainTitle')}</FieldLegend><FieldDescription>{t('primaryChainHelp')}</FieldDescription>{field.restricted?<FieldDescription>{t('restrictedRelationshipHelp')}</FieldDescription>:null}
     {context.isError?<ErrorNotice error={context.error} retry={()=>{void context.refetch();}}/>:null}
     {/* This grid uses page breakpoints; keep intrinsic height without another size-query container. */}
     <FieldGroup className={cn("grid min-w-0 items-start gap-3 [container-type:normal]",roles.length===3&&"md:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)_1rem_minmax(0,1fr)]",roles.length===2&&"md:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)]")}>

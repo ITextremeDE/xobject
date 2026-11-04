@@ -971,7 +971,8 @@ test('instance Administrators assign workspace roles; users read settings and De
   assert.equal((await userRequest('configure_field', { fieldId: foreignDef.fields[0].id, required: false })).statusCode, 403);
   assert.equal((await userRequest('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'designer' })).statusCode, 403);
   assert.equal((await userRequest('list_users', {})).statusCode, 403);
-  for (const [operation, payload] of [['get_record', { objectTypeId: type.id, recordId: record.id }], ['list_records', { objectTypeId: type.id }], ['get_journal', { objectTypeId: type.id, recordId: record.id }], ['create_record', { objectTypeId: type.id, keyword: 'Denied' }], ['update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Denied' }], ['search_workspace', { workspaceId: ws.id, query: 'Private' }]] as [Operation, unknown][]) assert.equal((await userRequest(operation, payload)).statusCode, 403, 'Designer does not grant content rights');
+  for (const [operation, payload] of [['get_record', { objectTypeId: type.id, recordId: record.id }], ['list_records', { objectTypeId: type.id }], ['get_journal', { objectTypeId: type.id, recordId: record.id }], ['create_record', { objectTypeId: type.id, keyword: 'Denied' }], ['update_record', { objectTypeId: type.id, recordId: record.id, version: 1, keyword: 'Denied' }], ] as [Operation, unknown][]) assert.equal((await userRequest(operation, payload)).statusCode, 403, 'Designer does not grant content rights');
+  const permittedSearch=await userRequest('search_workspace',{workspaceId:ws.id,query:'Private'});assert.equal(permittedSearch.statusCode,200);assert.equal(permittedSearch.json().records.length,0,'Designer sees no ungranted contents');
   await tool('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: 'designer' });
   assert.equal((await userTool('create_field', { objectTypeId: type.id, technicalName: 'revoked', labels: { en: 'Revoked' } })).isError, true);
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: null, expectedRole: 'user' });
@@ -2123,7 +2124,7 @@ test('scalar saves avoid graph scans but changed endpoints still enforce minimum
 
   // Existing integration scenarios above cover changed-edge cardinalities and Primary cycles.
   const definitions=(await sql<{version:number;name:string}>`SELECT version,name FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows;
-  assert.deepEqual(definitions.map(row=>row.version),[1,2,3,4,5,6,7]);
+  assert.deepEqual(definitions.map(row=>row.version),[1,2,3,4,5,6,7,8]);
   const before=(await sql`SELECT * FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows;
   await migrate(databaseURL,secret,baseURL);assert.deepEqual((await sql`SELECT * FROM sys_schema_migrations ORDER BY version`.execute(runtime.db)).rows,before);
 });
@@ -2360,7 +2361,7 @@ test('conditional relationship minima are validated when a scalar choice activat
 
 test('form layouts share object identities, reject foreign fields and stale writes, and journal atomically through API/MCP',async()=>{
   const registryBefore=(await sql`SELECT * FROM sys_record_identities ORDER BY workspace_id,object_type_id,record_id`.execute(runtime.db)).rows;
-  await sql`ALTER TABLE sys_object_types DROP COLUMN form_layouts;DELETE FROM sys_schema_migrations WHERE version>=5`.execute(runtime.db);
+  await sql`ALTER TABLE sys_object_types DROP COLUMN form_layouts;DELETE FROM sys_schema_migrations WHERE version>=5 AND version<8`.execute(runtime.db);
   await migrate(databaseURL,secret,baseURL);
   assert.deepEqual((await sql`SELECT * FROM sys_record_identities ORDER BY workspace_id,object_type_id,record_id`.execute(runtime.db)).rows,registryBefore);
   const ws=await ok('create_workspace',{name:'Forms',code:'forms'});
@@ -2511,4 +2512,194 @@ test('module catalog is complete and planned modules cannot activate; fixed inst
   assert.deepEqual(await ok('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:again.version,enabled:true}),again);
   assert.equal((await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_journal WHERE workspace_id=${clean.id}::uuid`.execute(runtime.db)).rows[0].n,count);
   assert.equal((await runtime.app.inject({method:'POST',url:'/api/v1/configure_primary_chain',headers:{host:'127.0.0.1:4100',cookie:adminCookie,'x-xobject-request':'1'},payload:{workspaceId:clean.id,version:again.version,levels:enabled.primaryChain}})).statusCode,404);
+});
+
+test('content permissions combine groups, apply user and field overrides and govern every content projection',async()=>{
+  const ws=await ok('create_workspace',{code:'rights',name:'Rights'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+  await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+  const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'assets',labels:{en:'Assets'},standardFields:['keyword','type_status','category']});
+  const title=await ok('create_field',{objectTypeId:object.id,technicalName:'description',labels:{en:'Description'}}),secretField=await ok('create_field',{objectTypeId:object.id,technicalName:'secret',labels:{en:'Secret'}});
+  const row=await ok('create_record',{objectTypeId:object.id,keyword:'Visible asset',values:{description:'Public',secret:'DO NOT DISCLOSE'}});
+  assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,403,'membership alone grants no content access');
+  const groupA=await ok('create_group',{workspaceId:ws.id,name:'Editors',memberIds:[user.id]}),groupB=await ok('create_group',{workspaceId:ws.id,name:'Readers',memberIds:[user.id]});
+  const grant=async(grants:any[])=>{const current=await ok('get_content_permissions',{objectTypeId:object.id});return ok('configure_content_permissions',{...current,grants});};
+  const groups=[{kind:'group',id:groupA.id,level:'edit',fields:{[secretField.id]:'none'}},{kind:'group',id:groupB.id,level:'read',fields:{[secretField.id]:'read'}}];
+  await grant(groups);
+  let response=await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie);assert.equal(response.statusCode,200);assert.equal(response.json().secret,'DO NOT DISCLOSE','group field grants add together');
+  const version=response.json().version;
+  assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version,values:{description:'Must roll back',secret:'Forbidden'}},userCookie)).statusCode,403);
+  assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).description,'Public','forbidden mixed writes are atomic');
+  await grant([...groups,{kind:'user',id:user.id,level:null,fields:{[secretField.id]:'none'}}]);
+  response=await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie);assert.equal(response.statusCode,200);assert.ok(!Object.hasOwn(response.json(),'secret'));
+  let journal=(await api('list_record_journal',{objectTypeId:object.id,recordId:row.id,limit:1},userCookie)).json();assert.equal(journal.total,2);assert.ok(!JSON.stringify(journal).includes('DO NOT DISCLOSE'));
+  assert.ok(!JSON.stringify((await api('get_journal',{objectTypeId:object.id,recordId:row.id},userCookie)).json()).includes('DO NOT DISCLOSE'));
+  const kw=(await ok('get_object_type',{objectTypeId:object.id})).fields.find((f:any)=>f.technicalName==='keyword');
+  await grant([...groups,{kind:'user',id:user.id,level:'read',fields:{[secretField.id]:'none',[kw.id]:'none'}}]);
+  response=await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie);assert.equal(response.json().keyword,row.id);
+  assert.equal((await api('list_records',{objectTypeId:object.id,query:'Visible asset'},userCookie)).json().total,0);
+  assert.equal((await api('list_records',{objectTypeId:object.id,sortBy:'secret'},userCookie)).statusCode,403);
+  assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Visible asset'},userCookie)).json().records.length,0);
+  const workspaceList=(await api('list_workspace_records',{workspaceId:ws.id},userCookie)).json();assert.equal(workspaceList.total,1);assert.ok(!JSON.stringify(workspaceList).includes('Visible asset'));
+  assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version,values:{description:'No'}},userCookie)).statusCode,403);
+  assert.equal((await api('configure_content_permissions',{objectTypeId:object.id,version:1,sensitive:false,grants:[]},userCookie)).statusCode,403,'users cannot grant themselves rights');
+  await grant([{kind:'user',id:user.id,level:'none',fields:{[title.id]:'edit'}}]);
+  assert.equal((await api('get_workspace_dashboard',{workspaceId:ws.id},userCookie)).json().total,0);assert.equal((await api('list_workspace_records',{workspaceId:ws.id},userCookie)).json().total,0);
+  assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).secret,'DO NOT DISCLOSE','Administrator bypasses all content restrictions');
+  assert.equal((await api('list_object_types',{workspaceId:ws.id},userCookie)).json()[0].permissions.read,false,'metadata remains readable without granting content access');
+});
+
+test('sensitive records default to creator and enforce eligible principals, public clearing, revocation and optimistic journals',async()=>{
+  const ws=await ok('create_workspace',{code:'sensitivity',name:'Sensitivity'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+  const other=await ok('create_user',{name:'Other user',email:'other-rights@example.test',initialPassword:'test-password-other-rights'});
+  await sql`UPDATE sys_users SET must_change_password=false WHERE id=${other.id}`.execute(runtime.db);
+  const otherCookie=await login('other-rights@example.test','test-password-other-rights');
+  for(const id of [user.id,other.id])await ok('set_workspace_member',{workspaceId:ws.id,userId:id,role:'user',expectedRole:null});
+  const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'notes',labels:{en:'Notes'},standardFields:['keyword']});
+  const original=await ok('get_content_permissions',{objectTypeId:object.id});
+  const settings=await ok('configure_content_permissions',{...original,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',fields:{}},{kind:'user',id:other.id,level:'read',fields:{}}]});
+  const stale=await api('configure_content_permissions',{...original,sensitive:true,grants:[]});assert.equal(stale.statusCode,409);
+  let created=await api('create_record',{objectTypeId:object.id,keyword:'Private note'},userCookie);assert.equal(created.statusCode,200,created.body);let row=created.json();assert.deepEqual(row.access_principals,[{kind:'user',id:user.id}]);
+  assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},otherCookie)).statusCode,403);
+  assert.equal((await api('list_records',{objectTypeId:object.id},otherCookie)).json().total,0);
+  assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Private'},otherCookie)).json().records.length,0);
+  assert.equal((await api('get_workspace_dashboard',{workspaceId:ws.id},otherCookie)).json().total,0);
+  assert.equal((await api('list_record_journal',{objectTypeId:object.id,recordId:row.id},otherCookie)).statusCode,403);
+  const publicResult=await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[]}},userCookie);assert.equal(publicResult.statusCode,200,publicResult.body);row=publicResult.json();
+  assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},otherCookie)).statusCode,200);
+  const ineligible=randomUUID();assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[{kind:'user',id:ineligible}]}},userCookie)).statusCode,400);
+  const group=await ok('create_group',{workspaceId:ws.id,name:'Private group',memberIds:[user.id]});
+  await ok('configure_content_permissions',{...settings,grants:[...settings.grants,{kind:'group',id:group.id,level:'edit',fields:{}}]});
+  row=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{access_principals:[{kind:'group',id:group.id}]}});
+  assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,200);
+  await ok('set_group_active',{workspaceId:ws.id,groupId:group.id,version:(await ok('list_groups',{workspaceId:ws.id})).find((g:any)=>g.id===group.id).version,active:false});
+  assert.equal((await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).statusCode,403,'existing session immediately loses record access when group is inactive');
+  assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).id,row.id);
+});
+
+test('content permissions protect relationship candidates, Primary context, tree branches and historical endpoints through API and MCP',async()=>{
+  const ws=await ok('create_workspace',{code:'rightslinks',name:'Rights links'});const primary=await enableProjects(ws.id);
+  const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+  const objects=await ok('list_object_types',{workspaceId:ws.id}),contact=objects.find((o:any)=>o.technicalName==='contacts'),project=objects.find((o:any)=>o.technicalName==='projects'),task=objects.find((o:any)=>o.technicalName==='tasks');
+  for(const type of [contact,project,task]){const current=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...current,sensitive:true,grants:[{kind:'user',id:user.id,level:'edit',fields:{}}]});}
+  const hidden=await ok('create_record',{objectTypeId:contact.id,keyword:'Hidden organization',values:{access_principals:[{kind:'user',id:adminId}]}});
+  const parent=await ok('create_record',{objectTypeId:project.id,keyword:'Visible project',values:{access_principals:[]},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:contact.id,recordId:hidden.id}]}]});
+  await ok('create_record',{objectTypeId:task.id,keyword:'Hidden task',values:{access_principals:[{kind:'user',id:adminId}]},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:project.id,recordId:parent.id}]}]});
+  const input={objectTypeId:project.id,recordId:parent.id};
+  const tree=await api('get_relationship_tree_branch',input,userCookie);assert.equal(tree.statusCode,200,tree.body);assert.equal(tree.json().total,0);assert.equal(tree.json().ancestors.length,0);assert.ok(!tree.body.includes(hidden.id));
+  const context=await api('get_primary_chain_context',input,userCookie);assert.equal(context.statusCode,200,context.body);assert.equal(context.json().direct,null);
+  const relations=await api('get_record_relationships',input,userCookie);assert.equal(relations.statusCode,200);assert.equal(relations.json().dossier.length,0);assert.equal(relations.json().fields.find((f:any)=>f.definition.kind==='primary'&&f.side==='right').editable,false);
+  const candidates=await api('search_relationship_candidates',{...input,relationshipTypeId:primary.id,side:'right'},userCookie);assert.equal(candidates.statusCode,200,candidates.body);assert.equal(candidates.json().total,0);
+  const history=await api('get_journal',input,userCookie);assert.ok(!history.body.includes('Hidden organization'));assert.ok(!history.body.includes('Hidden task'));
+  let current=(await api('get_record',input,userCookie)).json();let changed=await api('update_record',{...input,version:current.version,keyword:'Changed project',relationships:[]},userCookie);assert.equal(changed.statusCode,200,changed.body);
+  current=changed.json();assert.equal((await api('update_record',{...input,version:current.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[]}]},userCookie)).statusCode,403);
+  assert.equal((await ok('get_record_relationships',input)).dossier.length,2,'hidden edges survive unrelated changes');
+  const regularClient=new Client({name:'rights-test-user',version:'0.0.0'});
+  const transport=new StreamableHTTPClientTransport(new URL('/mcp',baseURL),{requestInit:{headers:{cookie:userCookie,'x-xobject-request':'1'}},fetch:async(url,init)=>{const req=new Request(url,init),response=await runtime.app.inject({method:req.method as 'POST',url:new URL(req.url).pathname,headers:{...Object.fromEntries(req.headers),host:'127.0.0.1:4100'},...(req.method==='POST'?{payload:await req.text()}:{})});return new Response(response.body||null,{status:response.statusCode,headers:response.headers as Record<string,string>});}});
+  try{await regularClient.connect(transport);const result=await regularClient.callTool({name:'get_relationship_tree_branch',arguments:input});assert.equal(result.isError,undefined);assert.deepEqual(JSON.parse((result.content as any)[0].text),(await api('get_relationship_tree_branch',input,userCookie)).json());assert.equal((await regularClient.callTool({name:'get_record',arguments:{objectTypeId:contact.id,recordId:hidden.id}})).isError,true);assert.equal((await regularClient.callTool({name:'get_content_permissions',arguments:{objectTypeId:project.id}})).isError,true);}finally{await regularClient.close();}
+});
+
+test('content permission changes are no-op stable, revocable, journaled and preserve hidden required fields and disabled sensitivity lists',async()=>{
+ const ws=await ok('create_workspace',{code:'rightslifecycle',name:'Rights lifecycle'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'assets',labels:{en:'Assets'},standardFields:['keyword']});
+ const hidden=await ok('create_field',{objectTypeId:object.id,technicalName:'hidden_value',labels:{en:'Hidden'},required:true});
+ const record=await ok('create_record',{objectTypeId:object.id,keyword:'Visible',values:{hidden_value:'Retain me'}});
+ const original=await ok('get_content_permissions',{objectTypeId:object.id}),grant={kind:'user',id:user.id,level:'edit',fields:{[hidden.id]:'none'}};
+ let settings=await ok('configure_content_permissions',{...original,sensitive:true,grants:[grant]});
+ assert.equal((await ok('configure_content_permissions',{...settings,grants:[{...grant,fields:{...grant.fields}}]})).version,settings.version,'semantic no-op changes no version');
+ const deniedCreate=await api('create_record',{objectTypeId:object.id,keyword:'Missing hidden required'},userCookie);assert.equal(deniedCreate.statusCode,403);assert.ok(!deniedCreate.body.includes('Retain me'));
+ let current=(await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).json();const updated=await api('update_record',{objectTypeId:object.id,recordId:record.id,version:current.version,keyword:'Changed'},userCookie);assert.equal(updated.statusCode,200,updated.body);assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:record.id})).hidden_value,'Retain me');
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:record.id,version:updated.json().version,values:{hidden_value:'Retain me'}},userCookie)).statusCode,403,'guessed no-ops cannot probe hidden values');
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:record.id,version:updated.json().version,values:{access_principals:[]}},userCookie)).statusCode,403,'Edit cannot set Access principals');
+ settings=await ok('configure_content_permissions',{...settings,grants:[{...grant,level:'full'}]});
+ current=await ok('get_record',{objectTypeId:object.id,recordId:record.id});const transferred=await api('update_record',{objectTypeId:object.id,recordId:record.id,version:current.version,values:{access_principals:[{kind:'user',id:adminId}]}},userCookie);assert.equal(transferred.statusCode,200,transferred.body);assert.equal(transferred.json().permissions.read,false);assert.ok(!Object.hasOwn(transferred.json(),'hidden_value'));assert.equal(transferred.json().keyword,record.id);
+ settings=await ok('configure_content_permissions',{...settings,sensitive:false});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,200);assert.ok(!(await ok('get_object_type',{objectTypeId:object.id})).fields.some((f:any)=>f.technicalName==='access_principals'));
+ settings=await ok('configure_content_permissions',{...settings,sensitive:true});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,403,'re-enabling sensitivity restores the retained list');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:null,expectedRole:'user'});await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id},userCookie)).statusCode,403,'re-adding membership restores no prior grant');
+ const final=await ok('get_content_permissions',{objectTypeId:object.id});assert.ok(!final.grants.some((g:any)=>g.kind==='user'&&g.id===user.id));assert.ok(final.version>settings.version);
+ const journal=await ok('get_definition_journal',{objectTypeId:object.id});assert.ok(journal.some((e:any)=>e.field_key===`permission.user:${user.id}.field.${hidden.id}`&&e.new_value===null));assert.ok(journal.some((e:any)=>e.field_key==='sensitive'));
+});
+
+test('content permissions preserve editable dependent fields and statuses without returning hidden controllers',async()=>{
+ const ws=await ok('create_workspace',{code:'rightsdependencies',name:'Rights dependencies'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'assets',labels:{en:'Assets'},standardFields:['keyword','type_status','category']});
+ const option=randomUUID(),controller=await ok('create_field',{objectTypeId:object.id,technicalName:'private_kind',labels:{en:'Private kind'},kind:'single_choice',config:{options:[{id:option,labels:{en:'Applicable'},active:true}]}}),dependent=await ok('create_field',{objectTypeId:object.id,technicalName:'detail',labels:{en:'Detail'},applicability:{fieldId:controller.id,optionIds:[option]}});
+ let definition=await ok('get_object_type',{objectTypeId:object.id});const type=definition.fields.find((f:any)=>f.technicalName==='type'),typeId=randomUUID(),statusId=randomUUID();
+ await ok('configure_classification',{objectTypeId:object.id,version:definition.classification.version,config:{options:[{id:typeId,kind:'type',typeId:null,labels:{en:'Private type'},active:true},{id:statusId,kind:'status',typeId,labels:{en:'Available status'},active:true}],type:{required:false,defaultId:null},status:{required:false,defaults:[]},category:{required:false,multiple:true,defaultIds:[]}}});
+ const row=await ok('create_record',{objectTypeId:object.id,keyword:'Dependent',values:{private_kind:option,detail:'Editable'},classification:{type:typeId,status:statusId}});
+ const perms=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...perms,grants:[{kind:'user',id:user.id,level:'edit',fields:{[controller.id]:'none',[type.id]:'none'}}]});
+ const visible=(await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).json();assert.ok(!Object.hasOwn(visible,'private_kind'));assert.ok(!Object.hasOwn(visible,'type'));assert.equal(visible.detail,'Editable');assert.ok(visible.applicableFieldIds.includes(dependent.id));assert.deepEqual(visible.allowedStatusIds,[statusId]);
+ const updated=await api('update_record',{objectTypeId:object.id,recordId:row.id,version:visible.version,values:{detail:'Updated'},classification:{status:statusId}},userCookie);assert.equal(updated.statusCode,200,updated.body);assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).private_kind,option);
+});
+
+test('content permissions prevent probing private relationship controllers through direct writes',async()=>{
+ const ws=await ok('create_workspace',{code:'rightsconditions',name:'Rights conditions'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const source=await ok('create_object_type',{workspaceId:ws.id,technicalName:'sources',labels:{en:'Sources'},standardFields:['keyword']}),target=await ok('create_object_type',{workspaceId:ws.id,technicalName:'targets',labels:{en:'Targets'},standardFields:['keyword']});const option=randomUUID();
+ const controller=await ok('create_field',{objectTypeId:target.id,technicalName:'secret_kind',labels:{en:'Secret kind'},kind:'single_choice',config:{options:[{id:option,labels:{en:'Eligible'},active:true}]}});
+ let relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'conditioned',configuration:{labels:{en:'Conditioned'},leftLabels:{en:'Targets'},rightLabels:{en:'Sources'},directed:true,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:source.id,rightObjectTypeId:target.id}],rightApplicability:{fieldId:controller.id,optionIds:[option]},active:true}});relation=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
+ for(const object of [source,target]){const permissions=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'edit',fields:object.id===target.id?{[controller.id]:'none'}:{}}]});}
+ const a=await ok('create_record',{objectTypeId:source.id,keyword:'Source'}),b=await ok('create_record',{objectTypeId:target.id,keyword:'Target',values:{secret_kind:option}});
+ const candidates=await api('search_relationship_candidates',{objectTypeId:source.id,recordId:a.id,relationshipTypeId:relation.id,side:'left'},userCookie);assert.equal(candidates.statusCode,200);assert.equal(candidates.json().total,0);
+ const choices=(await api('list_record_link_options',{objectTypeId:source.id,recordId:a.id},userCookie)).json();assert.ok(!choices.flatMap((o:any)=>o.relationships).some((r:any)=>r.relationshipTypeId===relation.id));
+ assert.equal((await api('list_record_link_options',{objectTypeId:target.id,recordId:b.id,sourceValues:{secret_kind:option}},userCookie)).statusCode,403);
+ const forbidden=await api('update_record',{objectTypeId:source.id,recordId:a.id,version:a.version,relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'left',targets:[{objectTypeId:target.id,recordId:b.id}]}]},userCookie);assert.equal(forbidden.statusCode,403,forbidden.body);assert.equal((await ok('get_record_relationships',{objectTypeId:source.id,recordId:a.id})).edges.length,0);
+});
+
+test('object settings save labels and sensitivity atomically with both optimistic versions and shared API/MCP authorization',async()=>{
+ const ws=await ok('create_workspace',{code:'atomicsettings',name:'Atomic settings'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'assets',labels:{en:'Assets'}});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'designer',expectedRole:null});
+ let def=await ok('get_object_type',{objectTypeId:object.id});
+ let response=await api('configure_object_settings',{objectTypeId:object.id,version:def.version,labels:{en:'Denied'},security:{version:def.permissionsVersion,sensitive:true}},userCookie);
+ assert.equal(response.statusCode,403);assert.equal((await ok('get_object_type',{objectTypeId:object.id})).labels.en,'Assets');
+ const changed=await ok('configure_object_settings',{objectTypeId:object.id,version:def.version,labels:{en:'Secured assets'},security:{version:def.permissionsVersion,sensitive:true}});
+ assert.equal(changed.labels.en,'Secured assets');assert.equal(changed.sensitive,true);assert.ok(changed.fields.some((f:any)=>f.technicalName==='access_principals'));
+ const events=await ok('get_definition_journal',{objectTypeId:object.id});const label=events.find((e:any)=>e.field_key==='labels'&&e.new_value.en==='Secured assets'),sensitivity=events.find((e:any)=>e.field_key==='sensitive');assert.equal(label.change_id,sensitivity.change_id);
+ response=await api('configure_object_settings',{objectTypeId:object.id,version:def.version,labels:{en:'Stale'},security:{version:def.permissionsVersion,sensitive:false}});assert.equal(response.statusCode,409);
+ response=await api('configure_object_settings',{objectTypeId:object.id,version:changed.version,labels:{en:'Stale permission'},security:{version:def.permissionsVersion,sensitive:false}});assert.equal(response.statusCode,409);
+ // A later label validation failure must also roll back the earlier security write.
+ await sql`UPDATE sys_object_types SET is_protected=true WHERE id=${object.id}::uuid`.execute(runtime.db);
+ response=await api('configure_object_settings',{objectTypeId:object.id,version:changed.version,labels:{en:'Protected rename'},security:{version:changed.permissionsVersion,sensitive:false}});
+ assert.equal(response.statusCode,403);const rolledBack=await ok('get_object_type',{objectTypeId:object.id});assert.equal(rolledBack.sensitive,true);assert.equal(rolledBack.permissionsVersion,changed.permissionsVersion);
+ await sql`UPDATE sys_object_types SET is_protected=false WHERE id=${object.id}::uuid`.execute(runtime.db);
+ const renamed=await api('configure_object_settings',{objectTypeId:object.id,version:changed.version,labels:{en:'Designer label'}},userCookie);assert.equal(renamed.statusCode,200,renamed.body);
+ def=renamed.json();const mcp=await tool('configure_object_settings',{objectTypeId:object.id,version:def.version,labels:{en:'MCP label'},security:{version:def.permissionsVersion,sensitive:false}});assert.equal(mcp.labels.en,'MCP label');assert.equal(mcp.sensitive,false);
+});
+
+test('record link menus expose eligible pairs and linked creation atomically preserves source links, cardinalities and journals through API/MCP',async()=>{
+ const ws=await ok('create_workspace',{code:'linkedactions',name:'Linked actions'});
+ const a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'agreements',labels:{en:'Agreements'},standardFields:['keyword']}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'assets',labels:{en:'Assets'},standardFields:['keyword']}),c=await ok('create_object_type',{workspaceId:ws.id,technicalName:'places',labels:{en:'Places'}});
+ let source=await ok('create_record',{objectTypeId:a.id,keyword:'Service agreement'});
+ const configuration={labels:{en:'Coverage'},leftLabels:{en:'Covered asset'},rightLabels:{en:'Agreement'},directed:true,leftMin:0,leftMax:1,rightMin:0,rightMax:1,allowAll:false,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:b.id}],active:true};
+ let relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'coverage',configuration});relation=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
+ let options=await ok('list_record_link_options',{objectTypeId:a.id,recordId:source.id});assert.equal(options.length,3);assert.equal(options.find((o:any)=>o.objectType.id===b.id).relationships.length,2);assert.equal(options.find((o:any)=>o.objectType.id===c.id).relationships.length,1);
+ const from={objectTypeId:a.id,recordId:source.id,recordVersion:source.version,relationshipTypeId:relation.id,version:relation.version,side:'left'};
+ const target=await tool('create_record',{objectTypeId:b.id,keyword:'Covered asset',linkFrom:from});
+ const edge=(await ok('get_record_relationships',{objectTypeId:b.id,recordId:target.id})).edges.find((e:any)=>e.definition.id===relation.id);assert.equal(edge.left.recordId,source.id);assert.equal(edge.right.recordId,target.id);
+ const journal=(await sql<{change_id:string}>`SELECT DISTINCT change_id FROM sys_journal WHERE entity_id=${target.id}::uuid OR entity_id=${edge.id}::uuid`.execute(runtime.db)).rows;assert.equal(journal.length,1);
+ source=await ok('get_record',{objectTypeId:a.id,recordId:source.id});assert.equal(source.version,from.recordVersion+1);
+ const before=(await sql<{n:number}>`SELECT count(*)::integer AS n FROM sys_journal`.execute(runtime.db)).rows[0].n;
+ assert.equal((await api('create_record',{objectTypeId:b.id,keyword:'Stale source',linkFrom:from})).statusCode,409);
+ assert.equal((await api('create_record',{objectTypeId:b.id,keyword:'Too many',linkFrom:{...from,recordVersion:source.version}})).statusCode,409);
+ assert.equal((await ok('list_records',{objectTypeId:b.id})).total,1);assert.equal((await sql<{n:number}>`SELECT count(*)::integer AS n FROM sys_journal`.execute(runtime.db)).rows[0].n,before);
+ options=await tool('list_record_link_options',{objectTypeId:a.id,recordId:source.id});assert.equal(options.find((o:any)=>o.objectType.id===b.id).relationships.find((r:any)=>r.relationshipTypeId===relation.id).canCreate,false);
+ const general=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.kind==='general');
+ const another=await ok('create_record',{objectTypeId:b.id,keyword:'General asset',linkFrom:{...from,recordVersion:source.version,relationshipTypeId:general.id,version:general.version}});
+ const dossier=(await ok('get_record_relationships',{objectTypeId:a.id,recordId:source.id})).dossier;assert.equal(dossier.length,2);assert.ok(dossier.some((e:any)=>e.record.recordId===another.id));assert.ok(dossier.some((e:any)=>e.record.recordId===target.id));
+});
+
+test('linked record actions enforce both source and target rights and invert undirected roles without replacing endpoints',async()=>{
+ const ws=await ok('create_workspace',{code:'linkedrights',name:'Linked rights'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'sources',labels:{en:'Sources'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'targets',labels:{en:'Targets'}});
+ const source=await ok('create_record',{objectTypeId:a.id});
+ const relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'association',configuration:{labels:{en:'Association'},leftLabels:{en:'Targets'},rightLabels:{en:'Sources'},directed:false,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:b.id}],active:true}});const active=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
+ async function grant(id:string,level:string){const p=await ok('get_content_permissions',{objectTypeId:id});await ok('configure_content_permissions',{...p,grants:[{kind:'user',id:user.id,level,fields:{}}]});}
+ await grant(a.id,'edit');await grant(b.id,'read');
+ let options=(await api('list_record_link_options',{objectTypeId:a.id,recordId:source.id},userCookie)).json();assert.equal(options.find((o:any)=>o.objectType.id===b.id).relationships.every((r:any)=>!r.canCreate),true);
+ const from={objectTypeId:a.id,recordId:source.id,recordVersion:source.version,relationshipTypeId:active.id,version:active.version,side:'left'};
+ assert.equal((await api('create_record',{objectTypeId:b.id,linkFrom:from},userCookie)).statusCode,403);
+ await grant(b.id,'edit');await grant(a.id,'read');assert.equal((await api('list_record_link_options',{objectTypeId:a.id,recordId:source.id},userCookie)).statusCode,403);assert.equal((await api('create_record',{objectTypeId:b.id,linkFrom:from},userCookie)).statusCode,403);assert.equal((await ok('list_records',{objectTypeId:b.id})).total,0);
+ await grant(a.id,'edit');const target=(await api('create_record',{objectTypeId:b.id,linkFrom:from},userCookie));assert.equal(target.statusCode,200,target.body);
+ const reverse=await tool('create_record',{objectTypeId:a.id,linkFrom:{objectTypeId:b.id,recordId:target.json().id,recordVersion:target.json().version,relationshipTypeId:active.id,version:active.version,side:'right'}});assert.equal((await ok('get_record_relationships',{objectTypeId:b.id,recordId:target.json().id})).dossier.length,2);assert.ok(reverse.id);
+ const other=await ok('create_workspace',{code:'linkedforeign',name:'Foreign'}),foreign=await ok('create_object_type',{workspaceId:other.id,technicalName:'assets',labels:{en:'Foreign'}});
+ const current=await ok('get_record',{objectTypeId:a.id,recordId:source.id});assert.equal((await api('create_record',{objectTypeId:foreign.id,linkFrom:{...from,recordVersion:current.version}})).statusCode,400);assert.equal((await ok('list_records',{objectTypeId:foreign.id})).total,0);
 });

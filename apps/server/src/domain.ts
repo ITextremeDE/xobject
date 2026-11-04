@@ -1,10 +1,11 @@
+import {readableRecordJournal,withContentAccess,contentAccess,getContentPermissions,configureContentPermissions} from './content-permissions.js';
 import {formLayoutElements,formEntryKey,formLayoutEntries,formRelationshipFields,resolveFormLayout,type FormLayouts} from '@xobject/contracts';
 import {primaryChain} from './primary-chain.js';
 import { applies, validateApplicability, applicabilityDependents } from './field-applicability.js';
 import { journalValueContexts } from './record-journal.js';
 import { lockOperation } from './operation-locks.js';
 import { installObjectIntegrity } from './storage-integrity.js';
-import { primaryChainContext, relationshipTreeBranch, recordRelationships, searchRelationshipCandidates, activateRelationship, writeRecordRelationships } from './record-relationships.js';
+import {recordLinkOptions,linkedRecordWrites, primaryChainContext, relationshipTreeBranch, recordRelationships, searchRelationshipCandidates, activateRelationship, writeRecordRelationships } from './record-relationships.js';
 import { workspaceModules, configureWorkspaceModule, installSystemRelationships, relationshipTypes, configureRelationship } from './relationship-types.js';
 import { enrichJournalContext } from './journal-context.js';
 import { listWorkspaceRecords, workspaceDashboard } from './dashboard.js';
@@ -26,7 +27,7 @@ export { schemas, type Operation } from '@xobject/contracts';
 import type { Database, Executor } from './database.js';
 
 type Labels = Record<string, string>;
-type ObjectType = { form_layouts?:FormLayouts; version: number; id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string; available_languages: Language[]; classification: ClassificationConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
+type ObjectType = { permissions_version:number; form_layouts?:FormLayouts; version: number; id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string; available_languages: Language[]; classification: ClassificationConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type Field = { applicability?: import('@xobject/contracts').FieldApplicability; version: number; id: string; technical_name: string; labels: Labels; kind: string; required: boolean; config: FieldConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type DataRecord = Record<string, unknown> & { id: string; version: number; keyword: string };
 const reserved = new Set(['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category', 'business_number', 'access_principals', 'tableoid', 'xmin', 'xmax', 'cmin', 'cmax', 'ctid']);
@@ -53,7 +54,7 @@ export class Application {
   async execute(operation: Operation, input: unknown, userId: string, context?: { sessionId: string }): Promise<unknown> {
     const parsed = schemas[operation].parse(input);
     try {
-      return await this.db.transaction().execute(async (tx) => {
+      return await this.db.transaction().execute(async (tx) => withContentAccess(tx,userId,async()=>{
         await lockOperation(tx, operation, parsed as Record<string, unknown>);
         const access = await this.authorize(tx, operation, parsed as Record<string, unknown>, userId);
         if (isAccountSecurityOperation(operation)) return this.accountSecurity.execute(tx, operation, parsed, userId, context?.sessionId, (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
@@ -64,10 +65,32 @@ export class Application {
           if (!row) throw new AppError(404, 'Definition not found');
           if (row.version !== args.version) throw new AppError(409, 'Definition version conflict');
         }
+        if(['configure_field','set_field_required','set_labels','set_definition_state'].includes(operation)){
+          const input=parsed as {fieldId?:string;id?:string;kind?:string};
+          if(input.fieldId||input.kind==='field'){
+            const special=(await sql`SELECT 1 FROM sys_fields WHERE id=${input.fieldId??input.id}::uuid AND technical_name='access_principals'`.execute(tx)).rows.length;
+            if(special)throw new AppError(403,'Access principals is managed by object security');
+          }
+        }
         await validateDefinitionLanguages(tx, operation, parsed as Record<string, unknown>);
         const configJournal = (kind: string, id: string, change: string, key: string, before: unknown, after: unknown) => this.journal(tx, userId, (parsed as { workspaceId: string }).workspaceId, null, kind, id, change, key, before, after);
         switch (operation) {
+          case 'configure_object_settings': {
+            const args=schemas.configure_object_settings.parse(parsed),type=await this.objectType(tx,args.objectTypeId),change=v7();
+            if(type.version!==args.version)throw new AppError(409,'Definition version conflict');
+            if(args.security){
+              if(!access.isAdmin)throw new AppError(403,'Only Administrators manage content permissions');
+              const previous=await getContentPermissions(tx,type.id);
+              await configureContentPermissions(tx,{...previous,version:args.security.version,sensitive:args.security.sensitive},userId,(key,before,after,field)=>this.journal(tx,userId,type.workspace_id,type.id,'object_permissions',type.id,change,key,before,after,field));
+            }
+            if(!isDeepStrictEqual(type.labels,args.labels))await this.setLabels(tx,{kind:'object_type',id:type.id,labels:args.labels},userId,change);
+            return this.definition(tx,type.id,userId);
+          }
+          case 'get_content_permissions':return getContentPermissions(tx,(parsed as {objectTypeId:string}).objectTypeId);
+          case 'configure_content_permissions': {const args=schemas.configure_content_permissions.parse(parsed),type=await this.objectType(tx,args.objectTypeId),change=v7();return configureContentPermissions(tx,args,userId,(key,before,after,field)=>this.journal(tx,userId,type.workspace_id,type.id,'object_permissions',type.id,change,key,before,after,field));}
+          case 'list_access_principals':return contentAccess().eligiblePrincipals((parsed as {objectTypeId:string}).objectTypeId);
           case 'get_relationship_tree_branch': return relationshipTreeBranch(tx,schemas.get_relationship_tree_branch.parse(parsed),userId);
+          case 'list_record_link_options':return recordLinkOptions(tx,schemas.list_record_link_options.parse(parsed));
           case 'get_record_relationships': {const args=schemas.get_record_relationships.parse(parsed);return recordRelationships(tx,args.objectTypeId,args.recordId);}
           case 'search_relationship_candidates': return searchRelationshipCandidates(tx,schemas.search_relationship_candidates.parse(parsed));
           case 'activate_relationship_type': return activateRelationship(tx,schemas.activate_relationship_type.parse(parsed),userId);
@@ -131,8 +154,8 @@ export class Application {
             if (!workspace) throw new AppError(404, 'Workspace not found');
             const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
             const types = (await sql<{ id: string; technical_name: string; labels: Labels; state: string; is_protected: boolean }>`SELECT id, technical_name, labels, state, is_protected FROM sys_object_types WHERE workspace_id = ${args.workspaceId}::uuid AND (state = 'active' OR (${args.includeInactive} AND state = 'inactive') OR (${args.includeDeleted} AND state = 'deleted')) ORDER BY technical_name`.execute(tx)).rows;
-            return types.map(type => ({ id: type.id, state: type.state, isProtected: type.is_protected, technicalName: type.technical_name, labels: type.labels,
-              label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, workspace.available_languages, workspace.default_language), workspace.default_language) }));
+            return Promise.all(types.map(async type => ({ permissions:(await contentAccess().policy(type.id)).capabilities,id: type.id, state: type.state, isProtected: type.is_protected, technicalName: type.technical_name, labels: type.labels,
+              label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, workspace.available_languages, workspace.default_language), workspace.default_language) })));
           }
           case 'search_workspace': return this.searchWorkspace(tx, schemas.search_workspace.parse(parsed), userId);
           case 'get_workspace_dashboard': return workspaceDashboard(tx, schemas.get_workspace_dashboard.parse(parsed), userId);
@@ -166,11 +189,14 @@ export class Application {
             }
             if (sortedField?.kind === 'reference') sortExpression = sql`(SELECT string_agg(COALESCE(u.name, g.name), ', ' ORDER BY COALESCE(u.name, g.name), ref->>'id') FROM jsonb_array_elements(CASE WHEN jsonb_typeof(${sql.ref(args.sortBy)}) = 'array' THEN ${sql.ref(args.sortBy)} ELSE jsonb_build_array(${sql.ref(args.sortBy)}) END) AS ref LEFT JOIN sys_users u ON ref->>'kind' = 'user' AND u.id = ref->>'id' LEFT JOIN sys_groups g ON ref->>'kind' = 'group' AND g.id::text = ref->>'id' AND g.workspace_id = ${type.workspace_id}::uuid)`;
             const searchColumn = sortableFields.some(field => field.state === 'active' && field.technical_name === 'keyword') ? sql`keyword` : sql`id::text`;
-            const predicate = sql`position(lower(${args.query}) in lower(${searchColumn})) > 0`;
+            const policy=await contentAccess().require(type.id,undefined);
+            if(sortedField&&!policy.field(sortedField.id).read)throw new AppError(403,'Cannot sort a restricted field');
+            const permittedSearch=await contentAccess().canField(type.id,'keyword')?searchColumn:sql`id::text`;
+            const predicate = sql`${policy.predicate()} AND position(lower(${args.query}) in lower(${permittedSearch})) > 0`;
             const total = (await sql<{ total: number }>`SELECT count(*)::integer AS total FROM ${sql.table(tableName(type))} WHERE ${predicate}`.execute(tx)).rows[0].total;
             const records = (await sql`SELECT * FROM ${sql.table(tableName(type))} WHERE ${predicate}
               ORDER BY ${sortExpression} ${direction} NULLS LAST, id LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
-            return { records: records.map(row => this.outputRecord(row as DataRecord, sortableFields)), total, limit: args.limit, offset: args.offset };
+            return { records: await Promise.all(records.map(row => contentAccess().project(type.id,this.outputRecord(row as DataRecord, sortableFields)))), total, limit: args.limit, offset: args.offset };
           }
           case 'create_object_type': return this.createObjectType(tx, schemas.create_object_type.parse(parsed), userId);
           case 'add_standard_field': {
@@ -204,25 +230,25 @@ export class Application {
           case 'update_record': return this.updateRecord(tx, schemas.update_record.parse(parsed), userId);
           case 'get_record': {
             const args = schemas.get_record.parse(parsed);
-            return this.record(tx, await this.objectType(tx, args.objectTypeId), args.recordId);
+            return contentAccess().project(args.objectTypeId,await this.record(tx, await this.objectType(tx, args.objectTypeId), args.recordId));
           }
           case 'list_record_journal': {
             const args=schemas.list_record_journal.parse(parsed),type=await this.objectType(tx,args.objectTypeId);
             await this.record(tx,type,args.recordId);
             if(args.fieldId&&!(await sql`SELECT 1 FROM sys_fields WHERE id=${args.fieldId}::uuid AND object_type_id=${type.id}::uuid`.execute(tx)).rows.length)throw new AppError(400,'Unknown journal field');
             const where=sql`j.workspace_id=${type.workspace_id}::uuid AND ((j.object_type_id=${type.id}::uuid AND j.entity_kind='record' AND j.entity_id=${args.recordId}::uuid) OR EXISTS(SELECT 1 FROM sys_relationship_journal_endpoints ep WHERE ep.journal_id=j.id AND ep.workspace_id=${type.workspace_id}::uuid AND ep.object_type_id=${type.id}::uuid AND ep.record_id=${args.recordId}::uuid)) AND ${args.fieldId?sql`j.field_id=${args.fieldId}::uuid`:sql`true`} AND ${args.entityKind?sql`j.entity_kind=${args.entityKind}`:sql`true`}`;
-            const total=(await sql<{total:number}>`SELECT count(*)::int AS total FROM sys_journal j WHERE ${where}`.execute(tx)).rows[0].total;
-            const entries=(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,a.name AS actor_name FROM sys_journal j LEFT JOIN sys_users a ON a.id=j.actor_id WHERE ${where} ORDER BY j.created_at DESC,j.id DESC LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
-            return {entries:await journalValueContexts(tx,entries),total,offset:args.offset,limit:args.limit};
+            const all=(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,a.name AS actor_name FROM sys_journal j LEFT JOIN sys_users a ON a.id=j.actor_id WHERE ${where} ORDER BY j.created_at DESC,j.id DESC`.execute(tx)).rows;
+            const visible=await readableRecordJournal(type.id,all);
+            return {entries:await journalValueContexts(tx,visible.slice(args.offset,args.offset+args.limit)),total:visible.length,offset:args.offset,limit:args.limit};
           }
           case 'get_journal': {
             const args = schemas.get_journal.parse(parsed);
             const type = await this.objectType(tx, args.objectTypeId);
             await this.record(tx, type, args.recordId);
-            return journalValueContexts(tx,(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,a.name AS actor_name FROM sys_journal j LEFT JOIN sys_users a ON a.id=j.actor_id WHERE j.workspace_id = ${type.workspace_id}::uuid AND ((j.object_type_id = ${type.id}::uuid AND j.entity_kind = 'record' AND j.entity_id = ${args.recordId}::uuid) OR EXISTS(SELECT 1 FROM sys_relationship_journal_endpoints ep WHERE ep.journal_id=j.id AND ep.workspace_id=${type.workspace_id}::uuid AND ep.object_type_id=${type.id}::uuid AND ep.record_id=${args.recordId}::uuid)) ORDER BY j.created_at,j.id`.execute(tx)).rows);
+            return journalValueContexts(tx,await readableRecordJournal(type.id,(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,a.name AS actor_name FROM sys_journal j LEFT JOIN sys_users a ON a.id=j.actor_id WHERE j.workspace_id = ${type.workspace_id}::uuid AND ((j.object_type_id = ${type.id}::uuid AND j.entity_kind = 'record' AND j.entity_id = ${args.recordId}::uuid) OR EXISTS(SELECT 1 FROM sys_relationship_journal_endpoints ep WHERE ep.journal_id=j.id AND ep.workspace_id=${type.workspace_id}::uuid AND ep.object_type_id=${type.id}::uuid AND ep.record_id=${args.recordId}::uuid)) ORDER BY j.created_at,j.id`.execute(tx)).rows));
           }
         }
-      });
+      }));
     } catch (error) {
       if ((error as { code?: string }).code === '23505') throw new AppError(409, 'Name already exists');
       throw error;
@@ -237,7 +263,11 @@ export class Application {
     if (user.is_admin) return { isAdmin: true };
     if (['create_group', 'configure_group'].includes(operation) && Object.hasOwn(args, 'memberIds')) throw new AppError(403, 'Only Administrators manage group memberships');
     if (['get_time_zone_catalog', 'configure_user_localization', 'get_language_catalog', 'get_access_context', 'list_workspaces', 'set_user_language', 'set_user_profile'].includes(operation)) return { isAdmin: false };
-    // Workspace roles do not grant content access; that awaits object/record/field permissions.
+    if(['get_content_permissions','configure_content_permissions'].includes(operation))throw new AppError(403,'Only Administrators manage content permissions');
+    const contentOperations=['list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','search_relationship_candidates','list_record_journal','get_record','get_journal','list_records','create_record','update_record','list_access_principals'];
+    if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||operation==='update_record'?'edit':'read');return {isAdmin:false};}
+    if(['get_workspace_dashboard','list_workspace_records','search_workspace'].includes(operation)){if(!(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${args.workspaceId}::uuid AND user_id=${actor}`.execute(tx)).rows.length)throw new AppError(403,'Access denied');return {isAdmin:false};}
+    // Other instance operations remain Administrator-only.
     if (['get_primary_chain_context', 'get_relationship_tree_branch', 'get_record_relationships', 'search_relationship_candidates', 'list_record_journal', 'get_workspace_dashboard', 'list_workspace_records', 'list_managed_users', 'create_user', 'configure_user', 'list_system_journal', 'set_group_members', 'set_group_active', 'create_workspace', 'list_users', 'set_workspace_member', 'search_workspace', 'list_records', 'get_record', 'get_journal', 'create_record', 'update_record'].includes(operation)) throw new AppError(403, 'Access denied');
     let workspaceId: string | undefined;
     if (typeof args.workspaceId === 'string') workspaceId = args.workspaceId;
@@ -250,7 +280,7 @@ export class Application {
     const member = (await sql<{ role: string }>`SELECT role FROM sys_workspace_members WHERE workspace_id = ${workspaceId}::uuid AND user_id = ${actor}`.execute(tx)).rows[0];
     if (!member) throw new AppError(403, 'Access denied');
     const reads: Operation[] = ['list_workspace_modules', 'list_relationship_types', 'list_groups', 'list_object_types', 'get_object_type', 'list_workspace_members', 'list_field_principals', 'get_definition_journal'];
-    const configuration: Operation[] = ['configure_form_layout', 'configure_workspace_module', 'activate_relationship_type', 'create_relationship_type', 'configure_relationship_type', 'configure_group', 'configure_workspace_languages', 'set_workspace_appearance', 'set_workspace_name', 'set_workspace_language', 'create_object_type', 'create_field', 'add_standard_field', 'configure_field', 'set_field_required', 'set_labels', 'configure_classification', 'create_group', 'set_definition_state'];
+    const configuration: Operation[] = ['configure_object_settings','configure_form_layout', 'configure_workspace_module', 'activate_relationship_type', 'create_relationship_type', 'configure_relationship_type', 'configure_group', 'configure_workspace_languages', 'set_workspace_appearance', 'set_workspace_name', 'set_workspace_language', 'create_object_type', 'create_field', 'add_standard_field', 'configure_field', 'set_field_required', 'set_labels', 'configure_classification', 'create_group', 'set_definition_state'];
     if (!reads.includes(operation) && !(member.role === 'designer' && configuration.includes(operation))) throw new AppError(403, 'Access denied');
     return { isAdmin: false };
   }
@@ -271,7 +301,14 @@ export class Application {
           await sql`UPDATE sys_groups SET version = version + 1 WHERE id = ${group.id}::uuid`.execute(tx);
           await this.journal(tx, actor, args.workspaceId, null, 'group', group.id, change, `member:${args.userId}`, true, false);
         }
-        await sql`DELETE FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid AND user_id = ${args.userId}`.execute(tx);
+        const removed=(await sql<{object_type_id:string;level:string|null;fields:Record<string,string>}>`SELECT object_type_id,level,fields FROM sys_content_grants WHERE principal_kind='user' AND principal_id=${args.userId} AND object_type_id IN(SELECT id FROM sys_object_types WHERE workspace_id=${args.workspaceId}::uuid)`.execute(tx)).rows;
+        for(const grant of removed){
+          if(grant.level!==null)await this.journal(tx,actor,args.workspaceId,grant.object_type_id,'object_permissions',grant.object_type_id,change,`permission.user:${args.userId}.level`,grant.level,null);
+          for(const [field,level] of Object.entries(grant.fields))await this.journal(tx,actor,args.workspaceId,grant.object_type_id,'object_permissions',grant.object_type_id,change,`permission.user:${args.userId}.field.${field}`,level,null,field);
+          await sql`UPDATE sys_object_types SET permissions_version=permissions_version+1 WHERE id=${grant.object_type_id}::uuid`.execute(tx);
+        }
+        await sql`DELETE FROM sys_content_grants WHERE principal_kind='user' AND principal_id=${args.userId} AND object_type_id IN(SELECT id FROM sys_object_types WHERE workspace_id=${args.workspaceId}::uuid)`.execute(tx);
+      await sql`DELETE FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid AND user_id = ${args.userId}`.execute(tx);
       }
       else await sql`INSERT INTO sys_workspace_members (workspace_id, user_id, role) VALUES (${args.workspaceId}::uuid, ${args.userId}, ${args.role}) ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role`.execute(tx);
       await this.journal(tx, actor, args.workspaceId, null, 'workspace_member', args.workspaceId, change, `member:${args.userId}`, previous, args.role);
@@ -331,7 +368,7 @@ export class Application {
     const affected = field ? all.filter(item => this.sameFieldGroup(field, item)) : all;
     const previous = field?.state ?? type.state;
     if (previous !== args.expectedState || (field && affected.some(item => item.state !== args.expectedState))) throw new AppError(409, 'Definition state conflict');
-    if ((field && affected.some(item => item.is_protected)) || (!field && (type.is_protected || affected.some(item => item.is_protected)))) throw new AppError(403, 'Module definition is protected');
+    if ((field && affected.some(item => item.is_protected&&item.technical_name!=='access_principals')) || (!field && (type.is_protected || affected.some(item => item.is_protected&&item.technical_name!=='access_principals')))) throw new AppError(403, 'Module definition is protected');
     if (field) this.requireActive(type);
     if (args.state === previous) return { id: args.id, state: previous };
     if (args.state === 'deleted') {
@@ -374,12 +411,15 @@ export class Application {
     if (!workspace) throw new AppError(404, 'Workspace not found');
     const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
     const types = (await sql<{ id: string; technical_name: string; labels: Labels; has_keyword: boolean }>`SELECT o.id, o.technical_name, o.labels, EXISTS (SELECT 1 FROM sys_fields f WHERE f.object_type_id = o.id AND f.technical_name = 'keyword' AND f.state = 'active') AS has_keyword FROM sys_object_types o WHERE workspace_id = ${args.workspaceId}::uuid AND o.state = 'active' ORDER BY technical_name`.execute(tx)).rows;
-    const summaries = types.map(type => ({ id: type.id, technicalName: type.technical_name, labels: type.labels, label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, workspace.available_languages, workspace.default_language), workspace.default_language) }));
+    const visibleTypes=[];for(const type of types)if((await contentAccess().policy(type.id)).capabilities.read)visibleTypes.push(type);
+    const summaries = visibleTypes.map(type => ({ id: type.id, technicalName: type.technical_name, labels: type.labels, label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, workspace.available_languages, workspace.default_language), workspace.default_language) }));
     const needle = args.query.toLowerCase();
     const matches = summaries.filter(type => type.label.toLowerCase().includes(needle) || type.technicalName.includes(needle));
     // Search only this workspace's metadata-derived tables; user text is always a SQL value.
-    const queries = types.map(type => sql`(SELECT id, ${type.has_keyword ? sql`keyword` : sql`id::text`} AS keyword, updated_at, ${type.id}::uuid AS object_type_id FROM ${sql.table(`${workspace.code}_${type.technical_name}`)}
-      WHERE position(lower(${args.query}) in lower(${type.has_keyword ? sql`keyword` : sql`id::text`})) > 0 ORDER BY updated_at DESC, id LIMIT ${args.limit + 1})`);
+    const queries=[];
+    for(const type of visibleTypes){const policy=await contentAccess().policy(type.id),hasKeyword=type.has_keyword&&await contentAccess().canField(type.id,'keyword'),keyword=hasKeyword?sql`keyword`:sql`id::text`;
+      queries.push(sql`(SELECT id,${keyword} AS keyword,updated_at,${type.id}::uuid AS object_type_id FROM ${sql.table(`${workspace.code}_${type.technical_name}`)} WHERE ${policy.predicate()} AND position(lower(${args.query}) in lower(${keyword}))>0 ORDER BY updated_at DESC,id LIMIT ${args.limit+1})`);
+    }
     const rows = queries.length ? (await sql<{ id: string; keyword: string; object_type_id: string }>`SELECT * FROM (${sql.join(queries, sql` UNION ALL `)}) AS matches
       ORDER BY updated_at DESC, id LIMIT ${args.limit + 1}`.execute(tx)).rows : [];
     const labels = new Map(summaries.map(type => [type.id, type.label]));
@@ -584,10 +624,10 @@ export class Application {
       WHERE table_schema = current_schema() AND table_name = ${tableName(type)} AND ${type.state !== 'deleted'} ORDER BY ordinal_position`.execute(tx)).rows;
     const used = type.state !== 'deleted' && type.classification.options.some(option => option.kind !== 'category') ? await this.usedClassificationIds(tx, type, fields) : new Set<string>();
     return {
-      formRelationships:formRelationshipFields(await relationshipTypes(tx,type.workspace_id),type.id,await primaryChain(tx,type.workspace_id)), formLayouts:type.form_layouts??{}, version: type.version, id: type.id, state: type.state, isProtected: type.is_protected || fields.some(field => field.state !== 'deleted' && field.is_protected), canDelete: type.state !== 'deleted' && !type.is_protected && !fields.some(field => field.state !== 'deleted' && field.is_protected) && !(await this.objectUsed(tx, type)) && !(await sql`SELECT 1 FROM sys_relationship_type_pairs WHERE left_object_type_id=${type.id}::uuid OR right_object_type_id=${type.id}::uuid LIMIT 1`.execute(tx)).rows.length, workspaceId: type.workspace_id, technicalName: type.technical_name,
+      permissionsVersion:type.permissions_version,sensitive:(await contentAccess().policy(type.id)).sensitive,permissions:(await contentAccess().policy(type.id)).capabilities,formRelationships:formRelationshipFields(await relationshipTypes(tx,type.workspace_id),type.id,await primaryChain(tx,type.workspace_id)), formLayouts:type.form_layouts??{}, version: type.version, id: type.id, state: type.state, isProtected: type.is_protected || fields.some(field => field.state !== 'deleted' && field.is_protected&&field.technical_name!=='access_principals'), canDelete: type.state !== 'deleted' && !type.is_protected && !fields.some(field => field.state !== 'deleted' && field.is_protected&&field.technical_name!=='access_principals') && !(await this.objectUsed(tx, type)) && !(await sql`SELECT 1 FROM sys_relationship_type_pairs WHERE left_object_type_id=${type.id}::uuid OR right_object_type_id=${type.id}::uuid LIMIT 1`.execute(tx)).rows.length, workspaceId: type.workspace_id, technicalName: type.technical_name,
       classification: { ...type.classification, options: type.classification.options.map(option => ({ ...option, label: localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language), canDelete: option.kind !== 'category' && !used.has(option.id) })) },
       labels: type.labels, label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language),
-      fields: await Promise.all(fields.filter(f => f.state !== 'deleted').map(async f => ({ applicability: f.applicability??null, version: f.version, id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, isProtected: f.is_protected || fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected),
+      fields: await Promise.all(fields.filter(f => f.state !== 'deleted'&&(f.technical_name!=='access_principals'||(type as ObjectType & {is_sensitive:boolean}).is_sensitive)).map(async f => ({ fieldPermissions:f.technical_name==='access_principals'?{read:(await contentAccess().policy(type.id)).capabilities.read,edit:(await contentAccess().policy(type.id)).capabilities.full}:(await contentAccess().policy(type.id)).field(f.id),applicability: f.applicability??null, version: f.version, id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, isProtected: f.is_protected || fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected),
         canDelete: !fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected) && !(await this.fieldGroupUsed(tx, type, fields.filter(item => item.state !== 'deleted' && this.sameFieldGroup(f, item)))),
         required: isCustomFieldKind(f.kind) ? f.required : type.classification[f.kind as 'type' | 'status' | 'category'].required, labels: f.labels, label: localizedLabel(f.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language) }))),
       historicalFields: fields.filter(f => f.state === 'deleted').map(f => ({ applicability: f.applicability??null, version: f.version, id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, required: f.required, labels: f.labels, label: localizedLabel(f.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language) })),
@@ -827,13 +867,27 @@ export class Application {
     for (const kind of Object.keys(classification)) if (!fields.some(field => field.state === 'active' && field.technical_name === kind)) throw new AppError(400, 'Standard field is not installed');
   }
 
+  private async checkRequiredPermissions(type:ObjectType,fields:Field[],data:Record<string,FieldValue>,previous?:DataRecord){
+    const policy=await contentAccess().policy(type.id);if(policy.admin)return;
+    const resulting={...previous,...data};
+    for(const field of fields.filter(f=>f.state==='active')){
+      const required=isCustomFieldKind(field.kind)?field.required:type.classification[field.kind as 'type'|'status'|'category']?.required;
+      if(required&&applies(field,fields,resulting)&&isEmptyFieldValue(resulting[field.technical_name])&&!policy.field(field.id).edit)throw new AppError(403,'Required fields cannot be completed with current field permissions');
+    }
+  }
+
   private async createRecord(tx: Executor, args: z.infer<typeof schemas.create_record>, actor: string) {
     const type = await this.objectType(tx, args.objectTypeId);
     const fields = await this.fields(tx, type, args.values);
     this.checkStandardValues(fields, args.keyword, args.classification);
+    const policy=await contentAccess().require(type.id,undefined,'edit');
+    await contentAccess().checkWrites(type.id,{...args.values,...args.classification,...(args.keyword!==undefined?{keyword:args.keyword}:{})});
     const id = v7();
     const choices = resolveChoices(this.effectiveClassification(type.classification, fields), args.classification);
     const data: Record<string, FieldValue> = { ...args.values, ...Object.fromEntries(Object.entries(choices).filter(([key]) => fields.some(field => field.state === 'active' && field.technical_name === key))), ...(fields.some(field => field.state === 'active' && field.technical_name === 'keyword') ? { keyword: args.keyword ?? '' } : {}) };
+    if(policy.sensitive&&!Object.hasOwn(data,'access_principals'))data.access_principals=[{kind:'user',id:actor}];
+    if(policy.sensitive)await contentAccess().validatePrincipals(type.id,data.access_principals);
+    await this.checkRequiredPermissions(type,fields,data);
     await this.normalizeRecordFields(tx, type, fields, data);
     const columns = ['id', 'created_by', 'updated_by', ...Object.keys(data)];
     const params = [id, actor, actor, ...Object.entries(data).map(([key, value]) => storedParameter(fields.find(field => field.technical_name === key)!, value))];
@@ -843,8 +897,9 @@ export class Application {
     const journalFields = Object.entries(data).filter(([key, value]) => !['type', 'status', 'category'].includes(key) || (value !== null && (!Array.isArray(value) || value.length)));
     if (!journalFields.length) await this.journal(tx, actor, type.workspace_id, type.id, 'record', id, change, 'created', null, true);
     for (const [key, value] of journalFields) await this.journal(tx, actor, type.workspace_id, type.id, 'record', id, change, key, null, value, fields.find(f => f.technical_name === key)!.id);
-    await writeRecordRelationships(tx,type.id,id,args.relationships,actor,change,true,true);
-    return this.record(tx, type, id);
+    const relationships=args.linkFrom?await linkedRecordWrites(tx,type.id,args.linkFrom,args.relationships):args.relationships;
+    await writeRecordRelationships(tx,type.id,id,relationships,actor,change,true,true);
+    return contentAccess().project(type.id,await this.record(tx, type, id));
   }
 
   private async updateRecord(tx: Executor, args: z.infer<typeof schemas.update_record>, actor: string) {
@@ -852,20 +907,25 @@ export class Application {
     const fields = await this.fields(tx, type, args.values);
     this.checkStandardValues(fields, args.keyword, args.classification);
     const previous = await this.record(tx, type, args.recordId);
+    await contentAccess().require(type.id,args.recordId,'edit');
+    await contentAccess().checkWrites(type.id,{...args.values,...args.classification,...(args.keyword!==undefined?{keyword:args.keyword}:{})},previous);
+    if(Object.hasOwn(args.values,'access_principals'))await contentAccess().validatePrincipals(type.id,args.values.access_principals,previous.access_principals as FieldValue);
     if (previous.version !== args.version) throw new AppError(409, 'Record version conflict');
     const choices = resolveChoices(this.effectiveClassification(type.classification, fields), args.classification, previous as unknown as Choices);
     const data: Record<string, FieldValue> = { ...args.values, ...Object.fromEntries(Object.entries(choices).filter(([key]) => fields.some(field => field.state === 'active' && field.technical_name === key))) };
     if (args.keyword !== undefined) data.keyword = args.keyword;
+    await this.checkRequiredPermissions(type,fields,data,previous);
     await this.normalizeRecordFields(tx, type, fields, data, previous);
     const changed = Object.entries(data).filter(([key, value]) => !isDeepStrictEqual(previous[key], value));
+    await contentAccess().checkWrites(type.id,Object.fromEntries(changed),previous);
     const change = v7();
-    if (!changed.length) {await writeRecordRelationships(tx,type.id,args.recordId,args.relationships,actor,change,false);return this.record(tx,type,args.recordId);}
+    if (!changed.length) {await writeRecordRelationships(tx,type.id,args.recordId,args.relationships,actor,change,false);return contentAccess().project(type.id,await this.record(tx,type,args.recordId));}
     const assignments = changed.map(([key, value]) => sql`${sql.ref(key)} = ${storedParameter(fields.find(field => field.technical_name === key)!, value)}`);
     await sql`UPDATE ${sql.table(tableName(type))} SET ${sql.join(assignments)},
       version = version + 1, updated_at = now(), updated_by = ${actor}
       WHERE id = ${args.recordId}::uuid AND version = ${args.version}`.execute(tx);
     for (const [key, value] of changed) await this.journal(tx, actor, type.workspace_id, type.id, 'record', args.recordId, change, key, previous[key], value, fields.find(f => f.technical_name === key)!.id);
     await writeRecordRelationships(tx,type.id,args.recordId,args.relationships,actor,change,true);
-    return this.record(tx, type, args.recordId);
+    return contentAccess().project(type.id,await this.record(tx, type, args.recordId));
   }
 }

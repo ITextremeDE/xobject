@@ -11,9 +11,9 @@ Users need to see translated names while operators need stable readable SQL iden
 
 Store definition labels directly in `labels` JSONB columns, starting with `sys_object_types` and `sys_fields`. For example, `{"de":"Fahrzeuge","en":"Vehicles"}` names `itx_vehicles` without changing that table name. Do not maintain a second scalar label as a competing source. Initially accept German and English labels with at least one nonempty value. The built-in Keyword labels remain German `Stichwort` and English `Keyword`.
 
-Store an optional preference in `sys_users.language` and the workspace default in `sys_workspaces.default_language`. A null user preference inherits the workspace default. Resolve labels by trying the user preference, workspace default, English, German, then a preserved unknown-language label. The HTTP/MCP definition response exposes raw `labels` and a derived `label` for the authenticated user. Stored records and technical names do not change with the user's language.
+Store an optional preference in `sys_users.language` and the workspace default in `sys_workspaces.default_language`. A null user preference inherits the workspace default. Resolve labels using the effective available user/workspace language under [ADR 0012](0012-workspace-languages.md), followed by workspace default, English, German, then a preserved unknown-language label. The HTTP/MCP definition response exposes raw `labels` and a derived `label` for the authenticated user. Stored records and technical names do not change with the user's language.
 
-Definition-label and preference changes go through the shared application layer and are journaled transactionally. User-language changes are installation-level journal events, so `sys_journal.workspace_id` permits null for those events. This does not grant access to another workspace or broaden the spike's Administrator-only policy. The Better Auth language field is not writable through generic auth-profile input.
+Definition-label and preference changes go through the shared application layer and are journaled transactionally. User-language changes are installation-level journal events, so `sys_journal.workspace_id` permits null for those events. This does not grant access to another workspace or broaden content rights; the current local boundary is ADR 0026. The Better Auth language field is not writable through generic auth-profile input.
 
 Create new object tables with the implemented fixed fields first: `id`, `keyword`, `created_at`, `created_by`, `updated_at`, `updated_by`, `version`. As the remaining shared fields are implemented, they belong before the audit metadata on newly created tables. Append subsequent custom columns in creation order. Preserve the physical layout of existing tables during routine application operations and upgrades. An explicitly authorized development-data rebuild is separate maintenance, with backup and verification of data/history preservation. Display ordering remains a separate setting.
 
@@ -23,7 +23,7 @@ The explicit development migration converts the earlier scalar `label` column to
 
 Old journal entries stay unchanged, including their historical scalar-label representation. Record data and physical record-column order stay unchanged. Repeating the migration must be safe. Initialization remains experimental; a versioned production migration strategy is still open.
 
-The spike API now accepts `labels` objects instead of scalar `label` input for new object types and fields. This is a deliberate change to an unreleased experimental interface. Further definition categories and the frontend are outside this implementation.
+The spike API now accepts `labels` objects instead of scalar `label` input for new object types and fields. This is a deliberate change to an unreleased experimental interface. Subsequent ADRs extend this representation to additional definitions and the web client; this ADR records the initial label-storage adoption.
 
 ## Verification
 

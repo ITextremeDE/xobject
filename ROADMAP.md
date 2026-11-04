@@ -1,87 +1,55 @@
 # Roadmap
 
-xObject is in early development. A local backend and first web interface exist; a software release is not available yet.
+xObject is in early development. A local application prototype and public project-site source exist; no installable application release is available. This is a curated product overview, not a parallel task tracker. OpenProject owns operational priorities, dependencies and completion evidence; the [PRD](docs/PRD.md) owns requirements and the [changelog](CHANGELOG.md) records source changes. No dates are committed.
 
-This roadmap summarizes product goals from the [Product Requirements Document](docs/PRD.md). Operational tasks, dependencies and priorities are managed in OpenProject; this file is a curated public overview, not a duplicate task list or a live implementation-status report. Local delivery descriptions reflect verified prototype behavior; publication and full product acceptance remain separate.
+“Implemented locally” includes verified working-tree changes and does not imply that every change is committed, merged, deployed or accepted as a full product capability. The permission target below is intentionally broader than the current local ACL.
 
-No delivery dates are committed. An item here is not evidence that its requirements have been implemented or accepted.
+## Implemented locally — Product foundation
 
-## Delivered — Public project introduction
+- PostgreSQL-backed local accounts, instance Administrators, workspace User/Designer roles and direct user groups; mandatory first password change, reversible user/group activation and own profile/password/session management.
+- Metadata-driven object/typed-field creation, optional Keyword/Type/Status/Category, configurable input aids/requiredness, safe field conversion and definition lifecycle, stable UUID identities and atomic per-property journals.
+- Initial object/field/record ACL with additive active-group grants, explicit user overrides and sensitive-record Access principals. Shared UI/API/MCP enforcement protects contents, search/counts, relationships, Dashboard and current-rights history; memberships alone grant no contents.
+- Versioned relationship definitions for one custom object pair, General core links, Projects-owned Primary context/tree, final-state cardinalities, endpoint conditions and activation preflight. Linked creation and existing-record linking share source/version/permission checks and atomic journals. Dossier/Journal use the common data table.
+- Complete visible module catalog; Projects & Tasks base-object installation supplies protected Contacts/Projects/Cases/Tasks and fixed Contact → Project → Case roles. Contacts & Relations and Documents & Communication activation remain planned, as do complete domain templates and shared-module ownership/update handling.
+- Configurable standard forms for actual objects: editable groups, Unassigned elements, scalar/relationship order/width, optional visibility and initial table state. Module-keyed metadata is retained; module-specific form selection awaits real object/module assignments.
+- Consistent shadcn shell, settings, full-width record forms, shared searchable tables/pagination, keyboard navigation, responsive loading/dialogs and account/view-scoped presentation preferences. Dashboard table is regular application UI; real statistics/chart content remains exploratory.
+- Shared workspace appearance/fonts, installed German/English interface/definition policies, named zones and per-property personal localization overrides, exact regional numeric/money/date/time editing and DST handling.
+- Numbered local migrations, runtime/operator separation, registry integrity, scoped locks/indexes and isolated validation. Fictional seed/fixture data is separate from installation; backups and existing records are retained during ordinary migrations.
 
-- Static Astro project homepage, separate from the application, linking to the canonical requirements and roadmap. Full Starlight documentation and release/version navigation remain later work.
+## Public project introduction
 
-## Delivered — Local Administrator prototype
+The independent Astro project homepage introduces the product and links canonical Git documentation. Its source, design system and CSP/browser checks are present. Full Starlight documentation, changelog/roadmap pages and version navigation remain future work. Selected public URLs are not proof of deployment of those pages.
 
-- Consistent settings and nested-editor surfaces with shared functional groups, sidebar/footer backgrounds and Save/Reset placement; full-width record pages reuse those groups and matching loading layouts. Responsive selection and relationship controls preserve room for labels and actions.
-- Exact regional Integer/Decimal/Money input formatting, locale-aware dates and calendar selection, 12/24-hour time input, named-zone DST handling and safe open-draft preference changes without reinterpreting stored values. Currency-code placement and previews follow the effective region.
-- Dedicated Form designer with freely editable groups, one General proposal for new objects and a preserved Unassigned collection for added elements, consistently labeled controls and fixed Save/Reset actions: translated groups and scalar/relationship order/width for standard forms, optional relationship visibility and initial table state, preserving common values, requiredness and rights. Module-keyed metadata is prepared; module-specific view selection awaits actual module/object assignments.
-- Destination-specific loading states preserve known forms, tables, controls and pagination structure without showing false empty results. Configuration choices, technical details and Journal details reuse consistent presentation. Settings navigation groups personal, workspace and instance concerns; module configuration has its own area.
-- Dedicated Modules settings with the full PostgreSQL catalog and planned-module status. Projects & Tasks activation supplies protected base objects and fixed Contact → Project → Case UUID levels, inherited context, transactional preflight and role-filtered parents. Generic relationship endpoint conditions restrict candidates and complete record writes; the local Contact configuration supplies Organization/Contact-person links and a direct Identities list for Contact persons/Individual contacts. Complete Contacts provisioning/ownership and automatic Contact Keywords remain outstanding.
-- Record form refinement: shared filtered/paginated Journal data table with historical value formatting and detail dialogs, persistent draft notices, a separate Primary chain, labeled fields for single-target custom sides and tables for multi-target sides and a top-level General-link action with its overview in the Dossier and staged searchable/filterable selection dialogs and configurable conditional field applicability. Fictional Contact rules are configured; full Contacts templates and derived Contact names remain future work.
-- PostgreSQL-backed local login, workspace/object/typed-field creation, versioned record editing and atomic per-field journals through shared API/MCP rules.
-- Optional Keyword, Type/Status and Category fields can be configured in the shared field editors before installation, with atomic API/MCP creation and existing-data preflight. Classification supports independent required flags, localized stable choices/defaults, per-Type Status mappings and single/multiple Category selection.
-- React web interface with direct routes, mixed-object and individual record tables, shared search/action toolbars, complete pagination, selection, standard-only initial object-list columns, retained account-scoped browser column choices, localized navigation, regional numeric field validation, column controls, sidebar command search and keyboard navigation. Closing record details preserves the originating list or Dashboard filters and focus. Dashboard statistics/activity use real local data; their metric selection and chart remain exploratory.
-- Personal profile, verified password changes and own-session management; Administrator user provisioning with mandatory initial-password change and reversible activation. The instance Journal uses the shared compact data table and structured detail dialog; definition journals share the searchable, paginated Journal table and structured details with readable names and before/after values; definition history excludes record events.
-- Dedicated responsive record pages for creation and editing, one full-width form with up to two responsive columns, persistent save/reset actions and required-field feedback, optional preview/inactive-field disclosures, retained tab drafts, formatted field history and guarded return navigation. The versioned five-domain seed and a separate fictional four-object development inventory provide relationships for testing; complete domain modules remain future work.
-- Responsive personal/instance/workspace settings and nested editors with guarded drafts, consistent actions, alphabetical field administration and explicit required flags. Workspace groups and User/Designer memberships, independent interface/definition-language policies for the installed German/English packs, named time zones and regional formats with personal inheritance previews.
-- Shared workspace shadcn appearance with base/theme/chart colors, primary/secondary overrides, fonts, heading fonts, radius and menu previews; light/dark/system mode remains personal.
-- Instance-wide Administrators, explicit workspace User/Designer memberships and role-appropriate configuration views; business-content access remains Administrator-only.
-- Field/object definition deactivation, validated reactivation and confirmed deletion of never-used storage, with retained metadata/journals and read-only inactive values. The record recycle bin remains pending.
-- Workspace relationship-type configuration: protected system types and custom directed/undirected definitions for one object pair, separate side names and requiredness, one conventional object-pair cardinality, versions and journals. General is always available; Projects & Tasks supplies fixed Primary levels for every child object type. Definitions activate after preflight. Atomic record linking, cardinality-based selection/list controls, a shared searchable/sortable dossier data table with endpoint Type/Status/Category and shared endpoint history are implemented locally; Projects-gated lazy tree navigation and derived Primary context are implemented locally, exclusively from Primary edges; General/custom links stay in the Dossier. Independently required chain levels remain future work.
-- This is a local typed-field/classification experiment; complete permissions, the remaining shared fields and version-1 acceptance remain open.
-- Relationship-definition forms put the object pair first, reveal the appropriate separate/shared side settings without losing drafts, show object-specific descriptions and reuse consistent technical-name help; fixed values use read-only presentation, creation/availability are explained separately, and responsive layout/draft protection remain intact.
-- Database integrity and concurrency: versioned field/object-label drafts, protected module structures, deferred row/registry checks, shared reads/workspace writes, targeted relationship checks, query indexes and a numbered migration ledger with a distinct restricted runtime role.
+## Defined target — Next permission implementation
 
-## In progress — Product definition and technical foundation
+The [permission concept](docs/PRD.md#4-permissions) specifies graded Access-principal ownership, activity involvement, foreign access with requester/owner group inheritance, nested/graded memberships, record privacy/maxima, field restrictions and effective-rights explanations. It preserves the installation-wide Administrator exception.
 
-- Refine the initial requirements and acceptance criteria for the object platform, Contacts and project management.
-- Resolve the technical foundation decisions needed for the first implementation slice: release migration/restore packaging, measured scaling beyond workspace-level write serialization, authentication hardening and controlled schema changes.
-- Build on the verified local login, workspace-prefixed dynamic tables, common API/MCP operations and atomic per-field journals. Keep complete shared fields and content permissions as the remaining foundation work; UI refinement does not constitute version-1 acceptance.
+The resolver, storage mapping, concurrency behavior and access-preserving migration require the follow-up implementation decision and acceptance scenarios in the PRD. No default foreign grants or automatic coworker access may appear during adoption. The existing local ACL is a foundation, not completion of this target. Actual calendar availability/time-only editing and notification delivery remain later scope.
 
-## Next — First end-to-end object slice
+## Next — Complete and accept version 1
 
-The Administrator-only prototype already exercises the basic flow below. Complete the shared-field and content-permission baseline, then verify it against the PRD before treating this as the first accepted product slice:
-
-1. Create a workspace and initial Administrator account.
-2. Define a custom object type and a field.
-3. Create and edit a record with the shared fields and backend validation.
-4. Record each field change in the journal, atomically with the content change.
-5. Exercise the same capabilities through the web interface, API and MCP with the applicable authorization rules.
-
-The outcome is a verified vertical slice, not a completed version-1 release. See the [initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios).
-
-
-## Next — Complete the version-1 scope
-
-The following goals build on that foundation. Their detailed sequencing and work packages belong in OpenProject.
-
-| Goal | Intended outcome |
+| Goal | Remaining outcome |
 | --- | --- |
-| **Permissions and identity** | Local accounts, installation-wide Administrators, Designers and Users; user/group object and field rights; optional record access lists; user-bound agent access. |
-| **Configurable object platform** | Supported field types, input aids, Type/Status mappings, categories and number sequences; shared types across modules; protected module definitions and safe model changes. |
-| **Relationships and context** | All agreed cardinalities, one direct Primary association, derived ancestor context and configurable required chains. |
-| **Contacts and project management** | Contacts supplies Contact-person/Organization relationships; Projects activation supplies Primary association for every object type, while General relationship stays core. Complete module templates remain future work. Contacts with distinct contact kinds, at most one Organization per Contact person and an Identities relationship list directly on Contact person/Individual contact records; Projects, Cases and Tasks with responsibility and assignment. |
-| **Daily work and lifecycle** | Searchable tables, module forms, record details, dossier and relationship tree; per-field journal, recycle bin, restoration and controlled permanent deletion. |
-| **Self-hosting and acceptance** | Versioned container images, Docker Compose installation, controlled migrations, backup/restore instructions and checks against the version-1 acceptance criteria. |
-| **Public documentation** | Extend the published Astro project homepage with Astro/Starlight documentation, release notes and versioned documentation. |
+| Permissions and identity | Implement/verify the expanded permission target and migration; production user-bound API/MCP credentials and session hardening. |
+| Configurable object platform | Business-number sequences, remaining helper/default/uniqueness configuration, measured data/query scaling and complete shared-definition evolution. |
+| Contacts and Projects | Complete supplied templates, derived Contact Keywords, single-Organization Contact persons, direct Identities lists, domain roles and configurable responsibility/assignment. Existing generic fixtures do not establish full module delivery. |
+| Shared modules/forms | Actual cross-module object/field ownership and view selection, protected-definition updates and conflict-safe activation/deactivation without copied records or values. |
+| Relationships and lifecycle | Independently required Primary ancestor sections; record recycle bin, restore, confirmed permanent deletion, linked-history erasure and invalid-link handling. |
+| Delivery and acceptance | Interactive first-Administrator container setup, prebuilt images, Linux Compose installation, release migration/backup/restore tooling, performance/accessibility targets and PRD end-to-end acceptance. |
+| Public documentation | Astro/Starlight at the selected documentation URL, canonical changelog/roadmap reuse, release notes and versioned documentation. |
 
-All version-1 capabilities must remain available through the API and MCP. Security, validation and journal behavior are part of each affected implementation slice, not a final add-on.
+Every capability must use the same backend authorization, validation and journal rules through web, API and MCP. A passing prototype test is not complete version-1 acceptance. See the [initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios) and [remaining design decisions](docs/PRD.md#10-remaining-design-decisions).
 
 ## Later — Beyond version 1
 
-These areas are outside the first-version scope. Their detailed requirements and ordering remain open.
+- Documents & Communication module and email handling; file uploads, attachments and versioning.
+- Verified email-address changes and profile-image handling, after their mail/upload dependencies exist.
+- Notification delivery, alarms/subscriptions, calendar availability/time-only rights, calendar and Kanban views.
+- Import/export, external SSO, desktop clients (Electron or Tauri selection pending), separate mobile clients, offline operation/synchronization and hosted cloud service.
+- Creation templates/default-group configuration and other separately specified extensions.
 
-- File uploads, attachments and file versioning.
-- Import and export features.
-- SSO with an external identity provider.
-- Kanban, calendar and additional views.
-- Desktop applications for Windows, macOS and Linux; Electron or Tauri remains to be selected.
-- Separate mobile clients for iOS and Android.
-- Offline operation and synchronization.
-- A hosted cloud offering.
-
-Computed fields and general undo are candidates for separate specification, not committed delivery milestones. Premium feature allocation, pricing and service terms also remain to be defined; Premium code will stay open source.
+Computed fields and general undo remain candidates requiring separate specification. Community/Premium allocation, pricing, contribution and service terms remain open; the full product including Premium code remains `AGPL-3.0-only`.
 
 ## Keeping this roadmap current
 
-Update this overview when accepted requirements, internal priorities or delivered capabilities materially change. Keep detailed operational status in OpenProject, the requirement baseline in the PRD and actual release changes in the [changelog](CHANGELOG.md). Do not mark a product goal delivered before its acceptance criteria have been verified.
+Update this overview when accepted scope or verified capabilities materially change. Put detailed operational work and publication evidence in OpenProject, not a duplicate release checklist here. Keep planned targets distinguishable from the current local implementation and deployed releases.

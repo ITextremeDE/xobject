@@ -135,8 +135,7 @@ Container, HomeHero and SiteFooter. The 2026-10-29 review used anonymous live
 Reference/render comparison checks header hierarchy, container alignment,
 hero typography and surface, section rhythm, footer group spacing and mobile
 reflow. Above-the-fold product copy and CTA labels remain unchanged; navigation
-labels reflect actual section targets. QA uses isolated Playwright because the
-Browser plugin is not available in this session. The normal acceptance flow now
+labels reflect actual section targets. Automated QA uses isolated Chromium against the built site and its production CSP, independently of personal browser sessions. The normal acceptance flow now
 also covers Escape/focus return, outside click, fragment navigation, sticky
 anchor clearance, back-to-top and open-menu closure on desktop resize.
 
