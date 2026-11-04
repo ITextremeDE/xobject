@@ -6,7 +6,7 @@ import { z, ZodError } from 'zod';
 import fastifyStatic from '@fastify/static';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { connect } from './database.js';
+import { connect,assertCurrentSchema } from './database.js';
 import { createAuth } from './auth.js';
 import { AppError, Application, schemas, type Operation } from './domain.js';
 
@@ -20,6 +20,7 @@ export function buildServer(config: Config) {
     logger: { level: process.env.LOG_LEVEL || 'info', redact: ['req.headers.cookie', 'req.headers.authorization'] },
     bodyLimit: 1024 * 1024,
   });
+  app.addHook('onReady',()=>assertCurrentSchema(pool));
   const application = new Application(db);
   const base = new URL(config.baseURL);
   app.addHook('onClose', async () => { await db.destroy(); });

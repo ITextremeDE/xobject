@@ -10,34 +10,6 @@ import { AppError } from './errors.js';
 type Journal = (kind: string, id: string, change: string, key: string, before: unknown, after: unknown) => Promise<void>;
 const names = new Set(['primary_association', 'general_relation']);
 const protectedLabels = new Set(['hauptzuordnung', 'primärverknüpfung', 'allgemeine verknüpfung', 'primary association', 'general relationship']);
-export async function installRelationshipSchema(tx: Executor) {
-  await sql`CREATE TABLE IF NOT EXISTS sys_workspace_modules(workspace_id uuid NOT NULL REFERENCES sys_workspaces(id),module_key text NOT NULL CHECK(module_key='projects'),enabled boolean NOT NULL DEFAULT false,version integer NOT NULL DEFAULT 1 CHECK(version>0),PRIMARY KEY(workspace_id,module_key))`.execute(tx);
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS sys_object_types_id_workspace_unique ON sys_object_types(id, workspace_id)`.execute(tx);
-  await sql`CREATE TABLE IF NOT EXISTS sys_relationship_types (
-    id uuid PRIMARY KEY, workspace_id uuid NOT NULL REFERENCES sys_workspaces(id), technical_name text NOT NULL,
-    kind text NOT NULL CHECK (kind IN ('primary','general','custom')), labels jsonb NOT NULL, left_labels jsonb NOT NULL, right_labels jsonb NOT NULL,
-    directed boolean NOT NULL, left_min integer NOT NULL CHECK(left_min IN(0,1)), left_max integer CHECK(left_max=1), right_min integer NOT NULL CHECK(right_min IN(0,1)), right_max integer CHECK(right_max=1),
-    allow_all boolean NOT NULL, active boolean NOT NULL DEFAULT true, version integer NOT NULL DEFAULT 1 CHECK(version>0),
-    UNIQUE(workspace_id,technical_name), UNIQUE(id,workspace_id),
-    CHECK(kind <> 'primary' OR (technical_name='primary_association' AND directed AND left_min=0 AND left_max IS NULL AND right_min=0 AND right_max=1 AND allow_all)),
-    CHECK(kind <> 'general' OR (technical_name='general_relation' AND NOT directed AND left_min=0 AND left_max IS NULL AND right_min=0 AND right_max IS NULL AND allow_all AND active)),
-    CHECK(kind <> 'custom' OR technical_name NOT IN ('primary_association','general_relation'))
-  )`.execute(tx);
-  await sql`ALTER TABLE sys_relationship_types ADD COLUMN IF NOT EXISTS rules_state text NOT NULL DEFAULT 'draft' CHECK(rules_state='draft')`.execute(tx);
-  await sql`ALTER TABLE sys_relationship_types DROP CONSTRAINT IF EXISTS sys_relationship_types_rules_state_check`.execute(tx);
-  await sql`ALTER TABLE sys_relationship_types ADD CONSTRAINT sys_relationship_types_rules_state_check CHECK(rules_state IN ('draft','active'))`.execute(tx);
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS sys_relationship_system_kind_unique ON sys_relationship_types(workspace_id,kind) WHERE kind <> 'custom'`.execute(tx);
-  await sql`CREATE TABLE IF NOT EXISTS sys_relationship_type_pairs (
-    relationship_type_id uuid NOT NULL, workspace_id uuid NOT NULL, left_object_type_id uuid NOT NULL, right_object_type_id uuid NOT NULL,
-    PRIMARY KEY(relationship_type_id,left_object_type_id,right_object_type_id),
-    FOREIGN KEY(relationship_type_id,workspace_id) REFERENCES sys_relationship_types(id,workspace_id) ON DELETE RESTRICT,
-    FOREIGN KEY(left_object_type_id,workspace_id) REFERENCES sys_object_types(id,workspace_id) ON DELETE RESTRICT,
-    FOREIGN KEY(right_object_type_id,workspace_id) REFERENCES sys_object_types(id,workspace_id) ON DELETE RESTRICT
-  )`.execute(tx);
-  await migrateRelationshipScope(tx);
-  const workspaces = (await sql<{id:string;created_by:string}>`SELECT id, created_by FROM sys_workspaces`.execute(tx)).rows;
-  for (const workspace of workspaces) await installSystemRelationships(tx, workspace.id, workspace.created_by);
-}
 export async function installSystemRelationships(tx: Executor, workspaceId: string, actor: string) {
   const module=await ensureProjectsModule(tx,workspaceId,actor,false);
   for (const kind of ['primary','general'] as const) {
@@ -99,37 +71,11 @@ async function scopeJournal(tx:Executor,workspaceId:string,actor:string,kind:str
 async function ensureProjectsModule(tx:Executor,workspaceId:string,actor:string,enabled:boolean) {
   const added=(await sql`INSERT INTO sys_workspace_modules(workspace_id,module_key,enabled) VALUES(${workspaceId}::uuid,'projects',${enabled}) ON CONFLICT DO NOTHING RETURNING workspace_id`.execute(tx)).rows;
   if(added.length)await scopeJournal(tx,workspaceId,actor,'workspace',workspaceId,v7(),'module.projects',null,enabled);
-  // The version-1 installer must not read tables introduced by later upgrades.
   return (await sql<{enabled:boolean;version:number}>`SELECT enabled,version FROM sys_workspace_modules WHERE workspace_id=${workspaceId}::uuid AND module_key='projects'`.execute(tx)).rows[0];
-}
-async function migrateRelationshipScope(tx:Executor) {
-  const invalid=(await sql`SELECT t.id FROM sys_relationship_types t LEFT JOIN sys_relationship_type_pairs p ON p.relationship_type_id=t.id WHERE t.kind='custom' GROUP BY t.id HAVING t.allow_all OR count(p.*)<>1`.execute(tx)).rows;
-  if(invalid.length)throw new AppError(409,'Resolve legacy custom relationships to exactly one object pair before migration; no data was changed');
-  await sql`ALTER TABLE sys_relationship_types DROP CONSTRAINT IF EXISTS sys_relationship_types_check`.execute(tx);
-  await sql`ALTER TABLE sys_relationship_types DROP CONSTRAINT IF EXISTS sys_relationship_primary_scope`.execute(tx);
-  const hasEdges=(await sql<{name:string|null}>`SELECT to_regclass('sys_relationships')::text AS name`.execute(tx)).rows[0].name;
-  const workspaces=(await sql<{id:string;created_by:string}>`SELECT id,created_by FROM sys_workspaces`.execute(tx)).rows;
-  for(const ws of workspaces) {
-    const used=hasEdges?Boolean((await sql`SELECT 1 FROM sys_relationships e JOIN sys_relationship_types t ON t.id=e.relationship_type_id WHERE e.workspace_id=${ws.id}::uuid AND t.kind='primary' LIMIT 1`.execute(tx)).rows.length):false;
-    const module=await ensureProjectsModule(tx,ws.id,ws.created_by,used);
-    for(const previous of (await baselineSystemDefinitions(tx,ws.id))) {
-      const next={allowAll:true,pairs:[],rightMin:0,active:previous.kind==='general'||module.enabled,rulesState:'active' as const};
-      const changed=(Object.keys(next) as (keyof typeof next)[]).filter(key=>!isDeepStrictEqual(previous[key],next[key]));
-      if(!changed.length)continue;
-      const change=v7();
-      await sql`UPDATE sys_relationship_types SET allow_all=true,right_min=0,active=${next.active},rules_state='active',version=version+1 WHERE id=${previous.id}::uuid`.execute(tx);
-      await sql`DELETE FROM sys_relationship_type_pairs WHERE relationship_type_id=${previous.id}::uuid`.execute(tx);
-      for(const key of changed)await scopeJournal(tx,ws.id,ws.created_by,'relationship_type',previous.id,change,key,previous[key],next[key]);
-    }
-  }
-  await sql`ALTER TABLE sys_relationship_types ADD CONSTRAINT sys_relationship_primary_scope CHECK(kind<>'primary' OR (technical_name='primary_association' AND directed AND left_min=0 AND left_max IS NULL AND right_min=0 AND right_max IS NOT NULL AND right_max=1 AND allow_all))`.execute(tx);
-  await sql`ALTER TABLE sys_relationship_types DROP CONSTRAINT IF EXISTS sys_relationship_custom_scope`.execute(tx);
-  await sql`ALTER TABLE sys_relationship_types ADD CONSTRAINT sys_relationship_custom_scope CHECK(kind<>'custom' OR NOT allow_all)`.execute(tx);
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS sys_relationship_type_single_pair_unique ON sys_relationship_type_pairs(relationship_type_id)`.execute(tx);
 }
 export async function workspaceModules(tx:Executor,workspaceId:string):Promise<WorkspaceModule[]> {
   if(!(await sql`SELECT 1 FROM sys_workspaces WHERE id=${workspaceId}::uuid`.execute(tx)).rows.length)throw new AppError(404,'Workspace not found');
-  return (await sql<WorkspaceModule>`SELECT m.module_key AS key,c.labels,c.description,c.available,c.objects,m.enabled,m.version,CASE WHEN m.module_key='projects' THEN (SELECT jsonb_object_agg(role,object_type_id::text) FROM sys_primary_chain_levels l WHERE l.workspace_id=m.workspace_id) ELSE NULL END AS "primaryChain" FROM sys_workspace_modules m JOIN sys_modules c ON c.key=m.module_key WHERE m.workspace_id=${workspaceId}::uuid ORDER BY c.position`.execute(tx)).rows;
+  return (await sql<WorkspaceModule>`SELECT m.module_key AS key,c.labels,c.description,c.available,c.objects,m.enabled,m.version,CASE WHEN m.module_key='projects' THEN (SELECT jsonb_object_agg(object_key,object_type_id::text) FROM sys_module_object_bindings l WHERE l.workspace_id=m.workspace_id AND l.object_key IN('contact','project','case')) ELSE NULL END AS "primaryChain" FROM sys_workspace_modules m JOIN sys_modules c ON c.key=m.module_key WHERE m.workspace_id=${workspaceId}::uuid ORDER BY c.position`.execute(tx)).rows;
 }
 export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:string;key:WorkspaceModule['key'];enabled:boolean;version:number},journal:Journal,install:()=>Promise<import('@xobject/contracts').PrimaryChain>) {
   const previous=(await workspaceModules(tx,args.workspaceId)).find(module=>module.key===args.key);

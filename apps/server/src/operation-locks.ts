@@ -2,8 +2,8 @@ import { sql } from 'kysely';
 import type { Executor } from './database.js';
 import type { Operation } from '@xobject/contracts';
 
-const schemaWrites = new Set<Operation>(['configure_object_settings','configure_content_permissions','configure_workspace_module','create_object_type','create_field','add_standard_field','configure_field','set_definition_state']);
-const globalWrites = new Set<Operation>(['create_workspace','create_user','configure_user','set_workspace_member','set_user_profile','set_user_language','configure_user_localization','change_password','revoke_session','revoke_other_sessions']);
+const schemaWrites = new Set<Operation>(['configure_record_security','configure_foreign_access','configure_group_inheritance','configure_object_settings','configure_content_permissions','configure_workspace_module','create_object_type','create_field','add_standard_field','configure_field','set_definition_state']);
+const globalWrites = new Set<Operation>(['create_workspace','create_user','configure_user','set_workspace_member','set_user_profile','configure_user_localization','change_password','revoke_session','revoke_other_sessions']);
 export function isReadOperation(operation: Operation) { return /^(get_|list_|search_)/.test(operation); }
 /** Global schema barrier first, then the workspace barrier. Readers share both locks. */
 export async function lockOperation(tx: Executor, operation: Operation, args: Record<string, unknown>) {

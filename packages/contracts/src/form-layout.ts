@@ -3,11 +3,6 @@ import {uuidSchema} from './identity.js';
 import type {RelationshipType} from './relationship-types.js';
 import type {PrimaryChain} from './primary-chain.js';
 import {languageSchema} from './languages.js';
-export const moduleCatalog = [
-  {key:'contacts',labels:{en:'Contacts',de:'Kontakte'},description:{en:'Contacts & Relations',de:'Kontakte & Beziehungen'}},
-  {key:'projects',labels:{en:'Projects',de:'Projekte'},description:{en:'Projects & Tasks',de:'Projekte & Aufgaben'}},
-  {key:'documents',labels:{en:'Documents',de:'Dokumente'},description:{en:'Documents & Communication',de:'Dokumente & Kommunikation'}},
-] as const;
 const width=z.enum(['half','full']);
 export const formEntrySchema=z.union([
   z.object({fieldId:uuidSchema,width}).strict(),
@@ -38,7 +33,7 @@ export function relationshipSidesForObject(type:RelationshipType,objectId:string
 export function formRelationshipFields(types:RelationshipType[],objectId:string,chain?:PrimaryChain|null):FormRelationship[]{
   return types.filter(type=>type.kind!=='general'&&type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side})));
 }
-export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category'].includes(field.technicalName)||['multiline','multiple_choice'].includes(field.kind)?'full':'half';}
+export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||['multiline','multiple_choice'].includes(field.kind)?'full':'half';}
 export function formLayoutElements(fields:LayoutField[],relationships:FormRelationship[]=[]):FormElement[]{
   return [...fields.map(field=>({key:field.id,entry:{fieldId:field.id,width:defaultFormWidth(field)} as FormEntry,field,single:true,required:Boolean(field.required)})),...relationships.map(relationship=>{
     const {definition,side}=relationship,single=(side==='left'?definition.leftMax:definition.rightMax)===1,required=definition.active&&(side==='left'?definition.leftMin:definition.rightMin)>0;
