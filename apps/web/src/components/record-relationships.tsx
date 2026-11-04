@@ -23,25 +23,12 @@ export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fi
   const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;
   if(!fieldApplies({applicability:rule},fieldDefinitions,values))return null;
   const change=(targets:RelatedRecord[])=>onChange(fields.map(old=>old===field?{...old,targets}:old));
-  if(field.definition.kind==='primary')return <PrimaryAssociationFields {...props} configuration={primaryChain??null} field={field} onChange={change}/>;
+  if(field.definition.kind==='primary')return <PrimaryAssociationFields {...props} readOnly={props.readOnly||field.editable===false} configuration={primaryChain??null} field={field} onChange={change}/>;
   const controller=fieldDefinitions.find(item=>item.id===rule?.fieldId);
   const sourceValues=controller?{[controller.technicalName]:values[controller.technicalName]??null}:undefined;
   return <RelationshipControl {...props} sourceValues={sourceValues} field={field} expandedDefault={'expanded' in entry?entry.expanded:undefined} onChange={change}/>;
 }
 
-export function RecordGeneralLinkAction({field, objectTypeId, recordId, disabled, onApply, onPickerDirtyChange}: {
-  field: RelationshipField; objectTypeId: string; recordId?: string; disabled: boolean;
-  onApply: (targets: RelatedRecord[]) => void; onPickerDirtyChange: (dirty: boolean) => void;
-}) {
-  const {t} = useTranslation();
-  const [open, setOpen] = useState(false);
-  const id = 'record-link-with';
-  const close = () => {onPickerDirtyChange(false); setOpen(false);};
-  return <>
-    <Button id={id} type="button" variant="outline" disabled={disabled} onClick={()=>setOpen(true)}><Link2Icon data-icon="inline-start"/>{t('recordLinkWith')}</Button>
-    {open ? <RelationshipPicker objectTypeId={objectTypeId} recordId={recordId} field={field} title={t('recordGeneralLinksTitle')} dialogTitle={t('recordGeneralLinksTitle')} description={t('recordGeneralLinksHelp')} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets=>{close();onApply(targets);}} finalFocus={()=>document.getElementById(id)??true}/> : null}
-  </>;
-}
 
 function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'fieldDefinitions' | 'values' | 'entry'> & { expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
   const { t, i18n } = useTranslation(), [pickerOpen, setPickerOpen] = useState(false);
@@ -50,8 +37,8 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
   const title = label(field.side === 'left' ? field.definition.leftLabels : field.definition.rightLabels);
   const single = (field.side === 'left' ? field.definition.leftMax : field.definition.rightMax) === 1;
   const required = field.definition.active && (field.side === 'left' ? field.definition.leftMin : field.definition.rightMin) > 0;
-  const editable = !readOnly && field.definition.active;
-  const invalid = required && !field.targets.length;
+  const editable = !readOnly && field.editable!==false && field.definition.active;
+  const invalid = required && !field.targets.length&&!field.restricted;
   const [expanded,setExpanded]=useState(expandedDefault==='open'||(expandedDefault!=='closed'&&(field.targets.length>0||required)));
   const id = `relation-${field.definition.id}-${field.side}`;
   const pagination = useClientPagination(field.targets);
@@ -66,6 +53,7 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
   </>;
   const target = field.targets[0];
   return <Field className="min-w-0" aria-labelledby={`${id}-title`} data-invalid={invalid || undefined}>
+    {field.restricted?<FieldDescription>{t('restrictedRelationshipHelp')}</FieldDescription>:null}
     {single && field.targets.length <= 1 ? <>
       <FieldLabel id={`${id}-title`} htmlFor={id}>{fieldLabel}</FieldLabel>
       <InputGroup>

@@ -1,3 +1,4 @@
+import {linkedCreationSchema} from '@/lib/linked-record';
 import {WorkspaceLoading,DashboardLoading,RecordPageLoading,RecordListLoading,SettingsLoading} from './loading';
 import {TablePreferencesProvider} from '@/lib/column-preferences';
 import { recordReturnPath } from '@/lib/record-navigation';
@@ -59,8 +60,10 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const workspaceCode = objectRoute?.params.code ?? dashboardRoute?.params.code ?? (location.pathname === '/settings' && typeof location.state?.workspaceCode === 'string' ? location.state.workspaceCode : undefined);
   const view = objectRoute ? 'records' : 'dashboard';
   const recordId = objectRoute?.params.recordId ?? null;
+  const linkedDraft=linkedCreationSchema.safeParse(location.state?.linkedCreation);
   const validRecordId = !recordId || recordId === 'new' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recordId);
   const validRoute = validRecordId && Boolean(objectRoute || dashboardRoute || location.pathname === '/' || location.pathname === '/settings');
+  const [returnAfterAccessLoss,setReturnAfterAccessLoss]=useState(false);
   const [savedRecordId, setSavedRecordId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const helpOrigin = useRef<HTMLElement | null>(null);
@@ -86,7 +89,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   useEffect(() => { setOpenMobile(false); setDialog(null); }, [location.pathname, setOpenMobile]);
   useEffect(() => {
     if (savedRecordId && !busy && !dirty) {
-      if (recordId === 'new') void routeNavigate(`${objectPath}/${savedRecordId}${location.search}`, { replace: true, state: location.state });
+      if (recordId === 'new') void routeNavigate(`${objectPath}/${savedRecordId}${location.search}`, { replace: true, state:{...location.state,linkedCreation:undefined} });
       setSavedRecordId(null);
     }
   }, [savedRecordId, busy, dirty, recordId, objectPath, location.search, location.state, routeNavigate]);
@@ -123,6 +126,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   function showPage(page: 'dashboard' | 'settings') {
     if (!busy) void routeNavigate(page === 'settings' ? '/settings' : dashboardPath, { state: page === 'settings' ? { workspaceCode: workspace?.code, backgroundPath: `${location.pathname}${location.search}` } : null });
   }
+  useEffect(()=>{if(returnAfterAccessLoss&&!busy&&!dirty){setReturnAfterAccessLoss(false);void routeNavigate(recordReturnPath(location.state?.recordOrigin,dashboardPath,objectPath,location.search));}},[returnAfterAccessLoss,busy,dirty,routeNavigate,location.state,location.search,dashboardPath,objectPath]);
   function closeRecord() {
     if (!busy) void routeNavigate(recordReturnPath(location.state?.recordOrigin, dashboardPath, objectPath, location.search), { state: { focusRecordId: recordId } });
   }
@@ -176,14 +180,14 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
             </DropdownMenuItem></DropdownMenuGroup></> : null}
           </DropdownMenuContent></DropdownMenu>
         </SidebarMenuItem></SidebarMenu>
-          <HeaderSearch key={workspace?.id} workspaceId={workspace?.id} workspaceName={workspace?.name} language={language} disabled={busy} canSearchRecords={Boolean(user.isAdmin)} objectTypes={types.data ?? []} onNavigate={(target) => { if (target === 'settings') showPage('settings'); else if (target === 'keyboard') showKeyboardHelp(null); else if (target === 'dashboard') navigateSidebar(dashboardPath); }} onOpenResult={(id, recordId) => { const selected = types.data?.find(type => type.id === id); if (selected && !busy) void routeNavigate(`${dashboardPath}/objects/${selected.technicalName}${recordId ? `/${recordId}` : ''}`); }} />
+          <HeaderSearch key={workspace?.id} workspaceId={workspace?.id} workspaceName={workspace?.name} language={language} disabled={busy} canSearchRecords={true} objectTypes={(types.data??[]).filter(type=>type.permissions?.read!==false)} onNavigate={(target) => { if (target === 'settings') showPage('settings'); else if (target === 'keyboard') showKeyboardHelp(null); else if (target === 'dashboard') navigateSidebar(dashboardPath); }} onOpenResult={(id, recordId) => { const selected = types.data?.find(type => type.id === id); if (selected && !busy) void routeNavigate(`${dashboardPath}/objects/${selected.technicalName}${recordId ? `/${recordId}` : ''}`); }} />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem>
           <SidebarMenuButton isActive={view === 'dashboard'} tooltip={t('dashboard')} disabled={busy} onClick={() => navigateSidebar(dashboardPath)}><LayoutDashboardIcon /><span>{t('dashboard')}</span></SidebarMenuButton>
         </SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>
         <SidebarGroup><SidebarGroupLabel>{t('objects')}</SidebarGroupLabel><SidebarGroupContent>
-          {types.isPending && workspace ? <Loading variant="sidebar"/> : types.isError ? <ErrorNotice error={types.error} retry={() => { void types.refetch(); }} /> : <SidebarMenu className="gap-1">{types.data?.filter(type => !type.state || type.state === 'active').map(type => <SidebarMenuItem key={type.id}>
+          {types.isPending && workspace ? <Loading variant="sidebar"/> : types.isError ? <ErrorNotice error={types.error} retry={() => { void types.refetch(); }} /> : <SidebarMenu className="gap-1">{types.data?.filter(type => type.permissions?.read!==false&&(!type.state || type.state === 'active')).map(type => <SidebarMenuItem key={type.id}>
             <SidebarMenuButton isActive={selectedType?.id === type.id} onClick={() => navigateSidebar(`${dashboardPath}/objects/${type.technicalName}`)} tooltip={type.label} disabled={busy}><DatabaseIcon /><span>{type.label}</span></SidebarMenuButton>
           </SidebarMenuItem>)}</SidebarMenu>}
           {canManage ? <SidebarMenu className="mt-2"><SidebarMenuItem><SidebarMenuButton data-definition-trigger="object" tooltip={t('newObject')} disabled={!workspace || busy} onClick={() => navigate(() => { setOpenMobile(false); setDialog('object'); })}><PlusIcon /><span>{t('newObject')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu> : null}
@@ -218,11 +222,11 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
           : workspaces.isPending ? pageLoading : workspaces.isError ? <ErrorNotice error={workspaces.error} retry={() => { void workspaces.refetch(); }} />
           : !workspace ? user.isAdmin ? <Welcome title={t('noWorkspace')} description={t('noWorkspaceDescription')} action={t('newWorkspace')} onAction={() => setDialog('workspace')} /> : <Empty><EmptyHeader><EmptyTitle>{t('noWorkspace')}</EmptyTitle><EmptyDescription>{t('noWorkspaceAssigned')}</EmptyDescription></EmptyHeader></Empty>
           : types.isError ? <ErrorNotice error={types.error} /> : types.isPending ? pageLoading
-          : view === 'dashboard' ? <Suspense fallback={<DashboardLoading/>}><Dashboard canReadContent={Boolean(user.isAdmin)} canManage={canManage} workspace={workspace} types={types.data.filter(type => !type.state || type.state === 'active')} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`, { state: recordId ? { recordOrigin: `${location.pathname}${location.search}` } : null }); }); }} onCreate={() => setDialog('object')} /></Suspense>
+          : view === 'dashboard' ? <Suspense fallback={<DashboardLoading/>}><Dashboard canReadContent={true} canManage={canManage} workspace={workspace} types={types.data.filter(type => type.permissions?.read!==false&&(!type.state || type.state === 'active'))} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`, { state: recordId ? { recordOrigin: `${location.pathname}${location.search}` } : null }); }); }} onCreate={() => setDialog('object')} /></Suspense>
           : !selectedType ? <RouteNotFound onBack={() => showPage('dashboard')} />
           : definition.isPending ? pageLoading : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
-          : !user.isAdmin ? <Empty><EmptyHeader><EmptyTitle>{selectedType.label}</EmptyTitle><EmptyDescription>{t('contentAccessPending')}</EmptyDescription></EmptyHeader></Empty>
-          : recordId && panelDefinition ? recordId === 'new' && panelDefinition.state && panelDefinition.state !== 'active' ? <RouteNotFound onBack={closeRecord} /> : <Suspense fallback={<RecordPageLoading definition={panelDefinition} isNew={recordId==='new'}/>}><RecordPage key={`${panelDefinition.id}:${recordId}:${editorRevision}`} definition={panelDefinition} recordId={recordId} user={user} workspaceName={workspace.name} workspaceCode={workspace.code} onClose={closeRecord} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={record => { setSavedRecordId(record.id); setDirty(false); }} /></Suspense>
+          : selectedType.permissions?.read===false ? <Empty><EmptyHeader><EmptyTitle>{selectedType.label}</EmptyTitle><EmptyDescription>{t('contentAccessDenied')}</EmptyDescription></EmptyHeader></Empty>
+          : recordId && panelDefinition ? recordId === 'new' && (panelDefinition.permissions?.edit===false||Boolean(panelDefinition.state&&panelDefinition.state!=='active')) ? <RouteNotFound onBack={closeRecord} /> : <Suspense fallback={<RecordPageLoading definition={panelDefinition} isNew={recordId==='new'}/>}><RecordPage returnToSource={/\/[0-9a-f-]{36}$/i.test(recordReturnPath(location.state?.recordOrigin,dashboardPath,objectPath,location.search).split('?')[0])} linkedCreation={recordId==='new'&&linkedDraft.success&&linkedDraft.data.targetObjectTypeId===panelDefinition.id?linkedDraft.data:undefined} key={`${panelDefinition.id}:${recordId}:${editorRevision}`} definition={panelDefinition} recordId={recordId} user={user} workspaceName={workspace.name} workspaceCode={workspace.code} onClose={closeRecord} onAccessLost={()=>{setBusy(false);setDirty(false);setReturnAfterAccessLoss(true);}} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={record => { setSavedRecordId(record.id); setDirty(false); }} /></Suspense>
           : panelDefinition ? <RecordList key={panelDefinition.id} definition={panelDefinition} selectedRecord={recordId}
             basePath={objectPath}
             disabled={busy} /> : null}

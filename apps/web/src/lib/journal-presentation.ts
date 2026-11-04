@@ -1,13 +1,16 @@
 import type { SystemJournalEntry } from '@xobject/contracts';
 import type { TFunction } from 'i18next';
 
-export const journalEntityKinds = ['user', 'workspace', 'workspace_member', 'group', 'object_type', 'field', 'classification_field', 'classification_option', 'relationship_type', 'relationship', 'record', 'account_security', 'session'] as const;
+export const journalEntityKinds = ['object_permissions','user', 'workspace', 'workspace_member', 'group', 'object_type', 'field', 'classification_field', 'classification_option', 'relationship_type', 'relationship', 'record', 'account_security', 'session'] as const;
 const entityLabels = Object.fromEntries(journalEntityKinds.map(kind => [kind, `journalKind_${kind}`]));
 const properties: Record<string, string> = {applicability:'fieldApplicability',link:'link',rulesState:'relationRules', leftLabels: 'relationLeft', rightLabels: 'relationRight', directed: 'relationDirection', leftMin: 'relationMinimum', rightMin: 'relationMinimum', leftMax: 'relationMaximum', rightMax: 'relationMaximum', allowAll: 'relationAllowAll', pairs: 'relationObjectPairs', time_zone: 'timeZone', name: 'objectName', email: 'email', labels: 'objectName', technical_name: 'technicalName', kind: 'fieldType', config: 'journalConfiguration', required: 'requiredField', state: 'definitionState', active: 'definition_active', language: 'language', available_languages: 'availableInterfaceLanguages', default_language: 'defaultLanguage', label_languages: 'availableLabelLanguages', is_admin: 'roleAdministrator', must_change_password: 'initialPasswordPending', password_changed: 'journalPasswordChanged', revoked: 'journalSessionRevoked', definition: 'journalDefinition', created: 'createdAt', deleted: 'journalDeleted', option_order: 'journalOptionOrder', defaultId: 'defaultValue', defaults: 'defaultValue', defaultIds: 'defaultValue', multiple: 'selectionMode', typeId: 'classificationType', statusId: 'classificationStatus', physical_column_order: 'journalColumnOrder', scale: 'decimalScale', currency: 'currency', formatted: 'markdownFormatting', referenceTarget: 'referenceTarget', options: 'journalOptions' };
 const regionLabels: Record<string, string> = { locale: 'regionalFormat', dateFormat: 'dateFormat', hourCycle: 'clockFormat', numberFormat: 'numberFormat', weekStart: 'weekStart' };
 
 export function journalEntityLabel(kind: string, t: TFunction): string { return t(entityLabels[kind] ?? 'journalOtherEntity'); }
 export function journalPropertyLabel(key: string, t: TFunction, technicalFallback = false): string {
+  if(key==='sensitive')return t('userSensitive');
+  if(key.startsWith('access_principals.'))return `${t('accessPrincipalsLabel')} · ${t(key.endsWith('.state')?'definitionState':'journalDefinition')}`;
+  if(key.startsWith('permission.'))return t(key.includes('.field.')?'fieldPermissionExceptions':'objectPermission');
   if (/^(left|right)(Min|Max)$/.test(key)) return `${t(key.startsWith('left') ? 'relationLeft' : 'relationRight')} · ${t(key.endsWith('Min') ? 'relationMinimum' : 'relationMaximum')}`;
   if(key.startsWith('form_layout.'))return `${t('formLayoutTitle')} · ${key.slice(12)==='default'?t('formDefault'):key.slice(12)}`;
   if(key.startsWith('primary_chain.'))return `${t('primaryChainTitle')} · ${t(`primaryRole_${key.slice(14)}`)}`;
@@ -24,6 +27,7 @@ export function journalEntryTitle(entry: Pick<SystemJournalEntry, 'field_key' | 
     if (entry.entity_kind === 'group') return t(entry.new_value === true ? 'journalGroupMemberAdded' : 'journalGroupMemberRemoved');
     return t(entry.new_value === null ? 'journalWorkspaceMemberRemoved' : entry.old_value === null ? 'journalWorkspaceMemberAdded' : 'journalMemberRoleChanged');
   }
+  if(entry.entity_kind==='object_permissions'&&entry.field_label)return `${t('fieldPermissionExceptions')} · ${entry.field_label}`;
   if (entry.entity_kind === 'record') return entry.field_label ?? journalPropertyLabel(entry.field_key, t, true);
   return journalPropertyLabel(entry.field_key, t, true);
 }
