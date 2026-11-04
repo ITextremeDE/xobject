@@ -8,7 +8,7 @@ export const relationshipWritesSchema = z.array(relationshipWriteSchema).max(200
 export type RelationshipWrite = z.infer<typeof relationshipWriteSchema>;
 export type RecordReference = z.infer<typeof recordReferenceSchema>;
 export interface RelatedRecord extends RecordReference { keyword: string; objectTechnicalName: string; objectLabels: Record<string,string>; state: 'active' | 'inactive' }
-export interface RelationshipField { definition: RelationshipType; side: 'left' | 'right'; targets: RelatedRecord[] }
+export interface RelationshipField { editable?:boolean;restricted?:boolean; definition: RelationshipType; side: 'left' | 'right'; targets: RelatedRecord[] }
 export interface RecordRelationship { id: string; definition: RelationshipType; left: RelatedRecord; right: RelatedRecord }
 export interface DossierEntry {
   id: string;
@@ -35,4 +35,12 @@ export interface RelationshipTreeBranch {
   total: number;
   limit: number;
   offset: number;
+}
+
+export const linkedRecordSourceSchema=z.object({objectTypeId:uuidSchema,recordId:uuidSchema,recordVersion:z.number().int().positive(),relationshipTypeId:uuidSchema,version:z.number().int().positive(),side:z.enum(['left','right'])}).strict();
+export type LinkedRecordSource=z.infer<typeof linkedRecordSourceSchema>;
+export interface RecordLinkOption {objectType:{id:string;technicalName:string;labels:Record<string,string>};relationships:{relationshipTypeId:string;side:'left'|'right';canCreate:boolean}[]}
+export function oppositeRelationshipSide(type:RelationshipType,side:'left'|'right'):'left'|'right'{
+ const symmetric=!type.directed&&(type.allowAll||type.pairs.some(p=>type.pairs.some(other=>other.leftObjectTypeId===p.rightObjectTypeId)));
+ return symmetric?'left':side==='left'?'right':'left';
 }

@@ -1,3 +1,5 @@
+import {contentGrantSchema,type ContentPermissions,type ContentCapabilities,type FieldCapabilities} from './content-permissions.js';
+export * from './content-permissions.js';
 import {formLayoutSchema,type FormLayouts,type FormRelationship} from './form-layout.js';
 export * from './form-layout.js';
 export * from './identity.js';
@@ -6,7 +8,7 @@ import {primaryChainSchema,type PrimaryChain,type PrimaryChainContext} from './p
 export * from './primary-chain.js';
 import { fieldApplicabilitySchema, type FieldApplicability } from './field-applicability.js';
 export * from './field-applicability.js';
-import { relationshipWritesSchema, type RecordRelationships, type RelatedRecord, type RelationshipTreeBranch } from './record-relationships.js';
+import {linkedRecordSourceSchema, type RecordLinkOption, relationshipWritesSchema, type RecordRelationships, type RelatedRecord, type RelationshipTreeBranch } from './record-relationships.js';
 export * from './record-relationships.js';
 import { relationshipConfigurationSchema, customRelationshipConfigurationSchema, type WorkspaceModule, type RelationshipType } from './relationship-types.js';
 export * from './relationship-types.js';
@@ -36,8 +38,13 @@ const values = z.record(z.string(), fieldValueSchema).refine(
 const definitionState = z.enum(['active', 'inactive', 'deleted']);
 const workspaceRole = z.enum(['user', 'designer']);
 export const schemas = {
+  configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,security:z.object({version:z.number().int().positive(),sensitive:z.boolean()}).strict().optional()}).strict(),
+  get_content_permissions:z.object({objectTypeId:uuid}).strict(),
+  configure_content_permissions:z.object({objectTypeId:uuid,version:z.number().int().positive(),sensitive:z.boolean(),grants:z.array(contentGrantSchema).max(1000)}).strict(),
+  list_access_principals:z.object({objectTypeId:uuid}).strict(),
   configure_form_layout: z.object({objectTypeId:uuid,version:z.number().int().positive(),context:z.string().regex(/^[a-z][a-z0-9_]*$/).max(63).refine(value=>!['constructor','prototype'].includes(value),'Reserved form context').default('default'),layout:formLayoutSchema.nullable()}).strict(),
   get_relationship_tree_branch: z.object({objectTypeId:uuid,recordId:uuid,offset:z.number().int().min(0).default(0),limit:z.number().int().min(1).max(100).default(25)}).strict(),
+  list_record_link_options:z.object({objectTypeId:uuid,recordId:uuid,sourceValues:z.record(z.string(),fieldValueSchema).optional()}).strict(),
   get_record_relationships: z.object({ objectTypeId: uuid, recordId: uuid.optional() }).strict(),
   search_relationship_candidates: z.object({sourceValues:z.record(z.string(),fieldValueSchema).optional(), targetObjectTypeId: uuid.optional(), objectTypeId: uuid, recordId: uuid.optional(), relationshipTypeId: uuid, side: z.enum(['left','right']), query: z.string().trim().max(200).default(''), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict(),
   activate_relationship_type: z.object({ workspaceId: uuid, relationshipTypeId: uuid, version: z.number().int().positive() }).strict(),
@@ -91,7 +98,7 @@ export const schemas = {
   set_user_profile: z.object({ name: label }).strict(),
   set_user_language: z.object({ language: language.nullable() }).strict(),
   configure_classification: z.object({ objectTypeId: uuid, version: z.number().int().positive(), config: classificationRulesSchema }).strict(),
-  create_record: z.object({ objectTypeId: uuid, keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional() }).strict(),
+  create_record: z.object({ objectTypeId: uuid, keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional() }).strict(),
   update_record: z.object({ objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional() }).strict(),
   get_record: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
   list_record_journal: z.object({objectTypeId:uuid,recordId:uuid,fieldId:uuid.optional(),entityKind:z.enum(['record','relationship']).optional(),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).max(1000000).default(0)}).strict(),
@@ -102,10 +109,10 @@ export type Operation = keyof typeof schemas;
 export type Labels = Record<string, string>;
 export interface Workspace { id: string; code: string; name: string; default_language: Language; available_languages: Language[]; label_languages: Language[]; language_version: number; time_zone: string; regional: RegionalSettings; created_by: string; created_by_name: string; created_at: string | null; appearance: WorkspaceAppearance; appearance_version: number; role: 'administrator' | 'designer' | 'user' }
 export type DefinitionState = 'active' | 'inactive' | 'deleted';
-export interface ObjectSummary { state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
-export interface FieldDefinition extends ObjectSummary { applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
-export interface ObjectDefinition extends ObjectSummary { formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
-export interface DataRecord { id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type: string | null; status: string | null; category: string[]; [field: string]: FieldValue | number }
+export interface ObjectSummary { permissions?:ContentCapabilities; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
+export interface FieldDefinition extends ObjectSummary { fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
+export interface ObjectDefinition extends ObjectSummary { permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
+export interface DataRecord { applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type: string | null; status: string | null; category: string[]; [field: string]: FieldValue | number | ContentCapabilities | undefined }
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
 export interface SearchRecord { id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
@@ -121,7 +128,12 @@ export interface ManagedUser extends UserSummary { active: boolean; mustChangePa
 export interface SystemJournalEntry extends JournalEntry { entity_kind: string; entity_id: string; workspace_id: string | null; workspace_name: string | null; actor_name: string; entity_name: string | null }
 export interface WorkspaceRecord { id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
+  configure_object_settings:ObjectDefinition;
+  get_content_permissions:ContentPermissions;
+  configure_content_permissions:ContentPermissions;
+  list_access_principals:FieldPrincipal[];
   get_relationship_tree_branch: RelationshipTreeBranch;
+  list_record_link_options:RecordLinkOption[];
   get_record_relationships: RecordRelationships;
   search_relationship_candidates: { records: RelatedRecord[]; total: number; limit: number; offset: number };
   activate_relationship_type: RelationshipType;
@@ -183,6 +195,6 @@ export interface Outputs {
   get_journal: JournalEntry[];
 }
 
-const reservedStandardFieldNames = new Set(['keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
+const reservedStandardFieldNames = new Set(['access_principals','access principals','zugriffsberechtigte','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
 export function isReservedStandardFieldName(value: string) { return reservedStandardFieldNames.has(value.normalize('NFKC').trim().toLowerCase()); }
 export function hasReservedStandardFieldLabel(labels: Record<string, string>) { return Object.values(labels).some(isReservedStandardFieldName); }

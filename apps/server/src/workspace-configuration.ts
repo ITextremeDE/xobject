@@ -70,7 +70,7 @@ export async function configureGroup(tx: Executor, args: { workspaceId: string; 
 
 /** Inactive definition languages remain stored, but cannot be silently changed through API/MCP. */
 export async function validateDefinitionLanguages(tx: Executor, operation: string, args: Record<string, unknown>) {
-  if (!['create_object_type', 'create_field', 'configure_field', 'set_labels', 'configure_classification'].includes(operation)) return;
+  if (!['configure_object_settings','create_object_type', 'create_field', 'configure_field', 'set_labels', 'configure_classification'].includes(operation)) return;
   let workspaceId = args.workspaceId as string | undefined;
   let previous: { labels?: Record<string, string>; config?: { options?: { id: string; labels: Record<string, string> }[] }; classification?: { options?: { id: string; labels: Record<string, string> }[] } } | undefined;
   if (operation === 'configure_field' || (operation === 'set_labels' && args.kind === 'field')) {
