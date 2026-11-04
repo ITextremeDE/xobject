@@ -2,14 +2,15 @@
 
 - Status: Accepted for configuration in the local prototype
 - Date: 2026-11-02
+- Partially superseded by: [ADR 0019](0019-record-relationships.md), [ADR 0021](0021-relationship-scope-and-projects-module.md) and [ADR 0024](0024-primary-levels-and-relationship-conditions.md)
 
 ## Original decision
 
-[ADR 0021](0021-relationship-scope-and-projects-module.md) supersedes the original multi-pair/unrestricted custom scope and independent Primary provisioning below. General is now always active; Primary is unrestricted and gated by Projects activation; custom definitions have one pair. The following records the initial configuration design.
+[ADR 0021](0021-relationship-scope-and-projects-module.md) supersedes the original multi-pair/unrestricted custom scope and independent Primary provisioning below. General is now always active; Primary is unrestricted and gated by Projects activation; custom definitions have one pair. The following records the historical configuration-only design, not the current application boundary. ADR 0024 fixes module-supplied Primary parents; ADR 0025 records the complete module catalog/base-object installation. Content access now follows ADR 0026. The remaining sections are explicitly the original slice; later decisions take precedence.
 
 Keep workspace-owned relationship definitions in `sys_relationship_types`. Store permitted ordered object pairs in `sys_relationship_type_pairs`; composite foreign keys include workspace identity for both endpoint objects and the owning relationship type. An allowed pair is schema metadata, not a connection between records. Object definitions referenced by pairs cannot be deleted; removing a pair does not delete records or history. Inactive objects remain readable in retained pairs, but cannot be newly assigned to a definition.
 
-For the current prototype, supply two system definitions per workspace independently of future module activation. Creation/migration installs them idempotently with journal evidence. The reserved technical names and system meanings cannot be changed through API/MCP:
+In the original definition-only slice, supply two system definitions per workspace independently of future module activation. Creation/migration installs them idempotently with journal evidence. The reserved technical names and system meanings cannot be changed through API/MCP:
 
 - `primary_association`: directed, parent on the left / child on the right, `0..n` children per parent and at most one direct parent per child. Parent optionality (`0..1`/`1..1`) and explicit allowed object pairs can be configured. No pair initially means no eligible target pairing; it never means unrestricted.
 - `general_relation`: undirected, `0..n` on both sides, for all object types. Side labels are symmetric.
@@ -20,13 +21,13 @@ Use one shared API/MCP application layer under the existing model lock. Workspac
 
 ## Future module ownership
 
-General relationship remains in the application core. The Contact-person / main Organization relationship belongs to the future Contacts module; Primary association belongs to the future Projects module. The local `contact_person` fixture is currently a custom prototype definition, not an installed protected Contacts definition. Primary association is currently a protected prototype default, not evidence of an active Projects module.
+General relationship remains in the application core. The Contact-person / main Organization relationship belongs to the future Contacts module; Primary association belongs to the future Projects module. The local `contact_person` fixture is currently a custom prototype definition, not an installed protected Contacts definition. In that initial slice Primary association was a protected prototype default. This was superseded by Projects activation and fixed base-object installation under ADRs 0021/0024/0025.
 
 Implement provisioning, supplied-definition protection, updates/deactivation and conflict-safe adoption when module management is introduced. Preserve existing definition identities, record links and journals during that transition; never claim ownership from a matching technical name alone. No module activation or ownership flag is introduced by this slice.
 
 ## Original staging boundary
 
-The following describes the initial definition-only slice. [ADR 0019](0019-record-relationships.md) extends it with explicit activation, record edges, count checks, journal projections and record controls. Tree navigation and derived ancestor display remain outstanding.
+The following describes the initial definition-only slice. [ADR 0019](0019-record-relationships.md) extends it with explicit activation, record edges, count checks, journal projections and record controls. [ADR 0020](0020-relationship-tree.md) subsequently implements tree navigation and derived Primary context.
 
 ### Initial scope
 
@@ -38,7 +39,7 @@ Before activation, the relationship engine must specify record identity/foreign-
 
 Workspace Settings has an alphabetical searchable/paginated Relationship types table and one responsive create/edit dialog. Side labels/cardinalities are adjacent on desktop and stacked on mobile. Symmetric values mirror from the left; immutable system controls are read-only. The same draft/pending/conflict guards and action placement as existing definition editors apply.
 
-Isolated PostgreSQL tests cover API/MCP parity, system defaults/protection, workspace User/Designer boundaries, direct composite foreign-key checks, duplicate/symmetric pairing rules, reserved names, optimistic/no-op behavior, rollback on journal failure, translation policy and repeat migration. Existing content access remains Administrator-only. Local fixture pairs prepare Contacts → Projects → Cases → Tasks, plus direct Contact/Project Tasks and a directed Contact-person relationship; they do not apply the separately stored record-link plan.
+Isolated PostgreSQL tests cover API/MCP parity, system defaults/protection, workspace User/Designer boundaries, direct composite foreign-key checks, duplicate/symmetric pairing rules, reserved names, optimistic/no-op behavior, rollback on journal failure, translation policy and repeat migration. The original checks used Administrator-only contents; current local content access is defined in ADR 0026. Local fixture pairs prepare Contacts → Projects → Cases → Tasks, plus direct Contact/Project Tasks and a directed Contact-person relationship; they do not apply the separately stored record-link plan.
 
 ## Cardinality presentation
 

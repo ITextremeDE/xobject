@@ -1,6 +1,6 @@
 # ADR 0001: Readable workspace-prefixed table names
 
-- Status: Accepted design; not implemented
+- Status: Accepted; implemented for the local prototype
 - Date: 2026-10-29
 
 ## Context
@@ -23,13 +23,13 @@ The normative naming, uniqueness and validation rules are specified in [PRD sect
 - Module activation must detect technical name conflicts and must use definition identities to recognize shared types.
 - Table prefixes organize names; they do not implement workspace access control.
 - A future technical rename needs an explicitly designed migration process. It is outside version 1.
-- The complete generated identifier must fit PostgreSQL's identifier limit. Constraints and indexes also need a collision-safe naming strategy during implementation.
+- The complete generated identifier must fit PostgreSQL's identifier limit. ADR 0022 supplies stable identity suffixes for generated pagination indexes to avoid truncation collisions.
 
 ## Alternatives considered
 
 - **UUID-derived physical names:** stable, but rejected because they are difficult to read.
 - **A schema per workspace:** provides a separate namespace, but readable table prefixes were selected instead. Additional database-level isolation remains a separate design decision.
 
-## Unresolved implementation details
+## Subsequent implementation decisions
 
-The schema-change execution mechanism, concurrency/locking behavior, physical access isolation and storage for collections and references remain open. This decision does not select a backend framework, database library or authentication library.
+Transactional schema changes and the evaluated stack are specified in [ADR 0002](0002-backend-technical-spike.md); typed collections/references in [ADR 0007](0007-custom-field-types.md); numbered migrations, scoped locks and runtime/operator isolation in [ADR 0022](0022-database-integrity-and-concurrency.md). Release packaging and production-scale acceptance remain open. This naming decision does not itself select those mechanisms.

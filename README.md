@@ -6,19 +6,19 @@ xObject is being developed by **ITextreme** to bring contacts, projects, cases, 
 
 ## Project status
 
-**Early development.** The local PostgreSQL-backed prototype combines dynamic typed fields, optional Type/Status/Category, translated definitions and atomic per-field journals through shared API/MCP rules. Its React/Vite interface includes a workspace Dashboard with actual activity metrics, mixed-object tables, search, keyboard navigation, paginated tables and dedicated responsive record pages with formatted field history.
+**Early development.** A local PostgreSQL-backed prototype supports configurable typed objects, classification, workspace roles/groups, shared API/MCP operations and atomic journals. Its React/Vite interface includes searchable tables, full-page record forms, Settings, a Form designer, relationship controls, Dossier and a Projects-owned Primary tree. Dashboard statistics/chart content remains exploratory; its record table is normal application UI.
 
-Personal settings cover the profile, password, own sessions and language/regional preferences. Administrators manage local users with mandatory initial-password changes and reversible activation. Workspace configuration includes User/Designer memberships, user groups, available German/English languages, time zones, regional formats and shared shadcn appearance with locally served fonts. Fields and object types support deactivation/reactivation and confirmed deletion when never used, retaining definition history. Workspace settings also configure directed/undirected relationship definitions, translated side labels, cardinalities and one object pair per custom type. General is always available; dedicated Modules settings list Contacts & Relations, Projects & Tasks and Documents & Communication. Projects & Tasks activation supplies protected base object types and the fixed Contact → Project → Case chain; the other two modules are visibly planned. Module object technical names are reserved even while disabled/planned. Complete domain-module templates remain planned. Rules are activated after preflight; record saves enforce cardinalities and Primary cycle prevention. Record pages show the single-value Primary chain, a labeled field for each single-target custom relationship and a collapsible table for each multi-target side, an expandable Primary-only tree while Projects is active, a filtered Dossier table and shared relationship history. General links are edited through the header action and listed in the Dossier. A fictional local demo dataset includes 45 connections.
+The initial content ACL supports user/group object grants, field exceptions and sensitive-record Access principals. Membership and Designer status grant no content by themselves; Administrators retain installation-wide content access. The expanded graded ownership/foreign-access model is specified in [PRD section 4](docs/PRD.md#4-permissions) and is not yet implemented. [ADR 0026](docs/adr/0026-content-permissions.md) describes the current local policy.
 
-Administrators have instance-wide access. Users can view permitted workspace configuration; Designers can edit configuration within their workspace. Business-content access remains Administrator-only until object/field/record permissions are implemented. Groups and memberships do not yet grant content rights. The record recycle bin, domain modules and complete version-1 acceptance remain open. There is no installation package or software release. See the [development guide](docs/development.md) for commands, validation and limits.
+Projects & Tasks supplies protected base objects and the fixed Contact → Project → Case chain. The complete catalog is visible, but Contacts & Relations and Documents & Communication activation, full domain templates, record recycling and complete version-1 acceptance remain open. Personal/account management, language/region and shared workspace design are implemented locally. See the [documentation index](docs/README.md) for the applicable decisions and the [development guide](docs/development.md) for setup and the recorded validation status.
 
-The [Product Requirements Document](docs/PRD.md) defines the initial scope, 47 requirements, acceptance criteria and remaining design decisions. It describes intended behavior, not implemented features.
+There is no installable application release. The [PRD](docs/PRD.md) defines 47 requirements and acceptance scenarios; it describes intended behavior, not a declaration that all requirements are delivered. Local verification, Git publication, CI and deployment are separate states.
 
 ## The idea
 
 Start with a shared object platform and activate the modules you need. An object type can belong to multiple modules, each contributing its own fields and views while using the same records and shared values.
 
-Workspaces keep data and configuration separate. A configurable primary association connects **Contact → Project → Case**, with tasks and other records attached at the appropriate level. Associations are optional by default; required context can be configured per object type.
+Workspaces keep data and configuration separate. The Projects module supplies a fixed primary chain connecting **Contact → Project → Case**, with tasks and other records attached at the appropriate level. Associations are optional by default; required context can be configured per object type.
 
 ## Planned first version
 
@@ -26,17 +26,16 @@ Workspaces keep data and configuration separate. A configurable primary associat
 | --- | --- |
 | **Contacts** | Contacts with separate kinds for organizations, individual contacts and contact persons; organization relationships and domain roles. |
 | **Projects** | Shared Contacts, projects, cases and tasks, including separate responsibility and task assignment. |
-| **Documents (planned additional module)** | Documents & Communication: Emails and Documents; further objects can follow. No email handling or uploads are implemented. |
 | **Custom data models** | User-defined object types, fields and relationship types alongside protected module definitions. |
 | **Classification** | Configurable types, type-dependent statuses and single- or multiple-choice categories. |
-| **Access control** | User and group permissions, field-level overrides and optional record access lists. Administrators have installation-wide access. |
+| **Access control** | Object/field ceilings, graded ownership, foreign access and group inheritance on sensitive records. Administrators have installation-wide access; the expanded model is specified, not yet implemented. |
 | **Views** | Searchable tables, module-specific forms and record details with a relationship tree, dossier and journal. |
 | **History and lifecycle** | One journal entry per field change, relationship history and a recycle bin with controlled permanent deletion. |
 | **API and MCP** | Every application capability available through shared backend rules; agents act with their user's rights. |
 
 Uploads, attachments, import/export, SSO, desktop and mobile clients, offline synchronization, Kanban and calendar views are outside the first-version scope.
 
-Modules may share one object and record while using different field selections and form layouts. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
+Documents & Communication is a planned additional module for Emails and Documents, beyond the initial Contacts/Projects delivery. No email handling or uploads are implemented. Modules may share one object and record while using different field selections and form layouts. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
 
 ## Planned technology
 
@@ -50,10 +49,11 @@ Modules may share one object and record while using different field selections a
 
 PostgreSQL will hold application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject will not require a Git account or a user-owned repository.
 
-The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Evaluated versions are recorded in the package manifests and lockfile. The local prototype now has numbered migrations, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Complete production installation/upgrade packaging, content authorization and deployment design remain open.
+The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Evaluated versions are recorded in the package manifests and lockfile. The local prototype now has numbered migrations, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). The expanded permission target, production installation/upgrade packaging, external credentials and deployment design remain open.
 
 ## Documentation and development
 
+- [Documentation and architecture index](docs/README.md)
 - [Product requirements](docs/PRD.md)
 - [Local development and technical spike](docs/development.md)
 - [Changelog](CHANGELOG.md)

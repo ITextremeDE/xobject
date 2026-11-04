@@ -17,4 +17,4 @@ Definition changes and schema/value conversion run under the existing model lock
 
 ## Consequences
 
-Field rendering, requiredness, validation and display use shared kind definitions. Business-content access remains Administrator-only. ADR 0008 permits workspace Designers to configure fields and Users to inspect their definitions. Workspace groups support reference dictionaries, not a completed membership/permissions administration feature. Production migration and scalability remain separate work.
+Field rendering, requiredness, validation and display use shared kind definitions. Business-content access follows [ADR 0026](0026-content-permissions.md). ADR 0008 permits workspace Designers to configure fields and Users to inspect their definitions. [ADR 0013](0013-workspace-groups.md) adds direct group membership management. Ordinary reference assignment remains separate from permissions; the protected Access principals field has the explicit semantics defined by ADR 0026 and the target PRD. Production migration and scalability remain separate work.

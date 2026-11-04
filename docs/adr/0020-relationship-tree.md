@@ -6,7 +6,7 @@
 
 ## Read model
 
-`get_relationship_tree_branch` returns the requested record, its real Primary ancestors and one paginated level of Primary descendants. The tree belongs to the Projects module; the operation rejects calls while Projects is disabled, consistently through API and MCP. UI, API and MCP use the same Administrator-only content authorization and workspace/endpoint checks. Reading a tree changes neither records nor journals and requires no schema migration.
+`get_relationship_tree_branch` returns the requested record, its real Primary ancestors and one paginated level of Primary descendants. The tree belongs to the Projects module; the operation rejects calls while Projects is disabled, consistently through API and MCP. UI, API and MCP use the same object/field/record authorization under ADR 0026 and workspace/endpoint checks. Inaccessible branches and ancestor links are excluded before counts/pagination. Reading a tree changes neither records nor journals and requires no schema migration.
 
 Primary associations expand only from parent to child. An incoming Primary edge appears in the separate context path above the tree, never as an invented child. General and custom relationships remain in the Dossier and never generate tree branches, ancestor context or expandable-child indicators. Children sort by Keyword under the effective workspace language, with stable identity/edge tie-breakers. A parallel General/custom edge does not duplicate a Primary child.
 

@@ -23,7 +23,7 @@ The additive development migration introduces missing metadata and columns with 
 
 ## Consequences
 
-The configuration editor, record form, table, API and MCP use one backend contract. Business-content operations remain Administrator-only; workspace Users/Designers inspect/configure metadata under ADR 0008. This is not completion of the full shared-field set, general collection storage, permissions or version-one acceptance.
+The configuration editor, record form, table, API and MCP use one backend contract. Business-content operations follow the local grants in [ADR 0026](0026-content-permissions.md); workspace Users/Designers inspect/configure metadata under ADR 0008. This is not completion of the full shared-field set, general collection storage, permissions or version-one acceptance.
 
 JSON option dictionaries do not provide database foreign keys for individual choices. Integrity depends on the shared backend validation and model lock; direct database modifications bypass it. The compatibility scan reads all affected records, and label sorting builds bounded expressions from the option dictionary. Replace these trade-offs with measured production storage/migration/indexing and finer concurrency designs before production-scale use. ADR 0007 defines the implemented custom choice collections and User/Group references; their production storage and scalability still require evaluation.
 

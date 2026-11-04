@@ -14,7 +14,7 @@ The common API/MCP application layer resolves the current administrator flag and
 
 ## Content boundary
 
-Workspace membership and Designer status do not grant business-content permissions. Object/field/record rights, user-sensitive records and group grants still require their separate implementation. Until then, content operations and content search remain Administrator-only. Non-administrators can use the metadata Dashboard and workspace settings; object pages explain this remaining boundary rather than issuing content requests.
+Workspace membership and Designer status do not grant business-content permissions. Object/field/record rights, user-sensitive records and group grants are implemented under ADR 0026. Content queries use those grants; workspace metadata/configuration remains available under the separate roles.
 
 The initial local database receives an empty membership table. Existing administrator flags, definitions, records, sessions and journal entries are preserved; existing non-administrator accounts are not automatically assigned to workspaces.
 

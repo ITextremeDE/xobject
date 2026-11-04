@@ -19,7 +19,7 @@ Workspace General shows the existing `created_by` identity/name and a `created_a
 
 `is_protected` on object/field definitions continues to enforce definition lifecycle protection under ADR 0009. It is not an access grant or blanket immutable flag for every configurable attribute. Group lifecycle remains reversible activation/deactivation under ADR 0013; no hard group deletion is introduced.
 
-Journal read projections may supplement retained events with current localized field/object names and a current record Keyword. These are current context, not historical snapshots; stored values, identities and timestamps remain unchanged. Both journal views use the same structured event card and integrated technical disclosure. Definition history excludes record events and never looks up record contents. Instance-wide record history remains Administrator-only. Missing current names fall back to retained identities.
+Journal read projections may supplement retained events with current localized field/object names and a current record Keyword. These are current context, not historical snapshots; stored values, identities and timestamps remain unchanged. Definition and instance views use the shared Journal data table and structured detail dialog under [ADR 0023](0023-record-journal-and-conditional-fields.md), with integrated technical disclosure. Definition history excludes record events and never looks up record contents. Instance-wide record history remains Administrator-only. Missing current names fall back to retained identities.
 
 ## Validation
 

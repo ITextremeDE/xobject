@@ -16,7 +16,7 @@ Each table starts with `id`, `created_at`, `created_by`, `updated_at`, `updated_
 | Tasks / `itx_tasks` | Description; due instant; assigned user; estimated hours; completed flag | 30 |
 | Vehicles / `itx_vehicles` | License plate; manufacturer, model; first registration; mileage, purchase price; electric drive, notes | 3 |
 
-Form order is independent of physical storage. Keyword and classification appear under General; business fields follow definition creation order (stable UUIDv7 order), with multiline fields spanning the content width. Technical metadata is separate. Definition management stays alphabetical. A configurable layout/order editor remains future work; field visibility and relationship eligibility use the regular conditional-definition capabilities.
+Form order is independent of physical storage. Keyword and classification appear under General; business fields follow definition creation order (stable UUIDv7 order), with multiline fields spanning the content width. Technical metadata is separate. Definition management stays alphabetical. The Form designer can change groups, order and field/relationship presentation under [ADR 0025](adr/0025-modules-and-form-views.md); field applicability and relationship eligibility remain independent backend rules.
 
 All Keywords are required. Type and Status remain separate from Contact kind. Categories support multiple selections. Dates, UTC instants, precise decimals/money, booleans and user/group references provide real input/formatting cases. The seed performs a genuine task edit for before/after history. Counts describe the initial 54-record fixture, not a live limit; interactive testing may add records.
 
