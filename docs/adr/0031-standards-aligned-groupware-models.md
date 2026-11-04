@@ -1,12 +1,12 @@
 # ADR 0031: Standards-aligned groupware domain models
 
-- Status: Accepted design direction; domain profiles and synchronization not implemented
+- Status: Accepted design direction; base contact profiles implemented locally, complete profiles and synchronization pending
 - Date: 2026-11-04
 - Complements: [ADR 0014](0014-time-zones-and-regional-display.md), [ADR 0025](0025-modules-and-form-views.md) and [ADR 0027](0027-ownership-and-foreign-access.md)
 
 ## Context
 
-The V1 catalog includes Contacts, Distribution lists, Appointments, Vacations and Tasks. Later exchange with contact, calendar and task applications must not require replacing their domain meaning. The existing generic fields and prototype fixtures do not establish interoperable domain profiles.
+The V1 catalog includes Contacts, Distribution lists, Appointments, Vacations and Tasks. Later exchange with contact, calendar and task applications must not require replacing their domain meaning. The existing generic fields and prototype fixtures do not establish interoperable domain profiles. The [domain-profile appendix](../domain-profiles.md) now elaborates proposed starting fields, mappings and acceptance; [ADR 0032](0032-structured-fields-temporal-values-and-edge-attributes.md) selects structured storage/contracts, field rights and history architecture. The six contact codecs and base Contacts/Distribution-list provisioning are implemented locally. Relationship attributes, domain temporal/recurrence contracts and complete exchange profiles remain open.
 
 ## Decision
 
@@ -26,6 +26,7 @@ Validate the defined supported subset with representative round-trip fixtures an
 
 ## Standards references
 
+- [Date of death extension — RFC 6474](https://www.rfc-editor.org/rfc/rfc6474), selected for the optional Contact Date of death profile.
 - [vCard 4.0 — RFC 6350](https://www.rfc-editor.org/rfc/rfc6350), including applicable [extensions — RFC 9554](https://www.rfc-editor.org/rfc/rfc9554).
 - [JSContact — RFC 9553](https://www.rfc-editor.org/rfc/rfc9553), [version 2.0 — RFC 9982](https://www.rfc-editor.org/rfc/rfc9982) and [vCard conversion — RFC 9555](https://www.rfc-editor.org/rfc/rfc9555).
 - [iCalendar — RFC 5545](https://www.rfc-editor.org/rfc/rfc5545) and [task extensions — RFC 10051](https://www.rfc-editor.org/rfc/rfc10051).

@@ -2,6 +2,8 @@
 
 The [PRD](PRD.md) is the product authority: requirements, terminology, agreed behavior and remaining design decisions. It distinguishes target behavior from implemented slices. [Local development](development.md) owns setup, current commands/contracts, safe database operations and the dated validation snapshot. [Demo data](demo-data.md) describes the versioned fictional seed, not the contents of every development database. [Website](website.md) describes the independent Astro site.
 
+The [domain-profile appendix](domain-profiles.md) owns detailed proposed starting fields, relationship pairs and per-profile acceptance for the PRD catalog. It distinguishes agreed product rules, new starter proposals and unresolved implementation contracts; it is not a second roadmap or a claim of delivered templates.
+
 The root [changelog](../CHANGELOG.md) records notable source changes; the [roadmap](../ROADMAP.md) is a curated product overview. OpenProject owns detailed work, priorities and publication evidence. Release or deployment status must not be inferred from a local ADR or passing source build.
 
 ## Architecture decisions
@@ -40,7 +42,8 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0028](adr/0028-current-installation-baseline.md) | Current unreleased installation | One empty installation definition, explicit local reset, schema fingerprint and current contracts without compatibility paths. |
 | [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; permanent erasure remains pending. |
 | [0030](adr/0030-field-input-rules-and-business-numbers.md) | Input rules and numbering | Translated field explanations, typed creation defaults, scalar uniqueness and transactional business numbers. |
-| [0031](adr/0031-standards-aligned-groupware-models.md) | Standards-aligned groupware models | Accepted target for five domain profiles; concrete mappings/storage and later CardDAV/CalDAV delivery remain open. |
+| [0031](adr/0031-standards-aligned-groupware-models.md) | Standards-aligned groupware models | Vendor-neutral profile direction; storage architecture in 0032, runtime and later DAV delivery remain open. |
+| [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: six typed contact codecs and base Contacts/Distribution-list provisioning implemented locally; relationship attributes, temporal codecs and sparse exceptions pending. |
 
 ## Ownership of repeated information
 
