@@ -15,3 +15,20 @@ test('linked drafts seed only the selected inverse relationship without changing
  const context={linkFrom:{relationshipTypeId:'coverage',side:'right'},source:{objectTypeId:'contract',recordId:'source'}} as LinkedCreation;
  const seeded=seedLinkedFields(fields,context);assert.deepEqual(seeded[1].targets,[context.source]);assert.equal(seeded[0],fields[0]);assert.deepEqual(fields[1].targets,[]);assert.equal(seedLinkedFields(fields),fields);
 });
+
+
+test('both header menus omit the explicit Organization assignment but retain Identities, other module links and custom action rights',()=>{
+ const membership={...custom,id:'membership',moduleKey:'contacts',isProtected:true,leftLabels:{de:'Organisation'},rightLabels:{de:'Ansprechpartner'}};
+ const identity={...membership,id:'identity',leftLabels:{de:'Identitäten'}};
+ const own={...custom,id:'own-contact-link',leftLabels:{de:'Organisation'}};
+ const distribution={...membership,id:'distribution_member',leftLabels:{de:'Verteiler'}};
+ const fields=[general,membership,identity,own,distribution].map(definition=>({definition,side:'left',targets:[]})) as unknown as RelationshipField[];
+ const target=(id:string,relations:string[])=>({objectType:{id,technicalName:id,labels:{de:id==='contacts'?'Kontakte':'Verteiler'}},relationships:relations.map(relationshipTypeId=>({relationshipTypeId,side:'left',canCreate:relationshipTypeId!=='own-contact-link',canLink:true}))}) as RecordLinkOption;
+ const options=[target('contacts',['general','membership','identity','own-contact-link']),target('distribution_lists',['distribution_member','general'])];
+ const groups=linkMenuGroups(options,fields,'de',['membership']);
+ assert.deepEqual(groups.find(g=>g.objectType.id==='contacts')!.choices.map(c=>c.relationshipTypeId),['general','identity','own-contact-link']);
+ assert.equal(groups.find(g=>g.objectType.id==='contacts')!.choices[2].label,'Organisation');
+ assert.equal(groups.find(g=>g.objectType.id==='contacts')!.choices[2].canCreate,false);
+ assert.deepEqual(groups.find(g=>g.objectType.id==='distribution_lists')!.choices.map(c=>c.relationshipTypeId),['general','distribution_member']);
+ assert.equal(fields[1].definition.moduleKey,'contacts');assert.equal(fields[1].targets.length,0);
+});

@@ -11,12 +11,12 @@ import {DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuGroup,D
 import {ErrorNotice} from './feedback';
 import {RelationshipPicker} from './relationship-picker';
 
-type Props={source:RelatedRecord;version:number;fields:RelationshipField[];sourceValues:Record<string,FieldValue>;workspaceCode:string;disabled:boolean;dirty:boolean;onApply:(field:RelationshipField,targets:RelatedRecord[])=>void;onPickerDirtyChange:(dirty:boolean)=>void};
-export function RecordLinkActions({source,version,fields,sourceValues,workspaceCode,disabled,dirty,onApply,onPickerDirtyChange}:Props){
+type Props={excludedRelationshipIds?:string[];source:RelatedRecord;version:number;fields:RelationshipField[];sourceValues:Record<string,FieldValue>;workspaceCode:string;disabled:boolean;dirty:boolean;onApply:(field:RelationshipField,targets:RelatedRecord[])=>void;onPickerDirtyChange:(dirty:boolean)=>void};
+export function RecordLinkActions({source,version,fields,sourceValues,workspaceCode,disabled,dirty,onApply,onPickerDirtyChange,excludedRelationshipIds}:Props){
  const {t,i18n}=useTranslation(),navigate=useNavigate();
  const [picker,setPicker]=useState<{field:RelationshipField;objectTypeId:string;label:string;objectLabel:string}|null>(null);
  const options=useQuery({queryKey:['record-link-options',source.objectTypeId,source.recordId,sourceValues,fields.map(f=>[f.definition.id,f.definition.version])],queryFn:()=>api('list_record_link_options',{objectTypeId:source.objectTypeId,recordId:source.recordId,sourceValues})});
- const groups=linkMenuGroups(options.data??[],fields,i18n.language);
+ const groups=linkMenuGroups(options.data??[],fields,i18n.language,excludedRelationshipIds);
  const select=(group:typeof groups[number],choice:typeof groups[number]['choices'][number],create:boolean)=>{
   if(create){void navigate(`/w/${workspaceCode}/objects/${group.objectType.technicalName}/new`,{state:{recordOrigin:`/w/${workspaceCode}/objects/${source.objectTechnicalName}/${source.recordId}`,linkedCreation:{targetObjectTypeId:group.objectType.id,source,labels:choice.field.definition.kind==='general'?choice.field.definition.labels:choice.field.side==='left'?choice.field.definition.leftLabels:choice.field.definition.rightLabels,linkFrom:{objectTypeId:source.objectTypeId,recordId:source.recordId,recordVersion:version,relationshipTypeId:choice.relationshipTypeId,version:choice.field.definition.version,side:choice.side}}}});}
   else setPicker({field:choice.field,objectTypeId:group.objectType.id,label:choice.label,objectLabel:group.label});

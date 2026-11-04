@@ -1,3 +1,5 @@
+import {contactKindLabel} from '@/lib/contact-kind';
+import {contactCoreFieldIds,contactExtensionLayout} from '@xobject/contracts';
 import {SettingsSection} from './settings-section';
 import {useLabelLanguages} from '@/lib/workspace-languages';
 import {createPortal} from 'react-dom';
@@ -24,20 +26,22 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
   const {t,i18n}=useTranslation(),client=useQueryClient();
   const labelLanguages=useLabelLanguages(),newGroupLanguage=labelLanguages.find(code=>code===i18n.language)??labelLanguages[0];
   const [version,setVersion]=useState(definition.version);
-  const fields=definition.fields.filter(field=>field.state!=='deleted');
-  const relationships=definition.formRelationships??[],elements=formLayoutElements(fields,relationships);
-  const [baseline,setBaseline]=useState<FormLayout>(()=>resolveFormLayout(definition.formLayouts?.default,fields,true,relationships,true)),[draft,setDraft]=useState<FormLayout>(baseline);
+  const coreIds=definition.contactProfile?contactCoreFieldIds(definition.contactProfile,definition.fields):new Set<string>();
+  const fields=definition.fields.filter(field=>field.state!=='deleted'&&!coreIds.has(field.id));
+  const extensionLayout=definition.contactProfile?contactExtensionLayout(definition.contactProfile,definition.fields,definition.formLayouts?.default):definition.formLayouts?.default;
+  const relationships=(definition.formRelationships??[]).filter(r=>!definition.contactProfile||!Object.values(definition.contactProfile.relationships).includes(r.definition.id)),elements=formLayoutElements(fields,relationships);
+  const [baseline,setBaseline]=useState<FormLayout>(()=>resolveFormLayout(extensionLayout,fields,true,relationships,true)),[draft,setDraft]=useState<FormLayout>(baseline);
   const dirty=!readOnly&&JSON.stringify(draft)!==JSON.stringify(baseline);
   const valid=draft.groups.every(group=>hasLabel(group.labels));
   const localLabel=(labels:Record<string,string>)=>labels[i18n.language]??labels.en??labels.de??Object.values(labels)[0]??'';
   const mutation=useMutation({mutationFn:()=>api('configure_form_layout',{objectTypeId:definition.id,version,context:'default',layout:{...draft,groups:draft.groups.map(group=>({...group,labels:cleanLabels(group.labels)}))}}),onSuccess:async result=>{
-    const next=resolveFormLayout(result.formLayouts?.default,fields,true,relationships,true);setVersion(result.version);setDraft(next);setBaseline(next);
+    const next=resolveFormLayout(definition.contactProfile?contactExtensionLayout(definition.contactProfile,definition.fields,result.formLayouts?.default):result.formLayouts?.default,fields,true,relationships,true);setVersion(result.version);setDraft(next);setBaseline(next);
     await client.invalidateQueries({queryKey:['definition',definition.id]});
   },onError:async()=>{await client.invalidateQueries({queryKey:['definition',definition.id]});}});
-  useEffect(()=>{if(!dirty&&!mutation.isPending){const next=resolveFormLayout(definition.formLayouts?.default,fields,true,relationships,true);setVersion(definition.version);setDraft(next);setBaseline(next);}},[definition,dirty,mutation.isPending]);
+  useEffect(()=>{if(!dirty&&!mutation.isPending){const next=resolveFormLayout(extensionLayout,fields,true,relationships,true);setVersion(definition.version);setDraft(next);setBaseline(next);}},[definition,dirty,mutation.isPending]);
   useEffect(()=>{onDirtyChange(dirty);},[dirty,onDirtyChange]);
   useEffect(()=>{onBusyChange(mutation.isPending);},[mutation.isPending,onBusyChange]);
-  const reset=()=>{if(definition.version!==version){setVersion(definition.version);const next=resolveFormLayout(definition.formLayouts?.default,fields,true,relationships,true);setDraft(next);setBaseline(next);}else setDraft(baseline);};
+  const reset=()=>{if(definition.version!==version){setVersion(definition.version);const next=resolveFormLayout(extensionLayout,fields,true,relationships,true);setDraft(next);setBaseline(next);}else setDraft(baseline);};
   const updateGroup=(index:number,patch:Partial<FormLayout['groups'][number]>)=>setDraft(old=>index===old.groups.length?{...old,unassigned:patch.fields??old.unassigned}:{...old,groups:old.groups.map((group,i)=>i===index?{...group,...patch}:group)});
   function moveGroup(index:number,offset:number){setDraft(old=>{const groups=[...old.groups];[groups[index],groups[index+offset]]=[groups[index+offset],groups[index]];return {...old,groups};});}
   function moveField(id:string,groupId:string){setDraft(old=>{
@@ -51,7 +55,8 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
   const formId=`form-layout-${definition.id}`;
   const actions=!readOnly?<><Button type="button" variant="outline" disabled={mutation.isPending||!dirty} onClick={reset}>{t('resetPreferences')}</Button><Button type="submit" form={formId} aria-keyshortcuts={keyboardCommands.save.aria} disabled={mutation.isPending||!dirty||!valid}>{mutation.isPending?<Spinner data-icon="inline-start" aria-hidden/>:null}{t(mutation.isPending?'saving':'save')}<Kbd>{saveShortcutLabel}</Kbd></Button></>:null;
   return <><form id={formId} className="flex min-w-0 flex-col gap-5" data-shortcut-submit aria-label={t('formDesigner')} onSubmit={event=>{event.preventDefault();if(!readOnly&&dirty&&valid&&!mutation.isPending)mutation.mutate();}}>
-    <FieldDescription>{t('formDesignerHelp')}</FieldDescription>
+    {definition.contactProfile?<SettingsSection><FieldSet><FieldLegend>{t('contactFixedCore')}</FieldLegend><FieldDescription>{t('contactFixedCoreHelp')}</FieldDescription><div className="flex flex-wrap gap-2">{['organization','person','individual'].map(kind=><Badge key={kind} variant="secondary">{contactKindLabel(definition,kind as 'organization'|'person'|'individual',i18n.language,t(`contactKind_${kind}`))}</Badge>)}</div></FieldSet></SettingsSection>:null}
+    <FieldDescription>{t(definition.contactProfile?'contactDesignerHelp':'formDesignerHelp')}</FieldDescription>
     <SettingsHelp title={t('configurationDetails')}>{t('formDesignerControlsHelp')} {t('translationHelp')}</SettingsHelp>
     {mutation.isError?<ErrorNotice error={mutation.error}/>:null}
     {shownGroups.map((group,groupIndex)=><SettingsSection key={group.id}><FieldSet className="min-w-0">

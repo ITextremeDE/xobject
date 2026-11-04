@@ -15,15 +15,16 @@ import { useClientPagination, ClientTablePagination } from './client-table-pagin
 import { RelationshipPicker } from './relationship-picker';
 export { RecordDossier } from './record-dossier';
 
-type Props = { entry:FormEntry; objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
+type Props = { singleGroupLabel?:string;entry:FormEntry; objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
 
-export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fieldDefinitions,values,...props }:Props){
+export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fieldDefinitions,values,singleGroupLabel,...props }:Props){
+  const {t}=useTranslation();
   const field='primary' in entry?fields.find(field=>field.definition.kind==='primary'&&field.side==='right'):'relationshipTypeId' in entry?fields.find(field=>field.definition.id===entry.relationshipTypeId&&field.side===entry.side):undefined;
   if(!field)return null;
   const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;
   if(!fieldApplies({applicability:rule},fieldDefinitions,values))return null;
   const change=(targets:RelatedRecord[])=>onChange(fields.map(old=>old===field?{...old,targets}:old));
-  if(field.definition.kind==='primary')return <PrimaryAssociationFields {...props} readOnly={props.readOnly||field.editable===false} configuration={primaryChain??null} field={field} onChange={change}/>;
+  if(field.definition.kind==='primary')return <PrimaryAssociationFields {...props} headingHidden={singleGroupLabel===t('primaryChainTitle')} readOnly={props.readOnly||field.editable===false} configuration={primaryChain??null} field={field} onChange={change}/>;
   const controller=fieldDefinitions.find(item=>item.id===rule?.fieldId);
   const sourceValues=controller?{[controller.technicalName]:values[controller.technicalName]??null}:undefined;
   return <RelationshipControl {...props} sourceValues={sourceValues} field={field} expandedDefault={'expanded' in entry?entry.expanded:undefined} onChange={change}/>;

@@ -37,8 +37,8 @@ test('relationship layout keeps defaults, coerces changed cardinality/requiredne
 });
 
 
-test('new forms start with General and group names never decide where later elements go',()=>{
- const initial=resolveFormLayout(undefined,[a,b]);assert.equal(initial.groups.length,1);assert.equal(initial.groups[0].labels.en,'General');assert.deepEqual(initial.groups[0].fields.map(formEntryKey),[a.id,b.id]);
+test('new forms use an editable starter structure and group names never decide where later elements go',()=>{
+ const initial=resolveFormLayout(undefined,[a,b]);assert.equal(initial.groups.length,2);assert.equal(initial.groups[0].labels.en,'General');assert.deepEqual(initial.groups[0].fields.map(formEntryKey),[a.id]);assert.equal(initial.groups[1].labels.en,'Notes');assert.deepEqual(initial.groups[1].fields.map(formEntryKey),[b.id]);
  const custom={groups:[{id:'business',labels:{en:'My own group'},fields:[{fieldId:b.id,width:'half' as const}]}]};
  const next=resolveFormLayout(custom,[a,b,c]);assert.equal(next.groups.length,1);assert.deepEqual(next.groups[0].fields,custom.groups[0].fields);assert.deepEqual(next.unassigned?.map(formEntryKey),[a.id,c.id]);
  const placed={...next,groups:[{...next.groups[0],fields:[...next.groups[0].fields,next.unassigned![0]]}],unassigned:next.unassigned!.slice(1)};
@@ -74,4 +74,19 @@ test('Access principals uses its existing field identity for placement, width an
  const removed=resolveFormLayout({groups:[]},[a,security]);assert.ok(removed.unassigned?.some(entry=>formEntryKey(entry)===security.id));
  const disabled=resolveFormLayout(placed,[a],true,[],true);assert.ok(disabled.groups[0].fields.some(entry=>formEntryKey(entry)===security.id),'stored placement can survive temporary unavailability');
  assert.equal(resolveFormLayout(placed,[a]).groups[0].fields.some(entry=>formEntryKey(entry)===security.id),false,'inactive security field does not render');
+});
+
+
+test('starter layout separates classification and relationships while keeping notes last without altering authored layouts',()=>{
+ const fields=[b,{id:'type',technicalName:'type',kind:'type'},{id:'category',technicalName:'category',kind:'category'},{id:'status',technicalName:'status',kind:'status'},c,a];
+ const definition:any={id:'relation',kind:'custom',active:true,leftMin:0,rightMin:0,leftMax:1,rightMax:null};
+ const primary={...definition,id:'primary',kind:'primary'};
+ const result=resolveFormLayout(undefined,fields,true,[{definition,side:'left'},{definition,side:'right'},{definition:primary,side:'right'}]);
+ assert.deepEqual(result.groups.map(g=>g.labels.en),['General','Primary association','Classification','Relationships','Notes']);
+ assert.deepEqual(result.groups[0].fields.map(formEntryKey),[a.id,c.id,'relationship:relation:left']);
+ assert.deepEqual(result.groups[1].fields.map(formEntryKey),['primary_chain']);
+ assert.deepEqual(result.groups[2].fields.map(formEntryKey),['type','status','category']);assert.equal(result.groups[2].fields[2].width,'full');
+ assert.deepEqual(result.groups[3].fields.map(formEntryKey),['relationship:relation:right']);assert.deepEqual(result.groups[4].fields.map(formEntryKey),[b.id]);
+ const authored={groups:[{id:'classification',labels:{en:'My group'},fields:[{fieldId:b.id,width:'half' as const}]}]};
+ assert.deepEqual(resolveFormLayout(authored,fields).groups,authored.groups);
 });
