@@ -1,3 +1,5 @@
+export * from './contact-profile.js';
+export * from './structured-fields.js';
 import {fieldInputRulesSchema,numberingSchema,type FieldInputRules,type Numbering} from './field-input-rules.js';
 export * from './field-input-rules.js';
 import {recordSecuritySchema,foreignRuleSchema,membershipSchema,type RecordSecurity,type ForeignSettings,type AccessExplanation} from './ownership.js';
@@ -85,6 +87,7 @@ export const schemas = {
   list_workspace_members: z.object({ workspaceId: uuid }).strict(),
   set_workspace_member: z.object({ workspaceId: uuid, userId: uuid, role: workspaceRole.nullable(), expectedRole: workspaceRole.nullable() }).strict(),
   create_workspace: z.object({ name: label, code: z.string().regex(/^[a-z][a-z0-9]*$/).max(61), defaultLanguage: language.default('en'), timeZone: timeZoneSchema.default('UTC'), regional: regionalSchema.optional() }).strict(),
+  list_field_schemas: z.object({}).strict(),
   get_language_catalog: z.object({}).strict(),
   get_time_zone_catalog: z.object({}).strict(),
   configure_user_localization: z.object({ language: language.nullable(), timeZone: timeZoneSchema.nullable(), expectedLanguage: language.nullable(), expectedTimeZone: timeZoneSchema.nullable(), regional: personalRegionalSchema.optional(), expectedRegional: personalRegionalSchema.nullable().optional() }).strict().refine(args => args.regional === undefined || args.expectedRegional !== undefined, 'Expected regional settings required'),
@@ -121,13 +124,13 @@ export type Labels = Record<string, string>;
 export interface Workspace { id: string; code: string; name: string; default_language: Language; available_languages: Language[]; label_languages: Language[]; language_version: number; time_zone: string; regional: RegionalSettings; created_by: string; created_by_name: string; created_at: string; appearance: WorkspaceAppearance; appearance_version: number; role: 'administrator' | 'designer' | 'user' }
 export type DefinitionState = 'active' | 'inactive' | 'deleted';
 export interface ObjectSummary { permissions?:ContentCapabilities; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
-export interface FieldDefinition extends ObjectSummary { inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
-export interface ObjectDefinition extends ObjectSummary {numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
+export interface FieldDefinition extends ObjectSummary { isDerived?:boolean; inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
+export interface ObjectDefinition extends ObjectSummary {contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
 export interface DataRecord { fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
 export interface SearchRecord { businessNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
-export interface JournalEntry { security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
+export interface JournalEntry { detail_context?:{schema:string;changes:{entryId?:string;path:string}[]}|null; security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
 export type Inputs = { [K in Operation]: z.input<(typeof schemas)[K]> };
 export interface WorkspaceGroup { id: string; workspaceId: string; name: string; active: boolean; version: number; members:import('./ownership.js').GradedMember[] }
@@ -185,6 +188,7 @@ export interface Outputs {
   create_workspace: { id: string };
   get_time_zone_catalog: string[];
   configure_user_localization: { language: Language | null; timeZone: string | null; regional: PersonalRegionalSettings | null };
+  list_field_schemas: {key:import('./structured-fields.js').StructuredSchemaKey;labels:{en:string;de:string}}[];
   get_language_catalog: { code: Language; nativeName: string; interfaceAvailable: boolean }[];
   configure_workspace_languages: WorkspaceLanguages & { workspaceId: string; version: number; timeZone: string; regional: RegionalSettings };
   list_groups: WorkspaceGroup[];

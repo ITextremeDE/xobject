@@ -1,0 +1,19 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import i18next from 'i18next';
+import {defaultRegionalSettings,type JournalEntry} from '@xobject/contracts';
+import {journalFieldValue} from '../src/lib/journal-field-value';
+test('all journal surfaces format structured historical names and yearless birthdays without technical property counts',async()=>{
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{journalNotSet:'Not set'}}}});
+ const entry={value_context:{before:{kind:'structured',config:{schema:'name_components'}},after:{kind:'structured',config:{schema:'name_components'}}}} as JournalEntry;
+ const id='019da41b-2082-79e3-9bcc-7700db769817';
+ assert.equal(journalFieldValue(entry,[{id,text:'Marie'},{id:'019da41b-2082-79e3-9bcc-7700db769818',text:'Emily'}],'before','en',i18n.t,'Europe/Berlin',defaultRegionalSettings),'Marie; Emily');
+ assert.equal(journalFieldValue(entry,[{id,text:'Emily'}],'after','en',i18n.t,'Europe/Berlin',defaultRegionalSettings),'Emily');
+ const birthday={value_context:{after:{kind:'structured',config:{schema:'partial_date'}}}} as JournalEntry;
+ const value={month:2,day:29,year:null};
+ assert.equal(journalFieldValue(birthday,value,'after','en',i18n.t,'America/New_York',defaultRegionalSettings),'February 29');
+ assert.equal(journalFieldValue(birthday,value,'after','de',i18n.t,'Europe/Berlin',{...defaultRegionalSettings,locale:'de-DE'}),'29. Februar');
+ assert.equal(journalFieldValue(entry,null,'after','en',i18n.t,'UTC',defaultRegionalSettings),'Not set');
+ assert.equal(journalFieldValue(entry,{invalid:true},'after','en',i18n.t,'UTC',defaultRegionalSettings),undefined);
+ assert.deepEqual(value,{month:2,day:29,year:null});
+});

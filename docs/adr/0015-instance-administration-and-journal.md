@@ -15,7 +15,7 @@ Before the first password change, the common application layer permits only own 
 
 `list_system_journal` is read-only and Administrator-only. It paginates all existing journal rows, optionally filtered by workspace, field-key substring and exact entity kind. The UI shows actor, scope, object identity, old/new values, event time and shared change ID; historical values remain as stored. Existing record/definition journals remain available in their contexts. This provides visibility of already recorded events, not a claim that unimplemented features already generate journal entries.
 
-Workspace General shows the existing `created_by` identity/name and a `created_at` timestamp. New workspaces set the timestamp on creation. Workspace creation timestamps are mandatory and set when the workspace is created. Changing workspace names does not change creation metadata.
+Workspace General shows the `created_by` identity/name and mandatory `created_at` timestamp set on creation. Changing workspace names does not change creation metadata.
 
 `is_protected` on object/field definitions continues to enforce definition lifecycle protection under ADR 0009. It is not an access grant or blanket immutable flag for every configurable attribute. Group lifecycle remains reversible activation/deactivation under ADR 0013; no hard group deletion is introduced.
 

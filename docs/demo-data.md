@@ -20,11 +20,12 @@ Jane and James receive random initial passwords and must change them at first si
 
 ## Objects and contents
 
-The initial fixture has **8 active object types with 73 records**, plus one inactive object type with one retained record. Every translatable object, field, choice, relationship-side label and form-group label has English and German text. Technical names stay stable and untranslated.
+The initial fixture has **9 active object types with 74 records**, plus one inactive object type with one retained record. Every translatable object, field, choice, relationship-side label and form-group label has English and German text. Technical names stay stable and untranslated.
 
 | Object / table | Records | Main scenarios |
 | --- | --- | --- |
-| Contacts / `itx_contacts` | 9 | Six Organizations, two Contact persons and one Individual contact; addresses, email, phone, URL, conditional fields and same-person Identities |
+| Contacts / `itx_contacts` | 9 | Six Organizations, two Contact persons and one Individual contact; structured names/addresses/email/phone/URLs, optional-year birthdays, derived names, conditional fields and same-person Identities |
+| Distribution lists / `itx_distribution_lists` | 1 | Explicit membership of three Contacts, independent of Category |
 | Projects / `itx_projects` | 4 | Objectives, dates, money, decimal progress, user/group references; one internal Project without a Contact |
 | Cases / `itx_cases` | 8 | Work packages/service requests, dates, responsibility and estimated effort |
 | Tasks / `itx_tasks` | 30 | Instants, user assignment, mixed multiple user/group references, booleans, decimal effort and sensitive ownership |
@@ -34,18 +35,23 @@ The initial fixture has **8 active object types with 73 records**, plus one inac
 | Access checks / `itx_access_checks` | 12 | Named, explained ownership/foreign-access/privacy/field-exception scenarios |
 | Retired equipment / `itx_retired_equipment` | 1 (inactive) | A retained read-only object and its record, visible through inactive-definition administration |
 
-Together these exercise all **14 custom field types**: text, multiline, integer, decimal, money, boolean, date, datetime, single choice, multiple choice, email, phone, URL and user/group reference. Reference fields include user-only, group-only and mixed targets, with single and multiple values. Numeric examples include zero, negatives, precise fractions and large grouped amounts. Single-line and formatted multiline contents have meaningful English examples.
+Together these exercise all **15 custom field types**: text, multiline, integer, decimal, money, boolean, date, datetime, single choice, multiple choice, email, phone, URL, user/group reference and typed structured values. Reference fields include user-only, group-only and mixed targets, with single and multiple values. Numeric examples include zero, negatives, precise fractions and large grouped amounts. Single-line and formatted multiline contents have meaningful English examples.
 
-Active objects have required Keyword, optional Type/Status with per-Type and no-Type statuses, and multiple Category choices. Types are varied across records. Contact kind is a separate required choice. Each active object has bilingual General, Details and, where applicable, Relationships form groups. Contacts additionally demonstrate a Projects-specific form context that omits two optional fields without duplicating their stored data. The inactive object deliberately has only Keyword, illustrating optional standard-field installation.
+Active objects have required Keyword, optional Type/Status with per-Type and no-Type statuses, and multiple Category choices. Types are varied across records. Contact kind is a separate required choice selected before creation and immutable through normal updates. Contacts use a fixed bilingual core by kind; their stored standard/Projects layouts contain only extension groups. Other active objects have bilingual editable General, Primary association, Classification, Relationships and final Notes groups where corresponding elements exist. Maximum-one custom connections start in General; multi-target connections start in Relationships. The current designer/record UI selects only the standard extension form, pending actual module membership and view selection. The inactive object deliberately has only Keyword, illustrating optional standard-field installation.
 
-Physical field order is system metadata, standard fields, then business fields in creation order. Form order/widths and alphabetical definition administration remain independent. A real task effort edit from `1` to `2.5`, relationship changes, ownership changes, configuration changes and definition deactivation populate actual journals through shared operations.
+Contact Keyword/formatted/Organization names are virtual projections without physical columns. Physical columns begin with system metadata; optional standards and custom fields append when installed. The seed initially installs classification before custom fields and enables business numbering later, so its number columns are physically appended after those custom fields. Form order/widths and alphabetical definition administration remain independent. A real task effort edit from `1` to `2.5`, relationship changes, ownership changes, configuration changes and definition deactivation populate actual journals through shared operations.
+
+Sensitive demo objects place Access principals in General at full width, using the same field UUID layout entries as ordinary fields. Its group, order and half/full width can be changed in the Form designer; record security remains protected.
+
+All active objects except Distribution lists have protected automatic business numbers: Contacts `CON-`, Projects `PRJ-`, Cases `CAS-`, Tasks `TSK-`, Vehicles `VEH-`, Contracts `CTR-`, Devices `DEV-`, Access checks `CHK-`, each with five minimum digits and no restart. Distribution lists have Keyword and a short plain-text Description in General, with separate Markdown Notes last; no Business number field or automatic numbering is installed. Registration, serial and contract numbers demonstrate uniqueness. Mileage and completion fields demonstrate typed defaults; selected fields have translated descriptions and input hints.
 
 ## Relationships
 
-The initial fixture applies **51 persisted edges** through normal application operations:
+The initial fixture applies **54 persisted edges** through normal application operations:
 
 - 40 Primary links: Contacts → Projects → Cases → Tasks, plus directly assigned Project and Contact Tasks. There is a Project without a Contact and a standalone Task without any Primary parent.
 - Two Organization → Contact-person links; each Contact person can belong to at most one Organization.
+- Three Distribution-list membership links, independent of classifications.
 - One symmetric Identities link between the Contact-person and Individual-contact representations of Emily Example. Identities is a Contact relationship, not another object type.
 - Three undirected n:m Case/Vehicle links.
 - Three directed Device/Contract links: a Device has at most one covering Contract; a Contract covers multiple Devices.
@@ -54,7 +60,7 @@ The initial fixture applies **51 persisted edges** through normal application op
 
 These cover single-target controls, multi-target tables, endpoint conditions, derived context, the Projects-owned tree, Dossier and journals. The returned UUID plan is saved in ignored `.local/demo-relationships.json`. Reapplying that exact plan through `connectDemoRelationships` keeps existing edges and adds no duplicates. It is a test aid, not another relationship store.
 
-Projects activation supplies protected Contacts, Projects, Cases and Tasks and fixed Primary roles. Complete Contacts/Projects business templates and the Documents module remain future work; the fixture enriches existing definitions through ordinary configuration. Contacts limit first/last name and birthday to Individual contacts/Contact persons, and commercial register to Organizations/Individual contacts. Incompatible nonempty values must be cleared explicitly before changing Contact kind. Derived Contact Keywords are not implemented; fixture Keywords are supplied explicitly.
+Projects activation supplies protected Contacts, Projects, Cases and Tasks and fixed Primary roles. Complete Contacts/Projects business templates remain V1 implementation work; Documents & Communication is deferred beyond V1. See the [PRD catalog](PRD.md#6-supplied-domain-models) for the agreed target. The fixture enriches existing definitions through ordinary configuration. Contacts limit first/last name and birthday to Individual contacts/Contact persons, and commercial register to Organizations/Individual contacts. Normal updates cannot change Contact kind; a dedicated conversion workflow is later work. Contact Keywords and formatted names are derived from permitted sources and Organization links, and are omitted as form inputs. Name/Organization precede contact details, addresses, classification and relationships; Salutation and Academic title are independent configurable selects; personal-name fields stay visible in the fixed core. The fictional personal contacts include salutations and one academic-title example; less common address details remain in a disclosure.
 
 ## Permission checks
 
@@ -86,7 +92,3 @@ Run `ADMIN_EMAIL=john.doe@example.test npm run dev:seed` after Administrator pro
 For an explicitly authorized clean test rebuild, stop writers, run the guarded `npm run db:reset`, provision the first Administrator, then run this seed. There is one current unreleased schema; no development-version upgrades or old-rights adoption occur. Existing offline recovery artifacts remain outside application state in ignored `.local/backups` and are never imported automatically.
 
 The seed uses several normal application transactions. If interrupted, it refuses to continue against the partially populated workspace; rebuild the disposable development database explicitly before starting again. This is not a production import/export facility. Uploads, attachments, email delivery, SSO, calendar actions and notification delivery are not implemented by this fixture.
-
-Sensitive demo objects place Access principals in General at full width, using the same field UUID layout entries as ordinary fields. Its group, order and half/full width can be changed in the Form designer; record security remains protected.
-
-Every active object has protected automatic business numbers: Contacts `CON-`, Projects `PRJ-`, Cases `CAS-`, Tasks `TSK-`, Vehicles `VEH-`, Contracts `CTR-`, Devices `DEV-`, Access checks `CHK-`, each with five minimum digits and no restart. Registration, serial and contract numbers demonstrate uniqueness. Country, mileage and completion fields demonstrate typed defaults; selected fields have translated descriptions and input hints.

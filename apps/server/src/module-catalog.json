@@ -6,10 +6,10 @@
       "en": "Contacts & Relations"
     },
     "description": {
-      "de": "Kontakte für Kunden, Lieferanten, Partner und weitere Beziehungen.",
-      "en": "Contacts for customers, suppliers, partners and other relationships."
+      "en": "Base Contacts and Distribution lists. Additional domain templates follow later.",
+      "de": "Basis für Kontakte und Verteiler. Weitere Fachvorlagen folgen später."
     },
-    "available": false,
+    "available": true,
     "position": 1,
     "objects": [
       {
@@ -23,6 +23,553 @@
           "keyword",
           "type_status",
           "category"
+        ],
+        "fields": [
+          {
+            "key": "contact_kind",
+            "technicalName": "contact_kind",
+            "labels": {
+              "en": "Contact kind",
+              "de": "Kontaktart"
+            },
+            "kind": "single_choice",
+            "required": true,
+            "choices": [
+              {
+                "key": "organization",
+                "labels": {
+                  "en": "Organization",
+                  "de": "Organisation"
+                }
+              },
+              {
+                "key": "individual",
+                "labels": {
+                  "en": "Individual contact",
+                  "de": "Einzelkontakt"
+                }
+              },
+              {
+                "key": "person",
+                "labels": {
+                  "en": "Contact person",
+                  "de": "Ansprechpartner"
+                }
+              }
+            ]
+          },
+          {
+            "key": "company_name",
+            "technicalName": "company_name",
+            "labels": {
+              "en": "Company name",
+              "de": "Firmenname"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "organization",
+              "individual"
+            ]
+          },
+          {
+            "key": "first_name",
+            "technicalName": "first_name",
+            "labels": {
+              "en": "First name",
+              "de": "Vorname"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "additional_names",
+            "technicalName": "additional_names",
+            "labels": {
+              "en": "Additional given names",
+              "de": "Weitere Vornamen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "last_name",
+            "technicalName": "last_name",
+            "labels": {
+              "en": "Last name",
+              "de": "Nachname"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "salutation",
+            "technicalName": "salutation",
+            "labels": {
+              "en": "Salutation",
+              "de": "Anrede"
+            },
+            "kind": "single_choice",
+            "choices": [
+              {
+                "key": "mr",
+                "labels": {
+                  "en": "Mr",
+                  "de": "Herr"
+                }
+              },
+              {
+                "key": "ms",
+                "labels": {
+                  "en": "Ms",
+                  "de": "Frau"
+                }
+              },
+              {
+                "key": "mx",
+                "labels": {
+                  "en": "Mx",
+                  "de": "Mx"
+                }
+              }
+            ],
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "name_prefix",
+            "technicalName": "name_prefix",
+            "labels": {
+              "en": "Academic title",
+              "de": "Titel"
+            },
+            "kind": "single_choice",
+            "appliesTo": [
+              "individual",
+              "person"
+            ],
+            "choices": [
+              {
+                "key": "dr",
+                "labels": {
+                  "en": "Dr.",
+                  "de": "Dr."
+                }
+              },
+              {
+                "key": "prof",
+                "labels": {
+                  "en": "Prof.",
+                  "de": "Prof."
+                }
+              },
+              {
+                "key": "prof_dr",
+                "labels": {
+                  "en": "Prof. Dr.",
+                  "de": "Prof. Dr."
+                }
+              },
+              {
+                "key": "dr_med",
+                "labels": {
+                  "en": "Dr. med.",
+                  "de": "Dr. med."
+                }
+              },
+              {
+                "key": "dr_dent",
+                "labels": {
+                  "en": "Dr. med. dent.",
+                  "de": "Dr. med. dent."
+                }
+              },
+              {
+                "key": "dr_jur",
+                "labels": {
+                  "en": "Dr. jur.",
+                  "de": "Dr. jur."
+                }
+              },
+              {
+                "key": "dr_rer_nat",
+                "labels": {
+                  "en": "Dr. rer. nat.",
+                  "de": "Dr. rer. nat."
+                }
+              },
+              {
+                "key": "dr_phil",
+                "labels": {
+                  "en": "Dr. phil.",
+                  "de": "Dr. phil."
+                }
+              },
+              {
+                "key": "dipl_ing",
+                "labels": {
+                  "en": "Dipl.-Ing.",
+                  "de": "Dipl.-Ing."
+                }
+              }
+            ]
+          },
+          {
+            "key": "name_suffix",
+            "technicalName": "name_suffix",
+            "labels": {
+              "en": "Name suffix",
+              "de": "Namenszusatz"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "formatted_name",
+            "technicalName": "formatted_name",
+            "labels": {
+              "en": "Formatted name",
+              "de": "Formatierter Name"
+            },
+            "kind": "text",
+            "derived": true
+          },
+          {
+            "key": "organization_name",
+            "technicalName": "organization_name",
+            "labels": {
+              "en": "Organization name",
+              "de": "Name der Organisation"
+            },
+            "kind": "text",
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          },
+          {
+            "key": "emails",
+            "technicalName": "emails",
+            "labels": {
+              "en": "Email addresses",
+              "de": "E-Mail-Adressen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "email_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                }
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                }
+              }
+            ]
+          },
+          {
+            "key": "phones",
+            "technicalName": "phones",
+            "labels": {
+              "en": "Telephone numbers",
+              "de": "Telefonnummern"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "phone_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "mobile",
+                "labels": {
+                  "en": "Mobile",
+                  "de": "Mobil"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "voice",
+                "labels": {
+                  "en": "Voice calls",
+                  "de": "Sprachanrufe"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "fax",
+                "labels": {
+                  "en": "Fax",
+                  "de": "Fax"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "text",
+                "labels": {
+                  "en": "SMS / text",
+                  "de": "SMS / Text"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "video",
+                "labels": {
+                  "en": "Video",
+                  "de": "Video"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "pager",
+                "labels": {
+                  "en": "Pager",
+                  "de": "Pager"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "textphone",
+                "labels": {
+                  "en": "Textphone",
+                  "de": "Schreibtelefon"
+                },
+                "group": "phone_type"
+              }
+            ]
+          },
+          {
+            "key": "addresses",
+            "technicalName": "addresses",
+            "labels": {
+              "en": "Addresses",
+              "de": "Anschriften"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "address_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                }
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                }
+              }
+            ]
+          },
+          {
+            "key": "websites",
+            "technicalName": "websites",
+            "labels": {
+              "en": "Websites",
+              "de": "Webseiten"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "url_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                }
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                }
+              }
+            ]
+          },
+          {
+            "key": "birthday",
+            "technicalName": "birthday",
+            "labels": {
+              "en": "Date of birth",
+              "de": "Geburtsdatum"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "partial_date",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "gender",
+            "technicalName": "gender",
+            "labels": {
+              "en": "Gender",
+              "de": "Geschlecht"
+            },
+            "kind": "single_choice",
+            "choices": [
+              {
+                "key": "female",
+                "labels": {
+                  "en": "Female",
+                  "de": "Weiblich"
+                }
+              },
+              {
+                "key": "male",
+                "labels": {
+                  "en": "Male",
+                  "de": "Männlich"
+                }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Divers"
+                }
+              },
+              {
+                "key": "not_specified",
+                "labels": {
+                  "en": "Not specified",
+                  "de": "Keine Angabe"
+                }
+              }
+            ],
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "commercial_register",
+            "technicalName": "commercial_register",
+            "labels": {
+              "en": "Commercial register",
+              "de": "Handelsregister"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "organization",
+              "individual"
+            ]
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "en": "Notes",
+              "de": "Notizen"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ]
+      },
+      {
+        "key": "distribution_list",
+        "technicalName": "distribution_lists",
+        "labels": {
+          "en": "Distribution lists",
+          "de": "Verteiler"
+        },
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "en": "Description",
+              "de": "Beschreibung"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": false
+            }
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "en": "Notes",
+              "de": "Notizen"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
         ]
       }
     ]

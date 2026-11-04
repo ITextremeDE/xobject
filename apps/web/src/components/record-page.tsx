@@ -1,5 +1,9 @@
+import {ContactCoreGroups} from './contact-core-groups';
+import {contactKindLabel} from '@/lib/contact-kind';
+import {contactKindOrder,contactCoreFieldIds,contactCoreEntry,contactCoreLayout,contactExtensionLayout} from '@xobject/contracts';
+import {useSearchParams} from 'react-router';
 import {FieldExplanation,fieldDescriptionIds} from './record-field-hints';
-import {applyFieldDefaults} from '@xobject/contracts';
+import {applyFieldDefaults,parseStructuredValue,contactIssues,contactRequiredFields} from '@xobject/contracts';
 import {RecordFormGroups} from './record-form-groups';
 import {RecordLifecycleAction} from './record-lifecycle-action';
 import {useNavigate} from 'react-router';
@@ -50,7 +54,9 @@ type Props = {
   onSaved: (record: DataRecord) => void;
 };
 export function RecordPage(props: Props) {
-  const { t } = useTranslation();
+  const { t,i18n } = useTranslation();
+  const [params,setParams]=useSearchParams();
+  const contactKind=params.get('contactKind');
   const record = useQuery({ queryKey: ['record', props.definition.id, props.recordId],
     queryFn: () => api('get_record', { objectTypeId: props.definition.id, recordId: props.recordId }), enabled: props.recordId !== 'new' });
   const security=useQuery({queryKey:['record-security',props.definition.id,props.recordId],queryFn:()=>api('get_record_security',{objectTypeId:props.definition.id,recordId:props.recordId}),enabled:props.definition.sensitive===true&&props.recordId!=='new'});
@@ -65,11 +71,16 @@ export function RecordPage(props: Props) {
   if(sensitive&&(security.isError||newOwners.isError))return <ErrorNotice error={security.error??newOwners.error}/>;
   const newPolicy:import('@xobject/contracts').RecordSecurity={owners:[{kind:'user',id:props.user.id,level:'full'}],publicLevel:null,privacy:'normal',foreignMax:'full',fields:[]};
   const accessSnapshot:SecuritySnapshot|undefined=sensitive?(isNew?{policy:newPolicy,version:1,canManage:props.definition.permissions?.full===true,effective:{level:props.definition.permissions?.full?'full':props.definition.permissions?.delete?'delete':props.definition.permissions?.edit?'edit':props.definition.permissions?.schedule?'schedule':props.definition.permissions?.duplicate?'duplicate':props.definition.permissions?.read?'read':'none',source:props.user.isAdmin?'administrator':'ownership',path:[`user:${props.user.id}`]},principals:[...(newOwners.data??[]).filter(person=>person.id!==props.user.id).map(person=>({...person,active:true,assignable:true})),{kind:'user',id:props.user.id,name:props.user.name,active:true,assignable:true}],fieldAccess:Object.fromEntries(props.definition.fields.map(field=>[field.id,{read:field.fieldPermissions?.create===true,edit:field.fieldPermissions?.create===true}]))}:security.data):undefined;
-  return <RecordForm accessSnapshot={accessSnapshot} key={props.recordId} {...props} definition={{...props.definition,fields:props.definition.fields.map(f=>({...f,fieldPermissions:props.recordId==='new'?{read:f.fieldPermissions?.create===true,edit:f.fieldPermissions?.create===true}:record.data?.fieldAccess?.[f.id]}))}} record={record.data} relationships={relationships.data} />;
+  const seededLink=props.linkedCreation?seedLinkedFields(relationships.data.fields,props.linkedCreation).find(field=>field.definition.id===props.linkedCreation!.linkFrom.relationshipTypeId&&field.targets.some(target=>target.recordId===props.linkedCreation!.source.recordId)):undefined;
+  const kindRule=seededLink?(seededLink.side==='left'?seededLink.definition.leftApplicability:seededLink.definition.rightApplicability):undefined;
+  const availableKinds=contactKindOrder.filter(key=>!kindRule||kindRule.fieldId!==props.definition.contactProfile?.fields.contact_kind||kindRule.optionIds.includes(props.definition.contactProfile!.kinds[key]));
+  if(isNew&&props.definition.contactProfile&&!availableKinds.some(key=>props.definition.contactProfile!.kinds[key]===contactKind))return <SettingsSection><h1 className="text-2xl font-semibold">{t('contactChooseKind')}</h1><FieldDescription>{t('contactChooseKindHelp')}</FieldDescription><div className="flex flex-wrap gap-3">{availableKinds.map(kind=><Button key={kind} type="button" variant="outline" onClick={()=>{const next=new URLSearchParams(params);next.set('contactKind',props.definition.contactProfile!.kinds[kind]);setParams(next,{replace:true});}}>{contactKindLabel(props.definition,kind,i18n.language,t(`contactKind_${kind}`))}</Button>)}</div><Button type="button" variant="ghost" className="self-start" onClick={props.onClose}>{t('cancel')}</Button></SettingsSection>;
+  return <RecordForm accessSnapshot={accessSnapshot} key={`${props.recordId}:${isNew?contactKind??'':''}`} {...props} definition={{...props.definition,fields:props.definition.fields.map(f=>({...f,fieldPermissions:props.recordId==='new'?{read:f.isDerived?props.definition.permissions?.create===true:f.fieldPermissions?.create===true,edit:!f.isDerived&&f.fieldPermissions?.create===true}:record.data?.fieldAccess?.[f.id]}))}} record={record.data} relationships={relationships.data} />;
 }
 
 function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, record, recordId, user, workspaceName, workspaceCode, relationships, onClose, onAccessLost, onDirtyChange, onBusyChange, onSaved }: Props & { accessSnapshot?:SecuritySnapshot;record?: DataRecord; relationships:RecordRelationships }) {
   const { t, i18n } = useTranslation();
+  const [params]=useSearchParams();
   const queryClient = useQueryClient(),navigate=useNavigate();
   const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
   const userName = (id: string) => id === user.id ? user.name : principals.data?.find(principal => principal.kind === 'user' && principal.id === id)?.name ?? id;
@@ -94,7 +105,11 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const activeFields = definition.fields.filter(field => field.technicalName!=='access_principals'&&field.fieldPermissions?.read!==false&&(!field.state || field.state === 'active'));
   const inactiveFields = definition.fields.filter(field => field.technicalName!=='access_principals'&&field.fieldPermissions?.read!==false&&field.state === 'inactive');
   const hasKeyword = activeFields.some(field => field.technicalName === 'keyword');
-  const newDefaults=record?{}:applyFieldDefaults(activeFields,{});
+  const kindField=activeFields.find(field=>field.id===definition.contactProfile?.fields.contact_kind);
+  const selectedKind=definition.contactProfile&&Object.values(definition.contactProfile.kinds).includes(params.get('contactKind')??'')?params.get('contactKind'):null;
+  const newDefaults=record?{}:applyFieldDefaults(activeFields,kindField&&selectedKind?{[kindField.technicalName]:selectedKind}:{});
+  const kindValue=record&&kindField?record[kindField.technicalName]:selectedKind;
+  const kindKey=definition.contactProfile?contactKindOrder.find(key=>definition.contactProfile!.kinds[key]===kindValue):undefined;
   const initial = () => ({ ...(hasKeyword ? { keyword: record?record.keyword:(newDefaults.keyword??'') } : {}), ...Object.fromEntries(activeFields.filter(f => isCustomFieldKind(f.kind) && !['keyword','business_number'].includes(f.technicalName)).map(f => [f.technicalName, localizedFieldDraft(f,(record?record[f.technicalName]:newDefaults[f.technicalName]) as FieldValue ?? null,regional)])) });
   const [baseline, setBaseline] = useState<Record<string, FieldValue>>(initial);
   const [values, setValues] = useState<Record<string, FieldValue>>(initial);
@@ -103,13 +118,21 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const [dependencyContext,setDependencyContext]=useState(()=>({applicableFieldIds:record?.applicableFieldIds,allowedStatusIds:record?.allowedStatusIds}));
   const appliesToDraft=(field:FieldDefinition,draft:Record<string,FieldValue>)=>field.applicability&&!activeFields.some(controller=>controller.id===field.applicability!.fieldId)?Boolean(dependencyContext.applicableFieldIds?.includes(field.id)):fieldApplies(field,activeFields,draft);
   const applicableFields=activeFields.filter(field=>appliesToDraft(field,values));
+  // Missing or hidden source values must never be interpreted as empty business data.
+  const contactSourcesKnown=Boolean(definition.contactProfile&&['contact_kind','company_name','last_name'].every(purpose=>activeFields.some(field=>field.id===definition.contactProfile!.fields[purpose]&&field.fieldPermissions?.read!==false)));
+  const contactRequired=contactSourcesKnown?contactRequiredFields(definition.contactProfile,activeFields,values):[];
+  const contactValidation=contactSourcesKnown?contactIssues(definition.contactProfile,activeFields,values).filter(issue=>activeFields.some(field=>field.id===issue.fieldId&&field.fieldPermissions?.edit!==false)):[];
+
   const [choices, setChoices] = useState<ClassificationValues>(() => record ? { type: record.type??null, status: record.status??null, category: record.category??[] } : initialChoices(definition.classification));
   const [choiceBaseline, setChoiceBaseline] = useState(choices);
   const [showHiddenRelationships,setShowHiddenRelationships]=useState(false);
   const formRelationships=relationFields.filter(field=>(field.definition.kind==='custom'||(field.definition.kind==='primary'&&field.side==='right'))&&fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,values));
   const accessField=accessSnapshot?definition.fields.find(field=>field.technicalName==='access_principals'&&field.state==='active'):undefined;
   const layoutFields=[...applicableFields,...(accessField?[accessField]:[])];
-  const configuredLayout=resolveFormLayout(definition.formLayouts?.default,layoutFields,true,formRelationships);
+  const coreIds=definition.contactProfile?contactCoreFieldIds(definition.contactProfile,definition.fields):new Set<string>();
+  const extraFields=layoutFields.filter(field=>!coreIds.has(field.id)),extraRelationships=definition.contactProfile?formRelationships.filter(r=>!Object.values(definition.contactProfile!.relationships).includes(r.definition.id)):formRelationships;
+  const configuredLayout=definition.contactProfile?resolveFormLayout(contactExtensionLayout(definition.contactProfile,definition.fields,definition.formLayouts?.default),extraFields,true,extraRelationships):resolveFormLayout(definition.formLayouts?.default,layoutFields,true,formRelationships);
+  const coreLayout=definition.contactProfile?contactCoreLayout(definition.contactProfile,applicableFields,formRelationships):undefined;
   const hiddenRelationships=formLayoutEntries(configuredLayout).filter(entry=>!('fieldId' in entry)&&entry.visible===false).length;
   const formGroups=[...configuredLayout.groups,...(configuredLayout.unassigned?.length?[{id:':unassigned',labels:{en:t('formUnassigned'),de:t('formUnassigned')},fields:configuredLayout.unassigned}]:[])];
   const layout={groups:formGroups.map(group=>({...group,fields:group.fields.filter(entry=>'fieldId' in entry||entry.visible!==false||showHiddenRelationships)}))};
@@ -159,6 +182,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   useEffect(()=>{if(lostAccess&&!mutation.isPending)onClose();},[lostAccess,mutation.isPending,onClose]);
   function update(key: string, value: FieldValue) {
     if(mutation.isError)mutation.reset();
+    if(definition.contactProfile&&kindField?.technicalName===key)return;
     const next = { ...values, [key]: value };
     if(!record)for(const field of activeFields)if(!touchedDefaults.has(field.technicalName)&&!appliesToDraft(field,values)&&appliesToDraft(field,next)&&field.inputRules?.defaultValue!==null&&field.inputRules?.defaultValue!==undefined)next[field.technicalName]=localizedFieldDraft(field,field.inputRules.defaultValue,regional);
     setTouchedDefaults(old=>new Set([...old,key]));
@@ -169,24 +193,28 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     setApplicabilityError('');setValues(next); setSaved(false);
     onDirtyChange(securityDirty||relationDirty || choicesDirty || valuesChanged(next));
   }
-  function renderEntry(entry:FormEntry){
-    if('fieldId' in entry){const field=layoutFields.find(field=>field.id===entry.fieldId);return field?<div className="min-w-0" data-record-field={field.id}>{renderField(field)}</div>:null;}
-    return <RecordRelationshipFields entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly||Boolean(linkedCreation&&!record&&(('relationshipTypeId' in entry&&entry.relationshipTypeId===linkedCreation.linkFrom.relationshipTypeId)||('primary' in entry&&relationFields.some(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.definition.kind==='primary'))))} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
+  function renderEntry(entry:FormEntry,singleGroupLabel?:string){
+    if('fieldId' in entry){const field=layoutFields.find(field=>field.id===entry.fieldId);return field?<div className="min-w-0" data-record-field={field.id}>{renderField(field,field.kind==='multiline'&&!field.required&&field.label===singleGroupLabel)}</div>:null;}
+    return <RecordRelationshipFields singleGroupLabel={singleGroupLabel} entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly||Boolean(linkedCreation&&!record&&(('relationshipTypeId' in entry&&entry.relationshipTypeId===linkedCreation.linkFrom.relationshipTypeId)||('primary' in entry&&relationFields.some(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.definition.kind==='primary'))))} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
   }
   const validationFieldId=mutation.error instanceof ApiError&&mutation.error.details?.code==='unique_value'?mutation.error.details.fieldId:undefined;
   useEffect(()=>{if(validationFieldId)requestAnimationFrame(()=>document.querySelector<HTMLElement>(`[data-record-field="${validationFieldId}"] input, [data-record-field="${validationFieldId}"] [role="combobox"]`)?.focus());},[mutation.error]);
-  function renderField(field:FieldDefinition){
-    const fieldError=validationFieldId===field.id?t('uniqueRecordConflict',{field:field.label}):undefined;
+  function renderField(source:FieldDefinition,labelHidden=false){
+    const contactIssue=contactValidation.find(issue=>issue.fieldId===source.id);
+    const field={...source,required:source.required||contactRequired.includes(source.id)};
+    const fieldError=validationFieldId===field.id?t('uniqueRecordConflict',{field:field.label}):contactIssue?t(contactIssue.code):undefined;
     if(field.technicalName==='business_number')return <Field><FieldLabel htmlFor="record-business-number">{field.label}</FieldLabel><Input id="record-business-number" value={String(record?.business_number??'')} readOnly placeholder={t('numberAssignedOnSave')}/></Field>;
     if(field.technicalName==='access_principals')return accessSnapshot&&securityBaseline&&securityDraft?<RecordAccessField snapshot={{...accessSnapshot,policy:securityBaseline}} value={securityDraft} confirmed={securityConfirmed} disabled={mutation.isPending||inactiveObject} onChange={policy=>{setSecurityDraft(policy);setSecurityConfirmed(false);setSaved(false);}} onConfirm={setSecurityConfirmed} onDetails={()=>setAccessOpen(true)}/>:null;
+    if(field.isDerived)return <Field><FieldLabel htmlFor={`derived-${field.id}`}>{field.label}</FieldLabel><Input id={`derived-${field.id}`} value={String(record?.[field.technicalName]??'')} readOnly placeholder={t('derivedOnSave')}/>{field.technicalName==='keyword'?<FieldDescription>{t(dirty?'derivedUpdatesOnSave':'derivedFieldHelp')}</FieldDescription>:null}</Field>;
     if(field.technicalName==='keyword')return <Field data-disabled={(mutation.isPending||readOnly)||undefined}><FieldLabel htmlFor="record-keyword">{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><Input aria-invalid={Boolean(fieldError)} aria-describedby={fieldDescriptionIds(field,fieldError?`keyword-validation-error`:undefined)} id="record-keyword" value={String(values.keyword??'')} maxLength={200} required={field.required} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={event=>update('keyword',event.target.value)}/><FieldExplanation field={field} help/>{fieldError?<FieldError id="keyword-validation-error">{fieldError}</FieldError>:null}</Field>;
     if(['type','status','category'].includes(field.technicalName))return <ClassificationFields allowedStatusIds={definition.fields.some(item=>item.technicalName==='type'&&item.fieldPermissions?.read===false)?dependencyContext.allowedStatusIds:undefined} fields={[field]} config={definition.classification} value={choices} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={next=>{setChoices(next);setSaved(false);onDirtyChange(securityDirty||relationDirty||JSON.stringify(next)!==JSON.stringify(choiceBaseline)||valuesChanged(values));}}/>;
-    return <CustomFieldControl error={fieldError} field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} objectTypeId={definition.id} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={value=>update(field.technicalName,value)}/>;
+    return <CustomFieldControl labelHidden={labelHidden} legendVariant={[definition.contactProfile?.fields.addresses,definition.contactProfile?.fields.notes].includes(field.id)?'legend':'label'} error={fieldError} field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} objectTypeId={definition.id} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={value=>update(field.technicalName,value)}/>;
   }
   useEffect(() => { document.querySelector<HTMLElement>('[data-record-page-title]')?.focus(); }, [recordId]);
-  const title = record ? record.keyword || record.id : t('newRecord');
+  const title = record ? record.keyword || record.id : kindKey?t('contactNewKind',{kind:contactKindLabel(definition,kindKey,i18n.language,t(`contactKind_${kindKey}`))}):t('newRecord');
   const missingFields = [
-    ...applicableFields.filter(field => isCustomFieldKind(field.kind) && field.required && emptyCustomValue(values[field.technicalName])).map(field => field.label),
+    ...contactValidation.filter(issue=>issue.code!=='contactKindRequired').map(issue=>t(issue.code)),
+    ...applicableFields.filter(field => !field.isDerived&&isCustomFieldKind(field.kind) && field.required && emptyCustomValue(values[field.technicalName])).map(field => field.label),
     ...(['type', 'status', 'category'] as const).filter(kind => activeFields.some(field => field.kind === kind) && definition.classification[kind].required && (kind === 'category' ? !choices.category.length : !choices[kind])).map(kind => t(kind === 'type' ? 'classificationType' : kind === 'status' ? 'classificationStatus' : 'classificationCategory')),
     ...relationFields.filter(field => fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,values) && field.definition.active && field.targets.length < (field.side === 'left' ? field.definition.leftMin : field.definition.rightMin)).map(field => {
       const labels: Record<string, string | undefined> = field.side === 'left' ? field.definition.leftLabels : field.definition.rightLabels;
@@ -196,7 +224,8 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const linkedField=linkedCreation?relationFields.find(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.targets.some(target=>target.objectTypeId===linkedCreation.source.objectTypeId&&target.recordId===linkedCreation.source.recordId)):undefined;
   const linkedRule=linkedField?(linkedField.side==='left'?linkedField.definition.leftApplicability:linkedField.definition.rightApplicability):undefined;
   const linkedConditionInvalid=Boolean(linkedCreation&&!record&&linkedRule&&!fieldApplies({applicability:linkedRule},activeFields,values));
-  const invalid = !securityValid||linkedConditionInvalid||timestampInvalid || missingFields.length > 0 || applicableFields.some(field=>Boolean(numericDraftError(field,values[field.technicalName]??null,regional)));
+  const structuredInvalid=applicableFields.some(field=>{if(field.kind!=='structured'||values[field.technicalName]===null||values[field.technicalName]===undefined)return false;try{parseStructuredValue(field.config.schema!,values[field.technicalName]);return false;}catch{return true;}});
+  const invalid = structuredInvalid||!securityValid||linkedConditionInvalid||timestampInvalid || missingFields.length > 0 || applicableFields.some(field=>Boolean(numericDraftError(field,values[field.technicalName]??null,regional)));
   useEffect(()=>{
     if(!formatChangePending||mutation.isPending||timestampInvalid)return;
     const next=reformatNumericDrafts(activeFields,values,regional,requestedRegional);
@@ -214,7 +243,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   return <RegionalProvider value={regional}><TimeZoneProvider value={timeZone}><form id="record-form" data-shortcut-submit className="flex w-full min-w-0 flex-col gap-6 pb-6" onSubmit={event => { event.preventDefault(); if (tab === 'details' && !readOnly && !formatChangePending && !invalid && (!record || dirty) && !mutation.isPending) mutation.mutate(); }}>
     <header className="flex min-w-0 flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-3"><Button type="button" variant="ghost" className="w-fit -ml-2" disabled={mutation.isPending} onClick={onClose}><ArrowLeftIcon data-icon="inline-start" />{t(returnToSource?'backToSource':'backToOverview')}</Button>
-      <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{definition.label}</Badge>{record&&!readOnly?<RecordLinkActions source={{objectTypeId:definition.id,recordId:record.id,keyword:record.keyword,objectTechnicalName:definition.technicalName,objectLabels:definition.labels,state:'active'}} version={version!} fields={relationFields} sourceValues={linkSourceValues} workspaceCode={workspaceCode} disabled={mutation.isPending} dirty={dirty||formatChangePending} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} onApply={(field,targets)=>{updateRelationships(relationFields.map(item=>item===field?{...item,targets}:item));setTab('details');}}/>:null}{readOnly?<Badge variant="outline">{t(inactiveObject?'definition_inactive':'readOnly')}</Badge>:null}</div></div>
+      <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{kindKey?contactKindLabel(definition,kindKey,i18n.language,t(`contactKind_${kindKey}`)):definition.label}</Badge>{record&&!readOnly?<RecordLinkActions excludedRelationshipIds={definition.contactProfile?[definition.contactProfile.relationships.contact_person]:[]} source={{objectTypeId:definition.id,recordId:record.id,keyword:record.keyword,objectTechnicalName:definition.technicalName,objectLabels:definition.labels,state:'active'}} version={version!} fields={relationFields} sourceValues={linkSourceValues} workspaceCode={workspaceCode} disabled={mutation.isPending} dirty={dirty||formatChangePending} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} onApply={(field,targets)=>{updateRelationships(relationFields.map(item=>item===field?{...item,targets}:item));setTab('details');}}/>:null}{readOnly?<Badge variant="outline">{t(inactiveObject?'definition_inactive':'readOnly')}</Badge>:null}</div></div>
       <h1 data-record-page-title tabIndex={-1} className="wrap-anywhere text-2xl font-semibold outline-none">{title}</h1>
       <p className="text-sm text-muted-foreground">{t(inactiveObject?'inactiveObjectHelp':readOnly?'recordReadOnlyHelp':record?'recordDetails':'newRecordDescription')}</p>
     </header>
@@ -236,6 +265,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
       {saved ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
       {!record?<FieldDescription>{t('recordCreateHelp')}</FieldDescription>:null}
       {hiddenRelationships?<Button type="button" variant="outline" className="self-start" onClick={()=>setShowHiddenRelationships(value=>!value)}>{t(showHiddenRelationships?'formHideOptionalRelationships':'formShowOptionalRelationships',{count:hiddenRelationships})}</Button>:null}
+      {coreLayout?<ContactCoreGroups layout={coreLayout} renderGroup={(group,singleColumn)=>['contact-addresses','contact-notes'].includes(group.id)?<SettingsSection key={group.id}>{group.fields.map(entry=><div key={'fieldId'in entry?entry.fieldId:'core'}>{renderEntry(entry)}</div>)}</SettingsSection>:<RecordFormGroups key={group.id} singleColumn={singleColumn} layout={{groups:[group]}} renderEntry={renderEntry}/>}/>:null}
       <RecordFormGroups layout={layout} renderEntry={renderEntry}/>
       {record && inactiveFields.length ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-inactive" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3"/>}>{t('inactiveFields')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-inactive:rotate-180"/></CollapsibleTrigger><CollapsibleContent><Separator/><FieldSet className="p-4"><FieldLegend className="sr-only">{t('inactiveFields')}</FieldLegend><FieldGroup>
         {inactiveFields.filter(field => isCustomFieldKind(field.kind)).map(field => <CustomFieldControl key={field.id} field={field} value={localizedFieldDraft(field,record[field.technicalName] as FieldValue ?? null,regional)} workspaceId={definition.workspaceId} disabled onChange={() => {}} />)}

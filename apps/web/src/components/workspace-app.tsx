@@ -78,7 +78,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   useWorkspaceAppearance(workspace?.appearance);
   const canManage = Boolean(user.isAdmin || workspace?.role === 'designer');
   const language = effectiveWorkspaceLanguage(user.language, workspace?.available_languages ?? languageCodes, workspace?.default_language ?? 'en');
-  useEffect(() => { void i18n.changeLanguage(language); }, [i18n, language]);
+  useEffect(() => { if(workspaces.isSuccess)void i18n.changeLanguage(language); }, [i18n, language,workspaces.isSuccess]);
   const types = useQuery({ queryKey: ['types', workspace?.id, user.id, language], queryFn: async () => (await api('list_object_types', { workspaceId: workspace!.id, includeInactive: true })).sort((a,b)=>new Intl.Collator(language,{sensitivity:'base'}).compare(a.label,b.label)||a.id.localeCompare(b.id)), enabled: Boolean(workspace) });
   const selectedType = view === 'records' ? types.data?.find(type => type.technicalName === objectRoute?.params.name) : undefined;
   const dashboardPath = workspace ? `/w/${workspace.code}` : '/';

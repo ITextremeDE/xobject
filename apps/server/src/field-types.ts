@@ -1,3 +1,4 @@
+import {parseStructuredValue} from '@xobject/contracts';
 import { z } from 'zod';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { sql } from 'kysely';
@@ -17,8 +18,17 @@ export function fieldConfig(kind: CustomFieldKind, input?: FieldConfig, previous
   const allowed = Object.keys(defaultFieldConfig(kind));
   if (Object.keys(config).some(key => !allowed.includes(key))) fail('Configuration does not match field type');
   if (kind === 'money' && !currencies.has(config.currency!)) fail('Invalid currency');
+  if(previous?.fixedOptions&&!config.fixedOptions)fail('Supplied choice structure is fixed');
+  if(previous?.fixedOptions&&JSON.stringify(previous.options?.map(o=>[o.id,o.active]))!==JSON.stringify(config.options?.map(o=>[o.id,o.active])))fail('Supplied choice identities and availability are fixed');
   if (config.options) {
     if (new Set(config.options.map(option => option.id)).size !== config.options.length) fail('Duplicate field option identities');
+    const phone=kind==='structured'&&config.schema==='phone_entries';
+    for(const option of config.options){
+      if(phone&&!option.group)fail('Telephone options require a usage or phone-type group');
+      if(!phone&&option.group)fail('Option groups are only supported for telephone collections');
+      const old=previous?.options?.find(item=>item.id===option.id);
+      if(old&&old.group!==option.group)fail('Option groups cannot be changed; deactivate the option instead');
+    }
     for (const old of previous?.options ?? []) if (!config.options.some(option => option.id === old.id)) fail('Field options must be retained; deactivate instead of deleting');
   }
   return config;
@@ -32,12 +42,12 @@ export function fieldStorage(kind: string, config: FieldConfig) {
     case 'datetime': return sql`timestamptz`;
     case 'single_choice': return sql`uuid`;
     case 'multiple_choice': return sql`uuid[]`;
-    case 'money': case 'reference': return sql`jsonb`;
+    case 'structured': case 'money': case 'reference': return sql`jsonb`;
     default: return sql`text`;
   }
 }
 export function storedParameter(field: Pick<TypedField, 'kind'>, value: unknown) {
-  if (field.kind === 'money' || field.kind === 'reference') return sql`${value === null ? null : JSON.stringify(value)}::jsonb`;
+  if (field.kind === 'structured' || field.kind === 'money' || field.kind === 'reference') return sql`${value === null ? null : JSON.stringify(value)}::jsonb`;
   if (field.kind === 'multiple_choice' || field.kind === 'category') return sql`${value}::uuid[]`;
   return sql`${value}`;
 }
@@ -57,6 +67,17 @@ export function normalizeFieldValue(field: TypedField, input: unknown, previous?
   if (field.required && isEmptyFieldValue(value)) return fail('Required field value missing');
   if (value === null) return null;
   switch (field.kind) {
+    case 'structured': {
+      try {
+        const parsed=parseStructuredValue(field.config.schema!,value);
+        if(Array.isArray(parsed))for(const entry of parsed){
+          if('contexts' in entry)for(const context of entry.contexts){const option=field.config.options?.find(o=>o.id===context);const retained=Array.isArray(previous)&&previous.some((old:any)=>old.id===entry.id&&old.contexts?.includes(context));if(!option||(!option.active&&!retained))return fail('Unknown or inactive contact context');}
+          if(field.config.schema==='phone_entries'&&'value'in entry){const phone=parsePhoneNumberFromString(entry.value);if(!phone?.isValid())return fail('Invalid international phone value');entry.value=phone.number;}
+        }
+        if(Array.isArray(parsed))parsed.forEach((entry,index)=>{if('preference'in entry)entry.preference=index+1;});
+        return parsed;
+      }catch{return fail('Invalid structured field value');}
+    }
     case 'integer': {
       if (typeof value !== 'string' || !/^-?\d+$/.test(value)) return fail('Invalid integer value');
       const integer = BigInt(value);
@@ -121,16 +142,17 @@ export async function validateReferences(tx: Executor, field: TypedField, value:
 }
 export function convertFieldValue(previous: TypedField, next: TypedField, input: unknown): FieldValue {
   if (input === null || input === undefined) return normalizeFieldValue(next, null, input);
-  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'multiple_choice' || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
+  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'structured' && next.config.schema!=='partial_date' || next.kind === 'multiple_choice' || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
   if (input === '') return normalizeFieldValue(next, ['text', 'multiline'].includes(next.kind) ? '' : null, input);
   let value = normalizeFieldValue({ ...previous, required: false }, input, input);
+  if(previous.kind==='structured'||next.kind==='structured'){if(previous.kind!==next.kind||previous.config.schema!==next.config.schema)return fail('Unsafe field conversion');return normalizeFieldValue(next,value,input);}
   if (previous.kind === 'reference' || next.kind === 'reference') {
     if (previous.kind !== next.kind) return fail('Unsafe field conversion');
-    if (previous.config.multiple && !next.config.multiple) { if (!Array.isArray(value) || value.length !== 1) return fail('Unsafe field conversion'); value = value[0]; }
+    if (previous.config.multiple && !next.config.multiple) { if (!Array.isArray(value) || value.length !== 1) return fail('Unsafe field conversion'); value = value[0] as FieldValue; }
     else if (!previous.config.multiple && next.config.multiple) value = [value as ReferenceValue];
   } else if (choiceKinds.has(previous.kind) || choiceKinds.has(next.kind)) {
     if (!choiceKinds.has(previous.kind) || !choiceKinds.has(next.kind)) return fail('Unsafe field conversion');
-    if (previous.kind === 'multiple_choice' && next.kind === 'single_choice') { if (!Array.isArray(value) || value.length !== 1) return fail('Unsafe field conversion'); value = value[0]; }
+    if (previous.kind === 'multiple_choice' && next.kind === 'single_choice') { if (!Array.isArray(value) || value.length !== 1) return fail('Unsafe field conversion'); value = value[0] as FieldValue; }
     else if (previous.kind === 'single_choice' && next.kind === 'multiple_choice') value = [value as string];
   } else if (previous.kind !== next.kind) {
     if (previous.kind === 'money' || next.kind === 'money') return fail('Unsafe field conversion');

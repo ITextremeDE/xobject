@@ -22,7 +22,7 @@ export async function installSystemRelationships(tx: Executor, workspaceId: stri
 }
 export async function relationshipTypes(tx: Executor, workspaceId: string): Promise<RelationshipType[]> {
   if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id=${workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404,'Workspace not found');
-  const rows = (await sql<Omit<RelationshipType,'pairs'>>`SELECT id,workspace_id AS "workspaceId",technical_name AS "technicalName",kind,labels,left_labels AS "leftLabels",right_labels AS "rightLabels",directed,left_min AS "leftMin",left_max AS "leftMax",right_min AS "rightMin",right_max AS "rightMax",allow_all AS "allowAll",active,rules_state AS "rulesState",version,left_applicability AS "leftApplicability",right_applicability AS "rightApplicability" FROM sys_relationship_types WHERE workspace_id=${workspaceId}::uuid ORDER BY kind,technical_name`.execute(tx)).rows;
+  const rows = (await sql<Omit<RelationshipType,'pairs'>>`SELECT (SELECT module_key FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "moduleKey",EXISTS(SELECT 1 FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "isProtected",id,workspace_id AS "workspaceId",technical_name AS "technicalName",kind,labels,left_labels AS "leftLabels",right_labels AS "rightLabels",directed,left_min AS "leftMin",left_max AS "leftMax",right_min AS "rightMin",right_max AS "rightMax",allow_all AS "allowAll",active,rules_state AS "rulesState",version,left_applicability AS "leftApplicability",right_applicability AS "rightApplicability" FROM sys_relationship_types WHERE workspace_id=${workspaceId}::uuid ORDER BY kind,technical_name`.execute(tx)).rows;
   const pairs = (await sql<{relationship_type_id:string;leftObjectTypeId:string;rightObjectTypeId:string}>`SELECT relationship_type_id,left_object_type_id AS "leftObjectTypeId",right_object_type_id AS "rightObjectTypeId" FROM sys_relationship_type_pairs WHERE workspace_id=${workspaceId}::uuid ORDER BY left_object_type_id,right_object_type_id`.execute(tx)).rows;
   const used=new Set((await sql<{id:string}>`SELECT DISTINCT COALESCE(new_value->>'relationshipTypeId',old_value->>'relationshipTypeId') AS id FROM sys_journal WHERE workspace_id=${workspaceId}::uuid AND entity_kind='relationship'`.execute(tx)).rows.map(row=>row.id));
   return rows.map(row=>({...row,...(row.kind==='custom'?{pairLocked:used.has(row.id)}:{}),pairs:pairs.filter(pair=>pair.relationship_type_id===row.id).map(({leftObjectTypeId,rightObjectTypeId})=>({leftObjectTypeId,rightObjectTypeId}))}));
@@ -50,6 +50,7 @@ export async function configureRelationship(tx: Executor, args: {workspaceId:str
   }
   const changed=(Object.keys(next) as (keyof RelationshipConfiguration)[]).filter(key=>!previous||!isDeepStrictEqual(previous[key],next[key]));
   if (!changed.length) return previous!;
+  if(previous?.isProtected&&changed.some(key=>!['labels','leftLabels','rightLabels'].includes(key)))throw new AppError(403,'Module relationship structure is protected');
   if(previous?.kind==='custom'&&previous.pairLocked&&!isDeepStrictEqual(previous.pairs,next.pairs))throw new AppError(409,'Used object pair is fixed');
   if (previous?.rulesState==='active') {
     if (previous.directed!==next.directed && (await sql`SELECT 1 FROM sys_relationship_journal_endpoints ep JOIN sys_journal j ON j.id=ep.journal_id WHERE COALESCE(j.new_value->>'relationshipTypeId',j.old_value->>'relationshipTypeId')=${previous.id} LIMIT 1`.execute(tx)).rows.length) throw new AppError(409,'Used relationship direction is fixed');
@@ -82,7 +83,13 @@ export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:str
   if(!previous)throw new AppError(404,'Module not found');
   if(!previous.available)throw new AppError(409,'Module is not implemented yet');
   if(previous.version!==args.version)throw new AppError(409,'Module version conflict');
-  if(previous.enabled===args.enabled&&(!args.enabled||previous.primaryChain))return previous;
+  if(previous.enabled===args.enabled&&(!args.enabled||args.key!=='projects'||previous.primaryChain))return previous;
+  if(args.key!=='projects'){
+    if(args.enabled)await install();
+    await sql`UPDATE sys_workspace_modules SET enabled=${args.enabled},version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
+    await journal('workspace',args.workspaceId,v7(),`module.${args.key}`,previous.enabled,args.enabled);
+    return {...previous,enabled:args.enabled,version:previous.version+1};
+  }
   const primary=(await relationshipTypes(tx,args.workspaceId)).find(type=>type.kind==='primary')!;
   if(!args.enabled&&(await sql`SELECT 1 FROM sys_relationships WHERE relationship_type_id=${primary.id}::uuid LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Remove existing Primary associations before disabling Projects');
   const chain=args.enabled?await install():previous.primaryChain;
@@ -98,7 +105,7 @@ export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:str
 
 /** Frozen version-1 projection used only by the original schema installer. */
 async function baselineSystemDefinitions(tx:Executor,workspaceId:string) {
-  const rows=(await sql<RelationshipType>`SELECT id,workspace_id AS "workspaceId",technical_name AS "technicalName",kind,labels,left_labels AS "leftLabels",right_labels AS "rightLabels",directed,left_min AS "leftMin",left_max AS "leftMax",right_min AS "rightMin",right_max AS "rightMax",allow_all AS "allowAll",active,rules_state AS "rulesState",version FROM sys_relationship_types WHERE workspace_id=${workspaceId}::uuid AND kind<>'custom' ORDER BY kind,technical_name`.execute(tx)).rows;
+  const rows=(await sql<RelationshipType>`SELECT (SELECT module_key FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "moduleKey",EXISTS(SELECT 1 FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "isProtected",id,workspace_id AS "workspaceId",technical_name AS "technicalName",kind,labels,left_labels AS "leftLabels",right_labels AS "rightLabels",directed,left_min AS "leftMin",left_max AS "leftMax",right_min AS "rightMin",right_max AS "rightMax",allow_all AS "allowAll",active,rules_state AS "rulesState",version FROM sys_relationship_types WHERE workspace_id=${workspaceId}::uuid AND kind<>'custom' ORDER BY kind,technical_name`.execute(tx)).rows;
   const pairs=(await sql<{relationship_type_id:string;leftObjectTypeId:string;rightObjectTypeId:string}>`SELECT relationship_type_id,left_object_type_id AS "leftObjectTypeId",right_object_type_id AS "rightObjectTypeId" FROM sys_relationship_type_pairs WHERE workspace_id=${workspaceId}::uuid ORDER BY left_object_type_id,right_object_type_id`.execute(tx)).rows;
   return rows.map(row=>({...row,pairs:pairs.filter(pair=>pair.relationship_type_id===row.id).map(({leftObjectTypeId,rightObjectTypeId})=>({leftObjectTypeId,rightObjectTypeId}))}));
 }

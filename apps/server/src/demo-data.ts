@@ -1,18 +1,34 @@
+import {contactExtensionLayout,resolveFormLayout} from '@xobject/contracts';
 import { randomBytes } from 'node:crypto';
 import { v7 } from 'uuid';
-import type { ContentPermissions, ForeignSettings, ManagedUser, RecordSecurity, Workspace, WorkspaceGroup, FormEntry, AccessLevel, ClassificationRules, CustomFieldKind, FieldConfig, FieldValue, ObjectDefinition, DataRecord } from '@xobject/contracts';
+import type { ContentPermissions, ForeignSettings, ManagedUser, RecordSecurity, Workspace, WorkspaceGroup, AccessLevel, ClassificationRules, CustomFieldKind, FieldConfig, FieldValue, ObjectDefinition, DataRecord } from '@xobject/contracts';
 import {emptyFieldInputRules,defaultNumbering} from '@xobject/contracts';
 import { Application } from './domain.js';
 import type { Database } from './database.js';
 
 type Labels = { de: string; en: string };
 type SeedField = { name: string; labels: Labels; kind?: CustomFieldKind; config?: FieldConfig; required?: boolean };
-export type DemoLink = { from: { objectTypeId: string; recordId: string }; to: { objectTypeId: string; recordId: string }; relation: 'primary' | 'contact_person' | 'vehicle' | 'general' | 'identity' | 'coverage' | 'assigned_vehicle' };
+export type DemoLink = { from: { objectTypeId: string; recordId: string }; to: { objectTypeId: string; recordId: string }; relation: 'primary' | 'contact_person' | 'vehicle' | 'general' | 'identity' | 'coverage' | 'assigned_vehicle' | 'distribution_member' };
 const labels = (de: string, en: string): Labels => ({ de, en });
-const field = (name: string, de: string, en: string, kind: CustomFieldKind = 'text', config?: FieldConfig): SeedField => ({ name, labels: labels(de, en), kind, config });
+const field = (name: string, de: string, en: string, kind: CustomFieldKind = 'text', config?: FieldConfig): SeedField => ({ name, labels: labels(de, en), kind, config:kind==='multiline'?{formatted:true,...config}:config });
 
 const choiceTranslations: Record<string, string> = {"Kunde": "Customer", "Lieferant": "Supplier", "Partner": "Partner", "Aktiv": "Active", "In Klärung": "Under review", "Inaktiv": "Inactive", "Kundenprojekt": "Customer project", "Internes Projekt": "Internal project", "Geplant": "Planned", "In Arbeit": "In progress", "Abgeschlossen": "Completed", "Arbeitspaket": "Work package", "Servicefall": "Service request", "Offen": "Open", "Erledigt": "Done", "Aufgabe": "Task", "Rückfrage": "Question", "Servicefahrzeug": "Service vehicle", "Poolfahrzeug": "Pool vehicle", "Verfügbar": "Available", "Im Einsatz": "In use", "In Wartung": "Under maintenance", "Intern": "Internal", "Kundenarbeit": "Customer work", "Priorität": "Priority", "Versicherung": "Insurance", "Wartung": "Maintenance", "Entwurf": "Draft", "Ausgelaufen": "Expired", "Berechtigungstest": "Access check", "Notebook": "Laptop", "Diagnosegerät": "Diagnostic tool"};
 const choiceLabels = (de: string): Labels => labels(de, choiceTranslations[de] ?? de);
+
+const demoBriefs:Record<string,{title:string;focus:string;steps:string[]}>= {
+ contacts:{title:'Contact notes',focus:'Maintain a reliable contact profile and keep organization and person identities separate.',steps:['Confirm the preferred telephone number and email address.','Review organization membership and related identities.','Record the next conversation here; keep access settings intentional.']},
+ projects:{title:'Project brief',focus:'Coordinate scope, ownership and a clear outcome across the linked Cases and Tasks.',steps:['Confirm scope, budget and the target date with the project owner.','Use Cases for discovery and implementation work.','Review open Tasks before the next project meeting.']},
+ cases:{title:'Case brief',focus:'Keep the working context, decisions and acceptance criteria together.',steps:['Document the current workflow and unanswered questions.','Assign follow-up Tasks and check the linked Project.','Review the result with the responsible person before closing the Case.']},
+ tasks:{title:'Work instructions',focus:'Complete one concrete result and document the outcome for the next person.',steps:['Check the assignment, due date and parent context.','Carry out the work and note any blockers.','Review the result and update the Task status when finished.']},
+ vehicles:{title:'Vehicle notes',focus:'Keep the service vehicle available and its operational information current.',steps:['Check mileage, equipment and upcoming maintenance.','Review the linked service Cases and dedicated device.','Report damage or availability changes before the next assignment.']},
+ distribution_lists:{title:'Distribution notes',focus:'Maintain the intended audience without duplicating contact data.',steps:['Review the linked members and their current contact details.','Remove obsolete memberships through the relationship controls.','Check the audience before any future communication.']},
+ contracts:{title:'Contract review',focus:'Track coverage, commercial conditions and upcoming renewal decisions.',steps:['Review the validity dates and selected services.','Check the covered devices and associated costs.','Record the renewal decision before the contract expires.']},
+ devices:{title:'Equipment instructions',focus:'Keep the device identifiable, usable and assigned to the correct custodians.',steps:['Verify the serial number and physical condition.','Check support contacts and the related service agreement.','Return the device with its accessories after use.']},
+};
+function demoMarkdown(objectName:string,keyword:string,original:string):string{
+ const brief=demoBriefs[objectName]??{title:'Review notes',focus:'Review this fictional record and its linked context.',steps:['Inspect the fields and relationships.','Check the expected access behavior.','Record the test outcome.']};
+ return [`## ${brief.title}`,`**Record:** ${keyword}`, '*Fictional demonstration text. The dated notes below are sample content, not journal events.*',original||brief.focus,`### Next actions\n${brief.steps.map(step=>'- '+step).join('\n')}`,'### Working notes','----- Nov 2, 2026 9:15 AM (John Doe) -----\nPrepared the initial information. '+brief.focus,'----- Nov 3, 2026 2:35 PM (Jane Doe) -----\nReviewed the details and linked records. The next review should confirm the open actions and document any changes.','> Keep business notes here. The journal independently records who actually saved each change.'].join('\n\n');
+}
 
 /** Entirely fictional fixtures, created through the same rules as API/MCP. Never resets data. */
 export async function seedDemoData(db: Database, actorId: string, code = 'itx') {
@@ -31,6 +47,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   const [designer, member] = accounts;
   const module=(await app.execute('list_workspace_modules',{workspaceId:workspace.id},actorId) as import('@xobject/contracts').WorkspaceModule[]).find(item=>item.key==='projects')!;
   await app.execute('configure_workspace_module',{workspaceId:workspace.id,key:'projects',enabled:true,version:module.version},actorId);
+  await app.execute('configure_workspace_module',{workspaceId:workspace.id,key:'contacts',enabled:true,version:1},actorId);
   const installed=await app.execute('list_object_types',{workspaceId:workspace.id},actorId) as {id:string;technicalName:string}[];
   const objects: Record<string, ObjectDefinition> = {}, records: Record<string, DataRecord[]> = {}, links: DemoLink[] = [];
   const group = await app.execute('create_group', { workspaceId: workspace.id, name: 'Project team' }, actorId) as { id: string };
@@ -40,8 +57,9 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     const created = installed.find(item=>item.technicalName===name) ?? await app.execute('create_object_type', { workspaceId: workspace.id, technicalName: name, labels: labels(de, en), standardFields: ['keyword', 'type_status', 'category'] }, actorId) as { id: string };
     let model = await app.execute('get_object_type', { objectTypeId: created.id }, actorId) as ObjectDefinition;
     const keyword = model.fields.find(item => item.technicalName === 'keyword')!;
-    await app.execute('configure_field', { fieldId: keyword.id, version: keyword.version, required: true }, actorId);
+    if(!keyword.isDerived)await app.execute('configure_field', { fieldId: keyword.id, version: keyword.version, required: true }, actorId);
     for (const item of fields) {
+      if(model.fields.some(existing=>existing.technicalName===item.name))throw new Error('Demo field duplicates a supplied field');
       const rules=emptyFieldInputRules();
       if(['registration_number','serial_number','contract_number'].includes(item.name)){rules.unique=true;rules.description=labels('Eindeutige Kennung dieses Datensatzes.','Unique identifier for this record.');rules.helpText=labels('Eine bereits verwendete Kennung darf nicht erneut vergeben werden.','An identifier already in use cannot be assigned again.');}
       if(item.name==='country'){rules.defaultValue='Germany';rules.description=labels('Land der Anschrift.','Country of the postal address.');rules.helpText=labels('Den englischen Ländernamen verwenden.','Use the English country name.');}
@@ -50,7 +68,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
       await app.execute('create_field', { objectTypeId: created.id, technicalName: item.name, labels: item.labels, kind: item.kind ?? 'text', config: item.config, required: item.required ?? false,inputRules:rules }, actorId);
     }
     model=await app.execute('get_object_type',{objectTypeId:created.id},actorId) as ObjectDefinition;
-    await app.execute('configure_object_settings',{objectTypeId:model.id,version:model.version,labels:model.labels,numbering:{...defaultNumbering(),enabled:true,prefix:({contacts:'CON',projects:'PRJ',cases:'CAS',tasks:'TSK',vehicles:'VEH',contracts:'CTR',devices:'DEV',access_checks:'CHK'} as Record<string,string>)[name]+'-',padding:5}},actorId);
+    if(name!=='distribution_lists')await app.execute('configure_object_settings',{objectTypeId:model.id,version:model.version,labels:model.labels,numbering:{...defaultNumbering(),enabled:true,prefix:({contacts:'CON',projects:'PRJ',cases:'CAS',tasks:'TSK',vehicles:'VEH',contracts:'CTR',devices:'DEV',access_checks:'CHK',distribution_lists:'DST'} as Record<string,string>)[name]+'-',padding:5}},actorId);
     const typeOptions = types.map(name => ({ id: v7(), kind: 'type' as const, labels: choiceLabels(name), typeId: null, active: true }));
     const statusOptions = [null, ...typeOptions.map(item => item.id)].flatMap(typeId => statuses.map(name => ({ id: v7(), kind: 'status' as const, labels: choiceLabels(name), typeId, active: true })));
     const config: ClassificationRules = { type: { required: false, defaultId: typeOptions[0]?.id ?? null }, status: { required: false, defaults: [null, ...typeOptions.map(item => item.id)].map(typeId => ({ typeId, statusId: statusOptions.find(item => item.typeId === typeId)!.id })) }, category: { required: false, multiple: true, defaultIds: [] }, options: [...typeOptions, ...statusOptions, ...['Intern', 'Kundenarbeit', 'Priorität'].map(name => ({ id: v7(), kind: 'category' as const, labels: choiceLabels(name), typeId: null, active: true }))] };
@@ -60,36 +78,30 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   }
   async function record(objectName: string, keyword: string, values: Record<string, FieldValue>, statusIndex = 0) {
     const model = objects[objectName];
+    values={...values};
+    for(const field of model.fields.filter(field=>field.kind==='multiline'&&field.config.formatted))if(values[field.technicalName]!==null)values[field.technicalName]=demoMarkdown(objectName,keyword,typeof values[field.technicalName]==='string'?values[field.technicalName] as string:'');
     const types = model.classification.options.filter(option => option.kind === 'type');
     const typeId = types[records[objectName].length % types.length].id;
     const statuses = model.classification.options.filter(option => option.kind === 'status' && option.typeId === typeId);
     const category = model.classification.options.filter(option => option.kind === 'category')[objectName === 'contacts' ? 1 : 0];
-    const row = await app.execute('create_record', { objectTypeId: model.id, keyword, values, classification: { type: typeId, status: statuses[statusIndex % statuses.length].id, category: [category.id] } }, actorId) as DataRecord;
+    const row = await app.execute('create_record', { objectTypeId: model.id, ...(!model.fields.some(field=>field.technicalName==='keyword'&&field.isDerived)?{keyword}:{}), values, classification: { type: typeId, status: statuses[statusIndex % statuses.length].id, category: [category.id] } }, actorId) as DataRecord;
     records[objectName].push(row); return row;
   }
   function link(fromObject: string, from: DataRecord, toObject: string, to: DataRecord, relation: DemoLink['relation'] = 'primary') {
     links.push({ from: { objectTypeId: objects[fromObject].id, recordId: from.id }, to: { objectTypeId: objects[toObject].id, recordId: to.id }, relation });
   }
-  const contactKinds = ['Organisation', 'Einzelkontakt', 'Ansprechpartner'].map((de, i) => ({ id: v7(), labels: labels(de, ['Organization', 'Individual contact', 'Contact person'][i]), active: true }));
-  await object('contacts', 'Kontakte', 'Contacts', [
-    { ...field('contact_kind', 'Kontaktart', 'Contact kind', 'single_choice', { options: contactKinds }), required: true },
-    field('company_name', 'Firmenname', 'Company name'), field('last_name', 'Nachname', 'Last name'), field('first_name', 'Vorname', 'First name'),
-    field('email_address', 'E-Mail-Adresse', 'Email address', 'email'), field('phone_number', 'Telefonnummer', 'Phone number', 'phone'), field('website', 'Webseite', 'Website', 'url'),
-    field('street', 'Straße und Hausnummer', 'Street and number'), field('postal_code', 'Postleitzahl', 'Postal code'), field('city', 'Ort', 'City'), field('country', 'Land', 'Country'),
-    field('commercial_register', 'Handelsregister', 'Commercial register'), field('birthday', 'Geburtsdatum', 'Date of birth', 'date'), field('notes', 'Notizen', 'Notes', 'multiline', { formatted: true }),
-  ], ['Kunde', 'Lieferant', 'Partner'], ['Aktiv', 'In Klärung', 'Inaktiv']);
-  const contactModel=objects.contacts,contactKind=contactModel.fields.find(field=>field.technicalName==='contact_kind')!;
-  for(const name of ['first_name','last_name','birthday','commercial_register']) {
-    const target=contactModel.fields.find(field=>field.technicalName===name)!;
-    await app.execute('configure_field',{fieldId:target.id,version:target.version,required:target.required,applicability:{fieldId:contactKind.id,optionIds:(name==='commercial_register'?[contactKinds[0],contactKinds[1]]:[contactKinds[1],contactKinds[2]]).map(option=>option.id)}},actorId);
-  }
-  objects.contacts=await app.execute('get_object_type',{objectTypeId:contactModel.id},actorId) as ObjectDefinition;
+  await object('contacts', 'Kontakte', 'Contacts', [], ['Kunde', 'Lieferant', 'Partner'], ['Aktiv', 'In Klärung', 'Inaktiv']);
+  const contactKinds=objects.contacts.fields.find(item=>item.technicalName==='contact_kind')!.config.options!;
+  const contactChoice=(purpose:string,label:string)=>objects.contacts.fields.find(f=>f.id===objects.contacts.contactProfile!.fields[purpose])!.config.options!.find(o=>o.labels.en===label)!.id;
+  const name=(text:string)=>[{id:v7(),text}];
+  const email=(value:string,purpose='emails',context='Work')=>[{id:v7(),value,contexts:purpose==='phones'?[contactChoice(purpose,'Work'),contactChoice(purpose,context==='Work'?'Voice calls':context)]:[contactChoice(purpose,context)],preference:1}];
+  const address=(street:string,houseNumber:string)=>[{id:v7(),contexts:[contactChoice('addresses','Work')],preference:1,address:{poBox:'',extended:'',streetLines:[street],houseNumber,postalCode:'80331',locality:'Munich',region:'Bavaria',country:'Germany',formatted:''}}];
   const organizations: DataRecord[] = [];
   const companies = ['Northlight Workshops Ltd', 'Forest Mobility Cooperative', 'Clearwater Technology Ltd', 'Sunridge Arts Association', 'Harbour Planning Ltd', 'Meadow Logistics Ltd'];
-  for (let i = 0; i < companies.length; i++) organizations.push(await record('contacts', companies[i], { contact_kind: contactKinds[0].id, company_name: companies[i], email_address: `contact${i+1}@example.test`, phone_number: `+4989201000${10+i}`, website: 'https://example.org', street: `${['Workshop Road','Forest Lane','River Street'][i%3]} ${i+1}`, postal_code: '80331', city: 'Munich', country: 'Germany', commercial_register: i === 3 ? 'VR 900004 (fictional)' : `HRB ${900001+i} (fictional)`, notes: 'Fictional organization for project and contact-person testing.' }));
+  for (let i = 0; i < companies.length; i++) organizations.push(await record('contacts', companies[i], { contact_kind: contactKinds[0].id, company_name: companies[i], emails: email(`contact${i+1}@example.test`), phones: email(`+4989201000${10+i}`,'phones'), websites: email('https://example.org','websites'), addresses: address(['Workshop Road','Forest Lane','River Street'][i%3],String(i+1)), commercial_register: i === 3 ? 'VR 900004 (fictional)' : `HRB ${900001+i} (fictional)`, notes: 'Fictional organization for project and contact-person testing.' }));
   for (const [i, person] of [['Emily','Example'],['Oliver','Sample'],['Emily','Example']].entries()) {
     const individual = i === 2;
-    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[i]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, first_name: person[0], last_name: person[1], company_name: individual ? null : companies[i], email_address: `person${i+1}@example.test`, phone_number: `+4989201000${30+i}`, birthday: `199${i===2?0:i}-06-15`, city: 'Munich', country: 'Germany', notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[i]}. The relationship is stored as a real link.` });
+    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[i]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, salutation:contactChoice('salutation',i===1?'Mr':'Ms'), name_prefix:i===0?contactChoice('name_prefix','Dr.'):null, first_name: name(person[0]), last_name: name(person[1]), emails: email(`person${i+1}@example.test`), phones: email(`+4989201000${30+i}`,'phones','Mobile'), birthday: {year:i===2?null:1990+i,month:6,day:15}, addresses: address('Example Lane','10'), notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[i]}. The relationship is stored as a real link.` });
     if (!individual) link('contacts', organizations[i], 'contacts', row, 'contact_person');
   }
   await object('projects', 'Projekte', 'Projects', [field('objective', 'Projektziel', 'Objective', 'multiline', { formatted: true }), field('start_date', 'Beginn', 'Start date', 'date'), field('target_date', 'Zieldatum', 'Target date', 'date'), field('budget', 'Budget', 'Budget', 'money'), field('progress', 'Fortschritt (%)', 'Progress (%)', 'decimal', { scale: 1 }), field('project_owner', 'Verantwortlich', 'Owner', 'reference', { referenceTarget: 'user', multiple: false }), field('team', 'Projektteam', 'Team', 'reference', { referenceTarget: 'group', multiple: false })], ['Kundenprojekt', 'Internes Projekt'], ['Geplant', 'In Arbeit', 'Abgeschlossen']);
@@ -122,10 +134,9 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   // A genuine edit creates before/after history through the common application layer.
   const firstTask = records.tasks[0];
   records.tasks[0] = await app.execute('update_record', { objectTypeId: objects.tasks.id, recordId: firstTask.id, version: firstTask.version, values: { estimated_hours: '2.5' } }, actorId) as DataRecord;
-  await app.execute('create_relationship_type', { workspaceId: workspace.id, technicalName: 'contact_person', configuration: { labels: { de: 'Ansprechpartner', en: 'Contact person' }, leftLabels: { de: 'Ansprechpartner', en: 'Contact persons' }, rightLabels: { de: 'Organisation', en: 'Organization' },leftApplicability:{fieldId:contactKind.id,optionIds:[contactKinds[0].id]},rightApplicability:{fieldId:contactKind.id,optionIds:[contactKinds[2].id]}, directed: true, leftMin: 0, leftMax: null, rightMin: 0, rightMax: 1, allowAll: false, pairs: [{ leftObjectTypeId: objects.contacts.id, rightObjectTypeId: objects.contacts.id }], active: true } }, actorId);
-  const identityRule={fieldId:contactKind.id,optionIds:[contactKinds[1].id,contactKinds[2].id]};
-  const identity=await app.execute('create_relationship_type',{workspaceId:workspace.id,technicalName:'contact_identities',configuration:{labels:{de:'Identitäten',en:'Identities'},leftLabels:{de:'Identitäten',en:'Identities'},rightLabels:{de:'Identitäten',en:'Identities'},directed:false,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:objects.contacts.id,rightObjectTypeId:objects.contacts.id}],active:true,leftApplicability:identityRule,rightApplicability:identityRule}},actorId) as import('@xobject/contracts').RelationshipType;
-  await app.execute('activate_relationship_type',{workspaceId:workspace.id,relationshipTypeId:identity.id,version:identity.version},actorId);
+  await object('distribution_lists','Verteiler','Distribution lists',[],['Partner'],['Aktiv','Inaktiv']);
+  const distribution=await record('distribution_lists','Workshop partners',{description:'Contacts involved in workshop planning.\nIncludes organization and contact-person records.\nMembership is maintained manually.',notes:'Fictional working notes for reviewing the workshop partner audience.'});
+  for(const target of [organizations[0],organizations[1],records.contacts[6]])link('distribution_lists',distribution,'contacts',target,'distribution_member');
   await connectDemoRelationships(db,actorId,workspace.id,links);
   // Additional generic objects exercise every currently implemented custom field kind.
   const serviceOptions = [labels('Reparatur', 'Repair'), labels('Ersatz', 'Replacement'), labels('Vor-Ort-Service', 'On-site service')].map(value => ({id: v7(), labels: value, active: true}));
@@ -144,6 +155,8 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     field('custodians', 'Verantwortliche', 'Custodians', 'reference', {referenceTarget: 'group', multiple: true}),
     field('instructions', 'Anleitung', 'Instructions', 'multiline', {formatted: true}),
     field('retired_tag', 'Frühere Kennzeichnung', 'Retired tag'),
+    field('supplier_email','Lieferanten-E-Mail','Supplier email','email'),field('support_phone','Support-Telefon','Support telephone','phone'),field('support_portal','Support-Portal','Support portal','url'),
+    field('support_emails','Support-E-Mail-Adressen','Support email addresses','structured',{schema:'email_entries',options:[]}),
   ], ['Notebook', 'Diagnosegerät'], ['Verfügbar', 'Im Einsatz', 'In Wartung']);
   for (let i = 0; i < 3; i++) await record('contracts', ['Workshop equipment cover', 'Mobile service maintenance', 'Expired equipment cover'][i], {
     contract_number: `DEMO-${2026}-${100+i}`, valid_from: '2026-01-01', valid_until: i === 2 ? '2026-06-30' : '2027-12-31',
@@ -151,6 +164,8 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     internal_notes: 'Fictional pricing note. This field is hidden from James by the object-level field ceiling.',
   }, i);
   for (let i = 0; i < 4; i++) await record('devices', ['Workshop laptop', 'Mobile diagnostic kit', 'Spare laptop', 'Unassigned diagnostic kit'][i], {
+    supplier_email:`supplier${i+1}@example.test`,support_phone:'+498920100010',support_portal:'https://example.org/support',
+    support_emails:[{id:v7(),value:`support${i+1}@example.test`,contexts:[],preference:1}],
     serial_number: `DEMO-SN-${1000+i}`, model: i % 2 ? 'Diagnostic Kit D2' : 'Notebook L14',
     purchase_price: {amount: i === 2 ? '0.00' : '12345.67', currency: 'USD'}, quantity: String(i === 2 ? 0 : 1),
     weight: ['1.250', '12.345', '0.000', '2.500'][i], custodians: [{kind:'group',id:group.id}, {kind:'group',id:management.id}],
@@ -233,16 +248,11 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   // Explicit bilingual groups demonstrate form layout independently of column order.
   for (const name of Object.keys(objects)) {
     let model=await app.execute('get_object_type',{objectTypeId:objects[name].id},actorId) as ObjectDefinition;
-    const general:FormEntry[]=[],details:FormEntry[]=[],relations:FormEntry[]=[];
-    for(const item of model.fields.filter(item=>item.state==='active')) {
-      const standard=['keyword','business_number','type','status','category','access_principals'].includes(item.technicalName);
-      (standard?general:details).push({fieldId:item.id,width:['keyword','category','access_principals'].includes(item.technicalName)||['multiline','multiple_choice'].includes(item.kind)?'full':'half'});
-    }
-    for(const item of model.formRelationships??[])relations.push(item.definition.kind==='primary'?{primary:true,width:'full',visible:true}:{relationshipTypeId:item.definition.id,side:item.side,width:(item.side==='left'?item.definition.leftMax:item.definition.rightMax)===1?'half':'full',visible:true,expanded:'open'});
-    const groups=[{id:'general',labels:labels('Allgemein','General'),fields:general},{id:'details',labels:labels('Details','Details'),fields:details},...(relations.length?[{id:'relationships',labels:labels('Verknüpfungen','Relationships'),fields:relations}]:[])];
+    const baseGroups=resolveFormLayout(undefined,model.fields.filter(item=>item.state==='active'),true,model.formRelationships??[]).groups;
+    const groups=model.contactProfile?contactExtensionLayout(model.contactProfile,model.fields,{groups:baseGroups})!.groups.filter(g=>g.fields.length):baseGroups;
     model=await app.execute('configure_form_layout',{objectTypeId:model.id,version:model.version,layout:{groups}},actorId) as ObjectDefinition;
     if(name==='contacts') {
-      await app.execute('configure_form_layout',{objectTypeId:model.id,version:model.version,context:'projects',layout:{groups:groups.map(item=>item.id==='details'?{...item,fields:item.fields.filter(entry=>'fieldId'in entry&&!model.fields.some(f=>f.id===entry.fieldId&&['commercial_register','birthday'].includes(f.technicalName)))}:item)}},actorId);
+      await app.execute('configure_form_layout',{objectTypeId:model.id,version:model.version,context:'projects',layout:{groups}},actorId);
     }
     objects[name]=await app.execute('get_object_type',{objectTypeId:model.id},actorId) as ObjectDefinition;
     // Return current versions after relationship/security changes, not stale creation snapshots.
@@ -266,7 +276,7 @@ export async function connectDemoRelationships(db: Database, actorId: string, wo
   definitions=await app.execute('list_relationship_types',{workspaceId},actorId) as typeof definitions;
   for(const link of links) {
     if(!objects.some(type=>type.id===link.from.objectTypeId)||!objects.some(type=>type.id===link.to.objectTypeId))throw new Error('Demo plan does not match this workspace');
-    const technicalName=({primary:'primary_association',contact_person:'contact_person',vehicle:'case_vehicle',general:'general_relation',identity:'contact_identities',coverage:'device_coverage',assigned_vehicle:'vehicle_equipment'} as const)[link.relation];
+    const technicalName=({primary:'primary_association',contact_person:'contact_person',vehicle:'case_vehicle',general:'general_relation',identity:'contact_identity',coverage:'device_coverage',assigned_vehicle:'vehicle_equipment',distribution_member:'distribution_members'} as const)[link.relation];
     const type=definitions.find(type=>type.technicalName===technicalName);if(!type)throw new Error('Demo relationship definition missing');
     const snapshot=await app.execute('get_record_relationships',{objectTypeId:link.from.objectTypeId,recordId:link.from.recordId},actorId) as import('@xobject/contracts').RecordRelationships;
     const field=snapshot.fields.find(field=>field.definition.id===type.id&&field.side==='left');if(!field)throw new Error('Demo relationship side missing');

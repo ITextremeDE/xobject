@@ -1,3 +1,4 @@
+import {contactDerivedValue} from './contact-domain.js';
 import {securityGraph} from './ownership-settings.js';
 import {accessRank,membershipRights,resolveRecordAccess,defaultRecordSecurity,type RecordSecurity,type AccessExplanation,type Principal} from '@xobject/contracts';
 import {applies} from './field-applicability.js';
@@ -49,7 +50,7 @@ export class ObjectAccess {
 }
 export class ContentAccess {
  private policies=new Map<string,Promise<ObjectAccess>>();
- private fieldMetadata=new Map<string,Promise<{id:string;technical_name:string;applicability?:import('@xobject/contracts').FieldApplicability}[]>>();
+ private fieldMetadata=new Map<string,Promise<{id:string;technical_name:string;value_mode:'stored'|'derived';applicability?:import('@xobject/contracts').FieldApplicability}[]>>();
  constructor(readonly tx:Executor,readonly actor:string){}
  clear(){this.policies.clear();this.fieldMetadata.clear();}
  policy(id:string):Promise<ObjectAccess>{id=id.toLowerCase();let result=this.policies.get(id);if(!result){result=this.resolve(id);this.policies.set(id,result);}return result;}
@@ -74,15 +75,24 @@ export class ContentAccess {
   if(!cap[level])throw new AppError(403,'Content access denied');
   if(recordId&&!await this.readable(id,recordId,includeRecycled))throw new AppError(p.admin?404:403,p.admin?'Record not found':'Content access denied');return p;
  }
- fields(id:string){let fields=this.fieldMetadata.get(id);if(!fields){fields=sql<{id:string;technical_name:string;applicability?:import('@xobject/contracts').FieldApplicability}>`SELECT id,technical_name,applicability FROM sys_fields WHERE object_type_id=${id}::uuid`.execute(this.tx).then(result=>result.rows);this.fieldMetadata.set(id,fields);}return fields;}
+ fields(id:string){let fields=this.fieldMetadata.get(id);if(!fields){fields=sql<{id:string;technical_name:string;value_mode:'stored'|'derived';applicability?:import('@xobject/contracts').FieldApplicability}>`SELECT id,technical_name,value_mode,applicability FROM sys_fields WHERE object_type_id=${id}::uuid`.execute(this.tx).then(result=>result.rows);this.fieldMetadata.set(id,fields);}return fields;}
  async canField(id:string,name:string,mode:'read'|'edit'='read',recordId?:string){const p=await this.policy(id);const field=(await this.fields(id)).find(f=>f.technical_name===name);return field?p.field(field.id,recordId)[mode]:false;}
  async canCreateField(id:string,name:string){const p=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);return Boolean(field&&p.creationField(field.id));}
- async fieldValueByName(id:string,name:string,alias?:string){const policy=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);return field?policy.fieldValue(field.id,name,alias):sql`NULL::text`;}
- async keywordValue(id:string,alias?:string){const p=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name==='keyword');return field?p.fieldValue(field.id,'keyword',alias,sql`${sql.ref(alias?`${alias}.id`:'id')}::text`):sql`${sql.ref(alias?`${alias}.id`:'id')}::text`;}
+ async fieldValueByName(id:string,name:string,alias?:string){const policy=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);if(!field)return sql`NULL::text`;if(field.value_mode==='derived'){
+  const binding=(await sql<{field_key:string}>`SELECT field_key FROM sys_module_field_bindings WHERE field_id=${field.id}::uuid`.execute(this.tx)).rows[0];if(!binding)return sql`NULL::text`;
+  const value=await contactDerivedValue(this.tx,id,policy,binding.field_key,alias),allowed=policy.field(field.id).read;
+  if(!allowed)return sql`NULL::text`;
+  if(policy.sensitive&&!policy.admin)return sql`CASE WHEN ${sql.ref(alias?`${alias}.id`:'id')}=ANY(${[...policy.records.keys()].filter(record=>policy.field(field.id,record).read)}::uuid[]) THEN ${value} ELSE NULL END`;
+  return value;
+ }return policy.fieldValue(field.id,name,alias);}
+ async keywordReadable(id:string,recordId:string){if(!await this.canField(id,'keyword','read',recordId))return false;const field=(await this.fields(id)).find(f=>f.technical_name==='keyword');if(field?.value_mode!=='derived')return true;const row=await this.project(id,{id:recordId});return row.keyword!==recordId;}
+ async keywordValue(id:string,alias?:string){const value=await this.fieldValueByName(id,'keyword',alias);return sql`COALESCE(${value},${sql.ref(alias?`${alias}.id`:'id')}::text)`;}
  async project(id:string,row:Record<string,unknown>,includeRecycled=false){
   const policy=await this.policy(id),result={...row},recordId=String(row.id);
   if(!await this.readable(id,recordId,includeRecycled))return {id:row.id,version:row.version,keyword:recordId,permissions:contentCapabilities(0)};
   const fields=await this.fields(id);for(const field of fields)if(!policy.field(field.id,recordId).read)delete result[field.technical_name];
+  const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid`.execute(this.tx)).rows[0];
+  for(const field of fields.filter(f=>f.value_mode==='derived'&&policy.field(f.id,recordId).read))result[field.technical_name]=(await sql<Record<string,unknown>>`SELECT ${await this.fieldValueByName(id,field.technical_name)} AS value FROM ${sql.table(model.name)} WHERE id=${recordId}::uuid`.execute(this.tx)).rows[0].value;
   const dependent=fields.filter(field=>field.applicability&&policy.field(field.id,recordId).read&&!policy.field(field.applicability.fieldId,recordId).read);
   if(dependent.length)result.applicableFieldIds=dependent.filter(field=>applies(field,fields,row)).map(field=>field.id);
   if(await this.canField(id,'status','read',recordId)&&!await this.canField(id,'type','read',recordId)){
@@ -90,9 +100,9 @@ export class ContentAccess {
    result.allowedStatusIds=config.options.filter(option=>option.kind==='status'&&option.typeId===(row.type??null)&&(option.active||option.id===row.status)).map(option=>option.id);
   }
   if(policy.sensitive)result.access_principals=policy.records.get(recordId)!.policy.owners;if(!Object.hasOwn(result,'keyword'))result.keyword=recordId;
-  return {...result,fieldAccess:Object.fromEntries(fields.map(f=>[f.id,policy.field(f.id,recordId)])),access:policy.records.has(recordId)?{...policy.records.get(recordId)!.access,level:contentLevels[policy.recordLevel(recordId)]}:undefined,permissions:policy.recordCapabilities(recordId)};
+  return {...result,fieldAccess:Object.fromEntries(fields.map(f=>[f.id,{...policy.field(f.id,recordId),edit:f.value_mode!=='derived'&&policy.field(f.id,recordId).edit}])),access:policy.records.has(recordId)?{...policy.records.get(recordId)!.access,level:contentLevels[policy.recordLevel(recordId)]}:undefined,permissions:policy.recordCapabilities(recordId)};
  }
- async checkWrites(id:string,data:Record<string,unknown>,previous?:Record<string,unknown>){const p=await this.policy(id),recordId=typeof previous?.id==='string'?previous.id:undefined;for(const f of await this.fields(id)){if(!Object.hasOwn(data,f.technical_name))continue;if(!(recordId?p.field(f.id,recordId).edit:p.creationField(f.id)))throw new AppError(403,'Field edit denied');}}
+ async checkWrites(id:string,data:Record<string,unknown>,previous?:Record<string,unknown>){const p=await this.policy(id),recordId=typeof previous?.id==='string'?previous.id:undefined;for(const f of await this.fields(id)){if(!Object.hasOwn(data,f.technical_name))continue;if(f.value_mode==='derived')throw new AppError(403,'Derived field cannot be assigned');if(!(recordId?p.field(f.id,recordId).edit:p.creationField(f.id)))throw new AppError(403,'Field edit denied');}}
  async eligiblePrincipals(id:string){
   const p=await this.policy(id);const users=(await sql<{id:string;name:string}>`SELECT u.id,u.name FROM sys_users u WHERE u.active AND (u.is_admin OR EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.user_id=u.id AND m.workspace_id=${p.workspace}::uuid)) ORDER BY u.name,u.id`.execute(this.tx)).rows;
   const result:{kind:'user'|'group';id:string;name:string}[]=[];
@@ -141,7 +151,7 @@ export async function readableRecordJournal(objectTypeId:string,entries:import('
       const value=structuredClone(entry[name]) as {left?:{objectTypeId:string;recordId:string;keyword:string};right?:{objectTypeId:string;recordId:string;keyword:string}}|null;
       if(value)for(const endpoint of [value.left,value.right]){
         if(!endpoint||!await access.readable(endpoint.objectTypeId,endpoint.recordId,includeRecycled)){visible=false;break;}
-        if(!await access.canField(endpoint.objectTypeId,'keyword','read',endpoint.recordId))endpoint.keyword=endpoint.recordId;
+        if(!await access.keywordReadable(endpoint.objectTypeId,endpoint.recordId))endpoint.keyword=endpoint.recordId;
       }
       projected[name]=value;
     }

@@ -1,3 +1,4 @@
+import {contentAccess} from './content-permissions.js';
 import { sql } from 'kysely';
 import { effectiveWorkspaceLanguage, formLayoutSchema, formLayoutEntries, type Language } from '@xobject/contracts';
 import type { Executor } from './database.js';
@@ -56,7 +57,7 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     const keyword = (await sql`SELECT 1 FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND technical_name = 'keyword' AND state <> 'deleted'`.execute(tx)).rows.length > 0;
     if (!keyword) continue;
     // Identifiers come exclusively from trusted, validated model metadata.
-    const records = (await sql<{ id: string; keyword: string | null }>`SELECT id, keyword FROM ${sql.table(`${type.code}_${type.technical_name}`)} WHERE id = ANY(${ids}::uuid[])`.execute(tx)).rows;
+    const records = (await sql<{ id: string; keyword: string | null }>`SELECT id, ${await contentAccess().keywordValue(type.id)} AS keyword FROM ${sql.table(`${type.code}_${type.technical_name}`)} WHERE id = ANY(${ids}::uuid[])`.execute(tx)).rows;
     for (const record of records) if (record.keyword) names.set(`${type.id}:${record.id}`, record.keyword);
   }
   rows = await enrichRecordSecurityContext(tx, rows);

@@ -16,7 +16,7 @@ The common API/MCP application layer resolves the current administrator flag and
 
 Workspace membership and Designer status do not grant business-content permissions. Object/field/record rights, user-sensitive records and group grants are implemented under ADR 0026. Content queries use those grants; workspace metadata/configuration remains available under the separate roles.
 
-The initial local database receives an empty membership table. Existing administrator flags, definitions, records, sessions and journal entries are preserved; existing non-administrator accounts are not automatically assigned to workspaces.
+The current empty installation creates no accounts or memberships under [ADR 0028](0028-current-installation-baseline.md). Normal provisioning and application operations create them explicitly; account creation does not automatically assign workspace membership. Unreleased development instances use the current model without an older-role adoption path.
 
 ## Validation
 

@@ -5,7 +5,7 @@
 
 ## Context
 
-The backend experiment needs a browser interface that exercises real PostgreSQL records and the same operations available to API and MCP clients. The complete version-1 permissions and domain modules are still outstanding.
+The backend experiment needs a browser interface that exercises real PostgreSQL records and the same operations available to API and MCP clients. This ADR records the first interface slice. The current local permission model is implemented under ADR 0027; full product acceptance and domain modules remain outstanding.
 
 ## Decision
 
@@ -23,4 +23,4 @@ React Router in data mode owns browser history and URL state. Personal settings 
 
 The first interface supports authentication, workspace/object/text-field creation, paginated record tables, editing and record journals. Version checks remain authoritative in the backend; the client guards unsaved edits. German/English labels use the existing stored preferences and definition-language fallback.
 
-The server can run without built browser assets for backend-only development. Full version-1 acceptance, production packaging, domain modules, complete permissions and production agent authorization remain separate work. UI assets have to be built before browser use; no independent Vite development origin or live reload is provided by this experiment.
+The server can run without built browser assets for backend-only development. Full version-1 acceptance, production packaging, domain modules, full permission acceptance and production agent authorization remain separate work; ADR 0027 defines the implemented local permission model. UI assets have to be built before browser use; no independent Vite development origin or live reload is provided by this experiment.

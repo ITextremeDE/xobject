@@ -22,7 +22,7 @@ export const formLayoutSchema=z.object({groups:z.array(z.object({
 export type FormLayout=z.infer<typeof formLayoutSchema>;
 export type FormLayouts=Record<string,FormLayout>;
 export const formLayoutEntries=(layout:FormLayout)=>[...layout.groups.flatMap(group=>group.fields),...(layout.unassigned??[])];
-type LayoutField={id:string;technicalName:string;kind:string;label?:string;required?:boolean;state?:string};
+type LayoutField={id:string;technicalName:string;kind:string;config?:{schema?:string};label?:string;required?:boolean;state?:string};
 export interface FormRelationship {definition:RelationshipType;side:'left'|'right'}
 export interface FormElement {key:string;entry:FormEntry;field?:LayoutField;relationship?:FormRelationship;single:boolean;required:boolean}
 export function relationshipSidesForObject(type:RelationshipType,objectId:string,chain?:PrimaryChain|null):('left'|'right')[]{
@@ -33,7 +33,7 @@ export function relationshipSidesForObject(type:RelationshipType,objectId:string
 export function formRelationshipFields(types:RelationshipType[],objectId:string,chain?:PrimaryChain|null):FormRelationship[]{
   return types.filter(type=>type.kind!=='general'&&type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side})));
 }
-export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||['multiline','multiple_choice'].includes(field.kind)?'full':'half';}
+export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||(['multiline','multiple_choice'].includes(field.kind)||field.kind==='structured'&&field.config?.schema!=='name_components')?'full':'half';}
 export function formLayoutElements(fields:LayoutField[],relationships:FormRelationship[]=[]):FormElement[]{
   return [...fields.map(field=>({key:field.id,entry:{fieldId:field.id,width:defaultFormWidth(field)} as FormEntry,field,single:true,required:Boolean(field.required)})),...relationships.map(relationship=>{
     const {definition,side}=relationship,single=(side==='left'?definition.leftMax:definition.rightMax)===1,required=definition.active&&(side==='left'?definition.leftMin:definition.rightMin)>0;
@@ -48,13 +48,26 @@ export function effectiveFormEntry(entry:FormEntry,element:FormElement):FormEntr
 export function resolveFormLayout(layout:FormLayout|undefined,fields:LayoutField[],complete=true,relationships:FormRelationship[]=[],retainUnavailable=false):FormLayout {
   const elements=formLayoutElements(fields,relationships),byKey=new Map(elements.map(element=>[element.key,element]));
   const normalize=(entries:FormEntry[])=>entries.filter(entry=>retainUnavailable||byKey.has(formEntryKey(entry))).map(entry=>byKey.has(formEntryKey(entry))?effectiveFormEntry(entry,byKey.get(formEntryKey(entry))!):{...entry});
-  const groups=layout?layout.groups.map(group=>({...group,fields:normalize(group.fields)})):[{id:'general',labels:{de:'Allgemein',en:'General'},fields:[] as FormEntry[]}];
+  const starterGroups=[
+    {id:'general',labels:{de:'Allgemein',en:'General'},fields:[] as FormEntry[]},
+    {id:'primary_association',labels:{de:'Hauptzuordnung',en:'Primary association'},fields:[] as FormEntry[]},
+    {id:'classification',labels:{de:'Einordnung',en:'Classification'},fields:[] as FormEntry[]},
+    {id:'relationships',labels:{de:'Verknüpfungen',en:'Relationships'},fields:[] as FormEntry[]},
+    {id:'notes',labels:{de:'Notizen',en:'Notes'},fields:[] as FormEntry[]},
+  ];
+  const groups=layout?layout.groups.map(group=>({...group,fields:normalize(group.fields)})):starterGroups;
   const unassigned=normalize(layout?.unassigned??[]);
   if(complete){
     const rank=['keyword','type','status','category'];
     const ordered=layout?elements:[...elements].sort((a,b)=>{const ai=rank.indexOf(a.field?.technicalName??''),bi=rank.indexOf(b.field?.technicalName??'');return (ai<0?4:ai)-(bi<0?4:bi);});
     const included=new Set([...groups.flatMap(group=>group.fields),...unassigned].map(formEntryKey));
-    for(const element of ordered)if(!included.has(element.key))(layout?unassigned:groups[0].fields).push(element.entry);
+    for(const element of ordered)if(!included.has(element.key)){
+      if(layout)unassigned.push(element.entry);
+      else {
+        const target=element.relationship?.definition.kind==='primary'?'primary_association':!element.field?(element.single?'general':'relationships'):['type','status','category'].includes(element.field.technicalName)?'classification':element.field.technicalName==='notes'&&element.field.kind==='multiline'?'notes':'general';
+        groups.find(group=>group.id===target)!.fields.push(element.entry);
+      }
+    }
   }
-  return {groups,...(unassigned.length||layout?.unassigned?{unassigned}:{})};
+  return {groups:layout?groups:groups.filter((group,index)=>index===0||group.fields.length),...(unassigned.length||layout?.unassigned?{unassigned}:{})};
 }
