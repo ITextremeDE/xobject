@@ -2995,3 +2995,145 @@ test('recycle bin keeps Primary children active and cardinality slots reserved u
  assert.equal((await api('update_record',{objectTypeId:a.id,recordId:second.id,version:second.version,relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'left',targets:[{objectTypeId:b.id,recordId:target.id}]}]})).statusCode,409);
  await ok('restore_record',{objectTypeId:a.id,recordId:first.id,version:first.version});
 });
+
+test('field input rules validate typed defaults, apply only on create/omission and journal translated metadata atomically',async()=>{
+ const ws=await ok('create_workspace',{name:'Input rules',code:'inputrules'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const rules={description:{en:'Short purpose',de:'Kurzer Zweck'},helpText:{en:'Enter the identifier',de:'Kennung eingeben'},defaultValue:'001',unique:false};
+ const field=await tool('create_field',{objectTypeId:object.id,technicalName:'code',labels:{en:'Code',de:'Kennung'},kind:'text',required:true,inputRules:rules});
+ const first=await ok('create_record',{objectTypeId:object.id,keyword:'First'});assert.equal(first.code,'001');
+ const explicit=await ok('create_record',{objectTypeId:object.id,keyword:'Explicit',values:{code:'chosen'}});assert.equal(explicit.code,'chosen');
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{code:null}})).statusCode,400);
+ let definition=await ok('get_object_type',{objectTypeId:object.id});assert.deepEqual(definition.fields.find((f:any)=>f.id===field.id).inputRules,rules);
+ definition=await ok('configure_field',{fieldId:field.id,version:1,required:true,inputRules:{...rules,defaultValue:'new'}});
+ const updated=await ok('update_record',{objectTypeId:object.id,recordId:first.id,version:first.version,keyword:'Renamed'});assert.equal(updated.code,'001');
+ assert.equal((await tool('create_record',{objectTypeId:object.id})).code,'new');
+ const journal=await ok('get_definition_journal',{objectTypeId:object.id});assert.ok(journal.some((e:any)=>e.field_key==='input.defaultValue'&&e.old_value==='001'&&e.new_value==='new'));
+ assert.equal((await api('configure_field',{fieldId:field.id,version:1,required:true,inputRules:rules})).statusCode,409);
+ const numeric=await ok('create_field',{objectTypeId:object.id,technicalName:'amount',labels:{en:'Amount'},kind:'decimal',inputRules:{defaultValue:'01.20'}});
+ const current=await ok('get_object_type',{objectTypeId:object.id});assert.equal(current.fields.find((f:any)=>f.id===numeric.id).inputRules.defaultValue,'1.2');
+ assert.equal((await api('create_field',{objectTypeId:object.id,technicalName:'bad',labels:{en:'Bad'},kind:'integer',inputRules:{defaultValue:'not a number'}})).statusCode,400);
+});
+
+test('unique field rules use normalized scalar values, protect recycled slots and reject concurrent or existing duplicates without disclosing contents',async()=>{
+ const ws=await ok('create_workspace',{name:'Unique fields',code:'uniquefields'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+ const field=await ok('create_field',{objectTypeId:object.id,technicalName:'code',labels:{en:'Code'},inputRules:{unique:true}});
+ const results=await Promise.all([api('create_record',{objectTypeId:object.id,values:{code:' AbC '}}),api('create_record',{objectTypeId:object.id,values:{code:'abc'}})]);assert.deepEqual(results.map(r=>r.statusCode).sort(),[200,409]);
+ const row=results.find(r=>r.statusCode===200)!.json();await ok('recycle_record',{objectTypeId:object.id,recordId:row.id,version:row.version});
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{code:'ABC'}})).statusCode,409);
+ for(let i=0;i<2;i++)await ok('create_record',{objectTypeId:object.id,values:{code:null}});
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{code:'x'.repeat(2001)}})).statusCode,400);
+ assert.equal((await api('create_field',{objectTypeId:object.id,technicalName:'many',kind:'multiple_choice',labels:{en:'Many'},inputRules:{unique:true}})).statusCode,400);
+ const other=await ok('create_field',{objectTypeId:object.id,technicalName:'other',labels:{en:'Other'}});
+ for(let i=0;i<2;i++)await ok('create_record',{objectTypeId:object.id,values:{other:'same'}});
+ assert.equal((await api('configure_field',{fieldId:other.id,version:1,required:false,inputRules:{unique:true}})).statusCode,409);
+ assert.equal((await ok('get_object_type',{objectTypeId:object.id})).fields.find((f:any)=>f.id===other.id).inputRules.unique,false);
+ await ok('configure_field',{fieldId:field.id,version:1,required:false,inputRules:{unique:false}});
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{code:'abc'}})).statusCode,200);
+});
+
+test('business numbers use atomic workspace-scoped counters, preserve issued values and support guarded configuration and restarts',async()=>{
+ const ws=await ok('create_workspace',{name:'Numbering',code:'numbering',timeZone:'Europe/Berlin'});let object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const config={enabled:true,prefix:'ITX-',suffix:'-X',start:'10',increment:'5',padding:4,restart:'never'};
+ object=await tool('configure_object_settings',{objectTypeId:object.id,version:1,labels:object.labels,numbering:config});
+ assert.equal(object.version,2);assert.ok(object.fields.some((f:any)=>f.technicalName==='business_number'&&f.isProtected));
+ const protectedNumber=object.fields.find((f:any)=>f.technicalName==='business_number');const protectedEdit=await api('configure_field',{fieldId:protectedNumber.id,version:protectedNumber.version,required:false});assert.equal(protectedEdit.statusCode,403);assert.equal(protectedEdit.json().error,'System field definition is protected');
+ const rows=await Promise.all(Array.from({length:3},(_,i)=>ok('create_record',{objectTypeId:object.id,keyword:String(i)})));
+ assert.deepEqual(rows.map(r=>r.business_number).sort(),['ITX-0010-X','ITX-0015-X','ITX-0020-X']);
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{business_number:'manual'}})).statusCode,400);
+ assert.equal((await ok('list_records',{objectTypeId:object.id,query:rows[0].business_number})).total,1);
+ assert.equal((await ok('list_workspace_records',{workspaceId:ws.id,query:rows[0].business_number})).total,1);
+ assert.equal((await ok('search_workspace',{workspaceId:ws.id,query:rows[0].business_number})).records.length,1);
+ assert.equal((await api('configure_object_settings',{objectTypeId:object.id,version:1,labels:object.labels,numbering:config})).statusCode,409);
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,prefix:'NEW-'}});
+ assert.equal((await ok('create_record',{objectTypeId:object.id})).business_number,'NEW-0025-X');
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:rows[0].id})).business_number,rows[0].business_number);
+ const duplicate=await ok('duplicate_record',{objectTypeId:object.id,recordId:rows[0].id,version:rows[0].version});assert.equal(duplicate.business_number,'NEW-0030-X');
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,restart:'yearly'}});
+ assert.match((await ok('create_record',{objectTypeId:object.id})).business_number,/^ITX-\d{4}-0010-X$/);
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,restart:'monthly'}});
+ assert.match((await ok('create_record',{objectTypeId:object.id})).business_number,/^ITX-\d{4}-\d{2}-0010-X$/);
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,enabled:false}});
+ assert.equal((await ok('create_record',{objectTypeId:object.id})).business_number,null);
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:config});
+ assert.equal((await ok('create_record',{objectTypeId:object.id})).business_number,'ITX-0035-X');
+});
+
+test('input aid metadata follows language policy, conditional defaults and current field creation rights',async()=>{
+ const ws=await ok('create_workspace',{name:'Input rights',code:'inputrights'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['type_status','category']});
+ const id=randomUUID(),controller=await ok('create_field',{objectTypeId:object.id,technicalName:'kind',labels:{en:'Kind'},kind:'single_choice',config:{options:[{id,labels:{en:'Yes'},active:true}]},inputRules:{defaultValue:id}});
+ await ok('create_field',{objectTypeId:object.id,technicalName:'detail',labels:{en:'Detail'},required:true,applicability:{fieldId:controller.id,optionIds:[id]},inputRules:{defaultValue:'Conditional'}});
+ const secret=await ok('create_field',{objectTypeId:object.id,technicalName:'secret',labels:{en:'Secret'},inputRules:{defaultValue:'Private default'}});
+ const a=await tool('create_record',{objectTypeId:object.id});assert.equal(a.detail,'Conditional');
+ const b=await ok('create_record',{objectTypeId:object.id,values:{kind:id.toUpperCase()}});assert.equal(b.detail,'Conditional');
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const permissions=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{[secret.id]:'none'}}]});
+ const own=await api('create_record',{objectTypeId:object.id},userCookie);assert.equal(own.statusCode,200,own.body);assert.ok(!Object.hasOwn(own.json(),'secret'));
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:own.json().id})).secret,null,'inaccessible defaults are not written silently');
+ const definition=await ok('get_object_type',{objectTypeId:object.id}),type=definition.fields.find((f:any)=>f.kind==='type');
+ const {version,...config}=definition.classification;
+ const changed=await ok('configure_classification',{objectTypeId:object.id,version,config,fieldInputRules:[{fieldId:type.id,version:type.version,inputRules:{description:{de:'Typ auswählen',en:'Choose a type'},helpText:{en:'Optional'}}}]});
+ assert.equal(changed.fields.find((f:any)=>f.id===type.id).description,'Choose a type');
+ assert.equal((await api('configure_classification',{objectTypeId:object.id,version,config,fieldInputRules:[{fieldId:type.id,version:type.version,inputRules:{description:{en:'stale'}}}]})).statusCode,409);
+ assert.equal((await api('configure_field',{fieldId:secret.id,version:1,required:false,inputRules:{defaultValue:'forbidden'}},userCookie)).statusCode,403);
+});
+
+test('failed numbered creation rolls back allocation, counter, contents and journals together',async()=>{
+ const ws=await ok('create_workspace',{name:'Number rollback',code:'numberrollback'}),created=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+ let object=await ok('get_object_type',{objectTypeId:created.id});
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{enabled:true,prefix:'R-',suffix:'',start:'1',increment:'1',padding:2,restart:'never'}});
+ await sql`CREATE FUNCTION fail_number_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='business_number' THEN RAISE EXCEPTION 'number journal fail'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+ await sql`CREATE TRIGGER fail_number BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_number_journal()`.execute(runtime.db);
+ try {assert.equal((await api('create_record',{objectTypeId:object.id})).statusCode,500);assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_number_allocations WHERE object_type_id=${object.id}::uuid`.execute(runtime.db)).rows[0].count,0);}
+ finally {await sql`DROP TRIGGER fail_number ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_number_journal()`.execute(runtime.db);}
+ const row=await ok('create_record',{objectTypeId:object.id});assert.equal(row.business_number,'R-01');
+ assert.equal((await journalEntries({objectTypeId:object.id,recordId:row.id})).filter((e:any)=>e.field_key==='business_number').length,1);
+});
+
+test('every custom field type accepts typed defaults and rejects stale inactive choices without changing stored metadata',async()=>{
+ const ws=await ok('create_workspace',{name:'Typed defaults',code:'typeddefaults'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+ const option=randomUUID(),group=await ok('create_group',{workspaceId:ws.id,name:'Default team'});
+ const cases:any[]=[['text','text','Example',{}],['multiline','multiline','Multiple\nlines',{}],['integer','integer','42',{}],['decimal','decimal','1.20',{scale:2}],['money','money',{amount:'2300.50',currency:'EUR'},{scale:2,currency:'EUR'}],['boolean','boolean',false,{}],['date','date','2026-01-02',{}],['datetime','datetime','2026-01-02T12:30:00+01:00',{}],['single','single_choice',option,{options:[{id:option,labels:{en:'Option'},active:true}]}],['multiple','multiple_choice',[randomUUID()],{}],['email','email','demo@example.test',{}],['phone','phone','+49301234567',{}],['url','url','https://example.test/',{}],['reference','reference',{kind:'user',id:adminId},{referenceTarget:'user',multiple:false}],['references','reference',[{kind:'group',id:group.id},{kind:'user',id:adminId}],{referenceTarget:'both',multiple:true}]];
+ const multiple=cases.find(item=>item[0]==='multiple');multiple[3]={options:[{id:multiple[2][0],labels:{en:'Multiple'},active:true}]};
+ const fields:any[]=[];for(const [technicalName,kind,defaultValue,config] of cases)fields.push(await ok('create_field',{objectTypeId:object.id,technicalName:`sample_${technicalName}`,kind,labels:{en:technicalName},config,inputRules:{defaultValue}}));
+ const record=await tool('create_record',{objectTypeId:object.id});for(const [name,,,] of cases)assert.notEqual(record[`sample_${name}`],null,name);
+ assert.equal(record.sample_integer,'42');assert.equal(record.sample_decimal,'1.2');assert.deepEqual(record.sample_money,{amount:'2300.5',currency:'EUR'});assert.equal(record.sample_boolean,false);assert.equal(record.sample_datetime,'2026-01-02T11:30:00.000Z');assert.deepEqual(record.sample_reference,{kind:'user',id:adminId});assert.equal(record.sample_references.length,2);
+ const single=fields.find(f=>f.technicalName==='sample_single');assert.equal((await api('configure_field',{fieldId:single.id,version:1,required:false,config:{options:[{id:option,labels:{en:'Option'},active:false}]}})).statusCode,400);
+ assert.equal((await ok('get_object_type',{objectTypeId:object.id})).fields.find((f:any)=>f.id===single.id).config.options[0].active,true);
+});
+
+test('combined group editing saves name and graded members with one version/change and rejects unauthorized or failed edits atomically',async()=>{
+ const ws=await ok('create_workspace',{name:'Inline group editor',code:'inlinegroups'}),ordinary=(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0];
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:ordinary.id,role:'designer',expectedRole:null});
+ const group=await ok('create_group',{workspaceId:ws.id,name:'Before'});
+ const input={workspaceId:ws.id,groupId:group.id,version:1,name:'After',members:[{kind:'user',id:ordinary.id,level:'read'}]};
+ assert.equal((await api('configure_group',input,userCookie)).statusCode,403);
+ const saved=await tool('configure_group',input);assert.equal(saved.name,'After');assert.equal(saved.version,2);assert.deepEqual(saved.members,input.members);
+ const events=(await sql<any>`SELECT * FROM sys_journal WHERE entity_id=${group.id}::uuid AND field_key IN ('name',${`membership.user:${ordinary.id}`})`.execute(runtime.db)).rows;
+ const edits=events.filter(e=>e.field_key!=='name'||e.new_value==='After');assert.equal(edits.length,2);assert.equal(new Set(edits.map(e=>e.change_id)).size,1);
+ assert.equal((await api('configure_group',input)).statusCode,409);
+ assert.equal((await api('configure_group',{...input,version:2,name:'Should roll back',members:[{kind:'group',id:group.id,level:'full'}]})).statusCode,400);
+ const retained=(await ok('list_groups',{workspaceId:ws.id}))[0];assert.equal(retained.name,'After');assert.equal(retained.version,2);assert.deepEqual(retained.members,input.members);
+ await sql`CREATE FUNCTION fail_inline_group() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key LIKE 'membership.%' THEN RAISE EXCEPTION 'inline journal fail'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+ await sql`CREATE TRIGGER fail_inline_group BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_inline_group()`.execute(runtime.db);
+ try{assert.equal((await api('configure_group',{...input,version:2,name:'Also roll back',members:[]})).statusCode,500);}
+ finally{await sql`DROP TRIGGER fail_inline_group ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_inline_group()`.execute(runtime.db);}
+ assert.equal((await ok('list_groups',{workspaceId:ws.id}))[0].name,'After');
+});
+
+test('unique input errors identify only the field and context while global search returns only permitted business numbers',async()=>{
+ const ws=await ok('create_workspace',{name:'Field feedback',code:'fieldfeedback'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const field=await ok('create_field',{objectTypeId:object.id,technicalName:'registration',kind:'text',labels:{en:'Registration'},inputRules:{unique:true}});
+ await ok('create_record',{objectTypeId:object.id,keyword:'Private source',values:{registration:'BUSY'}});
+ const conflict=await api('create_record',{objectTypeId:object.id,keyword:'Draft',values:{registration:'busy'}});assert.equal(conflict.statusCode,409);
+ assert.deepEqual(conflict.json().details,{code:'unique_value',fieldId:field.id,context:'record'});assert.equal(conflict.body.includes('Private source'),false);assert.equal(conflict.body.includes('BUSY'),false);
+ const second=await ok('create_field',{objectTypeId:object.id,technicalName:'duplicate_value',kind:'text',labels:{en:'Other'}});
+ await ok('create_record',{objectTypeId:object.id,values:{duplicate_value:'Repeated'}});await ok('create_record',{objectTypeId:object.id,values:{duplicate_value:'Repeated'}});
+ const definitionError=await api('configure_field',{fieldId:second.id,version:1,required:false,inputRules:{unique:true}});assert.equal(definitionError.statusCode,409);assert.deepEqual(definitionError.json().details,{code:'unique_value',fieldId:second.id,context:'definition'});
+ const configured=await ok('configure_object_settings',{objectTypeId:object.id,version:1,labels:{en:'Items'},numbering:{enabled:true,prefix:'FB-',suffix:'',start:'1',increment:'1',padding:3,restart:'never'}});
+ const row=await ok('create_record',{objectTypeId:object.id,keyword:'Numbered'});assert.equal((await ok('search_workspace',{workspaceId:ws.id,query:row.business_number})).records[0].businessNumber,row.business_number);
+ const ordinary=(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0];await ok('set_workspace_member',{workspaceId:ws.id,userId:ordinary.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',{objectTypeId:object.id}),numberField=configured.fields.find((f:any)=>f.technicalName==='business_number');
+ await ok('configure_content_permissions',{objectTypeId:object.id,version:rights.version,sensitive:false,grants:[{kind:'user',id:ordinary.id,level:'read',create:false,fields:{[numberField.id]:'none'}}]});
+ assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Numbered'},userCookie)).json().records[0].businessNumber,null);
+ assert.equal((await api('search_workspace',{workspaceId:ws.id,query:row.business_number},userCookie)).json().records.length,0);
+});

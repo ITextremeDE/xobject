@@ -8,6 +8,8 @@ The project is in early development. These entries describe source changes, incl
 
 ### Added
 
+- Translated field descriptions/input hints, typed creation-only defaults and scalar uniqueness through the common field/classification editors and API/MCP rules. Defaults respect omission, conditions and creation rights; uniqueness includes recycled values and concurrent writes, with clear duplicate feedback. Record forms/previews use the same localized metadata and typed controls.
+- Transactional business-number configuration per object: prefix/suffix, exact start/increment, padding and never/yearly/monthly periods in the workspace zone. Protected immutable numbers, append-only issuance, retained counters and atomic creation/journal rollback; number display/search in record and workspace lists. Current installation and bilingual fictional fixtures include both features.
 - Workspace record recycle bin with shared searchable/filterable tables, read-only contents/Journal inspection, confirmed Delete-level recycling and Full-level restoration through UI/API/MCP. Normal reads/search/counts/selectors exclude recycled identities; fields, policies, edges and history remain retained. Lifecycle writes are versioned and atomic, retained links reserve cardinalities, and unavailable Primary associations do not expose parent contents. Permanent deletion/history erasure remain future work.
 - Access principals can be placed, reordered and sized half/full in the Form designer using their existing protected field identity; sensitive demo forms start with the field in General.
 - Access principals in record forms now use a searchable quick-selection field with tabbed rights details. Apply edits the form draft; record Save atomically persists contents, links and security with one version/change ID. Existing grades, public confirmation, reset/dirty guards and Full access checks remain enforced.
@@ -42,6 +44,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Changed
 
+- Unified field labels/descriptions/hints and direct control associations, clear field-editor sections with collapsible help, stacked mobile translations and compact expandable numbering settings. Business numbers use consistent standard columns and permitted global-search labels. Validation identifies/focuses the affected field or uniqueness rule. Group editors include graded memberships with atomic name/member Save and shared Reset; user administration explicitly labels instance roles.
 - Consolidated graded ownership in one policy store; Access principals are virtual. Supplied-object bindings also provide the fixed Primary roles. Current API/MCP operations replace parallel journal, ungraded-membership, requiredness and language-only interfaces.
 - Development initialization rebuilds the current model without preserving obsolete development schemas or fixtures. Application builds clear generated output; current integration tests replace upgrade-only scenarios.
 - Reconciled the complete documentation against source and accepted product decisions: linked ADR refinements, removed obsolete current-state assertions, consolidated development/verification guidance and release entries, and distinguished local implementation, target behavior and release/publication boundaries.

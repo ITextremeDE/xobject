@@ -46,7 +46,7 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
   const pageSize = pageSizes.includes(Number(params.get('size')) as typeof pageSizes[number]) ? Number(params.get('size')) : 10;
   const pageValue = Number(params.get('page') ?? 1), page = Number.isInteger(pageValue) && pageValue >= 1 && pageValue <= Math.floor(100000 / pageSize) + 1 ? pageValue : 1;
   function change(values: Record<string, string | null>, replace = false) { const next = new URLSearchParams(params); for (const [key, value] of Object.entries(values)) { if (value === null || value === '') next.delete(key); else next.set(key, value); } setParams(next, { replace }); }
-  const sortable = ['keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version'] as const;
+  const sortable = ['business_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version'] as const;
   const sortBy = sortable.find(key => key === params.get('sort')) ?? 'updated_at';
   const sort = { by: sortBy, direction: params.get('direction') === 'asc' ? 'asc' as const : 'desc' as const };
   const summary = useQuery({ queryKey: ['dashboard', workspace.id, days, timeZone], placeholderData: keepPreviousData, queryFn: () => api('get_workspace_dashboard', { workspaceId: workspace.id, days }) });
@@ -55,6 +55,7 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
   const count = (value: number) => formatRegionalNumber(String(value), regional, 0);
   const columns: RecordColumn<WorkspaceRecord>[] = [
     { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}>{row.keyword || row.id}</Button> },
+    {key:'business_number',label:t('businessNumber'),cell:row=>row.business_number??'—'},
     { key: 'objectLabel', label: t('objectType'), cell: row => row.objectLabel },
     ...(['type', 'status', 'category'] as const).map(key => ({ key, label: t(key === 'type' ? 'classificationType' : key === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: WorkspaceRecord) => row[key] ?? '—' })),
     { key: 'created_at', label: t('createdAt'), cell: row => formatRegionalDate(row.created_at, regional, timeZone) },

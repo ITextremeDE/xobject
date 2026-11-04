@@ -1,3 +1,5 @@
+import {FieldExplanation,fieldDescriptionIds} from './record-field-hints';
+import {applyFieldDefaults} from '@xobject/contracts';
 import {RecordFormGroups} from './record-form-groups';
 import {RecordLifecycleAction} from './record-lifecycle-action';
 import {useNavigate} from 'react-router';
@@ -29,7 +31,7 @@ import { RecordJournalTable } from './record-journal-table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 import { api, ApiError } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Field, FieldLabel, FieldGroup, FieldSet, FieldLegend, FieldDescription } from '@/components/ui/field';
+import { Field, FieldLabel, FieldGroup, FieldSet, FieldLegend,FieldError, FieldDescription } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -92,9 +94,11 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const activeFields = definition.fields.filter(field => field.technicalName!=='access_principals'&&field.fieldPermissions?.read!==false&&(!field.state || field.state === 'active'));
   const inactiveFields = definition.fields.filter(field => field.technicalName!=='access_principals'&&field.fieldPermissions?.read!==false&&field.state === 'inactive');
   const hasKeyword = activeFields.some(field => field.technicalName === 'keyword');
-  const initial = () => ({ ...(hasKeyword ? { keyword: record?.keyword ?? '' } : {}), ...Object.fromEntries(activeFields.filter(f => isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, localizedFieldDraft(f,(record?.[f.technicalName] as FieldValue) ?? null,regional)])) });
+  const newDefaults=record?{}:applyFieldDefaults(activeFields,{});
+  const initial = () => ({ ...(hasKeyword ? { keyword: record?record.keyword:(newDefaults.keyword??'') } : {}), ...Object.fromEntries(activeFields.filter(f => isCustomFieldKind(f.kind) && !['keyword','business_number'].includes(f.technicalName)).map(f => [f.technicalName, localizedFieldDraft(f,(record?record[f.technicalName]:newDefaults[f.technicalName]) as FieldValue ?? null,regional)])) });
   const [baseline, setBaseline] = useState<Record<string, FieldValue>>(initial);
   const [values, setValues] = useState<Record<string, FieldValue>>(initial);
+  const [touchedDefaults,setTouchedDefaults]=useState<Set<string>>(()=>new Set());
   const [applicabilityError,setApplicabilityError]=useState('');
   const [dependencyContext,setDependencyContext]=useState(()=>({applicableFieldIds:record?.applicableFieldIds,allowedStatusIds:record?.allowedStatusIds}));
   const appliesToDraft=(field:FieldDefinition,draft:Record<string,FieldValue>)=>field.applicability&&!activeFields.some(controller=>controller.id===field.applicability!.fieldId)?Boolean(dependencyContext.applicableFieldIds?.includes(field.id)):fieldApplies(field,activeFields,draft);
@@ -123,7 +127,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const dirty = relationDirty || choicesDirty || valuesChanged(values)||securityDirty;
   useEffect(()=>onDirtyChange(dirty||accessDetailDirty),[dirty,accessDetailDirty,onDirtyChange]);
   const mutation = useMutation({ mutationFn: async () => {
-    const data = Object.fromEntries(applicableFields.filter(f => f.fieldPermissions?.edit!==false&&isCustomFieldKind(f.kind) && f.technicalName !== 'keyword').map(f => [f.technicalName, normalizedFieldDraft(f,values[f.technicalName]??null,regional)]));
+    const data = Object.fromEntries(applicableFields.filter(f => f.fieldPermissions?.edit!==false&&isCustomFieldKind(f.kind) && !['keyword','business_number'].includes(f.technicalName)).map(f => [f.technicalName, normalizedFieldDraft(f,values[f.technicalName]??null,regional)]));
     const classification = Object.fromEntries(Object.entries(choices).filter(([key]) => activeFields.some(field => field.technicalName === key&&field.fieldPermissions?.edit!==false)));
     const keyword = hasKeyword&&activeFields.find(field=>field.technicalName==='keyword')?.fieldPermissions?.edit!==false ? { keyword: String(values.keyword ?? '').trim() } : {};
     const security=securityDraft&&(securityDirty||!record&&accessSnapshot?.canManage)?{security:{policy:securityDraft,confirmPublic:securityConfirmed}}:{};
@@ -154,7 +158,10 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   }, onSettled: () => onBusyChange(false) });
   useEffect(()=>{if(lostAccess&&!mutation.isPending)onClose();},[lostAccess,mutation.isPending,onClose]);
   function update(key: string, value: FieldValue) {
+    if(mutation.isError)mutation.reset();
     const next = { ...values, [key]: value };
+    if(!record)for(const field of activeFields)if(!touchedDefaults.has(field.technicalName)&&!appliesToDraft(field,values)&&appliesToDraft(field,next)&&field.inputRules?.defaultValue!==null&&field.inputRules?.defaultValue!==undefined)next[field.technicalName]=localizedFieldDraft(field,field.inputRules.defaultValue,regional);
+    setTouchedDefaults(old=>new Set([...old,key]));
     const blocked=activeFields.filter(field=>appliesToDraft(field,values)&&!appliesToDraft(field,next)&&!emptyCustomValue(next[field.technicalName]));
     const blockedRelations=relationFields.filter(field=>field.targets.length&&fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,values)&&!fieldApplies({applicability:field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability},activeFields,next));
     if(blockedRelations.length){setShowHiddenRelationships(true);setApplicabilityError(t('clearInapplicableRelationships'));return;}
@@ -163,14 +170,18 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     onDirtyChange(securityDirty||relationDirty || choicesDirty || valuesChanged(next));
   }
   function renderEntry(entry:FormEntry){
-    if('fieldId' in entry){const field=layoutFields.find(field=>field.id===entry.fieldId);return field?renderField(field):null;}
+    if('fieldId' in entry){const field=layoutFields.find(field=>field.id===entry.fieldId);return field?<div className="min-w-0" data-record-field={field.id}>{renderField(field)}</div>:null;}
     return <RecordRelationshipFields entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly||Boolean(linkedCreation&&!record&&(('relationshipTypeId' in entry&&entry.relationshipTypeId===linkedCreation.linkFrom.relationshipTypeId)||('primary' in entry&&relationFields.some(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.definition.kind==='primary'))))} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
   }
+  const validationFieldId=mutation.error instanceof ApiError&&mutation.error.details?.code==='unique_value'?mutation.error.details.fieldId:undefined;
+  useEffect(()=>{if(validationFieldId)requestAnimationFrame(()=>document.querySelector<HTMLElement>(`[data-record-field="${validationFieldId}"] input, [data-record-field="${validationFieldId}"] [role="combobox"]`)?.focus());},[mutation.error]);
   function renderField(field:FieldDefinition){
+    const fieldError=validationFieldId===field.id?t('uniqueRecordConflict',{field:field.label}):undefined;
+    if(field.technicalName==='business_number')return <Field><FieldLabel htmlFor="record-business-number">{field.label}</FieldLabel><Input id="record-business-number" value={String(record?.business_number??'')} readOnly placeholder={t('numberAssignedOnSave')}/></Field>;
     if(field.technicalName==='access_principals')return accessSnapshot&&securityBaseline&&securityDraft?<RecordAccessField snapshot={{...accessSnapshot,policy:securityBaseline}} value={securityDraft} confirmed={securityConfirmed} disabled={mutation.isPending||inactiveObject} onChange={policy=>{setSecurityDraft(policy);setSecurityConfirmed(false);setSaved(false);}} onConfirm={setSecurityConfirmed} onDetails={()=>setAccessOpen(true)}/>:null;
-    if(field.technicalName==='keyword')return <Field data-disabled={(mutation.isPending||readOnly)||undefined}><FieldLabel htmlFor="record-keyword">{field.label}{field.required?' *':''}</FieldLabel><Input id="record-keyword" value={String(values.keyword??'')} maxLength={200} required={field.required} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={event=>update('keyword',event.target.value)}/></Field>;
+    if(field.technicalName==='keyword')return <Field data-disabled={(mutation.isPending||readOnly)||undefined}><FieldLabel htmlFor="record-keyword">{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><Input aria-invalid={Boolean(fieldError)} aria-describedby={fieldDescriptionIds(field,fieldError?`keyword-validation-error`:undefined)} id="record-keyword" value={String(values.keyword??'')} maxLength={200} required={field.required} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={event=>update('keyword',event.target.value)}/><FieldExplanation field={field} help/>{fieldError?<FieldError id="keyword-validation-error">{fieldError}</FieldError>:null}</Field>;
     if(['type','status','category'].includes(field.technicalName))return <ClassificationFields allowedStatusIds={definition.fields.some(item=>item.technicalName==='type'&&item.fieldPermissions?.read===false)?dependencyContext.allowedStatusIds:undefined} fields={[field]} config={definition.classification} value={choices} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={next=>{setChoices(next);setSaved(false);onDirtyChange(securityDirty||relationDirty||JSON.stringify(next)!==JSON.stringify(choiceBaseline)||valuesChanged(values));}}/>;
-    return <CustomFieldControl field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} objectTypeId={definition.id} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={value=>update(field.technicalName,value)}/>;
+    return <CustomFieldControl error={fieldError} field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} objectTypeId={definition.id} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={value=>update(field.technicalName,value)}/>;
   }
   useEffect(() => { document.querySelector<HTMLElement>('[data-record-page-title]')?.focus(); }, [recordId]);
   const title = record ? record.keyword || record.id : t('newRecord');
@@ -193,7 +204,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     if(!next||!previous)return;
     setValues(next);setBaseline(previous);setDraftFormat({regional:requestedRegional,timeZone:requestedTimeZone});
   },[formatChangePending,requestedRegional,requestedTimeZone,regional,activeFields,values,baseline,timestampInvalid,mutation.isPending]);
-  function reset() {setSecurityDraft(securityBaseline);setSecurityConfirmed(false);setAccessDetailDirty(false);setApplicabilityError('');setRelationFields(relationBaseline); setValues({ ...baseline }); setChoices(choiceBaseline); setSaved(false); mutation.reset(); onDirtyChange(false); }
+  function reset() {setTouchedDefaults(new Set());setSecurityDraft(securityBaseline);setSecurityConfirmed(false);setAccessDetailDirty(false);setApplicabilityError('');setRelationFields(relationBaseline); setValues({ ...baseline }); setChoices(choiceBaseline); setSaved(false); mutation.reset(); onDirtyChange(false); }
   const linkSourceValues=Object.fromEntries(relationFields.flatMap(field=>{const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;const controller=activeFields.find(item=>item.id===rule?.fieldId);return controller?[[controller.technicalName,values[controller.technicalName]??null]]:[];}));
   const updateRelationships = (next: typeof relationFields) => {
     setRelationFields(next);setSaved(false);
@@ -219,9 +230,9 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     <Tabs value={tab==='tree'&&!treeAvailable?'details':tab} onValueChange={value=>{setTab(value);if(value==='dossier')void queryClient.invalidateQueries({queryKey:['record-relationships',definition.id,recordId]});}} className="gap-4"><TabsList variant="line" aria-label={t('recordSections')} className="max-w-full"><TabsTrigger value="details">{t('details')}</TabsTrigger>{record?<>{treeAvailable?<TabsTrigger value="tree">{t('recordTree')}</TabsTrigger>:null}<TabsTrigger value="dossier">{t('recordDossier')}</TabsTrigger><TabsTrigger value="journal">{t('journal')}</TabsTrigger></>:null}</TabsList>
     <TabsContent value="details" keepMounted className="flex w-full min-w-0 flex-col gap-6 data-[hidden]:hidden">
       {applicabilityError?<Alert variant="destructive"><AlertDescription role="alert">{applicabilityError}</AlertDescription></Alert>:null}
-      {mutation.isError ? <ErrorNotice error={mutation.error} /> : null}
-      {mutation.error instanceof ApiError && mutation.error.status === 409 ? <Button variant="outline" type="button" onClick={() => { if(linkedCreation)onClose();else window.location.reload(); }}>{t(linkedCreation?'backToSource':'reload')}</Button> : null}
-      {linkedCreation&&mutation.error instanceof ApiError&&mutation.error.status===409?<FieldDescription>{t('linkedRecordConflict')}</FieldDescription>:null}
+      {mutation.isError ? <ErrorNotice fieldLabel={activeFields.find(field=>field.id===validationFieldId)?.label} error={mutation.error} /> : null}
+      {mutation.error instanceof ApiError && mutation.error.status === 409 && mutation.error.message.includes('version conflict') ? <Button variant="outline" type="button" onClick={() => { if(linkedCreation)onClose();else window.location.reload(); }}>{t(linkedCreation?'backToSource':'reload')}</Button> : null}
+      {linkedCreation&&mutation.error instanceof ApiError&&mutation.error.status===409&&mutation.error.message.includes('version conflict')?<FieldDescription>{t('linkedRecordConflict')}</FieldDescription>:null}
       {saved ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
       {!record?<FieldDescription>{t('recordCreateHelp')}</FieldDescription>:null}
       {hiddenRelationships?<Button type="button" variant="outline" className="self-start" onClick={()=>setShowHiddenRelationships(value=>!value)}>{t(showHiddenRelationships?'formHideOptionalRelationships':'formShowOptionalRelationships',{count:hiddenRelationships})}</Button>:null}
