@@ -15,6 +15,7 @@ xObject is in early development. A local application prototype and public projec
 - Consistent shadcn shell, settings, full-width record forms, shared searchable tables/pagination, keyboard navigation, responsive loading/dialogs and account/view-scoped presentation preferences. Dashboard table is regular application UI; real statistics/chart content remains exploratory.
 - Shared workspace appearance/fonts, installed German/English interface/definition policies, named zones and per-property personal localization overrides, exact regional numeric/money/date/time editing and DST handling.
 - One current installation baseline, schema/catalog fingerprint checks, runtime/operator separation, registry integrity, scoped locks/indexes and isolated validation. Fictional seed/fixture data is separate from installation; initialization creates no test accounts or business contents; explicit local resets discard disposable fixtures.
+- Workspace recycle bin with current-rights read-only inspection, confirmed Delete-level recycling and Full-level restoration, optimistic versions and atomic lifecycle history. Contents/edges remain retained, cardinality slots reserved, and unavailable Primary context stays private. Permanent deletion/history erasure remain pending.
 
 ## Public project introduction
 
@@ -28,7 +29,7 @@ The independent Astro project homepage introduces the product and links canonica
 | Configurable object platform | Business-number sequences, remaining helper/default/uniqueness configuration, measured data/query scaling and complete shared-definition evolution. |
 | Contacts and Projects | Complete supplied templates, derived Contact Keywords, single-Organization Contact persons, direct Identities lists, domain roles and configurable responsibility/assignment. Existing generic fixtures do not establish full module delivery. |
 | Shared modules/forms | Actual cross-module object/field ownership and view selection, protected-definition updates and conflict-safe activation/deactivation without copied records or values. |
-| Relationships and lifecycle | Independently required Primary ancestor sections; record recycle bin, restore, confirmed permanent deletion, linked-history erasure and invalid-link handling. |
+| Relationships and lifecycle | Independently required Primary ancestor sections; confirmed permanent deletion, linked-history erasure and invalid-link handling. |
 | Delivery and acceptance | Interactive first-Administrator container setup, prebuilt images, Linux Compose installation, release migration/backup/restore tooling, performance/accessibility targets and PRD end-to-end acceptance. |
 | Public documentation | Astro/Starlight at the selected documentation URL, canonical changelog/roadmap reuse, release notes and versioned documentation. |
 
