@@ -30,7 +30,8 @@ The independent Astro project homepage introduces the product and links canonica
 | --- | --- |
 | Permissions and identity | Production user-bound API/MCP credentials, session hardening, representative-volume permission/query performance and product acceptance. The local ownership/foreign-access model and current installation are implemented. |
 | Configurable object platform | Measured data/query scaling and complete shared-definition evolution. Field input rules and business numbers are implemented locally under ADR 0030. |
-| Contacts & Relations and Projects & Tasks | Deliver the [22-object V1 catalog](docs/PRD.md#6-supplied-domain-models): complete the 18 additional domain profiles, supplied templates, derived Contact Keywords, single-Organization Contact persons, direct Identities lists, domain roles and responsibility/assignment. Existing generic fixtures do not establish module delivery. |
+| Contacts & Relations and Projects & Tasks | Deliver the [22-object V1 catalog](docs/PRD.md#6-supplied-domain-models): complete the 18 additional domain profiles and supplied templates, keeping objects outside the standards-aligned profiles lean and extensible, with essential fields/relationships; finish derived Contact Keywords, single-Organization Contact persons, direct Identities lists, domain roles and responsibility/assignment. Existing generic fixtures do not establish module delivery. |
+| Standards-aligned domain profiles | Specify Contacts, Distribution lists, Appointments, Vacations and Tasks against explicit vendor-neutral vCard/iCalendar profiles, with complementary JSContact/JSCalendar references. Field mappings/storage and round-trip criteria remain open under PRD section 6.4 / ADR 0031; synchronization is later scope. |
 | Shared modules/forms | Actual cross-module object/field ownership and view selection, protected-definition updates and conflict-safe activation/deactivation without copied records or values. |
 | Personal table layout | Persist column order and widths as required by R-030; the local prototype currently retains column visibility, not these additional layout preferences. |
 | Relationships and lifecycle | Independently required Primary ancestor sections; confirmed permanent deletion, linked-history erasure and invalid-link handling. |
@@ -45,6 +46,7 @@ Every capability must use the same backend authorization, validation and journal
 - Email handling, file uploads, attachments and versioning.
 - Verified email-address changes and profile-image handling, after their mail/upload dependencies exist.
 - Notification delivery, alarms/subscriptions, calendar availability/time-only rights, calendar and Kanban views.
+- Standards-based CardDAV/CalDAV synchronization with explicit peer capabilities, conflict/deletion handling and preservation of unmapped data; no product-specific domain model.
 - Import/export, external SSO, desktop clients (Electron or Tauri selection pending), separate mobile clients, offline operation/synchronization and hosted cloud service.
 - Creation templates/default-group configuration and other separately specified extensions.
 

@@ -16,7 +16,7 @@ Out of scope for version 1:
 
 - Documents & Communication, Operations & Finance, IT Service Management, Configuration Management Database, Events & Registrations and Knowledge & Insights as supplied modules. Shared objects explicitly included in a V1 module remain in V1 even if another contributing module is deferred.
 - File uploads, attachments and import/export features. API access to individual application operations is not an import/export feature.
-- Desktop and mobile applications, SSO, offline operation and synchronization.
+- Desktop and mobile applications, SSO, offline operation and data synchronization, including CardDAV/CalDAV.
 - Kanban and calendar views.
 - General undo. Computed fields require a separate specification and are not included in this delivery baseline.
 
@@ -340,7 +340,7 @@ Domain roles belong to the particular Contact person–Organization relationship
 | R-026 | A Contact person belongs to at most one Organization through the Contacts relationship. An Identities relationship list on each Contact person/Individual contact links related Contact records without introducing another object type. | UI/API/MCP reject a second Organization membership for the same Contact person. Changing its Organization changes the derived Keyword suffix. An Organization can have multiple Contact persons. The Identities list can link separate Contact persons at Organizations A and B and an Individual contact, subject to record rights. |
 | R-027 | Domain roles are attached to the particular Contact person–Organization relationship. | Separate Contact person records linked through Identities can hold different roles at Organizations A and B; changing one relationship's roles leaves the other unchanged. |
 
-The Organization membership is a Contacts relationship designation, not a requirement to enable the generic full Primary association chain. Additional addresses and repeated communication fields are later elaborations.
+The Organization membership is a Contacts relationship designation, not a requirement to enable the generic full Primary association chain. Repeated communication/address data and partial birthdays must follow section 6.4; concrete storage and UI profiles remain to be specified.
 
 ### 6.2 Projects
 
@@ -359,6 +359,10 @@ The common fields apply to every supplied type. Additional fields are:
 
 ### 6.3 Domain profile completion and functional boundaries
 
+For the object types outside the five standards-aligned profiles in section 6.4, supply lean, usable starting templates: shared platform fields, only the essential additional fields and a small set of meaningful relationships. Preserve already agreed domain fields/rules; do not expand templates into comprehensive industry models. Start optional unless a field or relationship is necessary for the agreed domain meaning or integrity. Use configurable input aids and editable form proposals rather than hard-coded specialist workflows or speculative automation.
+
+Workspace Designers and Administrators can tailor these templates through the existing extension/configuration mechanisms: add custom fields and relationships, configure intended options/requiredness and arrange forms. This does not give ordinary Users configuration rights or remove the structural protection of module-supplied definitions. Future refinements remain separately specified; the lean baseline still needs clear validation and acceptance criteria.
+
 Before implementing each supplied profile, specify:
 
 - Its purpose, German/English labels, stable technical identity and module memberships, using the catalog above.
@@ -370,6 +374,28 @@ Before implementing each supplied profile, specify:
 The 18 additional profiles are agreed V1 catalog scope; their concrete domain behavior remains to be specified. Profiles can be elaborated and implemented incrementally. Domain-specific functions need explicit requirements and acceptance criteria: Time entries do not imply billing, Campaigns/Distribution lists do not imply automated bulk sending, and Vouchers/Line items do not imply a complete accounting engine. These functions are outside the current baseline unless separately agreed. Appointments and Vacations do not change the exclusion of calendar views, invitation delivery or notification delivery.
 
 Documents, Emails and Phone calls as supplied object types belong to the later Documents & Communication module. A V1 Voucher, Contract or Contact report is a structured data record, not a file-upload or mail-transport capability. Uploads, attachments and import/export remain excluded. The later module must separately specify file/content storage, external references and receiving/sending behavior before those functions are committed.
+
+### 6.4 Standards-aligned contacts, calendars and tasks
+
+The domain profiles for Contacts, Distribution lists, Appointments, Vacations and Tasks must support an explicit, vendor-neutral standards mapping. This is an accepted model-design constraint, not implemented import/export, synchronization, calendar UI or a claim of full RFC conformance. [ADR 0031](adr/0031-standards-aligned-groupware-models.md) records the architecture and reference specifications. Existing requirement IDs remain unchanged; this elaborates R-003–R-006, R-012, R-024–R-029 and R-041.
+
+| Object | Standards basis | Required model distinction |
+| --- | --- | --- |
+| Contacts | vCard 4.0; JSContact as an additional JSON reference | Structured name components and formatted name; repeated labeled/preferred emails, telephone numbers and international addresses; birthdays with an unknown year. Map Contact kind, Organization relationship and Identities explicitly; CRM Keyword is not necessarily the formatted contact name. |
+| Distribution lists | vCard group cards (`KIND:group`, `MEMBER`) | Explicit group identity and membership references, separate from contact categories, user/security groups and mail delivery. |
+| Appointments | iCalendar `VEVENT`; JSCalendar `Event` as an additional JSON reference | Date-only versus timed values, event time-zone semantics, exclusive end, recurrence master/occurrence exceptions, organizer, attendees, participation response, event status and free/busy effect. |
+| Vacations | Calendar projection using `VEVENT` | Retain the Vacation record identity and project its absence interval with the same date/time rules as Appointments. Leave application, approval and entitlement are separate domain behavior, not calendar status. |
+| Tasks | iCalendar `VTODO`; JSCalendar `Task` as an additional JSON reference | Optional start/due values, date-only versus timed values, progress, completion timestamp, recurrence identity and explicit mapping of configurable status/priority. Task status and attendee response remain distinct. |
+
+These model capabilities still require concrete field/storage/UI profiles before implementation. Repeated structured contact values need an explicit collection model; generic Date/Date-time fields do not by themselves represent partial birthdays, domain time zones or recurrence exceptions. A partial birthday must not invent a year. UTC instants alone do not preserve a recurring event's local-time intent. Personal display-zone changes must not rewrite an event's zone; floating local times require an explicit supported representation or a reported unsupported value, never silent conversion using the viewer's zone. Existing timestamp API rules in section 3.3 remain unchanged until dedicated domain contracts are specified.
+
+Define each supported standard profile before claiming support: exact versions/extensions, mandatory and optional properties, cardinalities/types, field and relationship mappings, configured status/priority mappings, unsupported-data behavior and observable round-trip acceptance. Consider current vCard extensions and task extensions explicitly, without assuming every published extension is implemented. JSContact/JSCalendar are complementary design references; selecting them does not silently replace the existing application API contract or promise JSON exchange endpoints.
+
+Future synchronization uses CardDAV for contacts/groups and CalDAV for calendar events/tasks, subject to the peer's advertised capabilities and tested profile. Plan explicit mappings to remote address books, calendars and task collections; stable exchange UIDs and per-connection external identities/versions are separate from record UUIDs, business numbers and optimistic versions. Define conflict resolution, deletion propagation and prevention of duplicate/echo writes before enabling bidirectional writes. The eventual connector's writes must use the shared API/MCP application rules and journals with the acting user's current rights.
+
+Product-specific behavior must not redefine the domain model. Nextcloud is one possible interoperability test peer, not the specification authority or a required dependency. A peer that exposes contact groups differently does not make Distribution lists into Categories in xObject. Unsupported mappings must be visible; preserve xObject-only fields/relationships and safely retained external properties, or refuse a destructive round trip instead of silently dropping or reinterpreting values. External attendees, group members, sharing flags and privacy classifications never grant xObject permissions automatically. External references do not enable uploads, remote resource fetching, reminders or invitation delivery implicitly.
+
+Acceptance for domain delivery checks preservation of structured/repeated contact data, unknown-year birthdays, explicit group membership and separation from categories; date-only/exclusive-end intervals, domain-zone intent across DST and viewer-zone changes, and recurrence/exception identity; and tasks without dates with distinct progress/completion/status semantics. Future synchronization acceptance additionally checks stable identity, round trips, stale/conflicting updates, deletion handling, peer capability limits, permission enforcement and retention of unmapped data. These are acceptance targets, not completed tests. Transport, import/export, calendar views, scheduling messages and notification delivery remain outside V1.
 
 ## 7. User experience
 
@@ -437,6 +463,7 @@ These items require elaboration, not additional feature discovery. They must be 
 | Data representation | Release migration/restore packaging, references beyond user/group fields, remaining relationship/reference lifecycle rules; the current unreleased installation baseline is specified in ADR 0028 and database integrity/concurrency in ADR 0022; field/object definition lifecycle is specified in ADR 0009. Current typed storage, validation, Markdown and conversion rules are specified in ADR 0007. R-002, R-007–R-012. |
 | Input aids | Translated descriptions/hints, typed creation defaults and supported scalar uniqueness are implemented locally under ADR 0030. Complete supplied Contact-kind defaults/conversion remain domain-module work; classification dictionaries/defaults retain ADRs 0006/0007. R-009, R-010, R-012, R-024. |
 | V1 domain profiles | Complete the 18 additional catalog profiles in section 6.3: minimum fields, supplied relationships, domain rules, configuration boundaries and acceptance criteria. Do not equate catalog membership with delivered behavior. R-003–R-006. |
+| Standards-aligned domain profiles | Complete section 6.4 field/storage/relationship mappings and versioned standard profiles before implementing the five affected domain profiles. Repeated values, partial birthdays, domain time zones and recurrence exceptions need explicit models. CardDAV/CalDAV transport and bidirectional conflict/deletion handling remain later work under ADR 0031. R-003–R-006, R-012, R-024–R-029, R-041. |
 | Contacts | Supplied Contact-kind conversion, change/loss of Organization, missing-first-name formatting, role dictionaries, multiple roles and validity intervals. Identities remains a direct symmetric list without inferred transitive grouping; complete module lifecycle and duplicate handling require elaboration. R-024–R-027. |
 | Relationships and modules | Independent required Primary ancestor levels, shared-definition ownership, module updates/deactivation and UI for cross-module required fields. Basic endpoint cardinalities, cycle prevention and concurrent preflight/activation are implemented under ADRs 0018–0024. R-003–R-007, R-019–R-023. |
 | Journal and recycle bin | Recycling and guarded restoration are implemented locally under ADR 0029, retaining identities, edges and history. Remaining work: additional agent/channel metadata, reduced deletion-event format, history erasure including linked contexts and relationship cleanup after permanent deletion. Current-rights record/field/endpoint journal projections are implemented under ADRs 0026 and 0027. R-034–R-040. |

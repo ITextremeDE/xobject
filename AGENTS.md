@@ -78,6 +78,10 @@ The intended monorepo layout is `apps/web`, `apps/server`, `packages/contracts`,
 
 - Form groups have no domain meaning. New custom objects start with an editable General proposal; new elements remain Unassigned until placed, and deleting groups unassigns elements without deleting data. Module layout proposals remain editable independently of protected field structures.
 
+- Keep other supplied domain templates lean under PRD section 6.3: essential fields/relationships, configurable input aids and editable forms, with extensions by Designers/Administrators. Preserve confirmed rules, module protection and role boundaries; do not add speculative specialist workflows.
+
+- Standards-aligned Contacts, Distribution lists, Appointments, Vacations and Tasks follow PRD section 6.4 and ADR 0031. Specify explicit vendor-neutral vCard/iCalendar mappings and round-trip criteria; keep exchange identities and domain time-zone/recurrence semantics distinct from display settings. CardDAV/CalDAV and JSON exchange are not implemented by this decision. Peer-specific limitations never redefine objects/categories or grant content rights.
+
 ## Product invariants
 
 Consult the PRD for complete behavior. In particular:

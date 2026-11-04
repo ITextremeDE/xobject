@@ -40,6 +40,7 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0028](adr/0028-current-installation-baseline.md) | Current unreleased installation | One empty installation definition, explicit local reset, schema fingerprint and current contracts without compatibility paths. |
 | [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; permanent erasure remains pending. |
 | [0030](adr/0030-field-input-rules-and-business-numbers.md) | Input rules and numbering | Translated field explanations, typed creation defaults, scalar uniqueness and transactional business numbers. |
+| [0031](adr/0031-standards-aligned-groupware-models.md) | Standards-aligned groupware models | Accepted target for five domain profiles; concrete mappings/storage and later CardDAV/CalDAV delivery remain open. |
 
 ## Ownership of repeated information
 
