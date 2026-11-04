@@ -1,3 +1,4 @@
+import {GroupInheritance} from './group-inheritance';
 import {SettingsSection} from './settings-section';
 import {PrincipalPermissions} from './content-permissions';
 import { SettingsTable, SettingsTableSearch, useSettingsTable } from './settings-table';
@@ -13,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Kbd } from '@/components/ui/kbd';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldGroup, FieldLabel, FieldSet, FieldLegend, FieldDescription } from '@/components/ui/field';
 import { TableHeader, TableHead, TableRow, TableBody, TableCell } from '@/components/ui/table';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -43,41 +43,42 @@ export function WorkspaceGroups({ workspaceId, isAdmin, canManage, onDirtyChange
     {groups.isPending || members.isPending ? <Loading variant="table" headings={[t('objectName'),t('groupMembers'),t('definitionState')]}/> : groups.isError ? <ErrorNotice error={groups.error} /> : members.isError ? <ErrorNotice error={members.error} /> : !groups.data.length ? <Empty><EmptyHeader><EmptyTitle>{t('noGroups')}</EmptyTitle></EmptyHeader></Empty> : <><SettingsTable aria-label={t('userGroups')}><TableHeader><TableRow><TableHead>{t('objectName')}</TableHead><TableHead>{t('groupMembers')}</TableHead><TableHead>{t('definitionState')}</TableHead>{isAdmin?<TableHead className="w-12"><span className="sr-only">{t('actions')}</span></TableHead>:null}</TableRow></TableHeader><TableBody>{!pagination.total ? <TableRow><TableCell colSpan={isAdmin?4:3}>{t('settingsNoMatches')}</TableCell></TableRow> : null}{pagination.rows.map(item => <TableRow key={item.id} onClick={event => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString() || (event.target instanceof Element && event.target.closest('button, a, input'))) return;
       if(!rightsDirty&&!rightsBusy)setSelected(item.id);
-    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} disabled={rightsDirty||rightsBusy} className="h-auto w-full min-w-0 justify-start px-0 text-left" title={item.name} onClick={() => setSelected(item.id)}><span className="truncate">{item.name}</span></Button></TableCell><TableCell>{item.memberIds.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell>{isAdmin?<TableCell><Button type="button" variant="ghost" size="icon-sm" disabled={rightsDirty||rightsBusy||busy||dirty} aria-label={t('permissionsFor',{name:item.name})} onClick={()=>openPermissions(item.id)}><ShieldCheckIcon/></Button></TableCell>:null}</TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('groupCount', { count: pagination.total })} disabled={busy} /></>}
-    {selected && (selected === 'new' || group) && members.data ? <GroupEditor key={selected} workspaceId={workspaceId} group={group} members={members.data} isAdmin={isAdmin} canManage={canManage} onClose={close} onCreated={() => { setDirty(false); setSelected(null); }} onDirtyChange={setDirty} onBusyChange={setBusy} /> : null}
+    }}><TableCell><Button type="button" variant="link" data-group-editor={item.id} disabled={rightsDirty||rightsBusy} className="h-auto w-full min-w-0 justify-start px-0 text-left" title={item.name} onClick={() => setSelected(item.id)}><span className="truncate">{item.name}</span></Button></TableCell><TableCell>{item.members.length}</TableCell><TableCell>{t(item.active ? 'definition_active' : 'definition_inactive')}</TableCell>{isAdmin?<TableCell><Button type="button" variant="ghost" size="icon-sm" disabled={rightsDirty||rightsBusy||busy||dirty} aria-label={t('permissionsFor',{name:item.name})} onClick={()=>openPermissions(item.id)}><ShieldCheckIcon/></Button></TableCell>:null}</TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('groupCount', { count: pagination.total })} disabled={busy} /></>}
+    {selected && (selected === 'new' || group) && members.data ? <GroupEditor key={selected} workspaceId={workspaceId} group={group} groups={groups.data??[]} members={members.data} isAdmin={isAdmin} canManage={canManage} onClose={close} onCreated={() => { setDirty(false); setSelected(null); }} onDirtyChange={setDirty} onBusyChange={setBusy} /> : null}
     <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { setDirty(false); setSelected(null); setConfirmClose(false); }}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </FieldSet></SettingsSection>
     {isAdmin?<PrincipalPermissions selected={permissionPrincipal} onSelect={setPermissionPrincipal} actionTarget={actionTarget} workspaceId={workspaceId} kind="group" principals={groups.data??[]} onDirtyChange={setRightsDirty} onBusyChange={setRightsBusy}/>:null}
   </FieldGroup>;
 }
 
-function GroupEditor({ workspaceId, group, members, isAdmin, canManage, onClose, onCreated, onDirtyChange, onBusyChange }: { workspaceId: string; group?: WorkspaceGroup; members: WorkspaceMember[]; isAdmin: boolean; canManage: boolean; onClose: () => void; onCreated: () => void; onDirtyChange: (value: boolean) => void; onBusyChange: (value: boolean) => void }) {
+function GroupEditor({ workspaceId, group,groups, members, isAdmin, canManage, onClose, onCreated, onDirtyChange, onBusyChange }: { workspaceId: string; group?: WorkspaceGroup;groups:WorkspaceGroup[]; members: WorkspaceMember[]; isAdmin: boolean; canManage: boolean; onClose: () => void; onCreated: () => void; onDirtyChange: (value: boolean) => void; onBusyChange: (value: boolean) => void }) {
   const { t } = useTranslation();
   const client = useQueryClient();
-  const [baseline, setBaseline] = useState(group ?? { id: '', workspaceId, name: '', active: true, version: 1, memberIds: [] });
+  const [inheritOpen,setInheritOpen]=useState(false),[inheritDirty,setInheritDirty]=useState(false),[inheritBusy,setInheritBusy]=useState(false);
+  const [baseline, setBaseline] = useState(group ?? { id: '', workspaceId, name: '', active: true, version: 1, members: [] as import('@xobject/contracts').GradedMember[] });
   const [name, setName] = useState(baseline.name);
-  const [memberIds, setMemberIds] = useState(baseline.memberIds);
-  const dirty = name !== baseline.name || JSON.stringify([...memberIds].sort()) !== JSON.stringify([...baseline.memberIds].sort());
-  function adopt(value: WorkspaceGroup) { setBaseline(value); setName(value.name); setMemberIds(value.memberIds); }
+  const dirty = name !== baseline.name;
+  function adopt(value: WorkspaceGroup) { setBaseline(value); setName(value.name); }
   useEffect(() => { if (group && !dirty) adopt(group); }, [group?.version]);
   async function refresh() { await Promise.all([client.invalidateQueries({ queryKey: ['workspace-groups', workspaceId] }), client.invalidateQueries({ queryKey: ['field-principals', workspaceId] }), client.invalidateQueries({ queryKey: ['records'] })]); }
   const save = useMutation({ mutationFn: async () => {
-    const membership = isAdmin && baseline.active ? { memberIds } : {};
-    if (group) return api('configure_group', { workspaceId, groupId: group.id, version: baseline.version, name, ...membership });
-    await api('create_group', { workspaceId, name, ...membership }); return null;
+    if (group) return api('configure_group', { workspaceId, groupId: group.id, version: baseline.version, name });
+    await api('create_group', { workspaceId, name }); return null;
   }, onSuccess: async result => { await refresh(); if (result) adopt(result); onBusyChange(false); onDirtyChange(false); onCreated(); }, onError: async () => { await client.invalidateQueries({ queryKey: ['workspace-groups', workspaceId] }); } });
   const state = useMutation({ mutationFn: () => api('set_group_active', { workspaceId, groupId: baseline.id, version: baseline.version, active: !baseline.active }), onSuccess: async result => { adopt(result); await refresh(); } });
-  const busy = save.isPending || state.isPending;
-  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  const busy = save.isPending || state.isPending || inheritBusy;
+  useEffect(() => { onDirtyChange(dirty||inheritDirty); }, [dirty,inheritDirty,onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}><DialogContent className="bg-background text-foreground flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-xl" closeButtonDisabled={busy} finalFocus={() => document.querySelector<HTMLElement>(group ? `[data-group-editor="${group.id}"]` : '[data-group-create]') ?? true}>
     <DialogHeader className="px-4 pt-4 pr-12"><DialogTitle>{t(group ? 'editGroup' : 'createGroup')}</DialogTitle><DialogDescription>{t('groupEditorHelp')}</DialogDescription></DialogHeader>
     <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="group-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (canManage && dirty && name.trim() && !busy) save.mutate(); }}><FieldGroup>
       {save.isError ? <ErrorNotice error={save.error} /> : state.isError ? <ErrorNotice error={state.error} /> : null}
       <Field data-disabled={busy || undefined}><FieldLabel htmlFor="group-name">{t('objectName')}</FieldLabel><Input id="group-name" autoFocus value={name} required maxLength={200} readOnly={!canManage} disabled={busy} onChange={event => setName(event.target.value)} /></Field>
-      <FieldSet><FieldLegend>{t('groupMembers')}</FieldLegend><FieldDescription>{t(isAdmin ? 'groupMembersHelp' : 'groupMembersAdminOnly')}</FieldDescription><FieldGroup className="gap-3">{members.map(member => <Field key={member.id} data-disabled={(!isAdmin || !baseline.active || busy) || undefined} orientation="horizontal"><Checkbox id={`group-user-${member.id}`} checked={memberIds.includes(member.id)} disabled={!isAdmin || !baseline.active || busy} onCheckedChange={checked => setMemberIds(old => checked ? [...old, member.id].sort() : old.filter(id => id !== member.id))} /><FieldLabel htmlFor={`group-user-${member.id}`}>{member.name}</FieldLabel></Field>)}</FieldGroup></FieldSet>
+      <FieldSet><FieldLegend>{t('groupMembers')}</FieldLegend>
+        {group?<><FieldDescription>{t('gradedMembershipsHelp',{name:baseline.name})}</FieldDescription><Button type="button" variant="outline" className="self-start" disabled={dirty||busy} onClick={()=>setInheritOpen(true)}>{t('gradedMemberships')}</Button></>:<FieldDescription>{t('groupMembershipAfterCreate')}</FieldDescription>}</FieldSet>
     </FieldGroup></form>
       {group ? <div className="flex flex-col gap-3 pt-6"><FieldDescription>{t(baseline.active ? 'groupActiveHelp' : 'groupInactiveHelp')}</FieldDescription>{isAdmin ? <Button type="button" variant="outline" className="self-start" disabled={dirty || busy} onClick={() => state.mutate()}>{state.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : baseline.active ? <PauseIcon data-icon="inline-start" /> : <RotateCcwIcon data-icon="inline-start" />}{t(baseline.active ? 'deactivateDefinition' : 'reactivateDefinition')}</Button> : null}</div> : null}
+      {group&&inheritOpen?<GroupInheritance group={group} groups={groups} users={members} readOnly={!isAdmin||!baseline.active} onClose={()=>{setInheritOpen(false);setInheritDirty(false);}} onDirtyChange={setInheritDirty} onBusyChange={setInheritBusy}/>:null}
     </div>
     <DialogActions onClose={onClose} disabled={busy} closeLabel={t(group ? 'close' : 'cancel')}>{canManage ? <>{group ? <Button type="button" variant="outline" disabled={!dirty || busy} onClick={() => { adopt(group ?? baseline); save.reset(); }}>{t('resetPreferences')}</Button> : null}<Button type="submit" form="group-form" aria-keyshortcuts={keyboardCommands.save.aria} disabled={!dirty || !name.trim() || busy}>{save.isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : null}{t(group ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></> : null}</DialogActions>
   </DialogContent></Dialog>;

@@ -63,3 +63,15 @@ test('adding a group preserves unassigned field and relationship drafts, includi
  assert.deepEqual(formLayoutEntries(next),formLayoutEntries(initial));
  assert.deepEqual(resolveFormLayout(next,[a,b],true,[],true).unassigned,snapshot.unassigned,'save/read normalization retains unassigned settings');
 });
+
+test('Access principals uses its existing field identity for placement, width and unassigned behavior',async()=>{
+ const {formLayoutElements,defaultFormWidth}=await import('@xobject/contracts');
+ const security={id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',technicalName:'access_principals',kind:'reference',state:'active'};
+ assert.equal(defaultFormWidth(security),'full');
+ const element=formLayoutElements([security])[0];assert.equal(element.key,security.id);assert.equal(element.single,true);
+ const placed={groups:[{id:'security',labels:{en:'Security',de:'Zugriff'},fields:[{fieldId:security.id,width:'half' as const},{fieldId:a.id,width:'half' as const}]}]};
+ assert.deepEqual(resolveFormLayout(placed,[a,security]),placed);
+ const removed=resolveFormLayout({groups:[]},[a,security]);assert.ok(removed.unassigned?.some(entry=>formEntryKey(entry)===security.id));
+ const disabled=resolveFormLayout(placed,[a],true,[],true);assert.ok(disabled.groups[0].fields.some(entry=>formEntryKey(entry)===security.id),'stored placement can survive temporary unavailability');
+ assert.equal(resolveFormLayout(placed,[a]).groups[0].fields.some(entry=>formEntryKey(entry)===security.id),false,'inactive security field does not render');
+});
