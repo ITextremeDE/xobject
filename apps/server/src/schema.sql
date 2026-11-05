@@ -141,6 +141,7 @@ CREATE TABLE public.sys_object_types (
     technical_name text NOT NULL,
     labels jsonb NOT NULL,
     classification jsonb DEFAULT '{"type": {"required": false, "defaultId": null}, "status": {"defaults": [], "required": false}, "options": [], "version": 1, "category": {"multiple": false, "required": false, "defaultIds": []}}'::jsonb NOT NULL,
+    primary_requirements jsonb DEFAULT '{"associationRequired":false,"requiredLevels":[]}'::jsonb NOT NULL,
     form_layouts jsonb DEFAULT '{}'::jsonb NOT NULL,
     numbering jsonb DEFAULT '{"enabled":false,"prefix":"","suffix":"","start":"1","increment":"1","padding":1,"restart":"never"}'::jsonb NOT NULL,
     is_sensitive boolean DEFAULT false NOT NULL,

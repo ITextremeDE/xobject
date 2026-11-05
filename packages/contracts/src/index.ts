@@ -15,7 +15,7 @@ import {formLayoutSchema,type FormLayouts,type FormRelationship} from './form-la
 export * from './form-layout.js';
 export * from './identity.js';
 import {uuidSchema} from './identity.js';
-import {primaryChainSchema,type PrimaryChain,type PrimaryChainContext} from './primary-chain.js';
+import {primaryRequirementsSchema,type PrimaryRequirements,primaryChainSchema,type PrimaryChain,type PrimaryChainContext} from './primary-chain.js';
 export * from './primary-chain.js';
 import { fieldApplicabilitySchema, type FieldApplicability } from './field-applicability.js';
 export * from './field-applicability.js';
@@ -61,7 +61,7 @@ export const schemas = {
   get_recycled_record:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
   list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['business_number','keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
   duplicate_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),keyword:z.string().trim().max(200).optional()}).strict(),
-  configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,numbering:numberingSchema.optional(),security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
+  configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,numbering:numberingSchema.optional(),primaryRequirements:primaryRequirementsSchema.optional(),security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
   get_content_permissions:z.object({objectTypeId:uuid}).strict(),
   configure_content_permissions:z.object({objectTypeId:uuid,version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false),grants:z.array(contentGrantSchema).max(1000)}).strict(),
   list_access_principals:z.object({objectTypeId:uuid}).strict(),
@@ -69,7 +69,7 @@ export const schemas = {
   get_relationship_tree_branch: z.object({objectTypeId:uuid,recordId:uuid,offset:z.number().int().min(0).default(0),limit:z.number().int().min(1).max(100).default(25)}).strict(),
   list_record_link_options:z.object({objectTypeId:uuid,recordId:uuid,sourceValues:z.record(z.string(),fieldValueSchema).optional()}).strict(),
   get_record_relationships: z.object({ objectTypeId: uuid, recordId: uuid.optional() }).strict(),
-  search_relationship_candidates: z.object({sourceValues:z.record(z.string(),fieldValueSchema).optional(), targetObjectTypeId: uuid.optional(), objectTypeId: uuid, recordId: uuid.optional(), relationshipTypeId: uuid, side: z.enum(['left','right']), query: z.string().trim().max(200).default(''), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict(),
+  search_relationship_candidates: z.object({primaryAncestor:z.object({objectTypeId:uuid,recordId:uuid}).strict().optional(),sourceValues:z.record(z.string(),fieldValueSchema).optional(), targetObjectTypeId: uuid.optional(), objectTypeId: uuid, recordId: uuid.optional(), relationshipTypeId: uuid, side: z.enum(['left','right']), query: z.string().trim().max(200).default(''), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict(),
   activate_relationship_type: z.object({ workspaceId: uuid, relationshipTypeId: uuid, version: z.number().int().positive() }).strict(),
   get_primary_chain_context: z.object({objectTypeId:uuid,recordId:uuid.optional(),parent:z.object({objectTypeId:uuid,recordId:uuid}).strict().nullable().optional()}).strict(),
   list_workspace_modules: z.object({workspaceId:uuid}).strict(),
@@ -132,7 +132,7 @@ export interface Workspace { id: string; code: string; name: string; default_lan
 export type DefinitionState = 'active' | 'inactive' | 'deleted';
 export interface ObjectSummary { iconKey?:import('./record-icons.js').RecordIconKey; permissions?:ContentCapabilities; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
 export interface FieldDefinition extends ObjectSummary {relationshipTypeId?:string; isDerived?:boolean; inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
-export interface ObjectDefinition extends ObjectSummary {activity?:boolean;moduleKeys?:string[];moduleFieldIds?:Record<string,string[]>;relationshipFields?:FieldDefinition[];workProfile?:import('./work-profile.js').WorkProfile; contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
+export interface ObjectDefinition extends ObjectSummary {primaryRequirements:PrimaryRequirements;primaryChain:PrimaryChain|null;activity?:boolean;moduleKeys?:string[];moduleFieldIds?:Record<string,string[]>;relationshipFields?:FieldDefinition[];workProfile?:import('./work-profile.js').WorkProfile; contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
 export interface DataRecord { iconKey?:import('./record-icons.js').RecordIconKey; fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
 export interface SearchRecord { iconKey?:import('./record-icons.js').RecordIconKey; businessNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }

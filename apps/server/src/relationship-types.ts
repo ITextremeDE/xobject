@@ -101,6 +101,7 @@ export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:str
   }
   const primary=(await relationshipTypes(tx,args.workspaceId)).find(type=>type.kind==='primary')!;
   if(!args.enabled&&(await sql`SELECT 1 FROM sys_relationships WHERE relationship_type_id=${primary.id}::uuid LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Remove existing Primary associations before disabling Projects');
+  if(!args.enabled&&(await sql`SELECT 1 FROM sys_object_types WHERE workspace_id=${args.workspaceId}::uuid AND state<>'deleted' AND (primary_requirements->>'associationRequired'='true' OR jsonb_array_length(primary_requirements->'requiredLevels')>0) LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Clear Primary requirements before disabling Projects');
   const chain=args.enabled?await install():previous.primaryChain;
   await sql`UPDATE sys_workspace_modules SET enabled=${args.enabled},version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
   await reconcileModuleDefinitions(tx,args.workspaceId,journal);

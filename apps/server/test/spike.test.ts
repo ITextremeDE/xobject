@@ -3484,7 +3484,7 @@ test('custom relationship fields have scoped configuration, preflighted required
  const designer=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:designer.id,role:'designer',expectedRole:null});
  const edited=await api('configure_field',{fieldId:field.id,required:false,inputRules:{description:{en:'Relationship detail',de:'Verknüpfungsangabe'}}},userCookie);assert.equal(edited.statusCode,200,edited.body);assert.equal((await api('get_record',{objectTypeId:a.id,recordId:left.id},userCookie)).statusCode,403,'Designer does not acquire contents');
  await ok('set_workspace_member',{workspaceId:ws.id,userId:designer.id,role:'user',expectedRole:'designer'});assert.equal((await api('create_field',{relationshipTypeId:relation.id,technicalName:'forbidden',labels:{en:'Forbidden'}},userCookie)).statusCode,403);
- const unused=await ok('create_field',{relationshipTypeId:relation.id,technicalName:'unused',labels:{en:'Unused'}});assert.equal((await ok('set_definition_state',{kind:'field',id:unused.id,expectedState:'active',state:'deleted',confirm:true})).state,'deleted');
+ const unused=await ok('create_field',{relationshipTypeId:relation.id,technicalName:'unused',labels:{en:'Unused'}});assert.equal((await ok('set_definition_state',{kind:'field',id:unused.id,expectedState:'active',state:'deleted',confirm:true,confirm:true})).state,'deleted');
  assert.equal((await api('create_field',{objectTypeId:a.id,relationshipTypeId:relation.id,technicalName:'bad_owner',labels:{en:'Bad'}})).statusCode,400);
 });
 
@@ -3692,4 +3692,147 @@ test('Task assignment uses Access principals and foreign access never adds assig
  assert.equal((await api('create_record',{objectTypeId:task.id,values:{assigned_to:{kind:'user',id:user.id}}})).statusCode,400);
  assert.equal((await api('update_record',{objectTypeId:task.id,recordId:row.id,version:delegated.version,values:{assigned_to:{kind:'user',id:user.id}}})).statusCode,400);
  assert.equal((await sql`SELECT 1 FROM information_schema.columns WHERE table_name='taskowners_tasks' AND column_name='assigned_to'`.execute(runtime.db)).rows.length,0);
+});
+
+test('Primary ancestor candidates filter visible paths before counts and paging and preserve a single deepest association',async()=>{
+ const ws=await ok('create_workspace',{name:'Cascade picker',code:'cascadepick'});await enableProjects(ws.id);
+ const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects'),chain=module.primaryChain;
+ const item=(await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']})).id;
+ const primary=(await ok('list_relationship_types',{workspaceId:ws.id})).find((t:any)=>t.kind==='primary');
+ const a=await createOrganization(chain.contact,'A'),b=await createOrganization(chain.contact,'B');
+ const create=async(objectTypeId:string,keyword:string,parent?:any)=>ok('create_record',{objectTypeId,keyword,relationships:parent?[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[parent]}]:undefined});
+ const ref=(objectTypeId:string,r:any)=>({objectTypeId,recordId:r.id});
+ const p1=await create(chain.project,'A project 1',ref(chain.contact,a)),p2=await create(chain.project,'A project 2',ref(chain.contact,a)),p3=await create(chain.project,'B project',ref(chain.contact,b));
+ const c1=await create(chain.case,'A case 1',ref(chain.project,p1)),c2=await create(chain.case,'A case 2',ref(chain.project,p1)),c3=await create(chain.case,'B case',ref(chain.project,p3));
+ const direct=await create(chain.case,'Direct A case',ref(chain.contact,a));
+ const r=await create(item,'Linked item',ref(chain.case,c1));
+ const input={objectTypeId:item,recordId:r.id,relationshipTypeId:primary.id,side:'right',query:'',limit:1,offset:1,targetObjectTypeId:chain.project,primaryAncestor:ref(chain.contact,a)};
+ const page=await ok('search_relationship_candidates',input);assert.equal(page.total,2);assert.deepEqual(page.records.map((r:any)=>r.recordId),[p2.id]);assert.deepEqual(await tool('search_relationship_candidates',input),page);
+ const cases=await tool('search_relationship_candidates',{...input,targetObjectTypeId:chain.case,primaryAncestor:ref(chain.project,p1),offset:0,limit:10});assert.equal(cases.total,2);assert.deepEqual(cases.records.map((r:any)=>r.recordId),[c1.id,c2.id]);
+ const contactCases=await ok('search_relationship_candidates',{...input,targetObjectTypeId:chain.case,offset:0,limit:10});assert.equal(contactCases.total,3);assert.ok(contactCases.records.some((r:any)=>r.recordId===direct.id));assert.ok(!contactCases.records.some((r:any)=>r.recordId===c3.id));
+ assert.equal((await api('search_relationship_candidates',{...input,side:'left'})).statusCode,400);
+ assert.equal((await api('search_relationship_candidates',{...input,primaryAncestor:ref(chain.case,c1)})).statusCode,400);
+ const general=(await ok('list_relationship_types',{workspaceId:ws.id})).find((t:any)=>t.kind==='general');assert.equal((await api('search_relationship_candidates',{...input,relationshipTypeId:general.id})).statusCode,400);
+ const foreign=await ok('create_workspace',{name:'Other context',code:'cascadeother'}),foreignType=await ok('create_object_type',{workspaceId:foreign.id,technicalName:'items',labels:{en:'Other'},standardFields:['keyword']}),foreignRecord=await ok('create_record',{objectTypeId:foreignType.id,keyword:'Other'});
+ assert.equal((await api('search_relationship_candidates',{...input,primaryAncestor:ref(foreignType.id,foreignRecord)})).statusCode,400);
+ // Removing Case promotes Project; removing Project promotes Contact; clearing Contact removes only this record's link.
+ let current=r;for(const parent of [ref(chain.project,p1),ref(chain.contact,a),null]){
+  current=await tool('update_record',{objectTypeId:item,recordId:r.id,version:current.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:parent?[parent]:[]}]});
+  const context=await ok('get_primary_chain_context',{objectTypeId:item,recordId:r.id});assert.equal(context.direct?.recordId??null,parent?.recordId??null);
+  assert.equal((await ok('get_record_relationships',{objectTypeId:item,recordId:r.id})).fields.find((f:any)=>f.definition.id===primary.id&&f.side==='right').targets.length,parent?1:0);
+ }
+ assert.equal((await ok('get_primary_chain_context',{objectTypeId:chain.case,recordId:c1.id})).direct.recordId,p1.id,'the Case itself was not reparented');
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ for(const objectTypeId of [item,chain.contact,chain.project,chain.case]){const config=await ok('get_content_permissions',{objectTypeId});await ok('configure_content_permissions',{...config,grants:[{kind:'user',id:user.id,level:'read',fields:{}}]});}
+ for(const record of [c1,c2,c3,direct]){const policy=await ok('get_record_security',{objectTypeId:chain.case,recordId:record.id});await ok('configure_record_security',{objectTypeId:chain.case,recordId:record.id,version:policy.version,policy:{...policy.policy,publicLevel:'read'},confirmPublic:true});}
+ const policy=await ok('get_record_security',{objectTypeId:chain.project,recordId:p1.id});await ok('configure_record_security',{objectTypeId:chain.project,recordId:p1.id,version:policy.version,policy:{...policy.policy,owners:[{kind:'user',id:adminId,level:'full'}],publicLevel:null,foreignMax:'none'}});
+ const hidden=await api('search_relationship_candidates',{...input,targetObjectTypeId:chain.case,offset:0,limit:10},userCookie);assert.equal(hidden.statusCode,200,hidden.body);assert.deepEqual(hidden.json().records.map((r:any)=>r.recordId),[direct.id]);assert.equal(hidden.json().total,1,'hidden Project paths cannot be inferred through readable Cases');
+ assert.equal((await api('search_relationship_candidates',{...input,targetObjectTypeId:chain.case,primaryAncestor:ref(chain.project,p1)},userCookie)).statusCode,403);
+});
+
+test('Primary requirements preflight retained records and protect creation, linked creation, duplication and ancestor edits atomically through API/MCP',async()=>{
+ const ws=await ok('create_workspace',{name:'Required context',code:'requiredcontext'});const primary=await enableProjects(ws.id);
+ const chain=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects').primaryChain;
+ const task=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='tasks');
+ const ref=(objectTypeId:string,row:any)=>({objectTypeId,recordId:row.id});
+ const link=(parent:any)=>[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:parent?[parent]:[]}];
+ const configure=async(requirements:any)=>{const d=await ok('get_object_type',{objectTypeId:task.id});return api('configure_object_settings',{objectTypeId:d.id,version:d.version,labels:d.labels,primaryRequirements:requirements});};
+ const optional={associationRequired:false,requiredLevels:[]};
+ assert.deepEqual((await ok('get_object_type',{objectTypeId:task.id})).primaryRequirements,optional);
+ const standalone=await ok('create_record',{objectTypeId:task.id,keyword:'Standalone'});
+ const requirements={associationRequired:true,requiredLevels:['contact','project','case']};
+ const before=(await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
+ assert.equal((await configure(requirements)).statusCode,409);
+ assert.deepEqual((await ok('get_object_type',{objectTypeId:task.id})).primaryRequirements,optional);
+ assert.deepEqual((await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows,before);
+ const org=await createOrganization(chain.contact,'Required organization');
+ const project=await ok('create_record',{objectTypeId:chain.project,keyword:'Required project',relationships:link(ref(chain.contact,org))});
+ const caseRow=await ok('create_record',{objectTypeId:chain.case,keyword:'Required case',relationships:link(ref(chain.project,project))});
+ let row=await ok('get_record',{objectTypeId:task.id,recordId:standalone.id});
+ row=await ok('update_record',{objectTypeId:task.id,recordId:row.id,version:row.version,relationships:link(ref(chain.case,caseRow))});
+ const model=(await configure(requirements)).json();assert.deepEqual(model.primaryRequirements,requirements);assert.ok(model.formRelationships.find((r:any)=>r.definition.kind==='primary').required);
+ assert.equal((await api('configure_object_settings',{objectTypeId:task.id,version:model.version-1,labels:model.labels,primaryRequirements:optional})).statusCode,409);
+ assert.equal((await api('create_record',{objectTypeId:task.id,keyword:'Invalid standalone'})).statusCode,409);
+ assert.equal((await api('create_record',{objectTypeId:task.id,keyword:'Missing project',relationships:link(ref(chain.contact,org))})).statusCode,409);
+ assert.equal((await api('duplicate_record',{objectTypeId:task.id,recordId:row.id,version:row.version})).statusCode,409);
+ const linked=await tool('create_record',{objectTypeId:task.id,keyword:'Linked',linkFrom:{objectTypeId:chain.case,recordId:caseRow.id,recordVersion:(await ok('get_record',{objectTypeId:chain.case,recordId:caseRow.id})).version,relationshipTypeId:primary.id,version:primary.version,side:'left'}});
+ assert.ok(linked.id);
+ const parent=await ok('get_record',{objectTypeId:chain.project,recordId:project.id});
+ const parentBefore=(await journalEntries({objectTypeId:chain.project,recordId:parent.id})).length;
+ const denied=await api('update_record',{objectTypeId:chain.project,recordId:parent.id,version:parent.version,values:{description:'Must roll back'},relationships:link(null)});
+ assert.equal(denied.statusCode,409,denied.body);assert.equal(denied.json().details.code,'primary_required');
+ const unchanged=await ok('get_record',{objectTypeId:chain.project,recordId:parent.id});assert.equal(unchanged.version,parent.version);assert.equal(unchanged.description,parent.description);assert.equal((await journalEntries({objectTypeId:chain.project,recordId:parent.id})).length,parentBefore);
+ const recycled=await tool('recycle_record',{objectTypeId:chain.project,recordId:parent.id,version:parent.version});
+ const context=await ok('get_primary_chain_context',{objectTypeId:task.id,recordId:row.id});assert.equal(context.levels.find((l:any)=>l.role==='project').record,null);
+ await tool('restore_record',{objectTypeId:chain.project,recordId:parent.id,version:recycled.version});
+ const current=await ok('get_record',{objectTypeId:task.id,recordId:row.id});
+ assert.equal((await api('update_record',{objectTypeId:task.id,recordId:row.id,version:current.version,relationships:link(ref(chain.project,project))})).statusCode,409);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',{objectTypeId:task.id});await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ row=await ok('get_record',{objectTypeId:task.id,recordId:row.id});row=await ok('configure_record_security',{objectTypeId:task.id,recordId:row.id,version:row.version,policy:defaultRecordSecurity([{kind:'user',id:user.id,level:'full'}])});
+ const hidden=await api('get_record',{objectTypeId:chain.project,recordId:project.id},userCookie);assert.equal(hidden.statusCode,403);
+ const ownEdit=await api('update_record',{objectTypeId:task.id,recordId:row.id,version:row.version,values:{description:'Required context remains structurally valid but private'}},userCookie);assert.equal(ownEdit.statusCode,200,ownEdit.body);
+ const layoutModel=await ok('get_object_type',{objectTypeId:task.id});const hiddenLayout=structuredClone(layoutModel.formLayouts.default);let primaryPlaced=false;for(const g of hiddenLayout.groups)for(const entry of g.fields)if(entry.primary){entry.visible=false;primaryPlaced=true;}if(!primaryPlaced)hiddenLayout.groups[0].fields.push({primary:true,width:'full',visible:false});
+ assert.equal((await api('configure_form_layout',{objectTypeId:task.id,version:layoutModel.version,layout:hiddenLayout})).statusCode,400);
+ assert.equal((await configure(optional)).statusCode,200);
+ const standalone2=await ok('create_record',{objectTypeId:task.id,keyword:'Retained invalid'});await ok('recycle_record',{objectTypeId:task.id,recordId:standalone2.id,version:standalone2.version});
+ assert.equal((await configure({associationRequired:true,requiredLevels:[]})).statusCode,409);
+ const contactModel=await ok('get_object_type',{objectTypeId:chain.contact});assert.equal((await api('configure_object_settings',{objectTypeId:chain.contact,version:contactModel.version,labels:contactModel.labels,primaryRequirements:{associationRequired:true,requiredLevels:[]}})).statusCode,400);
+ const projectModel=await ok('get_object_type',{objectTypeId:chain.project});assert.equal((await api('configure_object_settings',{objectTypeId:chain.project,version:projectModel.version,labels:projectModel.labels,primaryRequirements:{associationRequired:false,requiredLevels:['case']}})).statusCode,400);
+});
+
+test('Primary requiredness uses model locks, journals individual properties and prevents deactivation without leaking retained records',async()=>{
+ const ws=await ok('create_workspace',{name:'Required locks',code:'requiredlocks'});await enableProjects(ws.id);
+ const custom=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const d=await ok('get_object_type',{objectTypeId:custom.id});
+ const input={objectTypeId:d.id,version:d.version,labels:d.labels,primaryRequirements:{associationRequired:true,requiredLevels:['project']}};
+ await sql`CREATE TRIGGER reject_primary_requirement BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('configure_object_settings',input)).statusCode,500);}finally{await sql`DROP TRIGGER reject_primary_requirement ON sys_journal`.execute(runtime.db);}
+ assert.equal((await ok('get_object_type',{objectTypeId:d.id})).version,d.version);
+ const changed=await tool('configure_object_settings',input);assert.equal(changed.version,d.version+1);
+ const events=(await sql<any>`SELECT * FROM sys_journal WHERE entity_id=${d.id}::uuid AND field_key LIKE 'primaryRequirements.%'`.execute(runtime.db)).rows;
+ assert.deepEqual(events.map((e:any)=>e.field_key).sort(),['primaryRequirements.associationRequired','primaryRequirements.requiredLevels']);assert.equal(new Set(events.map((e:any)=>e.change_id)).size,1);
+ const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');
+ const disabled=await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:module.version,enabled:false});assert.equal(disabled.statusCode,409);assert.match(disabled.body,/Clear Primary requirements/);
+ await ok('configure_object_settings',{objectTypeId:d.id,version:changed.version,labels:d.labels,primaryRequirements:{associationRequired:false,requiredLevels:[]}});
+ const disposable=await ok('create_object_type',{workspaceId:ws.id,technicalName:'discarded',labels:{en:'Discarded'},standardFields:['keyword']});
+ const unused=await ok('get_object_type',{objectTypeId:disposable.id});await ok('configure_object_settings',{...input,objectTypeId:unused.id,version:unused.version,labels:unused.labels});
+ await ok('set_definition_state',{kind:'object_type',id:unused.id,expectedState:'active',state:'deleted',confirm:true});
+ const disabledModule=await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:module.version,enabled:false});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:disabledModule.version,enabled:true});
+ const clean=await ok('get_object_type',{objectTypeId:d.id});
+ const results=await Promise.all([api('configure_object_settings',{...input,version:clean.version}),api('create_record',{objectTypeId:d.id,keyword:'Concurrent'})]);
+ assert.deepEqual(results.map(r=>r.statusCode).sort(),[200,409]);
+});
+
+test('Projects V1 acceptance integrates ordinary user CRUD, completion, Primary tree, journals, recycle and Designer/module boundaries',async()=>{
+ const ws=await ok('create_workspace',{name:'Projects V1 acceptance',code:'projectsvone'});const primary=await enableProjects(ws.id);
+ let contactsModule=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:contactsModule.version});
+ const objects=await ok('list_object_types',{workspaceId:ws.id}),ids=Object.fromEntries(objects.map((o:any)=>[o.technicalName,o.id]));
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ for(const objectTypeId of [ids.contacts,ids.projects,ids.cases,ids.tasks]){const rights=await ok('get_content_permissions',{objectTypeId});await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});}
+ const act=async(operation:Operation,payload:unknown)=>{const res=await api(operation,payload,userCookie);assert.equal(res.statusCode,200,res.body);return res.json();};
+ const org=await createOrganization(ids.contacts,'Integrated client');
+ const ref=(objectTypeId:string,row:any)=>({objectTypeId,recordId:row.id});const link=(parent:any)=>[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[parent]}];
+ let project=await act('create_record',{objectTypeId:ids.projects,keyword:'User project',values:{start_date:'2026-11-05',target_date:'2026-12-01'},relationships:link(ref(ids.contacts,org))});
+ let caseRow=await act('create_record',{objectTypeId:ids.cases,keyword:'User case',values:{start_date:'2026-11-05',target_date:'2026-11-12'},relationships:link(ref(ids.projects,project))});
+ let task=await act('create_record',{objectTypeId:ids.tasks,keyword:'User task',values:{progress:'25',start:{kind:'date',date:'2026-11-05'},due:{kind:'date',date:'2026-11-06'}},relationships:link(ref(ids.cases,caseRow))});
+ const model=await ok('get_object_type',{objectTypeId:ids.tasks}),done=model.classification.options.find((o:any)=>o.meaning==='done'),open=model.classification.options.find((o:any)=>o.meaning==='open');
+ const rules={associationRequired:false,requiredLevels:['project']};
+ assert.equal((await api('configure_object_settings',{objectTypeId:model.id,version:model.version,labels:model.labels,primaryRequirements:rules},userCookie)).statusCode,403);
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'designer',expectedRole:'user'});
+ const configured=await act('configure_object_settings',{objectTypeId:model.id,version:model.version,labels:model.labels,primaryRequirements:rules});assert.deepEqual(configured.primaryRequirements,rules);
+ assert.equal((await api('configure_content_permissions',{...(await ok('get_content_permissions',{objectTypeId:ids.tasks})),grants:[]},userCookie)).statusCode,403);
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:'designer'});
+ task=await act('update_record',{objectTypeId:ids.tasks,recordId:task.id,version:task.version,classification:{status:done.id},values:{progress:'100',completed_at:'2026-11-05T12:00:00Z'}});assert.equal(task.progress,'100');
+ task=await act('update_record',{objectTypeId:ids.tasks,recordId:task.id,version:task.version,classification:{status:open.id},values:{progress:'25',completed_at:null}});assert.equal(task.completed_at,null);
+ const context=await act('get_primary_chain_context',{objectTypeId:ids.tasks,recordId:task.id});assert.deepEqual(context.levels.map((l:any)=>l.record?.recordId),[org.id,project.id,caseRow.id]);
+ const tree=await act('get_relationship_tree_branch',{objectTypeId:ids.projects,recordId:project.id});assert.equal(tree.total,1);
+ const history=await act('list_record_journal',{objectTypeId:ids.tasks,recordId:task.id,limit:100});assert.ok(history.entries.some((e:any)=>e.field_key==='completed_at'));
+ const recycled=await act('recycle_record',{objectTypeId:ids.tasks,recordId:task.id,version:task.version});assert.equal((await api('get_record',{objectTypeId:ids.tasks,recordId:task.id},userCookie)).statusCode,404);
+ task=await act('restore_record',{objectTypeId:ids.tasks,recordId:task.id,version:recycled.version});assert.equal(task.id,recycled.id);
+ const contactId=ids.contacts;contactsModule=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:false,version:contactsModule.version});
+ assert.equal((await act('get_object_type',{objectTypeId:contactId})).state,'active');assert.equal((await act('get_record',{objectTypeId:contactId,recordId:org.id})).id,org.id);
+ project=await act('get_record',{objectTypeId:ids.projects,recordId:project.id});await act('update_record',{objectTypeId:ids.projects,recordId:project.id,version:project.version,values:{description:'Updated by ordinary user'}});
+ caseRow=await act('get_record',{objectTypeId:ids.cases,recordId:caseRow.id});await act('update_record',{objectTypeId:ids.cases,recordId:caseRow.id,version:caseRow.version,values:{description:'Updated case'}});
 });
