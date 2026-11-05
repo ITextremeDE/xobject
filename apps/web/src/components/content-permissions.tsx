@@ -1,3 +1,4 @@
+import {notifySuccess} from '@/lib/notifications';
 import {AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction} from '@/components/ui/alert-dialog';
 import {ForeignAccess} from './foreign-access';
 import {AccessChoice} from './access-controls';
@@ -51,17 +52,17 @@ function PrincipalObjectPermissions(props:EditorProps){
 }
 function GrantEditor({objectTypeId,kind,principalId,groups,users,actionTarget,initial,definition,onDirtyChange,onBusyChange}:EditorProps&{initial:ContentPermissions;definition:ObjectDefinition}){
  const {t,i18n}=useTranslation(),client=useQueryClient(),empty:ContentGrant={kind,id:principalId,level:null,fields:{}};
- const [baseline,setBaseline]=useState(initial),[draft,setDraft]=useState(()=>initial.grants.find(g=>g.kind===kind&&g.id===principalId)??empty),[savedMessage,setSavedMessage]=useState(false);
+ const [baseline,setBaseline]=useState(initial),[draft,setDraft]=useState(()=>initial.grants.find(g=>g.kind===kind&&g.id===principalId)??empty);
  const {search,onSearch,pagination}=useSettingsTable([...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[]).map(f=>({...f,label:`${t('relationshipAttributes')} · ${f.label}`}))].filter(f=>f.technicalName!=='access_principals').sort((a,b)=>a.label.localeCompare(b.label,i18n.language)),field=>`${field.label} ${field.technicalName}`);
  const saved=baseline.grants.find(g=>g.kind===kind&&g.id===principalId)??empty,dirty=JSON.stringify(draft)!==JSON.stringify(saved);
  const grants=[...baseline.grants.filter(g=>g.kind!==kind||g.id!==principalId),...(draft.level!==null||draft.create!=null||Object.keys(draft.fields).length?[draft]:[])];
  function adopt(result:ContentPermissions){setBaseline(result);setDraft(result.grants.find(g=>g.kind===kind&&g.id===principalId)??empty);}
- const mutation=useMutation({mutationFn:()=>api('configure_content_permissions',{objectTypeId,version:baseline.version,sensitive:baseline.sensitive,grants}),onSuccess:async result=>{adopt(result);setSavedMessage(true);await client.invalidateQueries();}});
- const reset=useMutation({mutationFn:()=>api('get_content_permissions',{objectTypeId}),onSuccess:result=>{adopt(result);setSavedMessage(false);mutation.reset();}});
+ const mutation=useMutation({mutationFn:()=>api('configure_content_permissions',{objectTypeId,version:baseline.version,sensitive:baseline.sensitive,grants}),onSuccess:async result=>{adopt(result);notifySuccess(t('saved'));await client.invalidateQueries();}});
+ const reset=useMutation({mutationFn:()=>api('get_content_permissions',{objectTypeId}),onSuccess:result=>{adopt(result);mutation.reset();}});
  const busy=mutation.isPending||reset.isPending;
  useEffect(()=>onDirtyChange(dirty),[dirty,onDirtyChange]);useEffect(()=>onBusyChange(busy),[busy,onBusyChange]);
  useEffect(()=>{if(!dirty)adopt(initial);},[initial]);
- function change(next:ContentGrant){setDraft(next);setSavedMessage(false);}
+ function change(next:ContentGrant){setDraft(next);}
  const levelItems=[{value:'inherit',label:t(kind==='user'?'permissionInherit':'permissionNoGrant')},...contentLevels.map(value=>({value,label:t(`permission_${value}`)}))];
  const fieldItems=[{value:'inherit',label:t('permissionInherit')},...(['none','read','edit'] as const).map(value=>({value,label:t(`permission_${value}`)}))];
  const subject=users.find(u=>u.id===principalId),group=groups.find(g=>g.id===principalId);
@@ -78,7 +79,6 @@ function GrantEditor({objectTypeId,kind,principalId,groups,users,actionTarget,in
  const actions=<><Button type="button" variant="outline" disabled={busy||(!dirty&&!mutation.isError&&!reset.isError)} onClick={()=>reset.mutate()}>{t('resetPreferences')}</Button><Button type="submit" form={formId} disabled={!dirty||busy} aria-keyshortcuts={keyboardCommands.save.aria}>{mutation.isPending?<Spinner aria-hidden="true" data-icon="inline-start"/>:null}{t('save')}<Kbd>{saveShortcutLabel}</Kbd></Button></>;
  return <form id={formId} data-shortcut-submit onSubmit={event=>{event.preventDefault();if(dirty&&!busy)mutation.mutate();}}><FieldGroup>
  {mutation.isError||reset.isError?<ErrorNotice error={mutation.error??reset.error}/>:null}
- {savedMessage&&!dirty?<FieldDescription role="status">{t('saved')}</FieldDescription>:null}
  <Field data-disabled={busy||undefined}><FieldLabel htmlFor={`permission-level-${kind}-${objectTypeId}`}>{t('objectPermission')}</FieldLabel><AccessChoice id={`permission-level-${kind}-${objectTypeId}`} label={t('objectPermission')} value={draft.level??'inherit'} items={levelItems} disabled={busy} onChange={value=>change({...draft,level:value==='inherit'?null:value as ContentLevel})}/><FieldDescription>{effective()}</FieldDescription></Field>
  <Field><FieldLabel>{t('objectCreatePermission')}</FieldLabel><AccessChoice label={t('objectCreatePermission')} value={draft.create===undefined||draft.create===null?'inherit':String(draft.create)} disabled={busy} items={[{value:'inherit',label:t(kind==='user'?'permissionInherit':'permissionNoGrant')},{value:'true',label:t('createAllowed')},{value:'false',label:t('createDenied')}]} onChange={value=>change({...draft,create:value==='inherit'?null:value==='true'})}/><FieldDescription>{t('effectiveCreate',{value:t((kind==='user'?(draft.create??grants.some(grant=>grant.kind==='group'&&memberships.includes(grant.id)&&grant.create===true)):draft.create===true)&&active?'createAllowed':'createDenied')})}</FieldDescription></Field>
  <SettingsHelp title={t('permissionRulesTitle')}>{t(kind==='user'?'userPermissionsHelp':'groupPermissionsHelp')} {t('permissionLevelsHelp')} {t('fieldPermissionHelp')} {t('permissionPreviewHelp')}</SettingsHelp>

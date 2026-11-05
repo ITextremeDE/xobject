@@ -74,6 +74,7 @@ const en = {
 
   navigationOrder:'Order',navigationHidden:'Hidden entries',navigationOverride:'Custom arrangement',
 
+  duplicateDraftHelp:"Edit this copy before saving. It becomes a new record only when you save it.",
   customizeNavigation:"Customize navigation",
   navigationDescription:"Arrange sections, object types and filtered lists. Visibility changes only the menu, not access rights.",
   navigationScope:"Apply to",
@@ -561,6 +562,11 @@ const en = {
   treeEmpty:'No records are directly assigned here through Primary association.',
   treeLoadedCount:'{{count}} of {{total}} relationships loaded',
   recordTree: "Tree",
+  toastRegion:"Notifications",
+  tokenRevokeSuccess:"Access credentials revoked.",
+  treeExpandAll:"Expand all",
+  treeChangedDuringExpansion:"The tree changed while loading. Please try again.",
+  treeCollapseAll:"Collapse all",
   treeSavedHelp: "The Projects tree starts at this record and shows saved Primary descendants.",
   primaryContext: "Inherited Primary context",
   treeNoAncestors: "No parent Primary association. This record is an independent starting point.",
@@ -942,6 +948,7 @@ const de: Record<keyof typeof en, string> = {
 
   navigationOrder:'Reihenfolge',navigationHidden:'Ausgeblendete Einträge',navigationOverride:'Eigene Anordnung',
 
+  duplicateDraftHelp:"Bearbeite die Kopie vor dem Speichern. Erst beim Speichern wird ein neuer Datensatz angelegt.",
   customizeNavigation:"Navigation anpassen",
   navigationDescription:"Bereiche, Datenobjekte und gefilterte Listen anordnen. Sichtbarkeit ändert nur das Menü, nicht die Zugriffsrechte.",
   navigationScope:"Gilt für",
@@ -1429,6 +1436,11 @@ const de: Record<keyof typeof en, string> = {
   treeEmpty:'Hier sind keine Datensätze direkt über die Hauptzuordnung zugeordnet.',
   treeLoadedCount:'{{count}} von {{total}} Verknüpfungen geladen',
   recordTree: "Baum",
+  toastRegion:"Benachrichtigungen",
+  tokenRevokeSuccess:"Zugangsdaten widerrufen.",
+  treeExpandAll:"Alle aufklappen",
+  treeChangedDuringExpansion:"Der Baum hat sich beim Laden geändert. Bitte erneut versuchen.",
+  treeCollapseAll:"Alle einklappen",
   treeSavedHelp: "Der Projekte-Baum beginnt bei diesem Datensatz und zeigt die gespeicherten untergeordneten Datensätze aus der Hauptzuordnung.",
   primaryContext: "Kontext der Hauptzuordnung",
   treeNoAncestors: "Keine übergeordnete Hauptzuordnung. Dieser Datensatz ist ein eigenständiger Ausgangspunkt.",

@@ -30,7 +30,7 @@ Cookie-authenticated browser `POST` requests additionally require `X-XObject-Req
 
 ## Contract and versions
 
-- `GET /api/v1/openapi.json`: authenticated OpenAPI 3.1 document with input and output JSON Schemas for all 80 application operations, authentication alternatives and error envelopes.
+- `GET /api/v1/openapi.json`: authenticated OpenAPI 3.1 document with input and output JSON Schemas for all application operations, authentication alternatives and error envelopes.
 - `GET /api/v1/contract`: authenticated operation manifest with the same schemas and references.
 - [Generated contract](../packages/contracts/api-v1.openapi.json): the versioned source artifact; [shared contracts](../packages/contracts/src/index.ts) own its types/validation. `npm run api:generate` regenerates it and `npm run api:check` rejects drift. The TypeScript schema generator is a build dependency, not part of the running HTTP server.
 
@@ -54,7 +54,7 @@ It sends versioned JSON without cookies, redirects, token persistence or automat
 
 Use the stateless Streamable HTTP endpoint `/mcp`, with the same Bearer header and preferably `X-XObject-API-Version: 1`. A token must permit the MCP channel. The MCP server advertises `xobject` version `1.0.0`; the SDK-negotiated MCP protocol version is separate from this application contract.
 
-All 80 operation names and input schemas are exposed as tools. Read-only/destructive annotations assist clients but grant no authority. Successful tool text contains the operation's JSON result; tool failures use `isError` with the shared JSON error envelope. Transport authentication can fail before tool execution. A long-lived client cannot outlive revocation: each HTTP request authenticates, and every operation rechecks the credential in its application transaction. Token-management and password/session operations require an interactive session rather than bearer access.
+All operation names and input schemas are exposed as tools. Read-only/destructive annotations assist clients but grant no authority. Successful tool text contains the operation's JSON result; tool failures use `isError` with the shared JSON error envelope. Transport authentication can fail before tool execution. A long-lived client cannot outlive revocation: each HTTP request authenticates, and every operation rechecks the credential in its application transaction. Token-management and password/session operations require an interactive session rather than bearer access.
 
 The read-only resource `xobject://api/v1/openapi` supplies the complete input/output contract to MCP-only clients. No OAuth server, SSO or third-party consent flow is supplied by these personal access tokens.
 
@@ -63,3 +63,9 @@ The read-only resource `xobject://api/v1/openapi` supplies the complete input/ou
 `permanently_delete_record` requires a recycled record, current Full access, its version and `confirm: true`. It removes the live row and operational edges, not the immutable journal. Required relationships/Primary ancestors of surviving records must remain valid; otherwise the whole operation fails. Business numbers remain reserved, while removed operational edges no longer reserve cardinality slots.
 
 Installation Administrators can use `list_deleted_records` and `list_record_journal` with `includeDeleted: true` to inspect retained history. The Administrator list includes the last display Keyword captured before deletion, including derived Contact names; query text searches that caption or the record ID. `objectTypeId`, `sortBy` and `sortDirection` apply before counts and paging. Other users cannot list deleted identities or read their retained captions. In an authorized, previously visible context they receive only a content-free deletion notice, including in surviving linked-record history. Frozen event/field/context eligibility and current account, workspace, object, field and graded ownership/foreign-access rules are both required; later grants do not reveal previously hidden events. Raw historical values/snapshots remain Administrator-only through REST, MCP, paging/counts and detail views. See [ADR 0029](adr/0029-record-recycle-bin.md).
+
+## Duplicate drafts
+
+`get_record_duplicate` reads an authorized creation draft without allocating an identity, business number or journal event. It requires Duplicate on the source and Create on its object; only readable, initially writable, active values are copied. Unique values, derived values, business numbers, ownership and relationships are omitted. The response includes the source version.
+
+The web client opens the ordinary new-record form with those values. Saving calls `create_record` with `duplicateFrom` (source ID/version), so Duplicate/Create and the current source version are checked again atomically. The user can edit fields and add relationships before saving; ordinary validation and creation defaults apply. Canceling leaves no new record. `duplicate_record` remains the immediate server-side copy operation for clients that deliberately need one-step duplication.

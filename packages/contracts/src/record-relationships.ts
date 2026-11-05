@@ -21,9 +21,10 @@ export interface DossierEntry {
 }
 export interface RecordRelationships { primaryChain?:import('./primary-chain.js').PrimaryChain|null; fields: RelationshipField[]; edges: RecordRelationship[]; dossier: DossierEntry[] }
 
+export interface TreeRecord extends RelatedRecord { statusLabels:Record<string,string>|null }
 export interface RelationshipTreeChild {
   edgeId: string;
-  record: RelatedRecord;
+  record: TreeRecord;
   relationshipTypeId: string;
   kind: 'primary';
   labels: Record<string,string>;
@@ -32,7 +33,7 @@ export interface RelationshipTreeChild {
   hasChildren: boolean;
 }
 export interface RelationshipTreeBranch {
-  record: RelatedRecord;
+  record: TreeRecord;
   ancestors: RelatedRecord[];
   ancestorsTruncated: boolean;
   children: RelationshipTreeChild[];

@@ -1,3 +1,4 @@
+import {notifySuccess} from '@/lib/notifications';
 import {useRef,useState,type ReactNode} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useMutation,useQueryClient} from '@tanstack/react-query';
@@ -25,7 +26,7 @@ export function NavigationDialog({settings,workspaceId,onClose,onDirtyChange,onB
  const baseline=snapshot[scope].layout,layout=draft??(scope==='personal'?snapshot.workspace.layout:null)??defaultNavigationLayout(),dirty=JSON.stringify(draft)!==JSON.stringify(baseline);
  const nodes=snapshot.nodes.filter(n=>n.available&&(scope==='workspace'||n.permitted));
  const label=(node:NavigationNode)=>node.labels[i18n.language]??node.labels.en??node.labels.de??Object.values(node.labels)[0];
- const mutation=useMutation({mutationFn:()=>api('configure_navigation',{workspaceId,scope,version:snapshot[scope].version,layout:draft}),onMutate:()=>onBusyChange(true),onSuccess:async result=>{setSnapshot(result);setDraft(result[scope].layout);onDirtyChange(false);await client.invalidateQueries({queryKey:['workspace-navigation',workspaceId]});},onSettled:()=>onBusyChange(false)});
+ const mutation=useMutation({mutationFn:()=>api('configure_navigation',{workspaceId,scope,version:snapshot[scope].version,layout:draft}),onMutate:()=>onBusyChange(true),onSuccess:async result=>{setSnapshot(result);setDraft(result[scope].layout);onDirtyChange(false);notifySuccess(t('saved'));await client.invalidateQueries({queryKey:['workspace-navigation',workspaceId]});},onSettled:()=>onBusyChange(false)});
  function change(next:NavigationLayout|null){setDraft(next);onDirtyChange(JSON.stringify(next)!==JSON.stringify(baseline));mutation.reset();}
  function close(){if(mutation.isPending)return;if(dirty)setDiscard(true);else{onDirtyChange(false);onClose();}}
  function move(id:string,target:string,focus='handle'){
@@ -46,7 +47,7 @@ export function NavigationDialog({settings,workspaceId,onClose,onDirtyChange,onB
   <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{t('customizeNavigation')}</DialogTitle><DialogDescription>{t('navigationDescription')}</DialogDescription></DialogHeader>
   <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="navigation-form" data-shortcut-submit onSubmit={event=>{event.preventDefault();if(dirty&&!mutation.isPending)mutation.mutate();}}><FieldGroup>
    <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
-   {mutation.isError?<ErrorNotice error={mutation.error}/>:null}{mutation.isSuccess&&!dirty?<Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert>:null}
+   {mutation.isError?<ErrorNotice error={mutation.error}/>:null}
    <Field><FieldLabel htmlFor="navigation-scope">{t('navigationScope')}</FieldLabel><Select items={[{value:'personal',label:t('navigationPersonal')},...(snapshot.canManage?[{value:'workspace',label:t('navigationWorkspace')}]:[])]} value={scope} disabled={dirty||mutation.isPending} onValueChange={next=>{if(next){setScope(next as typeof scope);setDraft(snapshot[next as typeof scope].layout);mutation.reset();}}}><SelectTrigger id="navigation-scope" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup><SelectItem value="personal">{t('navigationPersonal')}</SelectItem>{snapshot.canManage?<SelectItem value="workspace">{t('navigationWorkspace')}</SelectItem>:null}</SelectGroup></SelectContent></Select><FieldDescription>{t(scope==='personal'?'navigationPersonalHelp':'navigationWorkspaceHelp')}</FieldDescription></Field>
    <SettingsSection><FieldSet><FieldLegend>{t('navigationStructure')}</FieldLegend><FieldDescription>{t('navigationSortHelp')}</FieldDescription><div className="flex min-w-0 flex-col gap-4">{rows(null)}</div></FieldSet></SettingsSection>
    <Field orientation="horizontal"><Checkbox id="navigation-resources" checked={layout.resources} disabled={mutation.isPending} onCheckedChange={next=>change({...layout,resources:next===true})}/><FieldLabel htmlFor="navigation-resources">{t('navigationResources')}</FieldLabel></Field>

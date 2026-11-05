@@ -3,7 +3,7 @@ import { resourceLinks } from '@/lib/resource-links';
 import { createContext,useContext,type ReactNode,useId,useEffect, useRef,useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SearchIcon, LayoutDashboardIcon, SettingsIcon, KeyboardIcon, Trash2Icon } from 'lucide-react';
+import { SearchIcon, LayoutDashboardIcon, SettingsIcon, KeyboardIcon, Trash2Icon, PanelLeftIcon } from 'lucide-react';
 import type { ObjectSummary } from '@xobject/contracts';
 import { keyboardCommands, workspaceSearchShortcutLabel } from '@/lib/keyboard';
 import { Kbd } from '@/components/ui/kbd';
@@ -19,7 +19,7 @@ export function WorkspaceSearchTrigger(){
  const iconOnly=state==='collapsed'&&!isMobile;
  return <SidebarGroup className="py-0"><SidebarGroupContent className="relative">{iconOnly?<SidebarMenuButton onClick={openSearch} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?dialogId:undefined} data-workspace-search-trigger tooltip={t('searchAndNavigate')} aria-keyshortcuts={keyboardCommands.workspaceSearch.aria} disabled={disabled} aria-label={t('searchAndNavigate')}><SearchIcon/></SidebarMenuButton>:<><SidebarInput data-workspace-search-trigger aria-label={t('searchAndNavigate')} aria-keyshortcuts={keyboardCommands.workspaceSearch.aria} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?dialogId:undefined} placeholder={t('searchAction')} className="pl-8 pr-14" value={input} disabled={disabled} onClick={()=>{if(!disabled)openSearch();}} onChange={event=>{setInput(event.target.value);openSearch();}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();openSearch();}}}/><SearchIcon className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 opacity-50 select-none"/><Kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 select-none">{workspaceSearchShortcutLabel}</Kbd></>}</SidebarGroupContent></SidebarGroup>;
 }
-type Destination = 'dashboard' | 'settings' | 'keyboard' | 'recycle-bin';
+type Destination = 'dashboard' | 'settings' | 'keyboard' | 'recycle-bin' | 'navigation';
 export function HeaderSearch({ workspaceId, workspaceName, language, disabled, canSearchRecords, objectTypes, onNavigate, onOpenResult,children }: { workspaceId?: string; workspaceName?: string; language: string; disabled: boolean; canSearchRecords: boolean; children:ReactNode;objectTypes: ObjectSummary[]; onNavigate: (target: Destination) => void; onOpenResult: (objectTypeId: string, recordId?: string) => void }) {
   const { t } = useTranslation();
   const { setOpenMobile } = useSidebar();
@@ -33,7 +33,7 @@ export function HeaderSearch({ workspaceId, workspaceName, language, disabled, c
   const ready = input.trim().length >= 2 && input.trim() === query;
   const result = useQuery({ queryKey: ['workspace-search', workspaceId, language, query], queryFn: () => api('search_workspace', { workspaceId: workspaceId!, query }), enabled: open && canSearchRecords && Boolean(workspaceId) && query.length >= 2 && ready });
   const matches = (label: string) => label.toLocaleLowerCase(language).includes(input.trim().toLocaleLowerCase(language));
-  const navigation = [{ id: 'dashboard' as const, label: t('dashboard'), icon: LayoutDashboardIcon }, ...(workspaceId ? [{ id: 'recycle-bin' as const, label: t('recycleBin'), icon: Trash2Icon }] : []), { id: 'settings' as const, label: t('settings'), icon: SettingsIcon }, { id: 'keyboard' as const, label: t('keyboardHelp'), icon: KeyboardIcon }].filter(item => matches(item.label));
+  const navigation = [{ id: 'dashboard' as const, label: t('dashboard'), icon: LayoutDashboardIcon }, ...(workspaceId ? [{ id: 'recycle-bin' as const, label: t('recycleBin'), icon: Trash2Icon },{id:'navigation' as const,label:t('customizeNavigation'),icon:PanelLeftIcon}] : []), { id: 'settings' as const, label: t('settings'), icon: SettingsIcon }, { id: 'keyboard' as const, label: t('keyboardHelp'), icon: KeyboardIcon }].filter(item => matches(item.label));
   const objects = objectTypes.filter(type => (!type.state || type.state === 'active') && matches(type.label));
   const resources = resourceLinks.map(item => ({ label: t(item.label), url: item.href, icon: item.icon })).filter(item => matches(item.label));
   const remoteReady = canSearchRecords && workspaceId && input.trim().length >= 2;

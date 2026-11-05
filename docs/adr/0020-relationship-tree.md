@@ -6,7 +6,7 @@
 
 ## Read model
 
-`get_relationship_tree_branch` returns the requested record, its real Primary ancestors and one paginated level of Primary descendants. The tree belongs to the Projects module; the operation rejects calls while Projects is disabled, consistently through API and MCP. UI, API and MCP use the same object/field/record authorization under ADR 0026 and workspace/endpoint checks. Inaccessible branches and ancestor links are excluded before counts/pagination. Reading a tree changes neither records nor journals and requires no schema migration.
+`get_relationship_tree_branch` returns the requested record, its real Primary ancestors and one paginated level of Primary descendants. The tree belongs to the Projects module; the operation rejects calls while Projects is disabled, consistently through API and MCP. UI, API and MCP use the same object/field/record authorization under ADR 0027 and workspace/endpoint checks. Inaccessible branches and ancestor links are excluded before counts/pagination. Reading a tree changes neither records nor journals and requires no schema migration.
 
 Primary associations expand only from parent to child. An incoming Primary edge appears in the separate context path above the tree, never as an invented child. General and custom relationships remain in the Dossier and never generate tree branches, ancestor context or expandable-child indicators. Children sort by Keyword under the effective workspace language, with stable identity/edge tie-breakers. A parallel General/custom edge does not duplicate a Primary child.
 
@@ -19,6 +19,12 @@ Load branches on demand, 25 edges at a time, with an explicit Load more control 
 Compose the tree from the existing shadcn Collapsible, Button, Badge and Breadcrumb primitives. Tree items use one roving Tab stop, Arrow Up/Down, Arrow Right/Left, Home/End, Space to toggle and Enter to open. Mouse users expand with the disclosure button and open a record through its Keyword. Preserve normal link actions and the application's unsaved/pending navigation guard. Branch loading, errors/retry, pagination and empty states remain visible. Branch caches are invalidated after record/relationship/definition saves and separated by interface language.
 
 The Tree tab is shown only while Projects supplies the fixed Primary chain. Disabling Projects removes it and returns an open tree view to Details. The Tree tab displays persisted data; drafts in Details appear after saving. The Dossier remains the flat list and the Journal remains immutable history. Independently required chain levels and production scaling of the prototype's workspace graph scans remain separate work.
+
+## Compact presentation and bulk expansion
+
+Use a compact Explorer row with aligned disclosure/icon/Keyword, a muted object label and a right-aligned status caption. The status is projected through the same batched field-right resolver as the Dossier, including record-level ceilings; hidden status values and option labels are omitted. Ancestor context remains a compact Breadcrumb. Repeated Primary badges are unnecessary in this Primary-only view. Initial and branch placeholders match the compact row layout.
+
+The toolbar has Expand all, Collapse all and keyboard help. Expand all sequentially loads remaining pages and reachable Primary branches into the existing language-scoped query cache, preserving immutable cache pages. It follows the viewer's depth/path boundaries, exposes pending/cancel and reports retryable errors. Cancellation or navigation ignores late responses; already loaded branches remain available. Manual branch toggling also stops bulk expansion. Collapse all cancels pending expansion, closes branches and returns the roving focus to the root. Ordinary context responses stay independent of Tree status presentation.
 
 ## Validation
 

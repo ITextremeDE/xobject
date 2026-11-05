@@ -2742,11 +2742,22 @@ test('Create is independent of existing Read and duplication copies only accessi
  const linked=await api('create_record',{objectTypeId:object.id,linkFrom:{objectTypeId:sourceType.id,recordId:parent.id,recordVersion:parent.version,relationshipTypeId:general.id,version:general.version,side:'left'}},userCookie);assert.equal(linked.statusCode,200,linked.body);assert.equal(linked.json().permissions.read,false);assert.equal((await ok('get_record_relationships',{objectTypeId:sourceType.id,recordId:parent.id})).edges.length,1);
  const source=await ok('create_record',{objectTypeId:object.id,keyword:'Source',values:{detail:'Copy this',secret:'Never copy'}});
  cfg=await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'duplicate',create:true,fields:{[hidden.id]:'none'}}]});
+ const beforeDraft=(await ok('list_records',{objectTypeId:object.id})).total;
+ const beforeEvents=(await sql<{count:string}>`SELECT count(*) AS count FROM sys_journal`.execute(runtime.db)).rows[0].count;
+ const draftResponse=await api('get_record_duplicate',{objectTypeId:object.id,recordId:source.id},userCookie);assert.equal(draftResponse.statusCode,200,draftResponse.body);const draft=draftResponse.json();
+ assert.equal(draft.sourceVersion,source.version);assert.equal(draft.values.detail,'Copy this');assert.equal(draft.values.secret,undefined);assert.equal(draft.values.access_principals,undefined);assert.equal(draft.values.business_number,undefined);
+ assert.equal((await ok('list_records',{objectTypeId:object.id})).total,beforeDraft,'preparing and discarding a copy creates no row');
+ assert.equal((await sql<{count:string}>`SELECT count(*) AS count FROM sys_journal`.execute(runtime.db)).rows[0].count,beforeEvents,'preparation writes no journal');
+ const savedDraft=await api('create_record',{objectTypeId:object.id,duplicateFrom:{recordId:source.id,version:draft.sourceVersion},keyword:'Edited copy',values:{...draft.values,detail:'Changed before saving'},classification:draft.classification},userCookie);assert.equal(savedDraft.statusCode,200,savedDraft.body);
+ const edited=await ok('get_record',{objectTypeId:object.id,recordId:savedDraft.json().id});assert.equal(edited.keyword,'Edited copy');assert.equal(edited.detail,'Changed before saving');assert.equal(edited.secret,null);
+ assert.equal((await api('create_record',{objectTypeId:object.id,duplicateFrom:{recordId:source.id,version:source.version+1},values:draft.values},userCookie)).statusCode,409,'stale duplicate sources cannot save');
  const copy=await api('duplicate_record',{objectTypeId:object.id,recordId:source.id,version:source.version},userCookie);assert.equal(copy.statusCode,200,copy.body);
  const full=await ok('get_record',{objectTypeId:object.id,recordId:copy.json().id});assert.equal(full.detail,'Copy this');assert.equal(full.secret,null);assert.notEqual(full.id,source.id);
  assert.equal((await api('update_record',{objectTypeId:object.id,recordId:source.id,version:source.version,values:{detail:'Denied'}},userCookie)).statusCode,403);
  cfg=await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'edit',create:null,fields:{}}]});
  assert.equal((await api('create_record',{objectTypeId:object.id},userCookie)).statusCode,403,'Edit does not implicitly grant Create');
+ assert.equal((await api('get_record_duplicate',{objectTypeId:object.id,recordId:source.id},userCookie)).statusCode,403);
+ assert.equal((await api('create_record',{objectTypeId:object.id,duplicateFrom:{recordId:source.id,version:source.version},values:draft.values},userCookie)).statusCode,403,'current Duplicate and Create are rechecked when saving');
  const group=await ok('create_group',{workspaceId:ws.id,name:'Creators',members:([user.id]).map(id=>({kind:'user',id,level:'full'}))});
  cfg=await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'none',create:null,fields:{}},{kind:'group',id:group.id,level:'none',create:true,fields:{}}]});
  assert.equal((await api('create_record',{objectTypeId:object.id},userCookie)).statusCode,200,'Missing user Create inherits a group despite an explicit object None');
@@ -3983,4 +3994,20 @@ test('Administrator deleted-record search uses frozen captions, scoped filters a
  let organization=await ok('create_record',{objectTypeId:contacts.id,values});organization=await ok('recycle_record',{objectTypeId:contacts.id,recordId:organization.id,version:organization.version});await ok('permanently_delete_record',{objectTypeId:contacts.id,recordId:organization.id,version:organization.version,confirm:true});
  page=await ok('list_deleted_records',{workspaceId:ws.id,objectTypeId:contacts.id,query:'organization',sortBy:'objectLabel'});assert.equal(page.total,1);assert.equal(page.records[0].keyword,'Retained Organization caption');assert.equal(page.records[0].id,organization.id);
  const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'designer',expectedRole:null});const forbidden=await api('list_deleted_records',{workspaceId:ws.id,query:'caption'},userCookie);assert.equal(forbidden.statusCode,403);assert.ok(!forbidden.body.includes('Retained Organization caption'));
+});
+
+test('tree status captions use current object and per-record field rights for roots and children',async()=>{
+ const ws=await ok('create_workspace',{code:'treestatus',name:'Tree status'}),primary=await enableProjects(ws.id);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const objects=await ok('list_object_types',{workspaceId:ws.id}),project=await ok('get_object_type',{objectTypeId:objects.find((o:any)=>o.technicalName==='projects').id}),task=await ok('get_object_type',{objectTypeId:objects.find((o:any)=>o.technicalName==='tasks').id});
+ const projectStatus=project.classification.options.find((o:any)=>o.kind==='status'&&o.active),taskStatus=task.classification.options.find((o:any)=>o.kind==='status'&&o.active);assert.ok(projectStatus);assert.ok(taskStatus);
+ const parent=await ok('create_record',{objectTypeId:project.id,keyword:'Visible project',classification:{type:projectStatus.typeId??null,status:projectStatus.id},security:{policy:defaultRecordSecurity(),confirmPublic:true}});
+ const child=await ok('create_record',{objectTypeId:task.id,keyword:'Visible task',classification:{type:taskStatus.typeId??null,status:taskStatus.id},security:{policy:defaultRecordSecurity(),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:project.id,recordId:parent.id}]}]});
+ for(const definition of [project,task]){const config=await ok('get_content_permissions',{objectTypeId:definition.id});await ok('configure_content_permissions',{...config,grants:[{kind:'user',id:user.id,level:'read',fields:{[definition.fields.find((f:any)=>f.kind==='status').id]:'none'}}]});}
+ const input={objectTypeId:project.id,recordId:parent.id},admin=await ok('get_relationship_tree_branch',input);assert.deepEqual(admin.record.statusLabels,projectStatus.labels);assert.deepEqual(admin.children[0].record.statusLabels,taskStatus.labels);
+ const hidden=await api('get_relationship_tree_branch',input,userCookie);assert.equal(hidden.statusCode,200,hidden.body);assert.equal(hidden.json().record.statusLabels,null);assert.equal(hidden.json().children[0].record.statusLabels,null);assert.equal(hidden.body.includes(projectStatus.id),false);assert.equal(hidden.body.includes(taskStatus.id),false);
+ const config=await ok('get_content_permissions',{objectTypeId:task.id});await ok('configure_content_permissions',{...config,grants:[{kind:'user',id:user.id,level:'read',fields:{}}]});
+ const allowed=await api('get_relationship_tree_branch',input,userCookie);assert.deepEqual(allowed.json().children[0].record.statusLabels,taskStatus.labels);
+ const security=await ok('get_record_security',{objectTypeId:task.id,recordId:child.id});await ok('configure_record_security',{objectTypeId:task.id,recordId:child.id,version:security.version,policy:{...security.policy,fields:[{kind:'user',id:user.id,fields:{[task.fields.find((f:any)=>f.kind==='status').id]:'none'}}]},confirmPublic:true});
+ const ceiling=await api('get_relationship_tree_branch',input,userCookie);assert.equal(ceiling.json().children[0].record.statusLabels,null,'record-level field ceilings also apply');
 });

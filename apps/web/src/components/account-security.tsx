@@ -1,3 +1,4 @@
+import {notifySuccess} from '@/lib/notifications';
 import {ApiCredentialSettings} from './api-credentials';
 import {SettingsHelp} from './settings-help';
 import {SettingsSection} from './settings-section';
@@ -44,24 +45,23 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
   const [confirmation, setConfirmation] = useState('');
   const [revokeOthers, setRevokeOthers] = useState(true);
   const [confirmSession, setConfirmSession] = useState<string | null>(null);
-  const [notice, setNotice] = useState('');
   const [credentialDirty,setCredentialDirty]=useState(false),[credentialBusy,setCredentialBusy]=useState(false);
   const dirty = Boolean(currentPassword || newPassword || confirmation) || !revokeOthers;
   const valid = currentPassword.length > 0 && currentPassword.length <= 128 && newPassword.length >= 12 && newPassword.length <= 128 && newPassword === confirmation && currentPassword !== newPassword;
   const password = useMutation({ mutationFn: () => api('change_password', { currentPassword, newPassword, revokeOtherSessions: revokeOthers }), onSuccess: async () => {
-    setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true); setNotice('passwordChanged');
+    setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true); notifySuccess(t('passwordChanged'));
     await client.invalidateQueries({ queryKey: ['account-security', user.id] });
     await client.invalidateQueries({queryKey:['api-credentials']});
     await client.invalidateQueries({ queryKey: ['session'] });
   } });
   const revoke = useMutation({ mutationFn: (id: string) => id === 'others' ? api('revoke_other_sessions', {}) : api('revoke_session', { sessionId: id }), onSuccess: async () => {
-    setConfirmSession(null); setNotice('sessionsRevoked');
+    setConfirmSession(null); notifySuccess(t('sessionsRevoked'));
     await client.invalidateQueries({ queryKey: ['account-security', user.id] });
   } });
   const busy = password.isPending || revoke.isPending || credentialBusy;
   useEffect(() => { onDirtyChange(dirty||credentialDirty); }, [dirty,credentialDirty,onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
-  function reset() { setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true); setNotice(''); password.reset(); }
+  function reset() { setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true);  password.reset(); }
   const passwordErrors: Record<string, string> = { 'Current password is incorrect': 'currentPasswordWrong', 'New password must be different': 'passwordMustDiffer', 'Local password is not available': 'noLocalPassword', 'Password attempts exceeded': 'passwordRateLimit' };
   const currentPasswordInvalid = password.isError && password.error.message === 'Current password is incorrect';
   const newPasswordInvalid = Boolean(newPassword && (newPassword.length < 12 || newPassword === currentPassword));
@@ -69,15 +69,14 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
   const formatDate = (value: string) => formatRegionalDate(value, regional, timeZone, true);
   return <FieldGroup>
     {initialOnly ? <FieldDescription>{t('signedInAccount', { email: user.email })}</FieldDescription> : null}
-    {notice ? <Alert><AlertDescription role="status">{t(notice)}</AlertDescription></Alert> : null}
     {security.isPending ? <AccountSecurityLoading initialOnly={initialOnly}/> : security.isError ? <ErrorNotice error={security.error} retry={() => { void security.refetch(); }} /> : <>
       {!initialOnly ? <SettingsSection><Field><FieldLabel htmlFor="account-email">{t('email')}</FieldLabel><Input id="account-email" type="email" value={user.email} readOnly autoComplete="email" aria-describedby="account-email-help"/><FieldDescription id="account-email-help">{t('profileEmailReadOnly')}</FieldDescription><SettingsHelp title={t('emailChangeDetails')}>{t('profileEmailHelp')}</SettingsHelp></Field></SettingsSection> : null}
       <SettingsSection><form id="account-password-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (valid && !busy && security.data.hasPassword) password.mutate(); }}><FieldSet className="min-w-0" disabled={busy}><FieldLegend>{t('changePassword')}</FieldLegend>
         {password.isError ? password.error instanceof ApiError && passwordErrors[password.error.message] ? ['Current password is incorrect', 'New password must be different'].includes(password.error.message) ? null : <Alert variant="destructive"><AlertDescription>{t(passwordErrors[password.error.message])}</AlertDescription></Alert> : <ErrorNotice error={password.error} /> : null}
         {security.data.hasPassword ? <FieldGroup>
-          <Field data-disabled={busy || undefined} data-invalid={currentPasswordInvalid}><FieldLabel htmlFor="current-password">{t('currentPassword')}</FieldLabel><Input id="current-password" type="password" autoComplete="current-password" value={currentPassword} aria-invalid={currentPasswordInvalid} aria-describedby={currentPasswordInvalid ? 'current-password-error' : undefined} required maxLength={128} disabled={busy} onChange={event => { setCurrentPassword(event.target.value); password.reset(); setNotice(''); }} />{currentPasswordInvalid ? <FieldError id="current-password-error">{t('currentPasswordWrong')}</FieldError> : null}</Field>
-          <Field data-disabled={busy || undefined} data-invalid={newPasswordInvalid}><FieldLabel htmlFor="new-password">{t('newPassword')}</FieldLabel><Input id="new-password" type="password" autoComplete="new-password" value={newPassword} required minLength={12} maxLength={128} disabled={busy} aria-invalid={newPasswordInvalid} aria-describedby={newPasswordInvalid ? 'password-length new-password-error' : 'password-length'} onChange={event => { setNewPassword(event.target.value); setNotice(''); }} /><FieldDescription id="password-length">{t('passwordLengthHelp')}</FieldDescription>{newPasswordInvalid ? <FieldError id="new-password-error">{t(newPassword === currentPassword ? 'passwordMustDiffer' : 'passwordLengthError')}</FieldError> : null}</Field>
-          <Field data-disabled={busy || undefined} data-invalid={confirmationInvalid}><FieldLabel htmlFor="confirm-password">{t('confirmPassword')}</FieldLabel><Input id="confirm-password" type="password" autoComplete="new-password" value={confirmation} required maxLength={128} disabled={busy} aria-invalid={confirmationInvalid} aria-describedby={confirmationInvalid ? 'password-mismatch' : undefined} onChange={event => { setConfirmation(event.target.value); setNotice(''); }} />{confirmationInvalid ? <FieldError id="password-mismatch">{t('passwordMismatch')}</FieldError> : null}</Field>
+          <Field data-disabled={busy || undefined} data-invalid={currentPasswordInvalid}><FieldLabel htmlFor="current-password">{t('currentPassword')}</FieldLabel><Input id="current-password" type="password" autoComplete="current-password" value={currentPassword} aria-invalid={currentPasswordInvalid} aria-describedby={currentPasswordInvalid ? 'current-password-error' : undefined} required maxLength={128} disabled={busy} onChange={event => { setCurrentPassword(event.target.value); password.reset();  }} />{currentPasswordInvalid ? <FieldError id="current-password-error">{t('currentPasswordWrong')}</FieldError> : null}</Field>
+          <Field data-disabled={busy || undefined} data-invalid={newPasswordInvalid}><FieldLabel htmlFor="new-password">{t('newPassword')}</FieldLabel><Input id="new-password" type="password" autoComplete="new-password" value={newPassword} required minLength={12} maxLength={128} disabled={busy} aria-invalid={newPasswordInvalid} aria-describedby={newPasswordInvalid ? 'password-length new-password-error' : 'password-length'} onChange={event => { setNewPassword(event.target.value);  }} /><FieldDescription id="password-length">{t('passwordLengthHelp')}</FieldDescription>{newPasswordInvalid ? <FieldError id="new-password-error">{t(newPassword === currentPassword ? 'passwordMustDiffer' : 'passwordLengthError')}</FieldError> : null}</Field>
+          <Field data-disabled={busy || undefined} data-invalid={confirmationInvalid}><FieldLabel htmlFor="confirm-password">{t('confirmPassword')}</FieldLabel><Input id="confirm-password" type="password" autoComplete="new-password" value={confirmation} required maxLength={128} disabled={busy} aria-invalid={confirmationInvalid} aria-describedby={confirmationInvalid ? 'password-mismatch' : undefined} onChange={event => { setConfirmation(event.target.value);  }} />{confirmationInvalid ? <FieldError id="password-mismatch">{t('passwordMismatch')}</FieldError> : null}</Field>
           <Field data-disabled={(busy || initialOnly) || undefined} orientation="horizontal"><Checkbox id="password-revoke-others" checked={initialOnly || revokeOthers} disabled={busy || initialOnly} onCheckedChange={checked => setRevokeOthers(checked === true)} /><FieldLabel htmlFor="password-revoke-others">{t('revokeOnPasswordChange')}</FieldLabel></Field>
           <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:flex-wrap sm:justify-end"><Button type="button" variant="outline" disabled={!dirty || busy} onClick={reset}>{t('resetPreferences')}</Button><Button type="submit" disabled={!valid || busy} aria-keyshortcuts={keyboardCommands.save.aria}>{password.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{password.isPending ? t('saving') : t('changePassword')}<Kbd>{saveShortcutLabel}</Kbd></Button></Field>
         </FieldGroup> : <FieldDescription>{t('noLocalPassword')}</FieldDescription>}

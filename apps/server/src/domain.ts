@@ -119,11 +119,14 @@ export class Application {
             return contentAccess().project(type.id,await this.record(tx,type,a.recordId),true);
           }
           case 'list_recycled_records':return listWorkspaceRecords(tx,schemas.list_recycled_records.parse(parsed),userId,true);
+          case 'get_record_duplicate': {
+            const a=schemas.get_record_duplicate.parse(parsed),type=await this.objectType(tx,a.objectTypeId);await contentAccess().require(type.id,a.recordId,'duplicate');await contentAccess().require(type.id,undefined,'create');
+            return this.duplicateDraft(tx,type,await this.record(tx,type,a.recordId),a.recordId);
+          }
           case 'duplicate_record': {
             const a=schemas.duplicate_record.parse(parsed),type=await this.objectType(tx,a.objectTypeId);await contentAccess().require(type.id,a.recordId,'duplicate');await contentAccess().require(type.id,undefined,'create');const source=await this.record(tx,type,a.recordId);if(source.version!==a.version)throw new AppError(409,'Record version conflict');
-            const policy=await contentAccess().policy(type.id),fields=await this.fields(tx,type,{});const values:Record<string,FieldValue>={};for(const f of fields)if(f.state==='active'&&f.value_mode!=='derived'&&isCustomFieldKind(f.kind)&&!['keyword','access_principals','business_number'].includes(f.technical_name)&&!f.input_rules?.unique&&policy.field(f.id,a.recordId).read&&policy.creationField(f.id))values[f.technical_name]=source[f.technical_name] as FieldValue;
-            const classification=Object.fromEntries(['type','status','category'].filter(key=>fields.some(f=>f.technical_name===key&&policy.field(f.id,a.recordId).read&&policy.creationField(f.id))).map(key=>[key,source[key]]));
-            return this.createRecord(tx,schemas.create_record.parse({objectTypeId:type.id,values,classification,...(fields.some(f=>f.technical_name==='keyword'&&f.value_mode!=='derived'&&policy.field(f.id,a.recordId).read)?{keyword:a.keyword??(fields.find(f=>f.technical_name==='keyword')?.input_rules?.unique?undefined:source.keyword)}:{})}),userId);
+            const {sourceVersion,...draft}=await this.duplicateDraft(tx,type,source,a.recordId);
+            return this.createRecord(tx,schemas.create_record.parse({objectTypeId:type.id,...draft,...(a.keyword!==undefined?{keyword:a.keyword}:{})}),userId);
           }
           case 'configure_object_settings': {
             const args=schemas.configure_object_settings.parse(parsed),type=await this.objectType(tx,args.objectTypeId),change=v7();
@@ -343,8 +346,8 @@ export class Application {
     if (['list_field_schemas','get_time_zone_catalog', 'configure_user_localization', 'get_language_catalog', 'get_access_context', 'list_workspaces',  'set_user_profile'].includes(operation)) return { isAdmin: false };
     if(['get_foreign_access','configure_foreign_access'].includes(operation)){await foreignAccessView(tx,String(args.workspaceId),actor);return {isAdmin:false};}
     if(['get_foreign_access','configure_foreign_access','configure_group_inheritance','get_content_permissions','configure_content_permissions'].includes(operation))throw new AppError(403,'Only Administrators manage content permissions');
-    const contentOperations=['duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
-    if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||(['get_record_relationships','get_primary_chain_context','search_relationship_candidates'].includes(operation)&&!args.recordId)?'create':operation==='update_record'?'edit':operation==='configure_record_security'?'full':operation==='duplicate_record'?'duplicate':'read');return {isAdmin:false};}
+    const contentOperations=['get_record_duplicate','duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
+    if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||(['get_record_relationships','get_primary_chain_context','search_relationship_candidates'].includes(operation)&&!args.recordId)?'create':operation==='update_record'?'edit':operation==='configure_record_security'?'full':['duplicate_record','get_record_duplicate'].includes(operation)?'duplicate':'read');return {isAdmin:false};}
     if(['list_recycled_records','get_workspace_dashboard','list_workspace_records','search_workspace'].includes(operation)){if(!(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${args.workspaceId}::uuid AND user_id=${actor}`.execute(tx)).rows.length)throw new AppError(403,'Access denied');return {isAdmin:false};}
     // Other instance operations remain Administrator-only.
     if (['get_primary_chain_context', 'get_relationship_tree_branch', 'get_record_relationships', 'search_relationship_candidates', 'list_record_journal', 'get_workspace_dashboard', 'list_workspace_records', 'list_managed_users', 'create_user', 'configure_user', 'list_system_journal',  'set_group_active', 'create_workspace', 'list_users', 'set_workspace_member', 'search_workspace', 'list_records', 'get_record',  'create_record', 'update_record'].includes(operation)) throw new AppError(403, 'Access denied');
@@ -1033,8 +1036,15 @@ export class Application {
     }
   }
 
+  private async duplicateDraft(tx:Executor,type:ObjectType,source:DataRecord,recordId:string) {
+            const policy=await contentAccess().policy(type.id),fields=await this.fields(tx,type,{});const values:Record<string,FieldValue>={};for(const f of fields)if(f.state==='active'&&f.value_mode!=='derived'&&isCustomFieldKind(f.kind)&&!['keyword','access_principals','business_number'].includes(f.technical_name)&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))values[f.technical_name]=source[f.technical_name] as FieldValue;
+            const classification=Object.fromEntries(['type','status','category'].filter(key=>fields.some(f=>f.technical_name===key&&policy.field(f.id,recordId).read&&policy.creationField(f.id))).map(key=>[key,source[key]]));
+    return {sourceVersion:source.version,values,classification,...(fields.some(f=>f.technical_name==='keyword'&&f.value_mode!=='derived'&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))?{keyword:source.keyword}:{})};
+  }
+
   private async createRecord(tx: Executor, args: z.infer<typeof schemas.create_record>, actor: string) {
     const type = await this.objectType(tx, args.objectTypeId);
+    if(args.duplicateFrom){await contentAccess().require(type.id,args.duplicateFrom.recordId,'duplicate');const source=await this.record(tx,type,args.duplicateFrom.recordId);if(source.version!==args.duplicateFrom.version)throw new AppError(409,'Record version conflict');}
     const fields = await this.fields(tx, type, args.values);
     this.checkStandardValues(fields, args.keyword, args.classification);
     const policy=await contentAccess().require(type.id,undefined,'create');
