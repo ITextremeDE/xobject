@@ -13,7 +13,7 @@
     "db:init": "tsx src/cli.ts initialize"
   },
   "dependencies": {
-    "@fastify/static": "10.1.8",
+    "@fastify/static": "10.1.10",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@xobject/contracts": "0.0.0",
     "better-auth": "1.7.14",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "@types/node": "26.6.6",
     "@types/pg": "8.23.1",
+    "ajv": "8.20.0",
     "tsx": "4.23.15",
     "typescript": "7.0.2"
   }

@@ -13,14 +13,24 @@
     "node": ">=24 <27"
   },
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run build --workspace @xobject/contracts && npm run typecheck --workspaces --if-present",
+    "build": "npm run api:generate && npm run build --workspaces --if-present",
+    "typecheck": "npm run build --workspace @xobject/contracts && npm run api:check && npm run typecheck --workspaces --if-present",
     "test": "npm run build --workspace @xobject/contracts && npm run test --workspace @xobject/server && npm run test --workspace @xobject/web",
     "dev": "npm run build --workspace @xobject/contracts && npm run build --workspace @xobject/web && node --env-file-if-exists=.env --import tsx apps/server/src/main.ts",
     "admin:create": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts create-admin",
     "dev:web": "npm run dev --workspace @xobject/web",
     "dev:seed": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts seed-demo --confirm-local-demo",
     "db:init": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts initialize",
-    "db:reset": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts reset-development --confirm-dev-reset"
+    "db:reset": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts reset-development --confirm-dev-reset",
+    "api:generate": "npm run build --workspace @xobject/contracts && node scripts/generate-api-contract.mjs",
+    "api:check": "node scripts/generate-api-contract.mjs --check"
+  },
+  "devDependencies": {
+    "typescript-json-schema": "0.68.0"
+  },
+  "overrides": {
+    "typescript-json-schema": {
+      "glob": "14.0.3"
+    }
   }
 }

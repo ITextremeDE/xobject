@@ -347,3 +347,14 @@ export async function linkedRecordWrites(tx:Executor,targetId:string,source:impo
  const targets=[...(existing?.targets??[])];if(!targets.some(t=>key(t)===key(ref)))targets.push(ref);
  return [...(writes??[]).filter(w=>w!==existing),{relationshipTypeId:definition.id,version:definition.version,side,targets}];
 }
+
+/** System cleanup on confirmed permanent deletion; validate surviving endpoints only. */
+export async function removeDeletedRecordRelationships(tx:Executor,objectTypeId:string,recordId:string,actor:string,change:string){
+ const model=await modelFor(tx,objectTypeId),focus={objectTypeId,recordId},definitions=await relationshipTypes(tx,model.workspace_id);
+ const edges=(await edgesFor(tx,model.workspace_id)).filter(edge=>key(left(edge))===key(focus)||key(right(edge))===key(focus));
+ const touched=new Map<string,RecordReference>();
+ for(const edge of edges){const type=definitions.find(t=>t.id===edge.relationship_type_id)!;await journalEdge(tx,edge,type,actor,change,false);await sql`DELETE FROM sys_relationships WHERE id=${edge.id}::uuid`.execute(tx);const other=key(left(edge))===key(focus)?right(edge):left(edge);touched.set(key(other),other);}
+ for(const definition of definitions.filter(t=>t.rulesState==='active'&&edges.some(e=>e.relationship_type_id===t.id)))await validateChangedRelationships(tx,definition,[...touched.values()]);
+ for(const ref of touched.values()){const target=await modelFor(tx,ref.objectTypeId);await sql`UPDATE ${sql.table(table(target))} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${ref.recordId}::uuid`.execute(tx);}
+ return [...touched.values()];
+}

@@ -5,18 +5,21 @@ ALTER TABLE public.sys_users ADD COLUMN active boolean NOT NULL DEFAULT true, AD
 CREATE FUNCTION public.sys_assert_record_identity(ws uuid, obj uuid, rec uuid) RETURNS void
     LANGUAGE plpgsql
     AS $_$
-  DECLARE physical_name text; registered boolean; present boolean; sensitive boolean;
+  DECLARE physical_name text; registered boolean; present boolean; sensitive boolean; removed boolean;
   BEGIN
     SELECT w.code || '_' || o.technical_name INTO physical_name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=obj AND o.workspace_id=ws AND o.state<>'deleted';
     PERFORM 1 FROM sys_record_identities WHERE workspace_id=ws AND object_type_id=obj AND record_id=rec FOR KEY SHARE;
     registered := FOUND;
+    SELECT deleted_at IS NOT NULL INTO removed FROM sys_record_identities WHERE workspace_id=ws AND object_type_id=obj AND record_id=rec;
     present := false;
     IF physical_name IS NOT NULL THEN
       EXECUTE format('SELECT EXISTS(SELECT 1 FROM (SELECT id FROM %I WHERE id=$1 FOR KEY SHARE) r)',physical_name) INTO present USING rec;
     END IF;
     SELECT is_sensitive INTO sensitive FROM public.sys_object_types WHERE id=obj;
     IF present AND sensitive AND NOT EXISTS(SELECT 1 FROM public.sys_record_security WHERE object_type_id=obj AND record_id=rec) THEN RAISE EXCEPTION 'Sensitive record requires a security policy' USING ERRCODE='23503'; END IF;
-    IF registered <> present THEN RAISE EXCEPTION 'Record identity and business row must exist together' USING ERRCODE='23503'; END IF;
+    IF removed THEN
+      IF present OR EXISTS(SELECT 1 FROM sys_relationships WHERE workspace_id=ws AND ((left_object_type_id=obj AND left_record_id=rec) OR (right_object_type_id=obj AND right_record_id=rec))) THEN RAISE EXCEPTION 'Deleted identity cannot have live contents or edges' USING ERRCODE='23503'; END IF;
+    ELSIF registered <> present THEN RAISE EXCEPTION 'Record identity and business row must exist together' USING ERRCODE='23503'; END IF;
   END $_$;
 
 CREATE FUNCTION public.sys_check_business_identity() RETURNS trigger
@@ -37,6 +40,21 @@ CREATE FUNCTION public.sys_check_registry_identity() RETURNS trigger
     IF TG_OP <> 'DELETE' THEN PERFORM sys_assert_record_identity(NEW.workspace_id,NEW.object_type_id,NEW.record_id); END IF;
     RETURN NULL;
   END $$;
+
+CREATE TABLE public.sys_api_credentials (
+    id uuid PRIMARY KEY,
+    user_id text NOT NULL REFERENCES public.sys_users(id) ON DELETE RESTRICT,
+    name text NOT NULL,
+    secret_hash text NOT NULL CHECK (secret_hash ~ '^[0-9a-f]{64}$'),
+    channels text[] NOT NULL CHECK (cardinality(channels)>0 AND channels <@ ARRAY['api','mcp']::text[]),
+    read_only boolean NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL,
+    last_used_at timestamptz,
+    revoked_at timestamptz,
+    CHECK (expires_at > created_at)
+);
+CREATE INDEX sys_api_credentials_user_idx ON public.sys_api_credentials(user_id,created_at DESC);
 
 CREATE TABLE public.sys_content_grants (
     object_type_id uuid NOT NULL,
@@ -112,6 +130,9 @@ CREATE TABLE public.sys_journal (
     entity_id uuid NOT NULL,
     field_id uuid,
     field_key text NOT NULL,
+    access_channel text NOT NULL DEFAULT COALESCE(NULLIF(current_setting('xobject.channel',true),''),'internal'),
+    credential_id uuid DEFAULT NULLIF(current_setting('xobject.credential_id',true),'')::uuid,
+    agent_name text DEFAULT NULLIF(current_setting('xobject.agent_name',true),''),
     detail_context jsonb,
     old_value jsonb,
     new_value jsonb,
@@ -158,10 +179,18 @@ CREATE TABLE public.sys_record_identities (
     workspace_id uuid NOT NULL,
     object_type_id uuid NOT NULL,
     record_id uuid NOT NULL,
+    deleted_at timestamptz,
+    deleted_by text REFERENCES public.sys_users(id),
+    deleted_policy jsonb,
+    deleted_readers jsonb,
+    deleted_keyword text,
+    CONSTRAINT sys_record_deleted_check CHECK ((deleted_at IS NULL AND deleted_by IS NULL AND deleted_readers IS NULL AND deleted_policy IS NULL AND deleted_keyword IS NULL) OR (deleted_at IS NOT NULL AND deleted_keyword IS NOT NULL AND deleted_by IS NOT NULL AND deleted_readers IS NOT NULL AND jsonb_typeof(deleted_readers)='object' AND deleted_policy IS NOT NULL AND jsonb_typeof(deleted_policy)='object' AND recycled_at IS NOT NULL)),
     recycled_at timestamp with time zone,
     recycled_by text REFERENCES public.sys_users(id),
     CONSTRAINT sys_record_recycle_pair CHECK ((recycled_at IS NULL) = (recycled_by IS NULL))
 );
+
+CREATE INDEX sys_record_deleted_idx ON public.sys_record_identities(workspace_id,deleted_at DESC,record_id) WHERE deleted_at IS NOT NULL;
 
 CREATE INDEX sys_record_recycle_idx ON public.sys_record_identities(workspace_id, recycled_at DESC, record_id) WHERE recycled_at IS NOT NULL;
 

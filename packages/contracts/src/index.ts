@@ -50,6 +50,13 @@ const definitionState = z.enum(['active', 'inactive', 'deleted']);
 const workspaceRole = z.enum(['user', 'designer']);
 const recordSecurityWrite = z.object({policy:recordSecuritySchema,confirmPublic:z.boolean().default(false)}).strict();
 export const schemas = {
+  list_api_credentials:z.object({userId:z.string().min(1).max(100).optional()}).strict(),
+  create_api_credential:z.object({name:z.string().trim().min(1).max(100),expiresAt:z.iso.datetime({offset:true}),channels:z.array(z.enum(['api','mcp'])).min(1).max(2).refine(items=>new Set(items).size===items.length),readOnly:z.boolean().default(false),currentPassword:z.string().min(1).max(128)}).strict(),
+  revoke_all_api_credentials:z.object({userId:z.string().min(1).max(100).optional()}).strict(),
+  revoke_api_credential:z.object({credentialId:uuid}).strict(),
+  permanently_delete_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),confirm:z.literal(true)}).strict(),
+  list_deleted_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().trim().max(200).default(''),sortBy:z.enum(['keyword','objectLabel','deletedAt','deletedByName']).default('deletedAt'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).default(0)}).strict(),
+
   get_foreign_access_capabilities:z.object({workspaceId:uuid}).strict(),
   get_foreign_access:z.object({workspaceId:uuid}).strict(),
   configure_foreign_access:z.object({workspaceId:uuid,version:z.number().int().positive(),rules:z.array(foreignRuleSchema).max(1000),users:z.array(z.object({userId:uuid,inherit:z.boolean(),manageOwn:z.boolean()}).strict()).max(1000)}).strict(),
@@ -123,7 +130,7 @@ export const schemas = {
   create_record: z.object({ objectTypeId: uuid, keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationshipAttributes:relationshipAttributeWritesSchema.optional(),relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional(),security:recordSecurityWrite.optional() }).strict(),
   update_record: z.object({ security:recordSecurityWrite.optional(), objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional(),relationshipAttributes:relationshipAttributeWritesSchema.optional() }).strict(),
   get_record: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
-  list_record_journal: z.object({includeRecycled:z.boolean().default(false),objectTypeId:uuid,recordId:uuid,fieldId:uuid.optional(),entityKind:z.enum(['record','relationship']).optional(),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).max(1000000).default(0)}).strict(),
+  list_record_journal: z.object({includeDeleted:z.boolean().default(false),includeRecycled:z.boolean().default(false),objectTypeId:uuid,recordId:uuid,fieldId:uuid.optional(),entityKind:z.enum(['record','relationship']).optional(),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).max(1000000).default(0)}).strict(),
 };
 export type Operation = keyof typeof schemas;
 
@@ -134,10 +141,14 @@ export interface ObjectSummary { iconKey?:import('./record-icons.js').RecordIcon
 export interface FieldDefinition extends ObjectSummary {relationshipTypeId?:string; isDerived?:boolean; inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
 export interface ObjectDefinition extends ObjectSummary {primaryRequirements:PrimaryRequirements;primaryChain:PrimaryChain|null;activity?:boolean;moduleKeys?:string[];moduleFieldIds?:Record<string,string[]>;relationshipFields?:FieldDefinition[];workProfile?:import('./work-profile.js').WorkProfile; contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
 export interface DataRecord { iconKey?:import('./record-icons.js').RecordIconKey; fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
+/** A successful write may retain only this receipt if the actor cannot read the resulting record. */
+export interface HiddenRecordReceipt {id:string;version:number;keyword:string;permissions:ContentCapabilities & {read:false}}
+export type RecordWriteResult=DataRecord|HiddenRecordReceipt;
+export function isReadableRecord(record:RecordWriteResult):record is DataRecord{return 'created_at' in record&&record.permissions?.read!==false;}
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
 export interface SearchRecord { iconKey?:import('./record-icons.js').RecordIconKey; businessNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
-export interface JournalEntry { detail_context?:{schema:string;changes:{entryId?:string;path:string}[]}|null; security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
+export interface JournalEntry {credential_context?:{name:string;userId:string;userName:string}; access_channel?:string; credential_id?:string|null; agent_name?:string|null; detail_context?:{schema:string;changes:{entryId?:string;path:string}[]}|null; security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
 export type Inputs = { [K in Operation]: z.input<(typeof schemas)[K]> };
 export interface WorkspaceGroup { id: string; workspaceId: string; name: string; active: boolean; version: number; members:import('./ownership.js').GradedMember[] }
@@ -150,17 +161,24 @@ export interface SystemJournalEntry extends JournalEntry { entity_kind: string; 
 export interface RecycledRecord extends WorkspaceRecord {recycled_at:string;recycled_by:string;recycledByName:string;canRestore:boolean}
 export interface WorkspaceRecord { iconKey?:import('./record-icons.js').RecordIconKey; business_number?:string|null; id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
+  list_api_credentials:ApiCredential[];
+  create_api_credential:{credential:ApiCredential;token:string};
+  revoke_all_api_credentials:{revokedCredentials:number};
+  revoke_api_credential:{revoked:boolean};
+  permanently_delete_record:{id:string;deleted:true};
+  list_deleted_records:{records:DeletedRecord[];total:number;limit:number;offset:number};
+
   get_foreign_access_capabilities:{manageOwn:boolean};
   get_foreign_access:ForeignSettings;
   configure_foreign_access:ForeignSettings;
   configure_group_inheritance:WorkspaceGroup;
   get_record_security:{policy:RecordSecurity;version:number;effective:AccessExplanation;canManage:boolean;principals:(FieldPrincipal&{assignable:boolean})[];fieldAccess:Record<string,FieldCapabilities>};
-  configure_record_security:DataRecord;
+  configure_record_security:RecordWriteResult;
   recycle_record:{id:string;version:number};
   restore_record:{id:string;version:number};
   get_recycled_record:DataRecord;
   list_recycled_records:{records:RecycledRecord[];total:number;limit:number;offset:number};
-  duplicate_record:DataRecord;
+  duplicate_record:RecordWriteResult;
   configure_object_settings:ObjectDefinition;
   get_content_permissions:ContentPermissions;
   configure_content_permissions:ContentPermissions;
@@ -213,15 +231,15 @@ export interface Outputs {
   add_standard_field: ObjectDefinition;
   create_field: { id: string };
   get_object_type: ObjectDefinition;
-  configure_field: ObjectDefinition;
+  configure_field: ObjectDefinition|FieldDefinition;
   set_labels: { id: string; kind: string; labels: Labels; version: number };
   set_workspace_name: { workspaceId: string; name: string };
   set_workspace_appearance: { workspaceId: string; appearance: WorkspaceAppearance; version: number };
   set_user_profile: { name: string };
   configure_classification: ObjectDefinition;
   configure_form_layout: ObjectDefinition;
-  create_record: DataRecord;
-  update_record: DataRecord;
+  create_record: RecordWriteResult;
+  update_record: RecordWriteResult;
   get_record: DataRecord;
   list_record_journal: {entries:JournalEntry[];total:number;limit:number;offset:number};
 }
@@ -229,3 +247,7 @@ export interface Outputs {
 const reservedStandardFieldNames = new Set(['business_number','business number','fachliche nummer','access_principals','access principals','zugriffsberechtigte','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
 export function isReservedStandardFieldName(value: string) { return reservedStandardFieldNames.has(value.normalize('NFKC').trim().toLowerCase()); }
 export function hasReservedStandardFieldLabel(labels: Record<string, string>) { return Object.values(labels).some(isReservedStandardFieldName); }
+
+export interface ApiCredential {id:string;userId:string;name:string;channels:('api'|'mcp')[];readOnly:boolean;createdAt:string;expiresAt:string;lastUsedAt:string|null;revokedAt:string|null}
+export interface DeletedRecord {keyword:string;id:string;objectTypeId:string;objectLabel:string;deletedAt:string;deletedByName:string}
+export * from './api-version.js';

@@ -47,6 +47,8 @@ export class AccountSecurityService {
       }
       let revokedSessions = 0;
       if (args.revokeOtherSessions || user.must_change_password) revokedSessions = await this.revoke(tx, actor, currentId!, change, journal);
+      const credentials=(await sql<{id:string}>`UPDATE sys_api_credentials SET revoked_at=clock_timestamp() WHERE user_id=${actor} AND revoked_at IS NULL RETURNING id`.execute(tx)).rows;
+      for(const row of credentials)await journal('api_credential',row.id,change,'revoked',false,true);
       await journal('account_security', actor, change, 'password_changed', null, true);
       // Keeping the counter until expiry also bounds repeated successful attempts after rollback.
       return { changed: true, revokedSessions };

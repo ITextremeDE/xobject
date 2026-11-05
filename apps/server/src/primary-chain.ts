@@ -27,7 +27,7 @@ export async function validatePrimaryRequirements(tx:Executor,workspaceId:string
  const edges=(await sql<{parent:string;child:string;parent_type:string;child_type:string}>`SELECT e.left_record_id AS parent,e.right_record_id AS child,e.left_object_type_id AS parent_type,e.right_object_type_id AS child_type FROM sys_relationships e JOIN sys_relationship_types t ON t.id=e.relationship_type_id WHERE e.workspace_id=${workspaceId}::uuid AND t.kind='primary'`.execute(tx)).rows;
  const parents=new Map(edges.map(edge=>[`${edge.child_type}:${edge.child}`,edge]));
  for(const rule of rules){
-  const records=(await sql<{record_id:string}>`SELECT record_id FROM sys_record_identities WHERE object_type_id=${rule.id}::uuid`.execute(tx)).rows;
+  const records=(await sql<{record_id:string}>`SELECT record_id FROM sys_record_identities WHERE object_type_id=${rule.id}::uuid AND deleted_at IS NULL`.execute(tx)).rows;
   for(const record of records){
    const present:PrimaryChainRole[]=[],seen=new Set<string>();let id=`${rule.id}:${record.record_id}`;
    while(parents.has(id)&&!seen.has(id)){seen.add(id);const edge=parents.get(id)!;const role=(Object.keys(chain) as PrimaryChainRole[]).find(role=>chain[role]===edge.parent_type);if(role)present.push(role);id=`${edge.parent_type}:${edge.parent}`;}

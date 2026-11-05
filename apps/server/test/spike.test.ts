@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
 import { after, before, test } from 'node:test';
 import { existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -13,7 +15,7 @@ import { buildServer } from '../src/server.js';
 import { initializeDatabase } from '../src/database.js';
 import { createAuth } from '../src/auth.js';
 import { defaultRecordSecurity,defaultRegionalSettings, defaultWorkspaceAppearance, moveClassificationOption, type ClassificationRules } from '@xobject/contracts';
-import type { Operation } from '../src/domain.js';
+import {schemas,type Operation} from '../src/domain.js';
 
 process.env.LOG_LEVEL ??= 'silent';
 const exec = promisify(execFile);
@@ -26,6 +28,13 @@ let userCookie: string;
 let adminId: string;
 let client: Client;
 let databaseURL: string;
+const require=createRequire(import.meta.url),Ajv=require('ajv'),responseValidator=new Ajv({strict:false,validateFormats:false,allErrors:true,allowUnionTypes:true});
+const apiContract=JSON.parse(readFileSync(require.resolve('@xobject/contracts/openapi'),'utf8')),validators=new Map<string,any>();
+function validateResponse(operation:Operation,value:unknown){
+ let validate=validators.get(operation);if(!validate){const schema=apiContract.paths[`/api/v1/${operation}`].post.responses['200'].content['application/json'].schema;validate=responseValidator.compile({...schema,components:apiContract.components});validators.set(operation,validate);}
+ assert.ok(validate(value),`Response contract ${operation}: ${JSON.stringify(validate.errors)}`);
+}
+
 
 async function login(email: string, password: string) {
   const response = await runtime.app.inject({ method: 'POST', url: '/api/auth/sign-in/email',
@@ -47,8 +56,10 @@ async function versionedInput(operation:Operation,input:unknown,actorForInput=ad
 }
 async function api(operation: Operation, payload: unknown, cookie = adminCookie) {
   payload = await versionedInput(operation,payload,cookie===userCookie?(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0].id:adminId);
-  return runtime.app.inject({ method: 'POST', url: `/api/v1/${operation}`,
+  const response=await runtime.app.inject({ method: 'POST', url: `/api/v1/${operation}`,
     headers: { host: '127.0.0.1:4100', cookie, 'x-xobject-request': '1', 'content-type': 'application/json' }, payload: JSON.stringify(payload) });
+  if(response.statusCode===200)validateResponse(operation,response.json());
+  return response;
 }
 async function ok(operation: Operation, payload: unknown) {
   const response = await api(operation, payload);
@@ -3835,4 +3846,141 @@ test('Projects V1 acceptance integrates ordinary user CRUD, completion, Primary 
  assert.equal((await act('get_object_type',{objectTypeId:contactId})).state,'active');assert.equal((await act('get_record',{objectTypeId:contactId,recordId:org.id})).id,org.id);
  project=await act('get_record',{objectTypeId:ids.projects,recordId:project.id});await act('update_record',{objectTypeId:ids.projects,recordId:project.id,version:project.version,values:{description:'Updated by ordinary user'}});
  caseRow=await act('get_record',{objectTypeId:ids.cases,recordId:caseRow.id});await act('update_record',{objectTypeId:ids.cases,recordId:caseRow.id,version:caseRow.version,values:{description:'Updated case'}});
+});
+
+test('user-bound API credentials have one-time secrets, scoped channels, expiry, revocation, current rights and journal provenance',async()=>{
+ const ws=await ok('create_workspace',{name:'Token workspace',code:'tokenworkspace'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const create=await api('create_api_credential',{name:'Test agent',expiresAt:new Date(Date.now()+86400000).toISOString(),channels:['api','mcp'],readOnly:false,currentPassword:'test-password-regular-user'},userCookie);assert.equal(create.statusCode,200,create.body);const issued=create.json();assert.match(issued.token,/^xo1_/);
+ const bearer=async(operation:Operation,payload:unknown,token=issued.token)=>runtime.app.inject({method:'POST',url:`/api/v1/${operation}`,headers:{host:'127.0.0.1:4100',authorization:`Bearer ${token}`,'content-type':'application/json'},payload:JSON.stringify(payload)});
+ const stored=(await sql<{secret_hash:string}>`SELECT secret_hash FROM sys_api_credentials WHERE id=${issued.credential.id}::uuid`.execute(runtime.db)).rows[0];assert.equal(stored.secret_hash.length,64);assert.ok(!JSON.stringify(stored).includes(issued.token));
+ const listed=await api('list_api_credentials',{},userCookie);assert.ok(!listed.body.includes(issued.token));assert.ok(!listed.body.includes('secret_hash'));
+ assert.equal((await bearer('list_api_credentials',{})).statusCode,403);
+ const written=await bearer('create_record',{objectTypeId:object.id,keyword:'Agent content'});assert.equal(written.statusCode,200,written.body);assert.equal(written.headers['x-xobject-api-version'],'1.0.0');
+ const entries=await journalEntries({objectTypeId:object.id,recordId:written.json().id});assert.ok(entries.every((e:any)=>e.actor_id===user.id&&e.access_channel==='api'&&e.credential_id===issued.credential.id&&e.agent_name==='Test agent'));
+ const manifest=await runtime.app.inject({method:'GET',url:'/api/v1/contract',headers:{host:'127.0.0.1:4100',authorization:`Bearer ${issued.token}`}});assert.equal(manifest.statusCode,200);assert.equal(manifest.json().apiVersion,'1.0.0');assert.ok(manifest.json().operations.permanently_delete_record.inputSchema);
+ const transport=new StreamableHTTPClientTransport(new URL('/mcp',baseURL),{requestInit:{headers:{authorization:`Bearer ${issued.token}`}},fetch:async(url,init)=>{const response=await runtime.app.inject({method:'POST',url:'/mcp',headers:{...Object.fromEntries(new Headers(init?.headers).entries()),host:'127.0.0.1:4100'},payload:JSON.parse(String(init?.body))});return new Response(response.body,{status:response.statusCode,headers:response.headers as HeadersInit});}});
+ const external=new Client({name:'External test agent',version:'1.0'});await external.connect(transport);const resources=await external.listResources();assert.ok(resources.resources.some(item=>item.uri==='xobject://api/v1/openapi'));const resource=await external.readResource({uri:'xobject://api/v1/openapi'});assert.ok('text' in resource.contents[0]);assert.equal(JSON.parse(resource.contents[0].text).openapi,'3.1.0');const read=await external.callTool({name:'get_record',arguments:{objectTypeId:object.id,recordId:written.json().id}});assert.ok(!read.isError);
+ const permissions=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...permissions,grants:[]});assert.equal((await bearer('get_record',{objectTypeId:object.id,recordId:written.json().id})).statusCode,403);
+ assert.equal((await api('revoke_api_credential',{credentialId:issued.credential.id})).statusCode,200);assert.equal((await bearer('list_workspaces',{})).statusCode,401);await assert.rejects(()=>external.callTool({name:'list_workspaces',arguments:{}}));await external.close();
+ const tokenHistory=await ok('list_system_journal',{entityKind:'api_credential',limit:100});const createdEvent=tokenHistory.entries.find((e:any)=>e.entity_id===issued.credential.id&&e.field_key==='created');assert.deepEqual(createdEvent.credential_context,{name:'Test agent',userId:user.id,userName:user.name});assert.equal(createdEvent.entity_name,`Test agent · ${user.name}`);assert.ok(tokenHistory.entries.some((e:any)=>e.entity_id===issued.credential.id&&e.field_key==='revoked'&&e.credential_context.name==='Test agent'));
+ assert.ok(!(await sql`SELECT * FROM sys_journal WHERE old_value::text LIKE ${'%'+issued.token+'%'} OR new_value::text LIKE ${'%'+issued.token+'%'}`.execute(runtime.db)).rows.length);
+});
+
+test('API credentials enforce read-only, transport selection, validation, owner isolation, password confirmation and transactional rollback',async()=>{
+ const input={name:'Restricted client',expiresAt:new Date(Date.now()+86400000).toISOString(),channels:['api'],readOnly:true,currentPassword:'test-password-regular-user'};
+ assert.equal((await api('create_api_credential',{...input,currentPassword:'wrong-password'},userCookie)).statusCode,400);
+ assert.equal((await api('create_api_credential',{...input,expiresAt:'2000-01-01T00:00:00Z'},userCookie)).statusCode,400);
+ await sql`CREATE TRIGGER reject_token_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('create_api_credential',input,userCookie)).statusCode,500);}finally{await sql`DROP TRIGGER reject_token_journal ON sys_journal`.execute(runtime.db);}
+ const created=await api('create_api_credential',input,userCookie);assert.equal(created.statusCode,200,created.body);const {token,credential}=created.json(),headers={host:'127.0.0.1:4100',authorization:`Bearer ${token}`};
+ const blocked=await runtime.app.inject({method:'POST',url:'/api/v1/create_workspace',headers,payload:{name:'No',code:'notallowed'}});assert.equal(blocked.statusCode,403);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/mcp',headers,payload:{jsonrpc:'2.0',id:1,method:'tools/list'}})).statusCode,403);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/v1/list_workspaces',headers:{...headers,cookie:userCookie},payload:{}})).statusCode,401);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/v1/list_workspaces',headers:{...headers,'x-xobject-api-version':'2'},payload:{}})).statusCode,400);
+ assert.equal((await api('list_api_credentials',{userId:adminId},userCookie)).statusCode,403);
+ await sql`UPDATE sys_api_credentials SET expires_at=created_at+interval '1 millisecond' WHERE id=${credential.id}::uuid`.execute(runtime.db);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/v1/list_workspaces',headers,payload:{}})).statusCode,401);
+});
+
+test('permanent deletion retains immutable Administrator history and only authorized deletion notices for other users',async()=>{
+ const ws=await ok('create_workspace',{name:'Deletion history',code:'deletedhistory'}),type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const field=await ok('create_field',{objectTypeId:type.id,technicalName:'description',labels:{en:'Description'},kind:'multiline'});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});const rights=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const source=await ok('create_record',{objectTypeId:type.id,keyword:'Erase live source',values:{description:'Administrator-only historical content'}}),other=await ok('create_record',{objectTypeId:type.id,keyword:'Surviving record'}),general=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.kind==='general');
+ let current=await ok('update_record',{objectTypeId:type.id,recordId:source.id,version:source.version,relationships:[{relationshipTypeId:general.id,version:general.version,side:'left',targets:[{objectTypeId:type.id,recordId:other.id}]}]});
+ current=await ok('recycle_record',{objectTypeId:type.id,recordId:source.id,version:current.version});
+ assert.equal((await api('permanently_delete_record',{objectTypeId:type.id,recordId:source.id,version:current.version,confirm:false})).statusCode,400);
+ const before=(await sql`SELECT * FROM sys_journal WHERE entity_id=${source.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
+ const result=await api('permanently_delete_record',{objectTypeId:type.id,recordId:source.id,version:current.version,confirm:true},userCookie);assert.equal(result.statusCode,200,result.body);
+ assert.equal((await sql`SELECT * FROM deletedhistory_items WHERE id=${source.id}::uuid`.execute(runtime.db)).rows.length,0);
+ assert.equal((await sql`SELECT * FROM sys_relationships WHERE left_record_id=${source.id}::uuid OR right_record_id=${source.id}::uuid`.execute(runtime.db)).rows.length,0);
+ assert.equal((await api('get_record',{objectTypeId:type.id,recordId:source.id})).statusCode,404);
+ const adminHistory=await ok('list_record_journal',{objectTypeId:type.id,recordId:source.id,includeDeleted:true,limit:100});assert.ok(JSON.stringify(adminHistory).includes('Administrator-only historical content'));
+ const retained=(await sql`SELECT * FROM sys_journal WHERE entity_id=${source.id}::uuid AND field_key<>'lifecycle' ORDER BY id`.execute(runtime.db)).rows;assert.deepEqual(retained,before.filter((r:any)=>r.field_key!=='lifecycle'));
+ const own=await api('list_record_journal',{objectTypeId:type.id,recordId:source.id,includeDeleted:true,limit:100},userCookie);assert.equal(own.statusCode,200,own.body);assert.equal(own.json().total,1);assert.equal(own.json().entries[0].new_value,'deleted');assert.ok(!own.body.includes('Administrator-only historical content'));assert.ok(!own.body.includes('Erase live source'));
+ const linked=await api('list_record_journal',{objectTypeId:type.id,recordId:other.id,limit:100},userCookie);assert.equal(linked.statusCode,200,linked.body);assert.ok(!linked.body.includes('Erase live source'));assert.ok(linked.json().entries.some((e:any)=>e.new_value==='deleted'));
+ assert.equal((await api('list_deleted_records',{workspaceId:ws.id},userCookie)).statusCode,403);assert.equal((await ok('list_deleted_records',{workspaceId:ws.id})).total,1);
+ const perms=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...perms,grants:[]});assert.equal((await api('list_record_journal',{objectTypeId:type.id,recordId:source.id,includeDeleted:true},userCookie)).statusCode,403);
+ assert.equal((await api('restore_record',{objectTypeId:type.id,recordId:source.id,version:current.version})).statusCode,404);
+});
+
+test('deleted history freezes prior event visibility and still applies current field, group and workspace rights',async()=>{
+ const ws=await ok('create_workspace',{name:'History boundaries',code:'historyboundaries'}),a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'shared',labels:{en:'Shared'},standardFields:['keyword']}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'private',labels:{en:'Private'},standardFields:['keyword']});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',{objectTypeId:a.id});await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const source=await ok('create_record',{objectTypeId:a.id,keyword:'Visible deleted source'}),other=await ok('create_record',{objectTypeId:b.id,keyword:'Previously hidden context'}),general=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.kind==='general');
+ let row=await ok('update_record',{objectTypeId:a.id,recordId:source.id,version:source.version,relationships:[{relationshipTypeId:general.id,version:general.version,side:'left',targets:[{objectTypeId:b.id,recordId:other.id}]}]});row=await ok('recycle_record',{objectTypeId:a.id,recordId:source.id,version:row.version});
+ await ok('permanently_delete_record',{objectTypeId:a.id,recordId:source.id,version:row.version,confirm:true});
+ const next=await ok('get_content_permissions',{objectTypeId:b.id});await ok('configure_content_permissions',{...next,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const hidden=await api('list_record_journal',{objectTypeId:b.id,recordId:other.id,limit:100},userCookie);assert.equal(hidden.statusCode,200,hidden.body);assert.ok(!hidden.json().entries.some((e:any)=>e.new_value==='deleted'));assert.ok(!hidden.body.includes('Visible deleted source'));
+ const own=await api('list_record_journal',{objectTypeId:a.id,recordId:source.id,includeDeleted:true},userCookie);assert.equal(own.statusCode,200);assert.equal(own.json().total,1);
+ // Later sensitivity changes do not create missing live policies or grant new historical readers.
+ const config=await ok('get_content_permissions',{objectTypeId:a.id});await ok('configure_content_permissions',{...config,sensitive:true});
+ assert.equal((await api('list_record_journal',{objectTypeId:a.id,recordId:source.id,includeDeleted:true},userCookie)).statusCode,200);
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:null,expectedRole:'user'});assert.equal((await api('list_record_journal',{objectTypeId:a.id,recordId:source.id,includeDeleted:true},userCookie)).statusCode,403);
+});
+
+test('permanent deletion preflights surviving required context and rolls back contents, edges, versions and journals on failure',async()=>{
+ const ws=await ok('create_workspace',{name:'Delete atomicity',code:'deleteatomicity'}),primary=await enableProjects(ws.id),objects=await ok('list_object_types',{workspaceId:ws.id}),projectType=objects.find((o:any)=>o.technicalName==='projects'),taskType=objects.find((o:any)=>o.technicalName==='tasks');
+ const project=await ok('create_record',{objectTypeId:projectType.id,keyword:'Retained project'}),task=await ok('create_record',{objectTypeId:taskType.id,keyword:'Dependent Task',relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:projectType.id,recordId:project.id}]}]});
+ const model=await ok('get_object_type',{objectTypeId:taskType.id});const configured=await ok('configure_object_settings',{objectTypeId:taskType.id,version:model.version,labels:model.labels,primaryRequirements:{associationRequired:false,requiredLevels:['project']}});
+ let row=await ok('get_record',{objectTypeId:projectType.id,recordId:project.id});row=await ok('recycle_record',{objectTypeId:projectType.id,recordId:row.id,version:row.version});
+ const before=(await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
+ const input={objectTypeId:projectType.id,recordId:row.id,version:row.version,confirm:true};assert.equal((await api('permanently_delete_record',input)).statusCode,409);assert.deepEqual((await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid ORDER BY id`.execute(runtime.db)).rows,before);
+ assert.equal((await ok('get_recycled_record',{objectTypeId:projectType.id,recordId:row.id})).version,row.version);
+ await ok('configure_object_settings',{objectTypeId:taskType.id,version:configured.version,labels:model.labels,primaryRequirements:{associationRequired:false,requiredLevels:[]}});
+ await sql`CREATE TRIGGER reject_permanent_delete_journal BEFORE INSERT ON sys_journal FOR EACH ROW WHEN (NEW.entity_kind='record' AND NEW.field_key='lifecycle' AND NEW.new_value='"deleted"'::jsonb) EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('permanently_delete_record',input)).statusCode,500);}finally{await sql`DROP TRIGGER reject_permanent_delete_journal ON sys_journal`.execute(runtime.db);}
+ assert.equal((await ok('get_recycled_record',{objectTypeId:projectType.id,recordId:row.id})).version,row.version);
+ await tool('permanently_delete_record',input);const child=await ok('get_record',{objectTypeId:taskType.id,recordId:task.id});assert.equal(child.keyword,task.keyword);assert.ok(child.version>task.version);assert.equal((await ok('get_record_relationships',{objectTypeId:taskType.id,recordId:task.id})).fields.find((f:any)=>f.definition.kind==='primary').targets.length,0);
+ assert.ok(JSON.stringify(await tool('list_record_journal',{objectTypeId:projectType.id,recordId:row.id,includeDeleted:true,limit:100})).includes('Retained project'));
+});
+
+test('credential owner isolation, revoke-all, password rotation and per-request checks prevent reused access',async()=>{
+ const args={name:'Rotation client',expiresAt:new Date(Date.now()+86400000).toISOString(),channels:['api'],currentPassword:'test-password-regular-user'};
+ const created=await api('create_api_credential',args,userCookie);assert.equal(created.statusCode,200,created.body);const issued=created.json();
+ const raw=(token:string)=>runtime.app.inject({method:'POST',url:'/api/v1/list_workspaces',headers:{host:'127.0.0.1:4100',authorization:`Bearer ${token}`},payload:{}});
+ assert.equal((await raw(issued.token.slice(0,-1)+(issued.token.endsWith('A')?'B':'A'))).statusCode,401);
+ assert.equal((await api('revoke_all_api_credentials',{userId:adminId},userCookie)).statusCode,403);
+ const all=await api('revoke_all_api_credentials',{},userCookie);assert.equal(all.statusCode,200,all.body);assert.ok(all.json().revokedCredentials>=1);assert.equal((await raw(issued.token)).statusCode,401);
+ const again=await api('create_api_credential',args,userCookie);assert.equal(again.statusCode,200,again.body);
+ const changed=await api('change_password',{currentPassword:'test-password-regular-user',newPassword:'rotated-test-password-regular-user',revokeOtherSessions:false},userCookie);assert.equal(changed.statusCode,200,changed.body);
+ assert.equal((await raw(again.json().token)).statusCode,401);
+ const restored=await api('change_password',{currentPassword:'rotated-test-password-regular-user',newPassword:'test-password-regular-user',revokeOtherSessions:false},userCookie);assert.equal(restored.statusCode,200,restored.body);
+});
+
+test('the versioned API contract covers every operation and resolves all input/output schema references',async()=>{
+ const response=await runtime.app.inject({method:'GET',url:'/api/v1/openapi.json',headers:{host:'127.0.0.1:4100',cookie:adminCookie}});assert.equal(response.statusCode,200,response.body);
+ const spec=response.json();assert.equal(spec.openapi,'3.1.0');assert.equal(spec.info.version,'1.0.0');assert.deepEqual(Object.keys(spec.paths).sort(),Object.keys(schemas).map(name=>`/api/v1/${name}`).sort());
+ function inspect(value:any){if(!value||typeof value!=='object')return;if(value.$ref){assert.ok(value.$ref.startsWith('#/components/schemas/'));const name=value.$ref.slice('#/components/schemas/'.length).replaceAll('~1','/').replaceAll('~0','~');assert.ok(spec.components.schemas[name],name);}for(const child of Object.values(value))inspect(child);}
+ inspect(spec);assert.ok(spec.components.schemas.ApiCredential);assert.ok(!JSON.stringify(spec.components.schemas.ApiCredential).includes('secret_hash'));
+});
+
+test('deleted notices respect live graded group revocation without exposing retained content',async()=>{
+ const ws=await ok('create_workspace',{name:'Deleted group access',code:'deletedgroupaccess'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const team=await ok('create_group',{workspaceId:ws.id,name:'Owners',members:[{kind:'user',id:user.id,level:'full'}]}),rights=await ok('get_content_permissions',{objectTypeId:object.id});
+ await ok('configure_content_permissions',{...rights,sensitive:true,grants:[{kind:'user',id:user.id,level:'read',create:false,fields:{}},{kind:'group',id:team.id,level:'full',create:true,fields:{}}]});
+ let row=await ok('create_record',{objectTypeId:object.id,keyword:'Private historic group item',security:{policy:defaultRecordSecurity([{kind:'group',id:team.id,level:'full'}])}});const id=row.id;
+ row=await ok('recycle_record',{objectTypeId:object.id,recordId:id,version:row.version});await ok('permanently_delete_record',{objectTypeId:object.id,recordId:id,version:row.version,confirm:true});
+ const args={objectTypeId:object.id,recordId:id,includeDeleted:true};assert.equal((await api('list_record_journal',args,userCookie)).statusCode,200);
+ await ok('configure_group',{workspaceId:ws.id,groupId:team.id,version:team.version,name:team.name,members:[]});assert.equal((await api('list_record_journal',args,userCookie)).statusCode,403);
+});
+
+test('Administrator deleted-record search uses frozen captions, scoped filters and sorting before paging, including derived Contact names',async()=>{
+ const ws=await ok('create_workspace',{name:'Deleted captions',code:'deletedcaptions'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items',de:'Einträge'},standardFields:['keyword']});
+ const other=await ok('create_object_type',{workspaceId:ws.id,technicalName:'other',labels:{en:'Other'},standardFields:['keyword']});
+ const make=async(id:string,name:string)=>{let row=await ok('create_record',{objectTypeId:id,keyword:name});row=await ok('recycle_record',{objectTypeId:id,recordId:row.id,version:row.version});await ok('permanently_delete_record',{objectTypeId:id,recordId:row.id,version:row.version,confirm:true});return row;};
+ const zulu=await make(object.id,'Zulu caption'),alpha=await make(object.id,'Alpha caption');await make(other.id,'Other caption');
+ let page=await ok('list_deleted_records',{workspaceId:ws.id,objectTypeId:object.id,query:' caption ',sortBy:'keyword',sortDirection:'asc',limit:1,offset:1});assert.equal(page.total,2);assert.equal(page.records[0].id,zulu.id);assert.equal(page.records[0].keyword,'Zulu caption');
+ page=await ok('list_deleted_records',{workspaceId:ws.id,query:alpha.id});assert.equal(page.total,1);assert.equal(page.records[0].keyword,'Alpha caption');const history=await ok('list_system_journal',{workspaceId:ws.id,entityKind:'record',fieldKey:'lifecycle',limit:100});assert.ok(history.entries.some((e:any)=>e.entity_id===alpha.id&&e.entity_name==='Alpha caption'));assert.equal((await ok('list_deleted_records',{workspaceId:ws.id,query:'%'})).total,0);
+ const foreign=await ok('create_workspace',{name:'Foreign captions',code:'foreigncaptions'});assert.equal((await api('list_deleted_records',{workspaceId:foreign.id,objectTypeId:object.id})).statusCode,400);
+ const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:module.version});
+ const contacts=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),definition=await ok('get_object_type',{objectTypeId:contacts.id}),profile=definition.contactProfile;
+ const values=Object.fromEntries([['contact_kind',profile.kinds.organization],['company_name','Retained Organization caption']].map(([purpose,value])=>[definition.fields.find((f:any)=>f.id===profile.fields[purpose]).technicalName,value]));
+ let organization=await ok('create_record',{objectTypeId:contacts.id,values});organization=await ok('recycle_record',{objectTypeId:contacts.id,recordId:organization.id,version:organization.version});await ok('permanently_delete_record',{objectTypeId:contacts.id,recordId:organization.id,version:organization.version,confirm:true});
+ page=await ok('list_deleted_records',{workspaceId:ws.id,objectTypeId:contacts.id,query:'organization',sortBy:'objectLabel'});assert.equal(page.total,1);assert.equal(page.records[0].keyword,'Retained Organization caption');assert.equal(page.records[0].id,organization.id);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'designer',expectedRole:null});const forbidden=await api('list_deleted_records',{workspaceId:ws.id,query:'caption'},userCookie);assert.equal(forbidden.statusCode,403);assert.ok(!forbidden.body.includes('Retained Organization caption'));
 });

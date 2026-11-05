@@ -16,7 +16,7 @@ export function contentAccess(){const access=scope.getStore();if(!access)throw n
 const rank=(level:ContentLevel|null|undefined)=>accessRank(level??'none');
 export const contentCapabilities=(level:number,create=false):ContentCapabilities=>({read:level>=2,edit:level>=5,delete:level>=6,full:level>=7,duplicate:level>=3,schedule:level>=4,create});
 export class ObjectAccess {
- constructor(readonly id:string,readonly workspace:string,readonly sensitive:boolean,readonly admin:boolean,readonly level:number,readonly grants:ContentGrant[],readonly groups:string[],readonly actor:string,readonly create:boolean,readonly records:Map<string,{policy:RecordSecurity;access:AccessExplanation}>){ }
+ constructor(readonly id:string,readonly workspace:string,readonly sensitive:boolean,readonly admin:boolean,readonly level:number,readonly grants:ContentGrant[],readonly groups:string[],readonly actor:string,readonly create:boolean,readonly records:Map<string,{policy:RecordSecurity;access:AccessExplanation;deleted?:boolean}>){ }
  get capabilities(){return contentCapabilities(this.level,this.create);}
  recordLevel(id:string){return this.admin?7:Math.min(this.level,rank(this.records.get(id)?.access.level??(this.sensitive?'none':contentLevels[this.level])));}
  recordCapabilities(id:string){return contentCapabilities(this.recordLevel(id),this.create);}
@@ -35,7 +35,7 @@ export class ObjectAccess {
   if(groups.some(g=>Object.hasOwn(g.fields,id)))return groups.some(g=>Object.hasOwn(g.fields,id)?g.fields[id]==='edit':g.create===true);
   return true;
  }
- fieldReadableEverywhere(id:string){return this.field(id).read&&[...this.records.keys()].filter(id=>this.recordLevel(id)>=2).every(record=>this.field(id,record).read);}
+ fieldReadableEverywhere(id:string){return this.field(id).read&&[...this.records.keys()].filter(id=>!this.records.get(id)?.deleted&&this.recordLevel(id)>=2).every(record=>this.field(id,record).read);}
  predicate(alias?:string,lifecycle:'active'|'recycled'|'all'='active'):RawBuilder<boolean>{
   const id=sql.ref(alias?`${alias}.id`:'id');
   const state=lifecycle==='all'?sql`true`:sql`${id} IN (SELECT record_id FROM sys_record_identities WHERE object_type_id=${this.id}::uuid AND ${lifecycle==='active'?sql`recycled_at IS NULL`:sql`recycled_at IS NOT NULL`})`;
@@ -64,14 +64,20 @@ export class ContentAccess {
   const grants=(await sql<{principal_kind:'user'|'group';principal_id:string;level:ContentLevel|null;can_create:boolean|null;fields:ContentGrant['fields']}>`SELECT principal_kind,principal_id,level,can_create,fields FROM sys_content_grants WHERE object_type_id=${id}::uuid`.execute(this.tx)).rows.map(g=>({kind:g.principal_kind,id:g.principal_id,level:g.level,create:g.can_create,fields:g.fields}));
   const admin=Boolean(user?.active&&user.is_admin),level=!user?.active?0:admin?7:!member?0:rank(resolveContentRule(grants,this.actor,groups).level);
   const own=grants.find(g=>g.kind==='user'&&g.id===this.actor),canCreate=admin||Boolean(member&&user?.active&&(own?.create??grants.some(g=>g.kind==='group'&&groups.includes(g.id)&&g.create===true)));
-  const records=new Map<string,{policy:RecordSecurity;access:AccessExplanation}>();
+  const records=new Map<string,{policy:RecordSecurity;access:AccessExplanation;deleted?:boolean}>();
   if(model.is_sensitive&&model.state!=='deleted'){
-   const rows=(await sql<{id:string;policy:RecordSecurity|null}>`SELECT r.id,s.policy FROM ${sql.table(model.name)} r LEFT JOIN sys_record_security s ON s.object_type_id=${id}::uuid AND s.record_id=r.id`.execute(this.tx)).rows;
-   for(const row of rows){if(!row.policy)throw new AppError(500,'Sensitive record is missing its security policy');const policy=row.policy;const access=admin?{level:'full' as const,source:'administrator' as const,path:[]}:resolveRecordAccess(this.actor,id,policy,graph.members,graph.rules,graph.settings.find(u=>u.userId===this.actor)?.inherit??true);records.set(row.id,{policy,access});}
+   const rows=(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT r.id,s.policy FROM ${sql.table(model.name)} r LEFT JOIN sys_record_security s ON s.object_type_id=${id}::uuid AND s.record_id=r.id`.execute(this.tx)).rows;
+   rows.push(...(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT record_id AS id,deleted_policy AS policy,true AS deleted FROM sys_record_identities WHERE object_type_id=${id}::uuid AND deleted_at IS NOT NULL`.execute(this.tx)).rows);
+   for(const row of rows){if(!row.policy)throw new AppError(500,'Sensitive record is missing its security policy');const policy=row.policy;const access=admin?{level:'full' as const,source:'administrator' as const,path:[]}:resolveRecordAccess(this.actor,id,policy,graph.members,graph.rules,graph.settings.find(u=>u.userId===this.actor)?.inherit??true);records.set(row.id,{policy,access,deleted:row.deleted});}
   }
   return new ObjectAccess(id,model.workspace_id,model.is_sensitive,admin,level,grants,groups,this.actor,canCreate,records);
  }
  async readable(id:string,recordId:string,includeRecycled=false){const policy=await this.policy(id);if(!policy.capabilities.read||policy.recordLevel(recordId)<2)return false;const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(this.tx)).rows[0];return Boolean(model&&(await sql`SELECT 1 FROM ${sql.table(model.name)} WHERE id=${recordId}::uuid AND ${policy.predicate(undefined,includeRecycled?'all':'active')}`.execute(this.tx)).rows.length);}
+ async historyReadable(id:string,recordId:string,fieldId?:string,eventId?:string,context?:string){
+  const p=await this.policy(id);if(p.admin)return true;
+  const r=(await sql<{deleted_readers:Record<string,{fields:string[];events:string[];contexts:string[]}>}>`SELECT deleted_readers FROM sys_record_identities WHERE object_type_id=${id}::uuid AND record_id=${recordId}::uuid AND deleted_at IS NOT NULL`.execute(this.tx)).rows[0];
+  const snapshot=r?.deleted_readers?.[this.actor];return Boolean(snapshot&&p.capabilities.read&&p.recordLevel(recordId)>=2&&(!fieldId||snapshot.fields.includes(fieldId)&&p.field(fieldId,recordId).read)&&(!eventId||snapshot.events.includes(eventId))&&(!context||snapshot.contexts.includes(context)));
+ }
  async require(id:string,recordId:string|undefined,level:'read'|'edit'|'full'|'create'|'duplicate'|'delete'='read',includeRecycled=false){
   const p=await this.policy(id),cap=recordId?p.recordCapabilities(recordId):p.capabilities;
   if(!cap[level])throw new AppError(403,'Content access denied');
@@ -134,9 +140,25 @@ export async function configureContentPermissions(tx:Executor,args:{objectTypeId
 }
 
 /** Apply current rights to immutable history before counting/paging; never rewrite stored events. */
-export async function readableRecordJournal(objectTypeId:string,entries:import('@xobject/contracts').JournalEntry[],includeRecycled=false){
+export async function readableRecordJournal(objectTypeId:string,entries:import('@xobject/contracts').JournalEntry[],includeRecycled=false,contextRecordId?:string){
   const access=contentAccess(),policy=await access.policy(objectTypeId),result:import('@xobject/contracts').JournalEntry[]=[];
+  const deleted=(await sql<{object_type_id:string;record_id:string}>`SELECT object_type_id,record_id FROM sys_record_identities WHERE deleted_at IS NOT NULL AND workspace_id=${policy.workspace}::uuid`.execute(access.tx)).rows;
+  const deletedKeys=new Set(deleted.map(r=>`${r.object_type_id}:${r.record_id}`)),notices=new Set<string>();
   for(const entry of entries){
+    const endpoints=entry.entity_kind==='relationship'?(await sql<{object_type_id:string;record_id:string}>`SELECT object_type_id,record_id FROM sys_relationship_journal_endpoints WHERE journal_id=${entry.id}::uuid`.execute(access.tx)).rows:[];
+    const own=entry.entity_kind==='record'&&entry.entity_id?{object_type_id:(entry as typeof entry&{object_type_id:string}).object_type_id,record_id:entry.entity_id}:null;
+    const refs=[...(own?[own]:[]),...endpoints],removed=refs.filter(r=>deletedKeys.has(`${r.object_type_id}:${r.record_id}`));
+    if(removed.length){
+      if(policy.admin){result.push(entry);continue;}
+      let allowed=true;
+      for(const ref of refs){const gone=deletedKeys.has(`${ref.object_type_id}:${ref.record_id}`);if(gone?!await access.historyReadable(ref.object_type_id,ref.record_id,entry.field_id??undefined,entry.entity_kind==='relationship'?entry.id:undefined,contextRecordId?`${objectTypeId}:${contextRecordId}`:undefined):!await access.readable(ref.object_type_id,ref.record_id,includeRecycled))allowed=false;}
+      if(!allowed)continue;
+      for(const ref of removed){const key=`${ref.object_type_id}:${ref.record_id}`;if(notices.has(key))continue;
+       const note=(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,u.name AS actor_name FROM sys_journal j LEFT JOIN sys_users u ON u.id=j.actor_id WHERE j.object_type_id=${ref.object_type_id}::uuid AND j.entity_kind='record' AND j.entity_id=${ref.record_id}::uuid AND j.field_key='lifecycle' AND j.new_value='"deleted"'::jsonb ORDER BY j.id DESC LIMIT 1`.execute(access.tx)).rows[0];
+       if(note){result.push(note);notices.add(key);}
+      }
+      continue;
+    }
     if(entry.entity_kind==='record'){
       if(entry.field_id&&!policy.field(entry.field_id,entry.entity_id).read)continue;
       result.push(entry);continue;
@@ -155,7 +177,7 @@ export async function readableRecordJournal(objectTypeId:string,entries:import('
     }
     if(visible)result.push(projected);
   }
-  return result;
+  return result.sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()||b.id.localeCompare(a.id));
 }
 
 /** Internal transition shared by authorized definition writers and module provisioning. */

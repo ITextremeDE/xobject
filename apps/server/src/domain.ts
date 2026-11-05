@@ -1,3 +1,5 @@
+import {permanentlyDeleteRecord,deletedRecordIdentity,listDeletedRecords} from './record-deletion.js';
+import {ApiCredentials,credentialOperation,validateCredentialContext,type RequestContext} from './api-credentials.js';
 import {activityObjectKeys,isActivityObject} from './activity.js';
 import {recordIconExpression,objectRecordIcon} from './record-icons.js';
 import {getNavigation,configureNavigation} from './navigation.js';
@@ -64,14 +66,19 @@ export function localizedLabel(labels: Labels, userLanguage: string | null, work
 /** Every entry point resolves a real session and calls this shared application layer. */
 export class Application {
   private accountSecurity = new AccountSecurityService();
+  private apiCredentials = new ApiCredentials();
   constructor(private db: Database) {}
 
-  async execute(operation: Operation, input: unknown, userId: string, context?: { sessionId: string }): Promise<unknown> {
+  async execute(operation: Operation, input: unknown, userId: string, context?:RequestContext): Promise<unknown> {
     const parsed = schemas[operation].parse(input);
     try {
       return await this.db.transaction().execute(async (tx) => withContentAccess(tx,userId,async()=>{
         await lockOperation(tx, operation, parsed as Record<string, unknown>);
+        await validateCredentialContext(tx,userId,operation,context);
+        await sql`SELECT set_config('xobject.channel',${context?.channel??'internal'},true),set_config('xobject.credential_id',${context?.credentialId??''},true),set_config('xobject.agent_name',${context?.agentName??''},true)`.execute(tx);
         const access = await this.authorize(tx, operation, parsed as Record<string, unknown>, userId);
+        if(credentialOperation(operation)){const change=v7();return this.apiCredentials.execute(tx,operation,parsed,userId,access.isAdmin,context,(id,key,before,after)=>this.journal(tx,userId,null,null,'api_credential',id,change,key,before,after));}
+
         if (isAccountSecurityOperation(operation)) return this.accountSecurity.execute(tx, operation, parsed, userId, context?.sessionId, (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
         if (['configure_field',  'set_labels'].includes(operation)) {
           const args = parsed as { fieldId?: string; id?: string; kind?: string; version?: number };
@@ -100,7 +107,9 @@ export class Application {
           case 'configure_group_inheritance':return configureGroupInheritance(tx,schemas.configure_group_inheritance.parse(parsed),configJournal);
           case 'get_record_security': {const a=schemas.get_record_security.parse(parsed);return recordSecurity(tx,a.objectTypeId,a.recordId);}
           case 'configure_record_security': {const a=schemas.configure_record_security.parse(parsed),t=await this.objectType(tx,a.objectTypeId);return saveRecordSecurity(tx,a,userId,(change,key,before,after,field)=>this.journal(tx,userId,t.workspace_id,t.id,'record',a.recordId,change,key,before,after,field));}
-          case 'recycle_record':
+          case 'recycle_record': return this.recordLifecycle(tx,schemas.recycle_record.parse(parsed),userId,false);
+          case 'permanently_delete_record': {const args=schemas.permanently_delete_record.parse(parsed),type=await this.objectType(tx,args.objectTypeId);return permanentlyDeleteRecord(tx,args,userId,change=>this.journal(tx,userId,type.workspace_id,type.id,'record',args.recordId,change,'lifecycle','recycled','deleted'));}
+          case 'list_deleted_records':return listDeletedRecords(tx,parsed,userId);
           case 'restore_record': return this.recordLifecycle(tx,schemas.recycle_record.parse(parsed),userId,operation==='restore_record');
           case 'get_recycled_record': {
             const a=schemas.get_recycled_record.parse(parsed),type=await this.objectType(tx,a.objectTypeId);
@@ -292,12 +301,12 @@ export class Application {
           }
           case 'list_record_journal': {
             const args=schemas.list_record_journal.parse(parsed),type=await this.objectType(tx,args.objectTypeId);
-            await contentAccess().require(type.id,args.recordId,'read',args.includeRecycled);
-            await this.record(tx,type,args.recordId);
+            const deleted=await deletedRecordIdentity(tx,type.id,args.recordId);
+            if(deleted?.deleted_at){if(!args.includeDeleted||!await contentAccess().historyReadable(type.id,args.recordId))throw new AppError(403,'Content access denied');}else{await contentAccess().require(type.id,args.recordId,'read',args.includeRecycled);await this.record(tx,type,args.recordId);}
             if(args.fieldId&&!(await sql`SELECT 1 FROM sys_fields WHERE id=${args.fieldId}::uuid AND object_type_id=${type.id}::uuid`.execute(tx)).rows.length)throw new AppError(400,'Unknown journal field');
             const where=sql`j.workspace_id=${type.workspace_id}::uuid AND ((j.object_type_id=${type.id}::uuid AND j.entity_kind='record' AND j.entity_id=${args.recordId}::uuid) OR EXISTS(SELECT 1 FROM sys_relationship_journal_endpoints ep WHERE ep.journal_id=j.id AND ep.workspace_id=${type.workspace_id}::uuid AND ep.object_type_id=${type.id}::uuid AND ep.record_id=${args.recordId}::uuid)) AND ${args.fieldId?sql`j.field_id=${args.fieldId}::uuid`:sql`true`} AND ${args.entityKind?sql`j.entity_kind=${args.entityKind}`:sql`true`}`;
             const all=(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,a.name AS actor_name FROM sys_journal j LEFT JOIN sys_users a ON a.id=j.actor_id WHERE ${where} ORDER BY j.created_at DESC,j.id DESC`.execute(tx)).rows;
-            const visible=await readableRecordJournal(type.id,all,args.includeRecycled);
+            const visible=await readableRecordJournal(type.id,all,args.includeRecycled,args.recordId);
             return {entries:await journalValueContexts(tx,visible.slice(args.offset,args.offset+args.limit)),total:visible.length,offset:args.offset,limit:args.limit};
           }
 
@@ -315,15 +324,17 @@ export class Application {
     const user = (await sql<{ is_admin: boolean; active: boolean; must_change_password: boolean }>`SELECT is_admin, active, must_change_password FROM sys_users WHERE id = ${actor}`.execute(tx)).rows[0];
     if (!user || !user.active) throw new AppError(403, 'Access denied');
     if (user.must_change_password && !['get_account_security', 'change_password'].includes(operation)) throw new AppError(403, 'Password change required');
-    if (isAccountSecurityOperation(operation)) return { isAdmin: user.is_admin };
-    const recycledRead=operation==='get_recycled_record'||operation==='restore_record'||(operation==='list_record_journal'&&args.includeRecycled===true);
+    if (isAccountSecurityOperation(operation)||credentialOperation(operation)) return { isAdmin: user.is_admin };
+    const recycledRead=operation==='get_recycled_record'||operation==='restore_record'||operation==='permanently_delete_record'||(operation==='list_record_journal'&&(args.includeRecycled===true||args.includeDeleted===true));
+    if(operation==='list_deleted_records'){if(!user.is_admin)throw new AppError(403,'Access denied');return {isAdmin:true};}
+    if(operation==='list_record_journal'&&args.includeDeleted===true){const removed=await deletedRecordIdentity(tx,String(args.objectTypeId),String(args.recordId));if(removed?.deleted_at){if(!await contentAccess().historyReadable(String(args.objectTypeId),String(args.recordId)))throw new AppError(403,'Content access denied');return {isAdmin:user.is_admin};}}
     if(typeof args.objectTypeId==='string'&&typeof args.recordId==='string'&&!recycledRead){
       await contentAccess().require(args.objectTypeId,args.recordId,'read',true);
       const recycled=(await sql`SELECT 1 FROM sys_record_identities WHERE object_type_id=${args.objectTypeId}::uuid AND record_id=${args.recordId}::uuid AND recycled_at IS NOT NULL`.execute(tx)).rows.length;
       if(recycled)throw new AppError(404,'Record is in the recycle bin');
     }
-    if(['recycle_record','restore_record','get_recycled_record'].includes(operation)){
-      await contentAccess().require(String(args.objectTypeId),String(args.recordId),operation==='recycle_record'?'delete':operation==='restore_record'?'full':'read',recycledRead);return {isAdmin:user.is_admin};
+    if(['permanently_delete_record','recycle_record','restore_record','get_recycled_record'].includes(operation)){
+      await contentAccess().require(String(args.objectTypeId),String(args.recordId),operation==='recycle_record'?'delete':operation==='restore_record'||operation==='permanently_delete_record'?'full':'read',recycledRead);return {isAdmin:user.is_admin};
     }
     if(operation==='list_record_journal'&&recycledRead){await contentAccess().require(String(args.objectTypeId),String(args.recordId),'read',true);return {isAdmin:user.is_admin};}
     if (user.is_admin) return { isAdmin: true };
