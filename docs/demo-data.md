@@ -1,98 +1,82 @@
 # Local demo data
 
-The explicit development seed creates a wholly fictional **ITextreme** workspace (`itx`). The default language is **English**, both English and German are available for the interface and definition labels, and the time zone is `Europe/Berlin`. Regional display initially uses the normal `en-US` default; personal or workspace settings can exercise German numeric, date and currency display. Business contents have one language: English.
-
-Demo data is optional and separate from installation. It exercises the currently implemented generic platform, not future complete domain modules. Nothing is seeded by normal startup or `db:init`.
+The optional development seed creates the fictional **ITextreme** workspace (`itx`). English is the default; English/German interface and definition labels are available. Business contents are English. The workspace uses `Europe/Berlin` and the normal `en-US` regional format. Startup and `db:init` create no demo accounts or contents.
 
 ## Accounts and groups
 
-Provision John Doe (`john.doe@example.test`) as the installation Administrator first. `dev:seed` uses that existing Administrator and creates one additional account for each workspace role:
+Provision John Doe (`john.doe@example.test`) as installation Administrator before seeding. The seed uses this account and creates Jane Doe as workspace Designer and James Doe as workspace User. Jane and James receive random initial passwords and must change them at first sign-in. The CLI writes private receipts to ignored `.local/demo-accounts.json` and `.local/demo-accounts.md`, with directory mode `0700` and file mode `0600`; no passwords enter source or journals.
 
-| Account | Role | Purpose |
-| --- | --- | --- |
-| John Doe | Installation Administrator | All contents and instance administration |
-| Jane Doe | Workspace Designer | Definitions, forms and workspace configuration, with explicitly granted content rights |
-| James Doe | Workspace User | Ordinary content editing and permission checks; no definition changes |
+Project team contains James with Full membership. Management contains Jane with Full and Project team with Read membership. Nested membership never elevates a weaker path or independently opens coworkers' records. Designer controls definitions/forms; content access still needs explicit rights. John retains installation-wide Administrator access.
 
-Jane and James receive random initial passwords and must change them at first sign-in. Passwords are never fixed in source, printed to the console or stored in journals. The local CLI writes the account receipt to ignored `.local/demo-accounts.json` and `.local/demo-accounts.md`, with directory mode `0700` and files `0600`. It includes John's password only when the matching private installation receipt exists; otherwise use his separately provisioned password. Group names and account/profile names are ordinary single-language content.
+## Modules, navigation and forms
 
-**Project team** contains James with Full membership. **Management** contains Jane with Full and Project team with Read membership, demonstrating nested graded membership without elevating James's inherited membership. Membership does not by itself open coworkers' records. Explicit object ceilings, ownership and foreign rules remain authoritative.
+Every available module is enabled. Contacts & Relations and Projects & Tasks supply five distinct shared objects; Contacts appears in both module sections. Planned unavailable Documents & Communication remains disabled. Workspace/personal navigation inherits catalog defaults, including the Contact-kind child lists and visible Resources block.
+
+Supplied objects use the common starter forms. Contacts have a fixed kind-specific core and editable extensions. Projects, Cases and Tasks show General, a Details group (Number, Responsible, Access principals) beside Schedule, then Primary association, Classification, relationship lists and final Notes as applicable. Project/Case Schedule has optional Start date and Target date. Task Schedule & progress has Start, Due, Progress and Completed at; Priority is in Classification. Administrators/Designers can edit these common layouts. Distribution lists keep Keyword/plain-text Description and final Notes, with no business number.
+
+Custom objects demonstrate additional authored groups, group/field widths, input aids, all 15 custom field kinds, unique identifiers and reference cardinalities. Their identities are separate from planned module objects such as Contracts. They are examples rather than previews of future module templates.
 
 ## Objects and contents
 
-The initial fixture has **9 active object types with 74 records**, plus one inactive object type with one retained record. Every translatable object, field, choice, relationship-side label and form-group label has English and German text. Technical names stay stable and untranslated.
+The fixture contains **9 active objects with 74 records**, plus one inactive lifecycle object with one retained record. All translatable metadata has English/German labels; account/group names and business contents have one language.
 
-| Object / table | Records | Main scenarios |
+| Object / table | Records | Scenarios |
 | --- | --- | --- |
-| Contacts / `itx_contacts` | 9 | Six Organizations, two Contact persons and one Individual contact; structured names/addresses/email/phone/URLs, optional-year birthdays, derived names, conditional fields and same-person Identities; nickname, communication language preferences, messaging, independent zones and optional-year personal dates |
-| Distribution lists / `itx_distribution_lists` | 1 | Explicit membership of three Contacts, independent of Category |
-| Projects / `itx_projects` | 4 | Objectives, dates, money, decimal progress, user/group references; one internal Project without a Contact |
-| Cases / `itx_cases` | 8 | Work packages/service requests, dates, responsibility and estimated effort |
-| Tasks / `itx_tasks` | 30 | Instants, user assignment, mixed multiple user/group references, booleans, decimal effort and sensitive ownership |
-| Vehicles / `itx_vehicles` | 3 | License plates, integer mileage, dates, money, booleans and service links |
-| Contracts / `itx_contracts` | 3 | Validity, precise EUR fees, multiple-choice services, renewal, hidden internal notes and linked Devices |
-| Devices / `itx_devices` | 4 | Serial numbers, USD prices, integers including zero, three-decimal weights, multiple group references, formatted instructions and an inactive field with retained content |
-| Access checks / `itx_access_checks` | 12 | Named, explained ownership/foreign-access/privacy/field-exception scenarios |
-| Retired equipment / `itx_retired_equipment` | 1 (inactive) | A retained read-only object and its record, visible through inactive-definition administration |
+| Contacts / `itx_contacts` | 9 | Six Organizations, two Contact persons, one Individual contact; structured names/contact details/addresses, partial personal dates, Identities and professional details |
+| Distribution lists / `itx_distribution_lists` | 1 | Three explicit members, plain three-line Description and independent Notes |
+| Projects / `itx_projects` | 4 | Objectives, dates, responsibility and Access principals; one internal Project without Contact |
+| Cases / `itx_cases` | 8 | Discovery/implementation context, dates, responsibility and Access principals |
+| Tasks / `itx_tasks` | 30 | Date/instant/zoned scheduling, completion/progress, user/group assignees through Access principals and privacy examples |
+| Mobile workshops / `itx_mobile_workshops` | 3 | Workshop profile, mileage/defaults, license plates, dates, money, booleans and equipment |
+| Support packages / `itx_support_packages` | 3 | Package codes, duration, precise EUR fees, multiple services, renewal, public Notes and restricted internal history |
+| Workshop tools / `itx_workshop_tools` | 4 | Inventory, USD prices, integers/decimals, support channels, group references, inspection timestamp/result/inspector, rich instructions and an inactive retained field |
+| Access checks / `itx_access_checks` | 12 | Explained ownership, foreign-access, privacy and field-exception scenarios |
+| Retired equipment / `itx_retired_fixture_tools` | 1 (inactive) | Read-only lifecycle fixture with a retained record |
 
-Together these exercise all **15 custom field types**: text, multiline, integer, decimal, money, boolean, date, datetime, single choice, multiple choice, email, phone, URL, user/group reference and typed structured values. Reference fields include user-only, group-only and mixed targets, with single and multiple values. Numeric examples include zero, negatives, precise fractions and large grouped amounts. Single-line and formatted multiline contents have meaningful English examples.
+Descriptions demonstrate supported Markdown: headings, emphasis, ordered/unordered lists, quotes, links, inline/fenced code and separators. Notes are separate chronological work entries with timestamps and no headings. Operating instructions have their own content. These authored sample entries are business contents; the Journal records actual application writes independently. Distribution-list Description remains plain text according to its standard field definition.
 
-Active objects have required Keyword, optional Type/Status with per-Type and no-Type statuses, and multiple Category choices. Types are varied across records. Contact kind is a separate required choice selected before creation and immutable through normal updates. Contacts use a fixed bilingual core by kind; their stored standard/Projects layouts contain only extension groups. Other active objects have bilingual editable General, Primary association, Classification, Relationships and final Notes groups where corresponding elements exist. Maximum-one custom connections start in General; multi-target connections start in Relationships. The current designer/record UI selects only the standard extension form, pending actual module membership and view selection. The inactive object deliberately has only Keyword, illustrating optional standard-field installation.
+Active objects have required Keyword, configurable optional Type/Status, per-Type/no-Type statuses and multiple Categories. Contact kind is separate, selected before creation and immutable in normal updates. Derived Contact names are virtual and respect source-field rights. Communication languages, example Messenger URIs, time zones and optional-year dates exercise Contact controls; Photo/Logo remains preparation without uploads.
 
-Personal fixtures include communication language tags, inert example messaging URIs labeled Work / XMPP, contact time zones, a yearless anniversary and one fictional historical death date. These do not drive notifications or alter availability/status. Photo/Logo controls are disabled preparation only; the seed stores no media or remote media addresses.
-
-Contact Keyword/formatted/Organization names are virtual projections without physical columns. Physical columns begin with system metadata; optional standards and custom fields append when installed. The seed initially installs classification before custom fields and enables business numbering later, so its number columns are physically appended after those custom fields. Form order/widths and alphabetical definition administration remain independent. A real task effort edit from `1` to `2.5`, relationship changes, ownership changes, configuration changes and definition deactivation populate actual journals through shared operations.
-
-Sensitive demo objects place Access principals in General at full width, using the same field UUID layout entries as ordinary fields. Its group, order and half/full width can be changed in the Form designer; record security remains protected.
-
-All active objects except Distribution lists have protected automatic business numbers: Contacts `CON-`, Projects `PRJ-`, Cases `CAS-`, Tasks `TSK-`, Vehicles `VEH-`, Contracts `CTR-`, Devices `DEV-`, Access checks `CHK-`, each with five minimum digits and no restart. Distribution lists have Keyword and a short plain-text Description in General, with separate Markdown Notes last; no Business number field or automatic numbering is installed. Registration, serial and contract numbers demonstrate uniqueness. Mileage and completion fields demonstrate typed defaults; selected fields have translated descriptions and input hints.
+All active objects except Distribution lists have protected automatic business numbers with five minimum digits and no restart: `CON-`, `PRJ-`, `CAS-`, `TSK-`, `MWK-`, `SUP-`, `TOOL-` and `CHK-`. Physical columns begin with system metadata; standards/custom fields and later business numbering append independently of form order. A genuine Task Progress change from 0 to 25, relationship/security writes and definition deactivations populate actual journals.
 
 ## Relationships
 
-The initial fixture applies **54 persisted edges** through normal application operations:
+There are **54 persisted edges**:
 
-- 40 Primary links: Contacts → Projects → Cases → Tasks, plus directly assigned Project and Contact Tasks. There is a Project without a Contact and a standalone Task without any Primary parent.
-- Two Organization → Contact-person links; each Contact person can belong to at most one Organization.
-- Three Distribution-list membership links, independent of classifications.
-- One symmetric Identities link between the Contact-person and Individual-contact representations of Emily Example. Identities is a Contact relationship, not another object type.
-- Three undirected n:m Case/Vehicle links.
-- Three directed Device/Contract links: a Device has at most one covering Contract; a Contract covers multiple Devices.
-- One directed optional 1:1 Vehicle/Device assignment.
-- One General Project/Contract link, displayed in the Dossier.
+- 40 Primary links across Contact → Project → Case and Tasks, including shortened chains and a standalone Task.
+- Two Organization/Contact-person links, with one main Organization per Contact person.
+- Three Distribution memberships and one symmetric Contact Identities link.
+- Three Tool/Support-package links: each Tool has at most one package; packages support multiple Tools.
+- One optional 1:1 Mobile-workshop/Tool equipment assignment.
+- Four General links connecting Cases to Mobile workshops and a Project to a Support package.
 
-These cover single-target controls, multi-target tables, endpoint conditions, derived context, the Projects-owned tree, Dossier and journals. The returned UUID plan is saved in ignored `.local/demo-relationships.json`. Reapplying that exact plan through `connectDemoRelationships` keeps existing edges and adds no duplicates. It is a test aid, not another relationship store.
+Single/multiple controls, endpoint conditions, derived context, the Projects-owned tree, Dossier and journals use real application relationships. The UUID plan is saved privately to `.local/demo-relationships.json`. Reapplying that exact plan adds no duplicate edges. Standard module forms have no demo-only relationship definitions.
 
-Projects activation supplies protected Contacts, Projects, Cases and Tasks and fixed Primary roles. Complete Contacts/Projects business templates remain V1 implementation work; Documents & Communication is deferred beyond V1. See the [PRD catalog](PRD.md#6-supplied-domain-models) for the agreed target. The fixture enriches existing definitions through ordinary configuration. Contacts limit first/last name and birthday to Individual contacts/Contact persons, and commercial register to Organizations/Individual contacts. Normal updates cannot change Contact kind; a dedicated conversion workflow is later work. Contact Keywords and formatted names are derived from permitted sources and Organization links, and are omitted as form inputs. Name/Organization precede contact details, addresses, classification and relationships; Salutation and Academic title are independent configurable selects; personal-name fields stay visible in the fixed core. The fictional personal contacts include salutations and one academic-title example; less common address details remain in a disclosure.
+## Assignment and permission checks
 
-## Permission checks
+Projects, Cases and Tasks are always sensitive. Support packages and Access checks are additional sensitive custom examples. Access principals is the protected virtual ownership field; in activities it also identifies the users/groups carrying out the work. **Task assignees are exactly these participants.** There is no separate Task assignment field or storage. Responsible coordinates the activity and grants no rights. Foreign access grants permissions without adding participants, assigning work or subscribing people to future notifications.
 
-Explicit object grants give Jane and James the content ceilings required by the scenarios; Designer is not a content-right shortcut. James inherits Create through Project team. On Contracts, Internal notes is hidden from James; on Devices, Purchase price is read-only for him. The inactive equipment object is retained for Administrator lifecycle inspection, without an implicit regular-user grant.
+Demo Tasks are assigned to James through Access principals, with selected records demonstrating Project-team assignment, Jane's Personal/Confidential ownership and the normal foreign-access rules. New ordinary records retain creator ownership until explicitly delegated. Layout changes never alter security.
 
-Tasks and Contracts are sensitive. Existing seeded rows receive explicit workspace-public policies when sensitivity is enabled; selected rows then demonstrate direct James ownership, Project-team ownership, Jane's Personal/Confidential records and ordinary foreign access. Assigned to is independent of these permissions. Tasks not individually restricted remain workspace-public within their object ceilings.
+Explicit object ceilings give Jane/James the rights needed for the examples. James inherits Create through Project team. On Support packages, Internal notes is hidden from James; on Workshop tools, Purchase price is read-only. The inactive object has no implicit ordinary-user grant. James has foreign Full to Jane without Confidential permission; Jane has foreign Read to Project team with Confidential permission and may manage her own delegated rules.
 
-James has foreign Full access to Jane's normally shared records, without Confidential permission. Jane has foreign Read access to Project team's records, with Confidential permission. Her own-record delegation is enabled. Graded and nested group memberships remain visible for editing and inheritance tests.
-
-Use **Access checks** to inspect the following as James:
-
-| Keyword | Expected result |
+| Access-check Keyword | Expected result for James |
 | --- | --- |
-| Foreign access – none / availability | No record contents; calendar-only projection is not implemented |
+| Foreign access – none / availability | No contents; calendar-only projection remains future work |
 | Foreign access – read | Read |
-| Foreign access – duplicate | Read and Duplicate, subject to Create and required fields |
-| Foreign access – schedule | Read and Duplicate; calendar scheduling remains future work |
-| Foreign access – edit / delete / full | Corresponding graded content capabilities, bounded by the record's foreign maximum |
-| Privacy – personal / confidential | No foreign access through the configured rule |
-| Workspace-public – read | Read with no named owners, within object ceilings |
-| Direct ownership – field exception | Full direct ownership; Sample amount is hidden by a record field exception |
+| Foreign access – duplicate | Read/Duplicate, bounded by Create and required fields |
+| Foreign access – schedule | Read/Duplicate; calendar scheduling remains future work |
+| Foreign access – edit / delete / full | Corresponding capabilities, bounded by the record's foreign maximum |
+| Privacy – personal / confidential | No access through the configured foreign rule |
+| Workspace-public – read | Read without named owners, within object ceilings |
+| Direct ownership – field exception | Full direct ownership; Sample amount remains hidden |
 
-Jane owns the foreign/privacy samples with Full. John retains installation-wide Administrator access. The integration test performs the real initial-password change before evaluating these rights and verifies denial of definition edits for James.
+Jane owns the foreign/privacy samples. The integration test completes the real initial-password change before assessing user rights, verifies field restrictions and rejects definition edits for James.
 
 ## Run and rebuild
 
-Run `ADMIN_EMAIL=john.doe@example.test npm run dev:seed` after Administrator provisioning. The CLI requires explicit local-demo confirmation (included by the npm script), loopback PostgreSQL port `5410`, database `xobject_dev`, and no existing workspaces. The seed refuses overwrite/repeated seeding; it does not reset the database. Tests use separate disposable PostgreSQL instances and a distinct workspace code.
+Run `ADMIN_EMAIL=john.doe@example.test npm run dev:seed` after Administrator provisioning. The CLI requires local-demo confirmation, loopback PostgreSQL port `5410`, database `xobject_dev` and no existing workspaces. The seed refuses overwriting/repeated seeding. Tests use isolated disposable PostgreSQL instances.
 
-For an explicitly authorized clean test rebuild, stop writers, run the guarded `npm run db:reset`, provision the first Administrator, then run this seed. There is one current unreleased schema; no development-version upgrades or old-rights adoption occur. Existing offline recovery artifacts remain outside application state in ignored `.local/backups` and are never imported automatically.
+For an authorized clean rebuild: stop writers, preserve a verified backup/private receipts, run guarded `npm run db:reset`, provision the first Administrator and apply the current seed. There is one current unreleased model; old schemas/rights are never adopted. Private recovery artifacts remain outside application state and are never imported automatically. An interrupted seed requires an explicit disposable-instance rebuild rather than resuming a partial fixture. See [development](development.md#current-database-installation-and-sql-inspection) and [ADR 0028](adr/0028-current-installation-baseline.md).
 
-The seed uses several normal application transactions. If interrupted, it refuses to continue against the partially populated workspace; rebuild the disposable development database explicitly before starting again. This is not a production import/export facility. Uploads, attachments, email delivery, SSO, calendar actions and notification delivery are not implemented by this fixture.
-
-Contact persons and the Individual contact contain direct Job title, Department and different Function selections in Professional details beneath Photo. Their translated choices are fictional demo configuration; a fresh module starts with an empty configurable Function dictionary. The fields are always available for Individual contacts, including without a company name. Organization membership has no supplied attributes. One common extension form uses the same Contact identity and values for every contributing module.
+Uploads, attachments, email/notification delivery, SSO and calendar actions remain later work. Contact-person/Individual professional details are direct Contact fields; Organization membership has no supplied attributes. The same Contact identity and common form serve both contributing modules.
