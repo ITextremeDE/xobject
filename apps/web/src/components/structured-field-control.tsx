@@ -1,3 +1,4 @@
+import {DomainTemporalControl} from './domain-temporal-control';
 import {PostalAddressEntryControl} from './postal-address-entry-control';
 import {ContactTimeZoneControl} from './contact-time-zone-control';
 import {structuredEntryInvalid} from '@/lib/structured-entry-validation';
@@ -47,6 +48,7 @@ export function StructuredFieldControl({field,value,disabled,onChange,error,lege
   })}</FieldGroup>;
  }
  function actions(entry:StructuredEntry,index:number){return <div className="flex shrink-0 items-center gap-1">{orderButtons(index)}<Button type="button" size="icon-sm" variant="ghost" disabled={disabled} aria-label={t('structuredRemove',{number:index+1})} title={t('structuredRemove',{number:index+1})} onClick={()=>remove(entry.id)}><Trash2Icon/></Button></div>;}
+ if(schema==='temporal')return <DomainTemporalControl field={field} value={value} disabled={disabled} onChange={onChange} error={error}/>;
  if(schema==='name_components'){
   const parts=entries as NamePart[];
   return <Field id={base} data-invalid={invalid||Boolean(error)} data-disabled={disabled||undefined}><FieldLabel htmlFor={`${base}-name`}>{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><Input id={`${base}-name`} value={nameInputText(parts)} required={field.required} maxLength={200} disabled={disabled} aria-invalid={invalid||Boolean(error)} aria-describedby={describedBy} onChange={event=>onChange(nameInputValue(parts,event.target.value,v7))}/>{feedback}</Field>;

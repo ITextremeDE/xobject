@@ -10,7 +10,7 @@ import {Checkbox} from '@/components/ui/checkbox';
 import {ChevronsUpDownIcon,SlidersHorizontalIcon,UserIcon,UsersIcon} from 'lucide-react';
 
 type Snapshot=Outputs['get_record_security'];
-export function RecordAccessField({snapshot,value,confirmed,disabled,onChange,onConfirm,onDetails}:{snapshot:Snapshot;value:RecordSecurity;confirmed:boolean;disabled:boolean;onChange:(policy:RecordSecurity)=>void;onConfirm:(confirmed:boolean)=>void;onDetails:()=>void}){
+export function RecordAccessField({activity=false,snapshot,value,confirmed,disabled,onChange,onConfirm,onDetails}:{activity?:boolean;snapshot:Snapshot;value:RecordSecurity;confirmed:boolean;disabled:boolean;onChange:(policy:RecordSecurity)=>void;onConfirm:(confirmed:boolean)=>void;onDetails:()=>void}){
  const {t}=useTranslation(),[open,setOpen]=useState(false);
  const readonly=disabled||!snapshot.canManage,publicAccess=value.publicLevel!==null;
  const names=value.owners.map(owner=>snapshot.principals.find(person=>principalKey(person)===principalKey(owner))?.name??owner.id);
@@ -24,7 +24,7 @@ export function RecordAccessField({snapshot,value,confirmed,disabled,onChange,on
    </CommandGroup></CommandList></Command></PopoverContent></Popover>
    <InputGroupButton size="icon-xs" aria-label={t('accessDetails')} disabled={disabled} onClick={onDetails}><SlidersHorizontalIcon/></InputGroupButton>
   </InputGroupAddon></InputGroup>
-  <FieldDescription id="record-access-summary">{t(snapshot.canManage?'quickAccessHelp':'quickAccessReadOnlyHelp')} {t('accessPolicySummary',{privacy:t(`privacy_${value.privacy}`),level:t(`permission_${value.foreignMax}`)})}</FieldDescription>
+  <FieldDescription id="record-access-summary">{t(activity?snapshot.canManage?'activityAccessHelp':'activityAccessReadOnlyHelp':snapshot.canManage?'quickAccessHelp':'quickAccessReadOnlyHelp')} {t('accessPolicySummary',{privacy:t(`privacy_${value.privacy}`),level:t(`permission_${value.foreignMax}`)})}</FieldDescription>
   {missing?<FieldError>{t('emptyOwnersHelp')}</FieldError>:conflict?<FieldError>{t('publicPrivacyConflict')}</FieldError>:null}
   {widensPublicAccess(snapshot.policy,value)?<Field orientation="horizontal"><Checkbox id="record-confirm-public" checked={confirmed} disabled={readonly} onCheckedChange={checked=>onConfirm(checked===true)}/><FieldLabel htmlFor="record-confirm-public">{t('confirmPublicAccess')}</FieldLabel></Field>:null}
  </Field>;

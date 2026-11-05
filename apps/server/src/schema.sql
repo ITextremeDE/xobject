@@ -564,3 +564,11 @@ BEGIN
  RETURN NEW;
 END $$;
 CREATE TRIGGER sys_relationship_values_scope BEFORE INSERT OR UPDATE OF values,relationship_type_id ON public.sys_relationships FOR EACH ROW EXECUTE FUNCTION public.sys_check_relationship_values();
+
+CREATE TABLE public.sys_navigation_preferences (
+    workspace_id uuid NOT NULL REFERENCES public.sys_workspaces(id),
+    user_id text REFERENCES public.sys_users(id),
+    version integer NOT NULL DEFAULT 1 CHECK (version > 0),
+    layout jsonb CHECK (layout IS NULL OR jsonb_typeof(layout)='object'),
+    UNIQUE NULLS NOT DISTINCT (workspace_id,user_id)
+);

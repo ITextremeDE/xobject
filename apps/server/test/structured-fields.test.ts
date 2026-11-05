@@ -67,3 +67,11 @@ test('postal address limits reject oversized components and preserve supplementa
  assert.throws(()=>normalizeFieldValue(field('address_entries'),[{...entry,address:{...address,streetLines:['Example Road','x'.repeat(201)]}}]));
  assert.equal(address.formatted,'');
 });
+
+test('shared temporal codec preserves date semantics and resolves explicit daylight-saving occurrences',()=>{
+ assert.deepEqual(parseStructuredValue('temporal',{kind:'date',date:'2026-03-29'}),{kind:'date',date:'2026-03-29'});
+ assert.deepEqual(parseStructuredValue('temporal',{kind:'instant',instant:'2026-11-04T10:00:00+01:00'}),{kind:'instant',instant:'2026-11-04T09:00:00.000Z'});
+ const zoned={kind:'zoned',local:'2026-10-25T02:30:00',timeZone:'Europe/Berlin',occurrence:'earlier'};
+ assert.deepEqual(parseStructuredValue('temporal',zoned),zoned);
+ for(const value of [{...zoned,occurrence:null},{...zoned,local:'2026-03-29T02:30:00'},{...zoned,local:'2026-11-04T10:00:00'},{...zoned,timeZone:'+01:00'},{kind:'date',date:'2026-02-30'},{kind:'instant',instant:'2026-11-04T09:00:00.1234Z'},{kind:'floating',local:'2026-11-04T10:00:00'}])assert.throws(()=>parseStructuredValue('temporal',value));
+});

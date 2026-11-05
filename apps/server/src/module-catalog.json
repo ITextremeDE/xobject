@@ -738,7 +738,8 @@
               "person"
             ]
           }
-        ]
+        ],
+        "navigationPriority": 100
       },
       {
         "key": "distribution_list",
@@ -777,7 +778,8 @@
               "formatted": true
             }
           }
-        ]
+        ],
+        "navigationPriority": 90
       }
     ],
     "templateVersion": 1
@@ -806,7 +808,8 @@
           "keyword",
           "type_status",
           "category"
-        ]
+        ],
+        "navigationPriority": 70
       },
       {
         "key": "project",
@@ -819,7 +822,65 @@
           "keyword",
           "type_status",
           "category"
-        ]
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "de": "Beschreibung",
+              "en": "Description"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          },
+          {
+            "key": "responsible",
+            "technicalName": "responsible",
+            "labels": {
+              "de": "Verantwortlich",
+              "en": "Responsible"
+            },
+            "kind": "reference",
+            "config": {
+              "referenceTarget": "both",
+              "multiple": false
+            }
+          },
+          {
+            "key": "start_date",
+            "technicalName": "start_date",
+            "labels": {
+              "de": "Beginn",
+              "en": "Start date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "target_date",
+            "technicalName": "target_date",
+            "labels": {
+              "de": "Zieldatum",
+              "en": "Target date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "de": "Notizen",
+              "en": "Notes"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ],
+        "navigationPriority": 100
       },
       {
         "key": "case",
@@ -832,7 +893,65 @@
           "keyword",
           "type_status",
           "category"
-        ]
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "de": "Beschreibung",
+              "en": "Description"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          },
+          {
+            "key": "responsible",
+            "technicalName": "responsible",
+            "labels": {
+              "de": "Verantwortlich",
+              "en": "Responsible"
+            },
+            "kind": "reference",
+            "config": {
+              "referenceTarget": "both",
+              "multiple": false
+            }
+          },
+          {
+            "key": "start_date",
+            "technicalName": "start_date",
+            "labels": {
+              "de": "Beginn",
+              "en": "Start date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "target_date",
+            "technicalName": "target_date",
+            "labels": {
+              "de": "Zieldatum",
+              "en": "Target date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "de": "Notizen",
+              "en": "Notes"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ],
+        "navigationPriority": 90
       },
       {
         "key": "task",
@@ -845,7 +964,121 @@
           "keyword",
           "type_status",
           "category"
-        ]
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "de": "Beschreibung",
+              "en": "Description"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          },
+          {
+            "key": "responsible",
+            "technicalName": "responsible",
+            "labels": {
+              "de": "Verantwortlich",
+              "en": "Responsible"
+            },
+            "kind": "reference",
+            "config": {
+              "referenceTarget": "both",
+              "multiple": false
+            }
+          },
+          {
+            "key": "start",
+            "technicalName": "start",
+            "labels": {
+              "de": "Beginn",
+              "en": "Start"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "temporal"
+            }
+          },
+          {
+            "key": "due",
+            "technicalName": "due",
+            "labels": {
+              "de": "Fällig",
+              "en": "Due"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "temporal"
+            }
+          },
+          {
+            "key": "priority",
+            "technicalName": "priority",
+            "labels": {
+              "de": "Priorität",
+              "en": "Priority"
+            },
+            "kind": "single_choice",
+            "choices": [
+              {
+                "key": "low",
+                "labels": {
+                  "de": "Niedrig",
+                  "en": "Low"
+                }
+              },
+              {
+                "key": "normal",
+                "labels": {
+                  "de": "Normal",
+                  "en": "Normal"
+                }
+              },
+              {
+                "key": "high",
+                "labels": {
+                  "de": "Hoch",
+                  "en": "High"
+                }
+              }
+            ]
+          },
+          {
+            "key": "progress",
+            "technicalName": "progress",
+            "labels": {
+              "de": "Fortschritt (%)",
+              "en": "Progress (%)"
+            },
+            "kind": "integer"
+          },
+          {
+            "key": "completed_at",
+            "technicalName": "completed_at",
+            "labels": {
+              "de": "Erledigt am",
+              "en": "Completed at"
+            },
+            "kind": "datetime"
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "de": "Notizen",
+              "en": "Notes"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ],
+        "navigationPriority": 80
       }
     ],
     "templateVersion": 1
@@ -869,7 +1102,8 @@
           "de": "E-Mails",
           "en": "Emails"
         },
-        "technicalName": "emails"
+        "technicalName": "emails",
+        "navigationPriority": 0
       },
       {
         "key": "document",
@@ -877,7 +1111,8 @@
           "de": "Dokumente",
           "en": "Documents"
         },
-        "technicalName": "documents"
+        "technicalName": "documents",
+        "navigationPriority": 0
       }
     ],
     "templateVersion": 1

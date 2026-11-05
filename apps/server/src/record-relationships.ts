@@ -1,3 +1,4 @@
+import {recordIconExpression} from './record-icons.js';
 import {candidateAttributes,projectEdgeAttributes,writeEdgeAttributes} from './relationship-fields.js';
 import {contentAccess} from './content-permissions.js';
 import {oppositeRelationshipSide,relationshipSidesForObject} from '@xobject/contracts';
@@ -30,9 +31,9 @@ async function reference(tx:Executor,ref:RecordReference,workspace:string):Promi
   const model=await modelFor(tx,ref.objectTypeId);
   if(model.workspace_id!==workspace)throw new AppError(400,'Relationship endpoints must share a workspace');
   const hasKeyword=(await sql`SELECT 1 FROM sys_fields WHERE object_type_id=${model.id}::uuid AND technical_name='keyword' AND state<>'deleted'`.execute(tx)).rows.length;
-  const row=(await sql<{keyword:string}>`SELECT ${await contentAccess().keywordValue(model.id)} AS keyword FROM ${sql.table(table(model))} WHERE id=${ref.recordId}::uuid`.execute(tx)).rows[0];
+  const row=(await sql<{keyword:string;iconKey:import('@xobject/contracts').RecordIconKey}>`SELECT ${await recordIconExpression(tx,model.id)} AS "iconKey", ${await contentAccess().keywordValue(model.id)} AS keyword FROM ${sql.table(table(model))} WHERE id=${ref.recordId}::uuid`.execute(tx)).rows[0];
   if(!row)throw new AppError(404,'Related record not found');
-  return {...ref,keyword:row.keyword||ref.recordId,objectTechnicalName:model.technical_name,objectLabels:model.labels,state:model.state as 'active'|'inactive'};
+  return {...ref,iconKey:row.iconKey,keyword:row.keyword||ref.recordId,objectTechnicalName:model.technical_name,objectLabels:model.labels,state:model.state as 'active'|'inactive'};
 }
 async function visibleReference(tx:Executor,ref:RecordReference,workspace:string){await contentAccess().require(ref.objectTypeId,ref.recordId);const value=await reference(tx,ref,workspace);if(!await contentAccess().canField(ref.objectTypeId,'keyword','read',ref.recordId))value.keyword=ref.recordId;return value;}
 async function edgesFor(tx:Executor,workspace:string) {return (await sql<Edge>`SELECT * FROM sys_relationships WHERE workspace_id=${workspace}::uuid ORDER BY id`.execute(tx)).rows;}

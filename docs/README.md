@@ -43,7 +43,8 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; permanent erasure remains pending. |
 | [0030](adr/0030-field-input-rules-and-business-numbers.md) | Input rules and numbering | Translated field explanations, typed creation defaults, scalar uniqueness and transactional business numbers. |
 | [0031](adr/0031-standards-aligned-groupware-models.md) | Standards-aligned groupware models | Vendor-neutral profile direction; storage architecture in 0032, runtime and later DAV delivery remain open. |
-| [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: nine typed contact codecs and locally accepted Contacts/Distribution lists; relationship attributes and both-endpoint rights/history implemented; temporal codecs and sparse exceptions pending. |
+| [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: nine typed contact codecs and locally accepted Contacts/Distribution lists; relationship attributes and both-endpoint rights/history implemented; shared temporal codec and lean Projects/Cases/Tasks templates implemented; calendar parties and sparse exceptions pending. |
+| [0033](adr/0033-configurable-workspace-navigation.md) | Configurable navigation | Module sections, repeated object entries, Contact filters, shared defaults/personal layouts and optional Resources; versioned API/MCP persistence. |
 
 ## Ownership of repeated information
 

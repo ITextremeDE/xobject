@@ -1,3 +1,8 @@
+export {objectIconKey,type RecordIconKey} from './record-icons.js';
+import {navigationLayoutSchema,type NavigationSettings} from './navigation.js';
+export * from './navigation.js';
+export * from './temporal.js';
+export * from './work-profile.js';
 export * from './contact-profile.js';
 export * from './structured-fields.js';
 import {fieldInputRulesSchema,numberingSchema,type FieldInputRules,type Numbering} from './field-input-rules.js';
@@ -87,6 +92,8 @@ export const schemas = {
   list_workspace_members: z.object({ workspaceId: uuid }).strict(),
   set_workspace_member: z.object({ workspaceId: uuid, userId: uuid, role: workspaceRole.nullable(), expectedRole: workspaceRole.nullable() }).strict(),
   create_workspace: z.object({ name: label, code: z.string().regex(/^[a-z][a-z0-9]*$/).max(61), defaultLanguage: language.default('en'), timeZone: timeZoneSchema.default('UTC'), regional: regionalSchema.optional() }).strict(),
+  get_workspace_navigation:z.object({workspaceId:uuid}).strict(),
+  configure_navigation:z.object({workspaceId:uuid,scope:z.enum(['workspace','personal']),version:z.number().int().nonnegative(),layout:navigationLayoutSchema.nullable()}).strict(),
   list_field_schemas: z.object({}).strict(),
   get_language_catalog: z.object({}).strict(),
   get_time_zone_catalog: z.object({}).strict(),
@@ -102,7 +109,7 @@ export const schemas = {
   list_object_types: z.object({ workspaceId: uuid, includeInactive: z.boolean().default(false), includeDeleted: z.boolean().default(false) }).strict(),
   get_workspace_dashboard: z.object({ workspaceId: uuid, days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(90) }).strict(),
   list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['business_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
-  list_records: z.object({ objectTypeId: uuid, query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
+  list_records: z.object({ objectTypeId: uuid, contactKindId:uuid.optional(), query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(3).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
   add_standard_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => args.field === 'keyword' ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
   create_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid.optional(),relationshipTypeId:uuid.optional(), applicability: fieldApplicabilitySchema.optional(), technicalName, labels, kind: customFieldKindSchema.default('text'), config: fieldConfigSchema.optional(), required: z.boolean().default(false) }).strict().refine(v=>Boolean(v.objectTypeId)!==Boolean(v.relationshipTypeId),'Exactly one field owner is required'),
@@ -123,12 +130,12 @@ export type Operation = keyof typeof schemas;
 export type Labels = Record<string, string>;
 export interface Workspace { id: string; code: string; name: string; default_language: Language; available_languages: Language[]; label_languages: Language[]; language_version: number; time_zone: string; regional: RegionalSettings; created_by: string; created_by_name: string; created_at: string; appearance: WorkspaceAppearance; appearance_version: number; role: 'administrator' | 'designer' | 'user' }
 export type DefinitionState = 'active' | 'inactive' | 'deleted';
-export interface ObjectSummary { permissions?:ContentCapabilities; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
+export interface ObjectSummary { iconKey?:import('./record-icons.js').RecordIconKey; permissions?:ContentCapabilities; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
 export interface FieldDefinition extends ObjectSummary {relationshipTypeId?:string; isDerived?:boolean; inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
-export interface ObjectDefinition extends ObjectSummary {moduleKeys?:string[];moduleFieldIds?:Record<string,string[]>;relationshipFields?:FieldDefinition[];contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
-export interface DataRecord { fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
+export interface ObjectDefinition extends ObjectSummary {activity?:boolean;moduleKeys?:string[];moduleFieldIds?:Record<string,string[]>;relationshipFields?:FieldDefinition[];workProfile?:import('./work-profile.js').WorkProfile; contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
+export interface DataRecord { iconKey?:import('./record-icons.js').RecordIconKey; fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
-export interface SearchRecord { businessNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }
+export interface SearchRecord { iconKey?:import('./record-icons.js').RecordIconKey; businessNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
 export interface JournalEntry { detail_context?:{schema:string;changes:{entryId?:string;path:string}[]}|null; security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
@@ -141,7 +148,7 @@ export interface AccountSecurity { hasPassword: boolean; sessions: AccountSessio
 export interface ManagedUser extends UserSummary { active: boolean; mustChangePassword: boolean; version: number }
 export interface SystemJournalEntry extends JournalEntry { entity_kind: string; entity_id: string; workspace_id: string | null; workspace_name: string | null; actor_name: string; entity_name: string | null }
 export interface RecycledRecord extends WorkspaceRecord {recycled_at:string;recycled_by:string;recycledByName:string;canRestore:boolean}
-export interface WorkspaceRecord { business_number?:string|null; id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
+export interface WorkspaceRecord { iconKey?:import('./record-icons.js').RecordIconKey; business_number?:string|null; id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
   get_foreign_access_capabilities:{manageOwn:boolean};
   get_foreign_access:ForeignSettings;
@@ -188,6 +195,8 @@ export interface Outputs {
   create_workspace: { id: string };
   get_time_zone_catalog: string[];
   configure_user_localization: { language: Language | null; timeZone: string | null; regional: PersonalRegionalSettings | null };
+  get_workspace_navigation:NavigationSettings;
+  configure_navigation:NavigationSettings;
   list_field_schemas: {key:import('./structured-fields.js').StructuredSchemaKey;labels:{en:string;de:string}}[];
   get_language_catalog: { code: Language; nativeName: string; interfaceAvailable: boolean }[];
   configure_workspace_languages: WorkspaceLanguages & { workspaceId: string; version: number; timeZone: string; regional: RegionalSettings };

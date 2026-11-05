@@ -33,6 +33,7 @@ function clean(config: ClassificationConfig): ClassificationRules {
   return { ...rules, options: rules.options.map(({ label: _label, canDelete: _canDelete, ...option }) => option) };
 }
 const errorKeys: Record<string, string> = {
+  'Invalid project or task values':'workRulesConflict',
   'Classification option is in use': 'choiceInUse',
   'Unknown Status Type': 'typeHasStatuses',
   'Required classification value missing': 'classificationExistingRequired',
@@ -127,6 +128,7 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
       onUp={index>0?()=>move(option.id,siblings[index-1].id):undefined} onDown={index<siblings.length-1?()=>move(option.id,siblings[index+1].id):undefined} onMoveTo={option.kind!=='type'?target=>move(option.id,target):undefined}
       onDelete={option.kind!=='category'?()=>removeOption(option.id):undefined} deleteBlocked={option.kind!=='category'&&blocked?t(usedIds.has(option.id)?'choiceInUse':'typeHasStatuses'):undefined}>
       {option.kind==='status'?<Field><FieldLabel htmlFor={`choice-type-${option.id}`}>{t('statusScope')}</FieldLabel><ClassificationSelect id={`choice-type-${option.id}`} value={option.typeId??''} disabled={controlsDisabled} options={[{value:'',label:t('withoutType')},...draft.options.filter(item=>item.kind==='type').map(item=>({value:item.id,label:name(item)}))]} onValueChange={value=>patchOption(option.id,{typeId:value||null})}/></Field>:null}
+      {option.kind==='status'&&definition.workProfile?.kind==='task'?<Field><FieldLabel htmlFor={`status-meaning-${option.id}`}>{t('taskStatusMeaning')}</FieldLabel><ClassificationSelect id={`status-meaning-${option.id}`} value={option.meaning??''} disabled={controlsDisabled} options={['','open','in_progress','done','canceled'].map(value=>({value,label:t(value?'taskState_'+value:'noSelection')}))} onValueChange={value=>patchOption(option.id,{meaning:value?value as 'open'|'in_progress'|'done'|'canceled':undefined})}/><FieldDescription>{t('taskStatusMeaningHelp')}</FieldDescription></Field>:null}
     </ChoiceValueEditor>;
   }
 

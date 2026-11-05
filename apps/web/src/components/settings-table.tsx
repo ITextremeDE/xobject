@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 // retain their independent column and horizontal scrolling behavior.
 export function SettingsTable({ className, ...props }: ComponentProps<typeof Table>) {
   const {t}=useTranslation();
-  return <div className="min-w-0 overflow-hidden rounded-lg border"><Table containerProps={{tabIndex:0,role:'region','aria-label':t('settingsTableScroll')}} className={cn('min-w-[32rem] table-fixed [&_th]:whitespace-normal [&_td]:whitespace-normal', className)} {...props} /></div>;
+  return <div className="min-w-0 overflow-hidden rounded-lg border"><Table containerProps={{tabIndex:0,role:'region','aria-label':t('settingsTableScroll')}} className={cn('table-fixed [&_th]:whitespace-normal [&_td]:whitespace-normal [&_td]:wrap-anywhere [&_td_button]:max-w-full', className)} {...props} /></div>;
 }
 
 export function useSettingsTable<T>(rows: T[], searchText: (row: T) => string) {

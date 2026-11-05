@@ -1,6 +1,7 @@
 import {RecordPageHeader,RecordPageFooter,RecordSectionTabs,recordPageClassName} from './record-page-frame';
 import {Tabs} from './ui/tabs';
 import {recordLoadingModel} from '@/lib/record-loading';
+import {RecordFormGroups} from './record-form-groups';
 import {ContactCoreGroups} from './contact-core-groups';
 import {contactCoreLayout,contactCoreFieldIds,contactExtensionLayout} from '@xobject/contracts';
 import {SettingsSection} from './settings-section';
@@ -8,7 +9,7 @@ import {cn} from '@/lib/utils';
 import {useLocation} from 'react-router';
 import type {ReactNode} from 'react';
 import {useTranslation} from 'react-i18next';
-import {resolveFormLayout,type ObjectDefinition,type FieldValue} from '@xobject/contracts';
+import {resolveFormLayout,type ObjectDefinition,type FieldValue,type FormEntry} from '@xobject/contracts';
 import {Skeleton} from '@/components/ui/skeleton';
 import {Spinner} from '@/components/ui/spinner';
 import {Field,FieldGroup,FieldSet,FieldLegend,FieldLabel} from '@/components/ui/field';
@@ -59,9 +60,20 @@ export function RecordPageLoading({definition,values,applicableFieldIds,isNew=fa
   const core=definition?.contactProfile&&knownKind?contactCoreLayout(definition.contactProfile,fields,relationships):undefined;
   const extension=definition?.contactProfile&&knownKind?resolveFormLayout(contactExtensionLayout(definition.contactProfile,definition.fields,definition.formLayouts?.default),fields.filter(f=>!contactCoreFieldIds(definition.contactProfile!,definition.fields).has(f.id)),true,relationships.filter(r=>!Object.values(definition.contactProfile!.relationships).includes(r.definition.id))):undefined;
   const layout=core?{groups:[...core.groups,...(extension?.groups??[])],unassigned:extension?.unassigned}:definition&&knownKind?resolveFormLayout(definition.formLayouts?.default,fields,true,relationships):undefined;
-  const groups=layout?[...layout.groups,...(layout.unassigned?.length?[{id:':unassigned',labels:{},fields:layout.unassigned}]:[])]:[];
-  const renderGroup=(group:typeof groups[number],singleColumn=false)=><SettingsSection key={group.id}><FieldSet className="min-w-0"><FieldLegend>{(group.labels as Record<string,string>)[i18n.language]??(group.labels as Record<string,string>).en??<Skeleton className="h-5 w-36"/>}</FieldLegend><FieldGroup className={singleColumn?'grid items-start gap-6':'grid items-start gap-6 md:grid-cols-2'}>{group.fields.map((entry,index)=>{const field='fieldId' in entry?fields.find(field=>field.id===entry.fieldId):undefined;const relation='relationshipTypeId' in entry?definition?.formRelationships?.find(item=>item.definition.id===entry.relationshipTypeId&&item.side===entry.side):undefined;const names=relation?(relation.side==='left'?relation.definition.leftLabels:relation.definition.rightLabels) as Record<string,string>:undefined;const label=field?.label??('primary' in entry?t('primaryChainTitle'):names?.[i18n.language]??names?.en??names?.de);return <div key={index} className={!singleColumn&&entry.width==='full'?'md:col-span-2':undefined}>{field?.kind==='date'||field?.kind==='datetime'?<TemporalFieldSkeleton label={label} datetime={field.kind==='datetime'}/>:<FieldSkeleton label={label} multiline={field?.kind==='multiline'}/>}</div>;})}</FieldGroup></FieldSet></SettingsSection>;
-  return <LoadingRegion className="w-full min-w-0"><div className={recordPageClassName}><RecordPageHeader navigation={<><Skeleton className="h-8 w-36"/><Skeleton className="h-8 w-64 max-w-full"/></>} title={<Skeleton className="h-8 w-72 max-w-full"/>} description={<Skeleton className="h-5 w-full"/>} actions={!isNew?<><Skeleton className="h-8 w-36"/><Skeleton className="h-8 w-36"/></>:undefined}/><Tabs value="details" className="gap-4"><RecordSectionTabs isNew={isNew} treeAvailable={treeAvailable} loading/><div className="flex flex-col gap-6">{isNew?<Skeleton className="h-5 w-full"/>:null}{groups.length?<>{core?<ContactCoreGroups layout={core} media={<SettingsSection><div className="flex flex-col gap-4"><Skeleton className="h-5 w-28"/><div className="flex items-center gap-3"><Skeleton className="size-12 rounded-full"/><Skeleton className="h-8 w-28"/></div><Skeleton className="h-10 w-full"/></div></SettingsSection>} renderGroup={renderGroup}/>:null}{groups.filter(group=>group.fields.length&&!core?.groups.some(item=>item.id===group.id)).map(group=>renderGroup(group))}</>:<Skeleton className="h-64 w-full rounded-xl"/>}</div></Tabs><RecordPageFooter><Skeleton className="h-5 w-56 max-w-full"/><div className="ml-auto flex gap-2">{!isNew?<Skeleton className="h-8 w-28"/>:null}<Skeleton className="h-8 w-40"/></div></RecordPageFooter></div></LoadingRegion>;
+  const groups=layout?[...layout.groups,...(layout.unassigned?.length?[{id:':unassigned',labels:{en:t('formUnassigned')},fields:layout.unassigned}]:[])]:[];
+  const renderEntry=(entry:FormEntry)=>{
+    const field='fieldId' in entry?fields.find(field=>field.id===entry.fieldId):undefined;
+    const relation='relationshipTypeId' in entry?definition?.formRelationships?.find(item=>item.definition.id===entry.relationshipTypeId&&item.side===entry.side):undefined;
+    const names=relation?(relation.side==='left'?relation.definition.leftLabels:relation.definition.rightLabels) as Record<string,string>:undefined;
+    const label=field?.label??('primary' in entry?t('primaryChainTitle'):names?.[i18n.language]??names?.en??names?.de);
+    if(field?.kind==='structured'&&field.config.schema==='temporal'){
+      const value=values?.[field.technicalName],kind=value&&typeof value==='object'&&!Array.isArray(value)&&'kind' in value?value.kind:undefined;
+      return <FieldGroup className="gap-3"><TemporalFieldSkeleton label={label} datetime={kind!=='date'}/><Skeleton className="h-7 w-56 max-w-full"/></FieldGroup>;
+    }
+    return field?.kind==='date'||field?.kind==='datetime'?<TemporalFieldSkeleton label={label} datetime={field.kind==='datetime'}/>:<FieldSkeleton label={label} multiline={field?.kind==='multiline'}/>;
+  };
+  const renderGroup=(group:typeof groups[number],singleColumn=false)=><RecordFormGroups key={group.id} layout={{groups:[group]}} singleColumn={singleColumn} renderEntry={renderEntry}/>;
+  return <LoadingRegion className="w-full min-w-0"><div className={recordPageClassName}><RecordPageHeader navigation={<><Skeleton className="h-8 w-36"/><Skeleton className="h-8 w-64 max-w-full"/></>} title={<Skeleton className="h-8 w-72 max-w-full"/>} description={<Skeleton className="h-5 w-full"/>} actions={!isNew?<><Skeleton className="h-8 w-36"/><Skeleton className="h-8 w-36"/></>:undefined}/><Tabs value="details" className="gap-4"><RecordSectionTabs isNew={isNew} treeAvailable={treeAvailable} loading/><div className="flex flex-col gap-6">{isNew?<Skeleton className="h-5 w-full"/>:null}{groups.length?<>{core?<ContactCoreGroups layout={core} media={<SettingsSection><div className="flex flex-col gap-4"><Skeleton className="h-5 w-28"/><div className="flex items-center gap-3"><Skeleton className="size-12 rounded-full"/><Skeleton className="h-8 w-28"/></div><Skeleton className="h-10 w-full"/></div></SettingsSection>} renderGroup={renderGroup}/>:null}<RecordFormGroups layout={{groups:groups.filter(group=>!core?.groups.some(item=>item.id===group.id))}} renderEntry={renderEntry}/></>:<Skeleton className="h-64 w-full rounded-xl"/>}</div></Tabs><RecordPageFooter><Skeleton className="h-5 w-56 max-w-full"/><div className="ml-auto flex gap-2">{!isNew?<Skeleton className="h-8 w-28"/>:null}<Skeleton className="h-8 w-40"/></div></RecordPageFooter></div></LoadingRegion>;
 }
 export function RecycleBinLoading(){
  const {t}=useTranslation();

@@ -50,7 +50,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
     return {...old,groups:old.groups.map(group=>({...group,fields:group.id===groupId?[...group.fields,entry]:group.fields.filter(field=>formEntryKey(field)!==id)})),unassigned:groupId===':unassigned'?[...(old.unassigned??[]),entry]:(old.unassigned??[]).filter(field=>formEntryKey(field)!==id)};
   });}
   function shiftField(groupIndex:number,index:number,offset:number){const entries=[...(groupIndex===draft.groups.length?draft.unassigned??[]:draft.groups[groupIndex].fields)];[entries[index],entries[index+offset]]=[entries[index+offset],entries[index]];updateGroup(groupIndex,{fields:entries});}
-  const shownGroups=[...draft.groups.map(group=>({...group,unassigned:false})),...(draft.unassigned?.length?[{id:':unassigned',labels:{de:t('formUnassigned'),en:t('formUnassigned')},fields:draft.unassigned,unassigned:true}]:[])];
+  const shownGroups=[...draft.groups.map(group=>({...group,unassigned:false})),...(draft.unassigned?.length?[{id:':unassigned',labels:{de:t('formUnassigned'),en:t('formUnassigned')},fields:draft.unassigned,unassigned:true,width:undefined}]:[])];
 
   const formId=`form-layout-${definition.id}`;
   const actions=!readOnly?<><Button type="button" variant="outline" disabled={mutation.isPending||!dirty} onClick={reset}>{t('resetPreferences')}</Button><Button type="submit" form={formId} aria-keyshortcuts={keyboardCommands.save.aria} disabled={mutation.isPending||!dirty||!valid}>{mutation.isPending?<Spinner data-icon="inline-start" aria-hidden/>:null}{t(mutation.isPending?'saving':'save')}<Kbd>{saveShortcutLabel}</Kbd></Button></>:null;
@@ -66,6 +66,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
         <Button type="button" variant="ghost" size="icon-sm" disabled={mutation.isPending} aria-label={t('formRemoveGroup')} title={t('formRemoveGroup')} onClick={()=>setDraft(old=>({...old,groups:old.groups.filter(item=>item.id!==group.id),unassigned:[...(old.unassigned??[]),...group.fields]}))}><Trash2Icon/></Button>
       </span>:null}</FieldLegend>
       {group.unassigned?<FieldDescription>{t('formUnassignedHelp')}</FieldDescription>:<TranslatedLabelInput showHelp={false} id={`form-group-${group.id}`} value={group.labels} readOnly={readOnly} disabled={mutation.isPending} onChange={labels=>updateGroup(groupIndex,{labels})}/>}
+      {!group.unassigned?<Field><FieldLabel htmlFor={`form-group-width-${group.id}`}>{t('formGroupWidth')}</FieldLabel><NativeSelect id={`form-group-width-${group.id}`} disabled={readOnly||mutation.isPending} value={group.width??'full'} onChange={event=>updateGroup(groupIndex,{width:event.target.value as 'half'|'full'})}><NativeSelectOption value="full">{t('formFull')}</NativeSelectOption><NativeSelectOption value="half">{t('formHalf')}</NativeSelectOption></NativeSelect></Field>:null}
       {!group.fields.length?<FieldDescription>{t('formGroupEmpty')}</FieldDescription>:null}
       <FieldGroup className="gap-6">{group.fields.map((entry,index)=>{
         const element=elements.find(element=>element.key===formEntryKey(entry));if(!element)return null;

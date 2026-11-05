@@ -1,3 +1,4 @@
+import {isActivityObject} from './activity.js';
 import {incidentFields} from './relationship-fields.js';
 import {contactDerivedValue} from './contact-domain.js';
 import {securityGraph} from './ownership-settings.js';
@@ -115,6 +116,7 @@ export class ContentAccess {
 export async function getContentPermissions(tx:Executor,id:string):Promise<ContentPermissions>{const row=(await sql<{permissions_version:number;is_sensitive:boolean}>`SELECT permissions_version,is_sensitive FROM sys_object_types WHERE id=${id}::uuid AND state<>'deleted'`.execute(tx)).rows[0];if(!row)throw new AppError(404,'Object type not found');return {objectTypeId:id,version:row.permissions_version,sensitive:row.is_sensitive,grants:(await contentAccess().policy(id)).grants};}
 export async function configureContentPermissions(tx:Executor,args:{objectTypeId:string;version:number;sensitive:boolean;confirmWidening?:boolean;grants:ContentGrant[]},actor:string,journal:(key:string,before:unknown,after:unknown,field?:string)=>Promise<void>){
   const before=await getContentPermissions(tx,args.objectTypeId),p=await contentAccess().policy(args.objectTypeId);if(!p.admin)throw new AppError(403,'Only Administrators manage content permissions');if(before.version!==args.version)throw new AppError(409,'Permissions version conflict');
+  if(!args.sensitive&&await isActivityObject(tx,args.objectTypeId))throw new AppError(400,'Activities must be user-sensitive',{code:'activitySensitivityRequired'});
   if(before.sensitive&&!args.sensitive&&!args.confirmWidening)throw new AppError(400,'Confirm removal of record-level restrictions');
   const seen=new Set<string>();const fields=[...await contentAccess().fields(args.objectTypeId),...await incidentFields(tx,args.objectTypeId)];
   for(const grant of args.grants){const key=`${grant.kind}:${grant.id}`;if(seen.has(key))throw new AppError(400,'Duplicate permission principal');seen.add(key);for(const id of Object.keys(grant.fields))if(!fields.some(f=>f.id===id&&f.technical_name!=='access_principals'))throw new AppError(400,'Unknown or protected permission field');
@@ -123,14 +125,7 @@ export async function configureContentPermissions(tx:Executor,args:{objectTypeId
   const canonical=(grants:ContentGrant[])=>JSON.stringify(grants.filter(g=>g.level!==null||g.create!=null||Object.keys(g.fields).length).map(g=>({kind:g.kind,id:g.id,level:g.level,create:g.create??null,fields:Object.fromEntries(Object.entries(g.fields).sort(([a],[b])=>a.localeCompare(b)))})).sort((a,b)=>`${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`)));
   args={...args,grants:args.grants.filter(g=>g.level!==null||g.create!=null||Object.keys(g.fields).length)};
   if(canonical(before.grants)===canonical(args.grants)&&before.sensitive===args.sensitive)return before;
-  if(args.sensitive!==before.sensitive){
-    const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${args.objectTypeId}::uuid`.execute(tx)).rows[0];
-    if(args.sensitive)await sql`INSERT INTO sys_record_security(workspace_id,object_type_id,record_id,policy) SELECT ${p.workspace}::uuid,${p.id}::uuid,r.id,${JSON.stringify(defaultRecordSecurity())}::jsonb FROM ${sql.table(model.name)} r ON CONFLICT(object_type_id,record_id) DO NOTHING`.execute(tx);
-    const field=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${args.objectTypeId}::uuid AND technical_name='access_principals'`.execute(tx)).rows[0];
-    if(!field&&args.sensitive){const id=v7();await sql`INSERT INTO sys_fields(id,object_type_id,technical_name,labels,kind,required,config,is_protected) VALUES(${id}::uuid,${args.objectTypeId}::uuid,'access_principals','{"de":"Zugriffsberechtigte","en":"Access principals"}'::jsonb,'reference',false,'{"referenceTarget":"both","multiple":true}'::jsonb,true)`.execute(tx);await journal('access_principals.definition',null,{id});}
-    else if(field){await sql`UPDATE sys_fields SET state=${args.sensitive?'active':'inactive'},version=version+1 WHERE id=${field.id}::uuid`.execute(tx);await journal('access_principals.state',before.sensitive?'active':'inactive',args.sensitive?'active':'inactive',field.id);}
-    await journal('sensitive',before.sensitive,args.sensitive);
-  }
+  if(args.sensitive!==before.sensitive)await setObjectSensitivity(tx,args.objectTypeId,before.sensitive,args.sensitive,journal);
   const old=new Map(before.grants.map(g=>[`${g.kind}:${g.id}`,g]));const next=new Map(args.grants.map(g=>[`${g.kind}:${g.id}`,g]));
   for(const key of new Set([...old.keys(),...next.keys()])){const a=old.get(key),b=next.get(key);if((a?.level??null)!==(b?.level??null))await journal(`permission.${key}.level`,a?.level??null,b?.level??null);if((a?.create??null)!==(b?.create??null))await journal(`permission.${key}.create`,a?.create??null,b?.create??null);for(const field of new Set([...Object.keys(a?.fields??{}),...Object.keys(b?.fields??{})]))if(a?.fields[field]!==b?.fields[field])await journal(`permission.${key}.field.${field}`,a?.fields[field]??null,b?.fields[field]??null,field);}
   await sql`DELETE FROM sys_content_grants WHERE object_type_id=${args.objectTypeId}::uuid`.execute(tx);
@@ -161,4 +156,14 @@ export async function readableRecordJournal(objectTypeId:string,entries:import('
     if(visible)result.push(projected);
   }
   return result;
+}
+
+/** Internal transition shared by authorized definition writers and module provisioning. */
+export async function setObjectSensitivity(tx:Executor,objectTypeId:string,previous:boolean,sensitive:boolean,journal:(key:string,before:unknown,after:unknown,field?:string)=>Promise<void>){
+    const model=(await sql<{name:string;workspace_id:string}>`SELECT o.workspace_id,w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${objectTypeId}::uuid`.execute(tx)).rows[0];
+    if(sensitive)await sql`INSERT INTO sys_record_security(workspace_id,object_type_id,record_id,policy) SELECT ${model.workspace_id}::uuid,${objectTypeId}::uuid,r.id,${JSON.stringify(defaultRecordSecurity())}::jsonb FROM ${sql.table(model.name)} r ON CONFLICT(object_type_id,record_id) DO NOTHING`.execute(tx);
+    const field=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${objectTypeId}::uuid AND technical_name='access_principals'`.execute(tx)).rows[0];
+    if(!field&&sensitive){const id=v7();await sql`INSERT INTO sys_fields(id,object_type_id,technical_name,labels,kind,required,config,is_protected) VALUES(${id}::uuid,${objectTypeId}::uuid,'access_principals','{"de":"Zugriffsberechtigte","en":"Access principals"}'::jsonb,'reference',false,'{"referenceTarget":"both","multiple":true}'::jsonb,true)`.execute(tx);await journal('access_principals.definition',null,{id});}
+    else if(field){await sql`UPDATE sys_fields SET state=${sensitive?'active':'inactive'},version=version+1 WHERE id=${field.id}::uuid`.execute(tx);await journal('access_principals.state',previous?'active':'inactive',sensitive?'active':'inactive',field.id);}
+    await journal('sensitive',previous,sensitive);
 }

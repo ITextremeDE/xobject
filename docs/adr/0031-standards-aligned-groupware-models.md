@@ -6,7 +6,7 @@
 
 ## Context
 
-The V1 catalog includes Contacts, Distribution lists, Appointments, Vacations and Tasks. Later exchange with contact, calendar and task applications must not require replacing their domain meaning. The existing generic fields and prototype fixtures do not establish interoperable domain profiles. The [domain-profile appendix](../domain-profiles.md) now elaborates proposed starting fields, mappings and acceptance; [ADR 0032](0032-structured-fields-temporal-values-and-edge-attributes.md) selects structured storage/contracts, field rights and history architecture. The nine contact codecs and base Contacts/Distribution-list provisioning are implemented locally. Relationship attributes, domain temporal/recurrence contracts and complete exchange profiles remain open.
+The V1 catalog includes Contacts, Distribution lists, Projects, Cases and Tasks. Appointments and Vacations are later scope; their planned profiles share the temporal foundation with Tasks. Later exchange with contact, calendar and task applications must not require replacing their domain meaning. The existing generic fields and prototype fixtures do not establish interoperable domain profiles. The [domain-profile appendix](../domain-profiles.md) now elaborates proposed starting fields, mappings and acceptance; [ADR 0032](0032-structured-fields-temporal-values-and-edge-attributes.md) selects structured storage/contracts, field rights and history architecture. The nine contact codecs and base Contacts/Distribution-list provisioning are implemented locally. Relationship attributes and the shared date/instant/zoned temporal codec are implemented. Recurrence/calendar parties and complete exchange profiles remain open.
 
 ## Decision
 

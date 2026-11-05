@@ -1,3 +1,4 @@
+import {RecordIcon} from './record-icon';
 import {DashboardSummaryLoading} from './loading';
 import {useColumnPreferences} from '@/lib/column-preferences';
 import { useDeferredValue, useEffect, useId, useState } from 'react';
@@ -31,7 +32,7 @@ import { ErrorNotice } from './feedback';
 type Props = { canManage: boolean; canReadContent: boolean; workspace: Workspace; types: ObjectSummary[]; onOpen: (id: string, recordId?: string) => void; onCreate: () => void };
 export function Dashboard({ canManage, canReadContent, workspace, types, onOpen, onCreate }: Props) {
   const { t } = useTranslation();
-  if (!canReadContent) return <><h1 className="text-2xl font-semibold tracking-tight">{t('dashboard')}</h1><Empty><EmptyHeader><EmptyTitle>{t('dashboardObjects')}: {types.length}</EmptyTitle><EmptyDescription>{t('contentAccessPending')}</EmptyDescription></EmptyHeader>{types.map(type => <Button key={type.id} variant="outline" onClick={() => onOpen(type.id)}><DatabaseIcon data-icon="inline-start" />{type.label}</Button>)}{canManage ? <Button variant="outline" onClick={onCreate}><PlusIcon data-icon="inline-start" />{t('newObject')}</Button> : null}</Empty></>;
+  if (!canReadContent) return <><h1 className="text-2xl font-semibold tracking-tight">{t('dashboard')}</h1><Empty><EmptyHeader><EmptyTitle>{t('dashboardObjects')}: {types.length}</EmptyTitle><EmptyDescription>{t('contentAccessPending')}</EmptyDescription></EmptyHeader>{types.map(type => <Button key={type.id} variant="outline" onClick={() => onOpen(type.id)}><RecordIcon iconKey={type.iconKey} objectLabel={type.label}/>{type.label}</Button>)}{canManage ? <Button variant="outline" onClick={onCreate}><PlusIcon data-icon="inline-start" />{t('newObject')}</Button> : null}</Empty></>;
   return <DashboardContents key={workspace.id} workspace={workspace} types={types} onOpen={onOpen} />;
 }
 function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace' | 'types' | 'onOpen'>) {
@@ -54,7 +55,7 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
   useEffect(() => { if (records.data && !records.isPlaceholderData && page > 1 && (page - 1) * pageSize >= records.data.total) change({ page: String(Math.max(1, Math.ceil(records.data.total / pageSize))) }, true); }, [records.data, records.isPlaceholderData, page, pageSize]);
   const count = (value: number) => formatRegionalNumber(String(value), regional, 0);
   const columns: RecordColumn<WorkspaceRecord>[] = [
-    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}>{row.keyword || row.id}</Button> },
+    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}><RecordIcon iconKey={row.iconKey} objectLabel={row.objectLabel}/><span className="truncate">{row.keyword || row.id}</span></Button> },
     {key:'business_number',label:t('businessNumber'),cell:row=>row.business_number??'—'},
     { key: 'objectLabel', label: t('objectType'), cell: row => row.objectLabel },
     ...(['type', 'status', 'category'] as const).map(key => ({ key, label: t(key === 'type' ? 'classificationType' : key === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: WorkspaceRecord) => row[key] ?? '—' })),

@@ -1,3 +1,4 @@
+import {RecordIcon} from './record-icon';
 import {cn} from '@/lib/utils';
 import {Fragment,useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
@@ -29,7 +30,7 @@ export function PrimaryAssociationFields({headingHidden=false,configuration,fiel
         const inherited=Boolean(record&&!direct),editable=!readOnly&&field.definition.active&&(!directRole||primaryChainRoles.indexOf(role)>=primaryChainRoles.indexOf(directRole));
         const label=t(`primaryRole_${role}`);
         return <Fragment key={role}>{index?<ChevronRightIcon aria-hidden className="size-4 justify-self-center rotate-90 md:mt-9 md:rotate-0"/>:null}<Field className="min-w-0"><FieldLabel htmlFor={id(role)}>{label}{inherited?<Badge variant="secondary">{t('primaryChainInherited')}</Badge>:null}</FieldLabel>
-          <InputGroup><InputGroupInput id={id(role)} readOnly disabled={disabled} value={record?.keyword??''} title={record?.keyword} placeholder={field.restricted?t('unavailableAssociation'):context.isPending&&!direct?t('loading'):t('noSelection')}/><InputGroupAddon align="inline-end" className="shrink-0 gap-0.5 has-[>button]:mr-0">
+          <InputGroup>{record?<InputGroupAddon><RecordIcon iconKey={record.iconKey} objectLabel={record.objectLabels[i18n.language]??record.objectLabels.en}/></InputGroupAddon>:null}<InputGroupInput id={id(role)} readOnly disabled={disabled} value={record?.keyword??''} title={record?.keyword} placeholder={field.restricted?t('unavailableAssociation'):context.isPending&&!direct?t('loading'):t('noSelection')}/><InputGroupAddon align="inline-end" className="shrink-0 gap-0.5 has-[>button]:mr-0">
             {editable?<InputGroupButton id={`${id(role)}-choose`} disabled={disabled} size="icon-xs" title={t(record?'relationshipChange':'relationshipChoose')} aria-label={t('relationshipChooseFor',{name:label})} onClick={()=>setPicker(role)}>{direct?<PencilIcon/>:<Link2Icon/>}</InputGroupButton>:null}
             {record?<InputGroupButton size="icon-xs" disabled={disabled} nativeButton={false} title={t('openRecord')} aria-label={t('relationshipOpenRecord',{name:record.keyword})} render={<Link to={`/w/${workspaceCode}/objects/${record.objectTechnicalName}/${record.recordId}`}/>}><ArrowUpRightIcon/></InputGroupButton>:null}
             {direct&&!readOnly&&field.definition.active?<InputGroupButton size="icon-xs" disabled={disabled} title={t('removeRelationship',{name:record?.keyword})} aria-label={t('removeRelationship',{name:record?.keyword})} onClick={()=>{onChange([]);requestAnimationFrame(()=>document.getElementById(`${id(role)}-choose`)?.focus());}}><XIcon/></InputGroupButton>:null}
