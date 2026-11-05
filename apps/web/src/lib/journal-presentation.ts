@@ -10,6 +10,7 @@ export function journalEntityLabel(kind: string, t: TFunction): string { return 
 export function journalPropertyLabel(key: string, t: TFunction, technicalFallback = false): string {
   if(key.startsWith('navigation.')){const [,scope,property]=key.split('.');return `${t(scope==='personal'?'navigationPersonal':'navigationWorkspace')} · ${t(({order:'navigationOrder',hidden:'navigationHidden',resources:'navigationResources',override:'navigationOverride'} as Record<string,string>)[property]??'customizeNavigation')}`;}
   if(key.startsWith('input.'))return t(({description:'fieldPurposeDescription',helpText:'fieldHelpText',defaultValue:'defaultValue',unique:'uniqueField'} as Record<string,string>)[key.slice(6)]??'fieldInputAids');
+  if(key.startsWith('primaryRequirements.'))return `${t('primaryChainTitle')} · ${t(key.endsWith('.requiredLevels')?'primaryRequiredLevels':'primaryAssociationRequired')}`;
   if(key.startsWith('numbering.'))return `${t('businessNumbering')} · ${t(key.slice(10)==='enabled'?'enableBusinessNumbering':`numbering_${key.slice(10)}`)}`;
   if(key==='business_number.definition')return t('businessNumbering');
   if(key.startsWith('access.'))return t(({owners:'accessPrincipalsLabel',publicLevel:'publicLevel',privacy:'recordPrivacy',foreignMax:'foreignLimit'} as Record<string,string>)[key.slice(7)]??'recordFieldExceptions');
@@ -56,4 +57,9 @@ export function journalSecurityValue(entry:Pick<SystemJournalEntry,'entity_kind'
 
 export function journalTaskStateValue(entry:{entity_kind:string;field_key:string},value:unknown,t:TFunction):string|undefined {
  return entry.entity_kind==='classification_option'&&entry.field_key==='meaning'?(typeof value==='string'&&['open','in_progress','done','canceled'].includes(value)?t(`taskState_${value}`):t('journalNotSet')):undefined;
+}
+
+export function journalPrimaryRequirementsValue(entry:{entity_kind:string;field_key:string},value:unknown,t:TFunction):string|undefined {
+ if(entry.entity_kind!=='object_type'||entry.field_key!=='primaryRequirements.requiredLevels')return undefined;
+ return Array.isArray(value)&&value.length?value.map(role=>t(`primaryRole_${role}`)).join(', '):t('journalNotSet');
 }

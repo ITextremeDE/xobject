@@ -17,7 +17,7 @@ import { useClientPagination, ClientTablePagination } from './client-table-pagin
 import { RelationshipPicker } from './relationship-picker';
 export { RecordDossier } from './record-dossier';
 
-type Props = { workspaceId:string;singleGroupLabel?:string;entry:FormEntry; objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
+type Props = { primaryRequirements:import('@xobject/contracts').PrimaryRequirements;workspaceId:string;singleGroupLabel?:string;entry:FormEntry; objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
 
 export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fieldDefinitions,values,singleGroupLabel,...props }:Props){
   const {t}=useTranslation();

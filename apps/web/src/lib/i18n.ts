@@ -3,6 +3,16 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 const en = {
+  primaryRequirementsHelp:"Set the required context for records of this object type in this workspace. All levels are optional by default.",
+  primaryAssociationRequired:"Require at least one Primary association",
+  primaryRequiredLevels:"Required levels",
+  primaryRequiredLevelsHelp:"Selected levels must be present, directly or inherited. Other levels may be skipped.",
+  primaryRequirementsPreflight:"Saving checks all retained records, including the recycle bin. Conflicting records must be corrected or the requirements relaxed. Recycled ancestors retain their associations.",
+  primaryRequiredSummary:"Required context: {{levels}}",
+  primaryRequiredConflict:"A record is missing a required Primary association or ancestor level. Complete the chain or relax the object requirements. Changes to ancestors must also preserve the required context of their descendants. Existing records, including the recycle bin, are checked before configuration is saved.",
+  primaryRequirementsUnavailable:"Only earlier Primary levels can be required.",
+  primaryRequirementsModuleInUse:"Clear the Primary association requirements on all object types before disabling Projects & Tasks.",
+
   navigationOrder:'Order',navigationHidden:'Hidden entries',navigationOverride:'Custom arrangement',
 
   customizeNavigation:"Customize navigation",
@@ -24,6 +34,11 @@ const en = {
 
   recordValidationFailed:"Check the marked fields and the record access and relationship requirements before saving.",
   workRulesConflict:"Existing Tasks conflict with the proposed completion rules. Update their values before changing this status meaning.",
+  primaryOpenLevel:"Open {{name}}",
+  primaryClearLevel:"Clear {{name}} and following levels",
+  primaryAnyContext:"all permitted records",
+  primaryPickerHelp:"Choose {{name}} within {{context}}. Changing this level clears the following levels in this record’s draft. Save the record to apply the association.",
+  temporalOptionsFor: "Date & time options for {{name}}",
   temporalFormat: "Time representation",
   temporal_date: "Date only",
   temporal_zoned: "Local time & time zone",
@@ -452,7 +467,7 @@ const en = {
 
   journalSummary_properties:'{{count}} properties',journalSummary_items:'{{count}} items',
   clearSearch:'Clear search', relationshipLimits:'Cardinality', relationshipAtMostOne:'Max. 1',   date:'Date', time:'Time', dateFor:'Date for {{name}}', timeFor:'Time for {{name}}', chooseDate:'Choose date', chooseDateFor:'Choose date for {{name}}', calendarNextMonth:'Next month', calendarPreviousMonth:'Previous month', invalidDateInput:'Enter a valid date using {{format}}.', invalidTimeInput:'Enter a valid time using {{time}}.', regionalDateInputHelp:'Date format: {{format}}. ISO dates are also accepted.', regionalDateTimeInputHelp:'Date: {{date}} · Time: {{time}} · Time zone: {{timezone}}. Seconds and milliseconds are optional.', regionalFormatChangePending:'Regional settings changed. Correct or reset incomplete or invalid entries to apply the new formats safely.', regionalDecimalHelp:'Up to {{scale}} decimal places. Decimal separator “{{decimal}}”. Grouping separators follow your regional settings.', invalidNumericInput:'Enter a number using {{decimal}} as the decimal separator and valid grouping.', invalidIntegerInput:'Enter a whole number.', numericOutOfRange:'The number is outside the supported integer range.', numericPrecisionError:'The number exceeds the supported precision or {{scale}} decimal places.', invalidCurrencyInput:'Choose a valid three-letter currency code, such as EUR or USD.',
-  clearInapplicableRelationships:'Remove relationships that are incompatible with this choice before changing it.',relationshipCondition:'Eligible records',relationshipConditionHelp:'Restrict records on this side ({{object}}) by a single-choice field.',primaryChainObjectUsed:'This object is a fixed level of the Projects & Tasks module and must remain active.',primaryChainInvalidExisting:'Existing Primary associations violate these levels. Resolve them before saving.',primaryChainInvalidPair:'The Primary association must follow Contact → Project → Case; levels may be skipped.',relationshipConditionInvalid:'The linked records do not satisfy this relationship’s field rules.',relationshipConditionConfigurationInvalid:'Choose an active, unconditional single-choice field and valid options for this side.',primaryRole_contact:'Contact',primaryRole_project:'Project',primaryRole_case:'Case',primaryChainSetupRequired:'The Primary chain is supplied by Projects & Tasks. Its module definitions are missing.',primaryChainHelp:'Only the direct association is saved. Earlier levels are inherited.',primaryChainInherited:'Inherited',primaryChainTitle:'Primary association',
+  clearInapplicableRelationships:'Remove relationships that are incompatible with this choice before changing it.',relationshipCondition:'Eligible records',relationshipConditionHelp:'Restrict records on this side ({{object}}) by a single-choice field.',primaryChainObjectUsed:'This object is a fixed level of the Projects & Tasks module and must remain active.',primaryChainInvalidExisting:'Existing Primary associations violate these levels. Resolve them before saving.',primaryChainInvalidPair:'The Primary association must follow Contact → Project → Case; levels may be skipped.',relationshipConditionInvalid:'The linked records do not satisfy this relationship’s field rules.',relationshipConditionConfigurationInvalid:'Choose an active, unconditional single-choice field and valid options for this side.',primaryRole_contact:'Contact',primaryRole_project:'Project',primaryRole_case:'Case',primaryChainSetupRequired:'The Primary chain is supplied by Projects & Tasks. Its module definitions are missing.',primaryChainHelp:'Changing or clearing a level clears the following selections here. Their records remain intact; only the deepest selected association is saved.',primaryChainInherited:'Inherited',primaryChainTitle:'Primary association',
   recordLinkWith: 'Link with…', recordGeneralLinksTitle: 'Link records', recordGeneralLinksHelp: 'Select general links and apply the selection. Save the record to persist them. Linked records are listed in the Dossier.',
   relationshipEditorHelp: 'Relationships are saved together with this record.', relationshipOneRequired: 'One linked record is required.', relationshipOneOptional: 'Optional · up to one linked record.', relationshipManyRequired: 'At least one linked record is required.', relationshipManyOptional: 'Optional · multiple linked records allowed.', relationshipChooseFor: 'Choose linked records: {{name}}', relationshipChange: 'Change', relationshipChoose: 'Choose', relationshipOpenRecord: 'Open {{name}}', relationshipNoneSelected: 'No linked record selected.', relationshipInactiveHelp: 'This relationship type is inactive. Existing links remain readable.', relationshipRequiredHelp: 'Choose a linked record before saving.', relationshipPickerResults: 'Matching records', relationshipSelection: 'Selection', relationshipSelectedEmpty: 'No selected records', relationshipSelectedEmptyHelp: 'Select records from the available list or clear the filters.', relationshipNoMatchesHelp: 'Try another keyword or object type.', relationshipPickerTitle: 'Choose {{name}}', relationshipPickerSingleHelp: 'Choose one record. Apply the selection, then save the record to persist it.', relationshipPickerManyHelp: 'Select records across pages. Apply the selection, then save the record to persist it.', relationshipPickerViews: 'Record selection views', relationshipAvailable: 'Available records', relationshipSelected_one: '{{count}} selected', relationshipSelected_other: '{{count}} selected', relationshipSelected: '{{count}} selected', relationshipSelectionLimit: 'Maximum {{count}} records per selection', relationshipApplySelection: 'Apply selection', relationshipDiscardSelection: 'Discard this selection?', relationshipDiscardSelectionHelp: 'These selection changes have not been applied to the record draft. Other record changes will be retained.',
 
@@ -613,7 +628,7 @@ const en = {
   noFieldsYet: 'No fields yet. Add your first field.',
   objectProperties: 'Object properties',
   standardTechnicalNameFixed: 'The technical name of this standard field is predefined.',
-  objectPropertiesHelp: 'Save labels, numbering and record-access settings together using the actions below. Fields and availability are managed separately.',
+  objectPropertiesHelp: 'Save labels, Primary requirements, numbering and record-access settings together using the actions below. Fields and availability are managed separately.',
   saveObjectProperties: 'Save properties',
   resetObjectProperties: 'Reset properties',
   objectManagement: 'Availability & history',
@@ -797,6 +812,16 @@ const en = {
   workspaceHelp: 'The code prefixes the database tables and is fixed after creation.',
 };
 const de: Record<keyof typeof en, string> = {
+  primaryRequirementsHelp:"Lege den erforderlichen Kontext für Datensätze dieses Datenobjekts in diesem Arbeitsbereich fest. Anfangs sind alle Ebenen optional.",
+  primaryAssociationRequired:"Mindestens eine Hauptzuordnung erforderlich",
+  primaryRequiredLevels:"Erforderliche Ebenen",
+  primaryRequiredLevelsHelp:"Ausgewählte Ebenen müssen direkt oder geerbt vorhanden sein. Andere Ebenen dürfen fehlen.",
+  primaryRequirementsPreflight:"Beim Speichern werden alle vorhandenen Datensätze einschließlich Papierkorb geprüft. Konflikte müssen behoben oder die Regeln gelockert werden. Gelöschte übergeordnete Datensätze behalten ihre Zuordnungen.",
+  primaryRequiredSummary:"Erforderlicher Kontext: {{levels}}",
+  primaryRequiredConflict:"Einem Datensatz fehlt eine erforderliche Hauptzuordnung oder übergeordnete Ebene. Vervollständige die Kette oder lockere die Regeln am Datenobjekt. Änderungen an übergeordneten Datensätzen müssen auch den erforderlichen Kontext untergeordneter Datensätze erhalten. Vor dem Speichern einer Regel werden vorhandene Datensätze einschließlich Papierkorb geprüft.",
+  primaryRequirementsUnavailable:"Nur vorhergehende Ebenen der Hauptzuordnung können erforderlich sein.",
+  primaryRequirementsModuleInUse:"Entferne zuerst die Pflichtregeln für die Hauptzuordnung an allen Datenobjekten, bevor du Projekte & Aufgaben deaktivierst.",
+
   navigationOrder:'Reihenfolge',navigationHidden:'Ausgeblendete Einträge',navigationOverride:'Eigene Anordnung',
 
   customizeNavigation:"Navigation anpassen",
@@ -818,6 +843,11 @@ const de: Record<keyof typeof en, string> = {
 
   recordValidationFailed:"Prüfe die markierten Felder sowie die Zugriffs- und Verknüpfungsvorgaben vor dem Speichern.",
   workRulesConflict:"Bestehende Aufgaben widersprechen den neuen Abschlussregeln. Werte zuerst anpassen, dann die Statusbedeutung ändern.",
+  primaryOpenLevel:"{{name}} öffnen",
+  primaryClearLevel:"{{name}} und nachfolgende Ebenen leeren",
+  primaryAnyContext:"allen zulässigen Datensätzen",
+  primaryPickerHelp:"{{name}} innerhalb von {{context}} auswählen. Ein Wechsel leert die nachfolgenden Ebenen im Entwurf dieses Datensatzes. Die Zuordnung wird mit dem Datensatz gespeichert.",
+  temporalOptionsFor: "Datums- und Zeitoptionen für {{name}}",
   temporalFormat: "Zeitangabe",
   temporal_date: "Nur Datum",
   temporal_zoned: "Lokale Uhrzeit & Zeitzone",
@@ -1247,7 +1277,7 @@ const de: Record<keyof typeof en, string> = {
 
   journalSummary_properties:'{{count}} Eigenschaften',journalSummary_items:'{{count}} Einträge',
   clearSearch:'Suche zurücksetzen', relationshipLimits:'Kardinalität', relationshipAtMostOne:'Max. 1',   date:'Datum', time:'Uhrzeit', dateFor:'Datum für {{name}}', timeFor:'Uhrzeit für {{name}}', chooseDate:'Datum auswählen', chooseDateFor:'Datum für {{name}} auswählen', calendarNextMonth:'Nächster Monat', calendarPreviousMonth:'Vorheriger Monat', invalidDateInput:'Gib ein gültiges Datum im Format {{format}} ein.', invalidTimeInput:'Gib eine gültige Uhrzeit im Format {{time}} ein.', regionalDateInputHelp:'Datumsformat: {{format}}. ISO-Datumswerte werden ebenfalls akzeptiert.', regionalDateTimeInputHelp:'Datum: {{date}} · Uhrzeit: {{time}} · Zeitzone: {{timezone}}. Sekunden und Millisekunden sind optional.', regionalFormatChangePending:'Die Regionseinstellungen wurden geändert. Korrigiere unvollständige oder ungültige Eingaben oder setze sie zurück, damit die neuen Formate sicher angewendet werden.', regionalDecimalHelp:'Bis zu {{scale}} Nachkommastellen. Dezimaltrennzeichen „{{decimal}}“. Tausendertrennzeichen richten sich nach Deinen Regionseinstellungen.', invalidNumericInput:'Gib eine Zahl mit {{decimal}} als Dezimaltrennzeichen und gültigen Tausendergruppen ein.', invalidIntegerInput:'Gib eine ganze Zahl ein.', numericOutOfRange:'Die Zahl liegt außerhalb des unterstützten Ganzzahlbereichs.', numericPrecisionError:'Die Zahl überschreitet die unterstützte Stellenzahl oder {{scale}} Nachkommastellen.', invalidCurrencyInput:'Gib ein gültiges dreistelliges Währungskürzel ein, etwa EUR oder USD.',
-  clearInapplicableRelationships:'Entferne vor dem Wechsel die Verknüpfungen, die mit dieser Auswahl nicht vereinbar sind.',relationshipCondition:'Verknüpfbare Datensätze',relationshipConditionHelp:'Grenze die Datensätze auf dieser Seite ({{object}}) über eine Einfachauswahl ein.',primaryChainObjectUsed:'Dieses Datenobjekt ist eine feste Ebene von Projekte & Aufgaben und muss aktiv bleiben.',primaryChainInvalidExisting:'Bestehende Hauptzuordnungen passen nicht zu diesen Ebenen. Löse diese Zuordnungen vor dem Speichern auf.',primaryChainInvalidPair:'Die Hauptzuordnung muss Kontakt → Projekt → Vorgang folgen; Ebenen dürfen fehlen.',relationshipConditionInvalid:'Die verknüpften Datensätze erfüllen die Feldregeln dieser Verknüpfungsart nicht.',relationshipConditionConfigurationInvalid:'Wähle für diese Seite eine aktive, unabhängige Einfachauswahl und gültige Auswahlwerte.',primaryRole_contact:'Kontakt',primaryRole_project:'Projekt',primaryRole_case:'Vorgang',primaryChainSetupRequired:'Die Hauptzuordnung wird von Projekte & Aufgaben geliefert. Die Moduldefinitionen fehlen.',primaryChainHelp:'Nur die direkte Zuordnung wird gespeichert. Frühere Ebenen werden geerbt.',primaryChainInherited:'Geerbt',primaryChainTitle:'Hauptzuordnung',
+  clearInapplicableRelationships:'Entferne vor dem Wechsel die Verknüpfungen, die mit dieser Auswahl nicht vereinbar sind.',relationshipCondition:'Verknüpfbare Datensätze',relationshipConditionHelp:'Grenze die Datensätze auf dieser Seite ({{object}}) über eine Einfachauswahl ein.',primaryChainObjectUsed:'Dieses Datenobjekt ist eine feste Ebene von Projekte & Aufgaben und muss aktiv bleiben.',primaryChainInvalidExisting:'Bestehende Hauptzuordnungen passen nicht zu diesen Ebenen. Löse diese Zuordnungen vor dem Speichern auf.',primaryChainInvalidPair:'Die Hauptzuordnung muss Kontakt → Projekt → Vorgang folgen; Ebenen dürfen fehlen.',relationshipConditionInvalid:'Die verknüpften Datensätze erfüllen die Feldregeln dieser Verknüpfungsart nicht.',relationshipConditionConfigurationInvalid:'Wähle für diese Seite eine aktive, unabhängige Einfachauswahl und gültige Auswahlwerte.',primaryRole_contact:'Kontakt',primaryRole_project:'Projekt',primaryRole_case:'Vorgang',primaryChainSetupRequired:'Die Hauptzuordnung wird von Projekte & Aufgaben geliefert. Die Moduldefinitionen fehlen.',primaryChainHelp:'Ändern oder Leeren einer Ebene leert hier die nachfolgenden Zuordnungen. Die Datensätze bleiben erhalten; gespeichert wird nur die tiefste gewählte Zuordnung.',primaryChainInherited:'Geerbt',primaryChainTitle:'Hauptzuordnung',
   recordLinkWith: 'Verknüpfen mit…', recordGeneralLinksTitle: 'Datensätze verknüpfen', recordGeneralLinksHelp: 'Wähle allgemeine Verknüpfungen und übernimm die Auswahl. Speichere anschließend den Datensatz. Die verknüpften Datensätze stehen in der Akte.',
   relationshipEditorHelp: 'Verknüpfungen werden mit dem Datensatz gespeichert.', relationshipOneRequired: 'Ein verknüpfter Datensatz ist erforderlich.', relationshipOneOptional: 'Optional · höchstens ein verknüpfter Datensatz.', relationshipManyRequired: 'Mindestens ein verknüpfter Datensatz ist erforderlich.', relationshipManyOptional: 'Optional · mehrere verknüpfte Datensätze möglich.', relationshipChooseFor: 'Verknüpfte Datensätze auswählen: {{name}}', relationshipChange: 'Ändern', relationshipChoose: 'Auswählen', relationshipOpenRecord: '{{name}} öffnen', relationshipNoneSelected: 'Noch kein Datensatz verknüpft.', relationshipInactiveHelp: 'Diese Verknüpfungsart ist inaktiv. Bestehende Verknüpfungen bleiben lesbar.', relationshipRequiredHelp: 'Wähle vor dem Speichern einen verknüpften Datensatz.', relationshipPickerResults: 'Passende Datensätze', relationshipSelection: 'Auswahl', relationshipSelectedEmpty: 'Keine ausgewählten Datensätze', relationshipSelectedEmptyHelp: 'Wähle Datensätze aus der verfügbaren Liste oder leere die Filter.', relationshipNoMatchesHelp: 'Versuche ein anderes Stichwort oder Datenobjekt.', relationshipPickerTitle: '{{name}} auswählen', relationshipPickerSingleHelp: 'Wähle einen Datensatz. Übernimm die Auswahl und speichere anschließend den Datensatz.', relationshipPickerManyHelp: 'Wähle Datensätze über mehrere Seiten aus. Übernimm die Auswahl und speichere anschließend den Datensatz.', relationshipPickerViews: 'Datensatzauswahl', relationshipAvailable: 'Verfügbare Datensätze', relationshipSelected_one: '{{count}} ausgewählt', relationshipSelected_other: '{{count}} ausgewählt', relationshipSelected: '{{count}} ausgewählt', relationshipSelectionLimit: 'Höchstens {{count}} Datensätze pro Auswahl', relationshipApplySelection: 'Auswahl übernehmen', relationshipDiscardSelection: 'Diese Auswahl verwerfen?', relationshipDiscardSelectionHelp: 'Diese Auswahländerungen wurden noch nicht in den Datensatzentwurf übernommen. Andere Änderungen am Datensatz bleiben erhalten.',
 
@@ -1407,7 +1437,7 @@ const de: Record<keyof typeof en, string> = {
   noFieldsYet: 'Noch keine Felder. Füge das erste Feld hinzu.',
   objectProperties: 'Objekteigenschaften',
   standardTechnicalNameFixed: 'Der technische Name dieses Standardfelds ist fest vorgegeben.',
-  objectPropertiesHelp: 'Speichere Bezeichnungen und Inhaltszugriff gemeinsam über die Aktionsleiste unten. Felder und Verfügbarkeit verwaltest Du separat.',
+  objectPropertiesHelp: 'Speichere Bezeichnungen, Hauptzuordnungsregeln, Nummerierung und Inhaltszugriff gemeinsam über die Aktionsleiste unten. Felder und Verfügbarkeit verwaltest Du separat.',
   saveObjectProperties: 'Eigenschaften speichern',
   resetObjectProperties: 'Eigenschaften zurücksetzen',
   objectManagement: 'Verfügbarkeit & Verlauf',
