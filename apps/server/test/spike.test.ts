@@ -1786,7 +1786,7 @@ test('record relationships enforce final-state cardinalities, Primary uniqueness
   const ws=await ok('create_workspace',{code:'edges',name:'Edges'});
   await enableProjects(ws.id);const models=await Promise.all(['contacts','projects','tasks'].map(async technicalName=>{const list=await ok('list_object_types',{workspaceId:ws.id});return list.find((o:any)=>o.technicalName===technicalName);}));
   const [parents,children,tasks]=models;
-  const make=(model:any,keyword:string)=>ok('create_record',{objectTypeId:model.id,keyword});
+  const make=(model:any,keyword:string)=>model.id===parents.id?createOrganization(model.id,keyword):ok('create_record',{objectTypeId:model.id,keyword});
   const [a,b,c,d,e]=await Promise.all([make(parents,'Parent A'),make(parents,'Parent B'),make(children,'Child'),make(tasks,'Task'),make(tasks,'Other task')]);
   const types=await ok('list_relationship_types',{workspaceId:ws.id});
   const primary=types.find((t:any)=>t.kind==='primary');
@@ -1931,7 +1931,7 @@ test('relationship tree branches derive only Primary context and descendants wit
   const ws=await ok('create_workspace',{code:'treefixture',name:'Tree fixture'});
   await enableProjects(ws.id);const installed=await ok('list_object_types',{workspaceId:ws.id});const models=await Promise.all(['contacts','projects','cases','tasks','vehicles'].map(technicalName=>installed.find((o:any)=>o.technicalName===technicalName)??ok('create_object_type',{workspaceId:ws.id,technicalName,labels:{en:technicalName},standardFields:['keyword']})));
   const [contact,project,caseType,task,vehicle]=models;
-  const make=(model:any,keyword:string)=>ok('create_record',{objectTypeId:model.id,keyword});
+  const make=(model:any,keyword:string)=>model.id===contact.id?createOrganization(model.id,keyword):ok('create_record',{objectTypeId:model.id,keyword});
   const [c,p,independent,ca,tc,tp,tcontact,standalone,v]=await Promise.all([make(contact,'Contact'),make(project,'Project'),make(project,'Independent project'),make(caseType,'Case'),make(task,'Case task'),make(task,'Project task'),make(task,'Contact task'),make(task,'Standalone'),make(vehicle,'Vehicle')]);
   const defs=await ok('list_relationship_types',{workspaceId:ws.id}),primary=defs.find((d:any)=>d.kind==='primary');
   const config=(({id,workspaceId,technicalName,kind,rulesState,version,...rest}:any)=>rest)(primary);
@@ -2076,7 +2076,7 @@ test('readers share schema/workspace locks while unrelated workspace writes proc
 test('scalar saves avoid graph scans but changed endpoints still enforce minimums, maxima and cycles',async()=>{
   const ws=await ok('create_workspace',{code:'targetgraph',name:'Targeted validation'});
   await enableProjects(ws.id);const a=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'},standardFields:['keyword']});
-  const parent=await ok('create_record',{objectTypeId:a.id}),child=await ok('create_record',{objectTypeId:b.id,keyword:'Child'});
+  const parent=await createOrganization(a.id),child=await ok('create_record',{objectTypeId:b.id,keyword:'Child'});
   const primary=await enableProjects(ws.id);
   await ok('update_record',{objectTypeId:b.id,recordId:child.id,version:child.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:a.id,recordId:parent.id}]}]});
   const current=await ok('get_record',{objectTypeId:b.id,recordId:child.id});
@@ -2508,7 +2508,8 @@ test('content permissions protect relationship candidates, Primary context, tree
   const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
   const objects=await ok('list_object_types',{workspaceId:ws.id}),contact=objects.find((o:any)=>o.technicalName==='contacts'),project=objects.find((o:any)=>o.technicalName==='projects'),task=objects.find((o:any)=>o.technicalName==='tasks');
   for(const type of [contact,project,task]){const current=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...current,sensitive:true,grants:[{kind:'user',id:user.id,level:'edit',fields:{}}]});}
-  const hidden=await ok('create_record',{objectTypeId:contact.id,keyword:'Hidden organization',security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true}});
+  const contactDefinition=await ok('get_object_type',{objectTypeId:contact.id});
+  const hidden=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:contactDefinition.contactProfile.kinds.organization,company_name:'Hidden organization'},security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true}});
   const parent=await ok('create_record',{objectTypeId:project.id,keyword:'Visible project',security:{policy:defaultRecordSecurity(),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:contact.id,recordId:hidden.id}]}]});
   await ok('create_record',{objectTypeId:task.id,keyword:'Hidden task',security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:project.id,recordId:parent.id}]}]});
   const input={objectTypeId:project.id,recordId:parent.id};
@@ -3002,7 +3003,7 @@ test('recycle and restore roll back on journal failure and restore rejects chang
 test('recycle bin keeps Primary children active and cardinality slots reserved until restoration',async()=>{
  const ws=await ok('create_workspace',{code:'recycleprimary',name:'Recycle Primary'});
  const primary=await enableProjects(ws.id),context=await ok('get_primary_chain_context',{objectTypeId:(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='projects').id}),chain=context.configuration;
- let parent=await ok('create_record',{objectTypeId:chain.contact,keyword:'Parent contact'});
+ let parent=await createOrganization(chain.contact,'Parent contact');
  let project=await ok('create_record',{objectTypeId:chain.project,keyword:'Project remains',relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:chain.contact,recordId:parent.id}]}]});
  parent=await ok('get_record',{objectTypeId:chain.contact,recordId:parent.id});
  const oldProject=project.version;
