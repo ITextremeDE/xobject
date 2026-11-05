@@ -32,7 +32,7 @@ export function workFormLayout(profile:WorkProfile,fields:{id:string;technicalNa
  const schedule={id:'schedule',labels:{en:profile.kind==='task'?'Schedule & progress':'Schedule',de:profile.kind==='task'?'Zeitplan & Fortschritt':'Zeitplan'},fields:layout.groups.flatMap(g=>g.fields).filter(e=>'fieldId'in e&&scheduleIds.has(e.fieldId))};
  for(const group of layout.groups)group.fields=group.fields.filter(e=>!('fieldId'in e)||!scheduleIds.has(e.fieldId));
  const priority=profile.fields.priority;
- if(priority){for(const group of layout.groups)group.fields=group.fields.filter(e=>!('fieldId'in e)||e.fieldId!==priority);layout.groups.find(g=>g.id==='classification')?.fields.push({fieldId:priority,width:'half'});}
+ if(priority){for(const group of layout.groups)group.fields=group.fields.filter(e=>!('fieldId'in e)||e.fieldId!==priority);const progressIndex=schedule.fields.findIndex(entry=>'fieldId'in entry&&entry.fieldId===profile.fields.progress);schedule.fields.splice(progressIndex<0?schedule.fields.length:progressIndex,0,{fieldId:priority,width:'half'});}
  schedule.fields=schedule.fields.map(entry=>'fieldId'in entry?{...entry,width:'half'}:entry);
  const detailsIds=new Set([fields.find(field=>field.technicalName==='business_number')?.id,profile.fields.responsible,fields.find(field=>field.technicalName==='access_principals')?.id].filter(Boolean));
  const details=[...detailsIds].flatMap(id=>layout.groups.flatMap(group=>group.fields).filter(entry=>'fieldId'in entry&&entry.fieldId===id));

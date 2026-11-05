@@ -6,6 +6,8 @@ The [domain-profile appendix](domain-profiles.md) owns detailed proposed startin
 
 The root [changelog](../CHANGELOG.md) records notable source changes; the [roadmap](../ROADMAP.md) is a curated product overview. OpenProject owns detailed work, priorities and publication evidence. Release or deployment status must not be inferred from a local ADR or passing source build.
 
+[API and MCP access](api.md) describes user-owned tokens, management, transport/version/error contracts, the typed client and retained-history access.
+
 ## Architecture decisions
 
 ADRs record decisions and their evolution. A later refinement supersedes only the explicitly affected part, preserving unrelated earlier decisions. “Accepted” is a decision status; it does not by itself mean release delivery or passing current acceptance. Validation paragraphs record the slice's checks, not a promise that the present working tree is green.
@@ -40,14 +42,15 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0026](adr/0026-content-permissions.md) | Object/field ceilings | Current object/field grants; record policy in 0027. |
 | [0027](adr/0027-ownership-and-foreign-access.md) | Ownership and foreign access | Local graded ownership/membership, privacy, foreign paths, Create and record security UI; calendar/notifications later. |
 | [0028](adr/0028-current-installation-baseline.md) | Current unreleased installation | One empty installation definition, explicit local reset, schema fingerprint and current contracts without compatibility paths. |
-| [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; permanent erasure remains pending. |
+| [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; controlled permanent deletion retains Administrator-only history. |
 | [0030](adr/0030-field-input-rules-and-business-numbers.md) | Input rules and numbering | Translated field explanations, typed creation defaults, scalar uniqueness and transactional business numbers. |
 | [0031](adr/0031-standards-aligned-groupware-models.md) | Standards-aligned groupware models | Vendor-neutral profile direction; storage architecture in 0032, runtime and later DAV delivery remain open. |
 | [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: nine typed contact codecs and locally accepted Contacts/Distribution lists; relationship attributes and both-endpoint rights/history implemented; shared temporal codec and lean Projects/Cases/Tasks templates implemented; calendar parties and sparse exceptions pending. |
 | [0033](adr/0033-configurable-workspace-navigation.md) | Configurable navigation | Module sections, repeated object entries, Contact filters, shared defaults/personal layouts and optional Resources; versioned API/MCP persistence. |
+| [0034](adr/0034-user-bound-api-mcp-access.md) | User-bound API/MCP access | One-time tokens, current-rights enforcement, scopes/expiry/revocation, audit provenance and generated OpenAPI/typed client. |
 
 ## Ownership of repeated information
 
 Requirements and permission precedence belong in the PRD, concrete implemented architecture in the applicable ADR, operation schemas/types in [shared contracts](../packages/contracts/src/index.ts), and operator commands in the development/website guides. Summaries should link those authorities rather than introduce competing rules. Tests and their code are evidence for behavior; source changes are not proof of a production release.
 
-The full application, including Premium code, remains `AGPL-3.0-only`; [licensing](../README.md#licensing-and-commercial-model) and [LICENSE](../LICENSE) govern that statement. Planned documents, release images, external credentials, email/upload facilities and hosted/native clients must not be presented as already delivered.
+The full application, including Premium code, remains `AGPL-3.0-only`; [licensing](../README.md#licensing-and-commercial-model) and [LICENSE](../LICENSE) govern that statement. Planned documents, release images, email/upload facilities and hosted/native clients must not be presented as already delivered.

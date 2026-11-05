@@ -1,3 +1,4 @@
+import {isReadableRecord} from '@xobject/contracts';
 import {RecordPageHeader,RecordPageFooter,RecordSectionTabs,recordPageClassName} from './record-page-frame';
 import {DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuGroup,DropdownMenuItem} from './ui/dropdown-menu';
 import {localizedRelationshipFields,reformatRelationshipFields,retainRelationshipAttributes} from '@/lib/relationship-selection';
@@ -31,12 +32,11 @@ import { Spinner } from '@/components/ui/spinner';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
 import { Kbd } from '@/components/ui/kbd';
 import { useEffect, useState } from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeftIcon, RotateCcwIcon, SaveIcon, ChevronDownIcon, CopyIcon, MoreHorizontalIcon, Trash2Icon } from 'lucide-react';
-import { fieldApplies, isCustomFieldKind, type FieldValue, type AuthUser, type DataRecord, type ObjectDefinition, type RecordRelationships, type JournalEntry } from '@xobject/contracts';
-import { RecordJournalTable } from './record-journal-table';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
+import { fieldApplies, isCustomFieldKind, type FieldValue, type AuthUser, type DataRecord, type ObjectDefinition, type RecordRelationships } from '@xobject/contracts';
+import {Journal} from './record-journal';
 import { api, ApiError } from '@/lib/api';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Field, FieldLabel, FieldGroup, FieldSet, FieldLegend,FieldError, FieldDescription } from '@/components/ui/field';
@@ -45,9 +45,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { displayFieldValue } from './custom-field-control';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ClassificationFields, initialChoices, displayClassification, type ClassificationValues } from './classification-values';
+import { ClassificationFields, initialChoices, type ClassificationValues } from './classification-values';
 import { CustomFieldControl, emptyCustomValue } from './custom-field-control';
 import { ErrorNotice } from './feedback';
 
@@ -173,7 +172,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     if (record && version) return api('update_record', { objectTypeId: definition.id, recordId: record.id, version,...security, ...keyword, values: data, classification, relationshipAttributes:relationshipAttributes(),relationships:relationshipWrites() });
     return api('create_record', {linkFrom:linkedCreation?.linkFrom, objectTypeId: definition.id,...security, ...keyword, values: data, classification, relationshipAttributes:relationshipAttributes(),relationships:relationshipWrites() });
   }, onMutate: () => { onBusyChange(true); setSaved(false); }, onSuccess: async result => {
-      if(result.permissions?.read===false){setLostAccess(true);onDirtyChange(false);onBusyChange(false);onAccessLost?.();queryClient.removeQueries({queryKey:['record',definition.id,result.id]});void queryClient.invalidateQueries();return;}
+      if(!isReadableRecord(result)){setLostAccess(true);onDirtyChange(false);onBusyChange(false);onAccessLost?.();queryClient.removeQueries({queryKey:['record',definition.id,result.id]});void queryClient.invalidateQueries();return;}
     const latest=await api('get_record_relationships',{objectTypeId:definition.id,recordId:result.id}).catch(()=>null);
     if(latest){setRelationFields(localizedRelationshipFields(latest.fields,regional));setRelationBaseline(localizedRelationshipFields(latest.fields,regional));queryClient.setQueryData(['record-relationships',definition.id,result.id],latest);}else setRelationBaseline(relationFields);
     void queryClient.invalidateQueries({queryKey:['record-relationships']});
@@ -319,30 +318,4 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     </RecordPageFooter>:null}
   </form></TimeZoneProvider></RegionalProvider>;
 
-}
-
-export function Journal({ definition, recordId, user, record, workspaceName,includeRecycled=false }: { definition: ObjectDefinition; recordId: string; user: AuthUser; workspaceName: string; record: DataRecord;includeRecycled?:boolean }) {
-  const { t, i18n } = useTranslation();
-  const regional=useRegional(),timeZone=useTimeZone();
-  const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
-  const [fieldId,setFieldId]=useState('all'),[kind,setKind]=useState('all'),[page,setPage]=useState(1),[pageSize,setPageSize]=useState(10);
-  const allFields=[...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[]).map(field=>({...field,label:`${t('relationshipAttributes')} · ${field.label}`}))];
-  const result = useQuery({ placeholderData:keepPreviousData, queryKey: ['journal', definition.id, recordId,includeRecycled,fieldId,kind,page,pageSize], queryFn: () => api('list_record_journal', {includeRecycled, objectTypeId: definition.id, recordId,fieldId:fieldId==='all'?undefined:fieldId,entityKind:kind==='all'?undefined:kind as 'record'|'relationship',offset:(page-1)*pageSize,limit:pageSize }) });
-  const fields=[{value:'all',label:t('journalAllFields')},...allFields.map(field=>({value:field.id,label:field.label})).sort((a,b)=>a.label.localeCompare(b.label,i18n.language))];
-  const kinds=[{value:'all',label:t('journalAllChanges')},{value:'record',label:t('journalFieldChanges')},{value:'relationship',label:t('recordRelationships')}];
-  const filters=<FieldGroup className="w-full gap-4 sm:flex-row sm:items-end sm:max-w-xl"><Field><FieldLabel htmlFor="record-journal-kind">{t('recordJournalChangeFilter')}</FieldLabel><Select items={kinds} value={kind} onValueChange={value=>{if(value){setKind(value);setFieldId('all');setPage(1);}}}><SelectTrigger id="record-journal-kind" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{kinds.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-  {<Field><FieldLabel htmlFor="record-journal-field">{t('field')}</FieldLabel><Select items={fields} value={fieldId} onValueChange={value=>{if(value){setFieldId(value);setPage(1);}}}><SelectTrigger id="record-journal-field" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{fields.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>}</FieldGroup>;
-  const entries=(result.data?.entries??[]).map(entry=>{
-    const field=allFields.find(field=>field.id===entry.field_id);
-    return {...entry,entity_kind:entry.entity_kind??'record',entity_id:entry.entity_id??recordId,workspace_id:definition.workspaceId,workspace_name:workspaceName,object_type_name:definition.label,actor_name:entry.actor_name??(entry.actor_id===user.id?user.name:entry.actor_id),entity_name:record.keyword||record.id,field_label:field?.label??entry.field_label??null};
-  });
-  function renderValue(entry:JournalEntry,value:unknown,side:'before'|'after') {
-    const field=allFields.find(field=>field.id===entry.field_id);
-    if(!field)return undefined;
-    if(value===null||value===undefined)return t('journalNotSet');
-    if(['type','status','category'].includes(field.kind))return displayClassification(definition.classification,field.kind,value);
-    const context=entry.value_context?.[side];
-    return displayFieldValue(context?{...field,kind:context.kind as typeof field.kind,config:context.config}:field,value,i18n.language,t,principals.data??[],timeZone,regional);
-  }
-  return <RecordJournalTable preferenceKey={`record-journal:${definition.workspaceId}`} entries={entries} filters={filters} renderValue={renderValue} total={result.data?.total??0} page={page} pageSize={pageSize} busy={result.isFetching} loading={result.isPending} error={result.isError?result.error:undefined} onRetry={()=>{void result.refetch();}} onPage={setPage} onPageSize={size=>{setPageSize(size);setPage(1);}} />;
 }

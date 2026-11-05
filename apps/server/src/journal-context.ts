@@ -10,7 +10,7 @@ type Context = { id: string; technical_name: string; code: string; labels: Label
 /** Read-only current names supplement the immutable event; they are not historical snapshots. */
 export async function enrichJournalContext(tx: Executor, rows: Row[], userId: string, includeRecords: boolean): Promise<Row[]> {
   if (!rows.length) return rows;
-  const language = (await sql<{ language: Language | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0].language;
+  const viewer=(await sql<{language:Language|null;is_admin:boolean}>`SELECT language,is_admin FROM sys_users WHERE id=${userId}`.execute(tx)).rows[0],language=viewer.language;
   const objectIds = [...new Set(rows.map(row => row.object_type_id).filter((id): id is string => typeof id === 'string'))];
   const types = objectIds.length ? (await sql<Context>`SELECT o.id, o.technical_name, o.labels, o.state, w.code, w.default_language, w.available_languages FROM sys_object_types o JOIN sys_workspaces w ON w.id = o.workspace_id WHERE o.id = ANY(${objectIds}::uuid[])`.execute(tx)).rows : [];
   const fieldIds = [...new Set(rows.map(row => row.field_id).filter((id): id is string => typeof id === 'string'))];
@@ -21,6 +21,8 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     const ids=principalKeys.map(match=>match[2]);
     for(const row of (await sql<{kind:string;id:string;name:string}>`SELECT 'user' AS kind,id,name FROM sys_users WHERE id=ANY(${ids}::text[]) UNION ALL SELECT 'group',id::text,name FROM sys_groups WHERE id::text=ANY(${ids}::text[])`.execute(tx)).rows)principalNames.set(`${row.kind}:${row.id}`,row.name);
   }
+  const credentialIds=rows.filter(row=>row.entity_kind==='api_credential').map(row=>String(row.entity_id));
+  const credentialContexts=new Map(credentialIds.length?(await sql<{id:string;name:string;userId:string;userName:string}>`SELECT c.id,c.name,c.user_id AS "userId",u.name AS "userName" FROM sys_api_credentials c JOIN sys_users u ON u.id=c.user_id WHERE c.id=ANY(${credentialIds}::uuid[])`.execute(tx)).rows.map(({id,...context})=>[id,context]):[]);
   const typeMap = new Map(types.map(type => [type.id, type]));
   const fieldMap = new Map(fields.map(field => [field.id, field]));
   const label = (labels: Labels, type: Context) => {
@@ -51,6 +53,8 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     });
   }
   const names = new Map<string, string>();
+  const removedIds=rows.filter(row=>row.entity_kind==='record').map(row=>String(row.entity_id));
+  if(includeRecords&&viewer.is_admin&&removedIds.length)for(const row of (await sql<{object_type_id:string;record_id:string;deleted_keyword:string}>`SELECT object_type_id,record_id,deleted_keyword FROM sys_record_identities WHERE deleted_at IS NOT NULL AND record_id=ANY(${removedIds}::uuid[])`.execute(tx)).rows)names.set(`${row.object_type_id}:${row.record_id}`,row.deleted_keyword);
   if (includeRecords) for (const type of types) {
     const ids = [...new Set(rows.filter(row => row.entity_kind === 'record' && row.object_type_id === type.id).map(row => String(row.entity_id)))];
     if (!ids.length || type.state === 'deleted') continue;
@@ -64,10 +68,11 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
   return rows.map(row => {
     const type = typeMap.get(String(row.object_type_id)), field = fieldMap.get(String(row.field_id));
     return { ...row,
+      ...(credentialContexts.has(String(row.entity_id))?{credential_context:credentialContexts.get(String(row.entity_id))}:{}),
       ...(layoutContexts.has(String(row.id))?{form_layout_context:layoutContexts.get(String(row.id))}:{}),
       object_type_name: type ? label(type.labels, type) : null,
       field_label: field ? (type?label(field.labels,type):field.labels[language??'en']??field.labels.en??field.labels.de??Object.values(field.labels)[0]) : null,
-      entity_name: (row.entity_kind==='object_permissions'&&type?`${label(type.labels,type)}${(()=>{const match=/^permission\.(user|group):([^.]+)\./.exec(String(row.field_key));return match?' · '+(principalNames.get(`${match[1]}:${match[2]}`)??match[2]):'';})()}`:undefined) ?? (row.entity_kind==='relationship' ? (()=>{const snapshot=(row.new_value??row.old_value) as {left?:{keyword?:string};right?:{keyword?:string};directed?:boolean}|null;return snapshot?.left?.keyword&&snapshot.right?.keyword?`${snapshot.left.keyword} ${snapshot.directed?'→':'↔'} ${snapshot.right.keyword}`:undefined;})() : undefined) ?? (row.entity_kind === 'relationship_type' ? relationshipNames.get(String(row.entity_id)) : undefined) ?? (type && row.entity_kind === 'object_type' ? label(type.labels, type)
+      entity_name: (row.entity_kind==='api_credential'?(()=>{const credential=credentialContexts.get(String(row.entity_id));return credential?`${credential.name} · ${credential.userName}`:undefined;})():undefined) ?? (row.entity_kind==='object_permissions'&&type?`${label(type.labels,type)}${(()=>{const match=/^permission\.(user|group):([^.]+)\./.exec(String(row.field_key));return match?' · '+(principalNames.get(`${match[1]}:${match[2]}`)??match[2]):'';})()}`:undefined) ?? (row.entity_kind==='relationship' ? (()=>{const snapshot=(row.new_value??row.old_value) as {left?:{keyword?:string};right?:{keyword?:string};directed?:boolean}|null;return snapshot?.left?.keyword&&snapshot.right?.keyword?`${snapshot.left.keyword} ${snapshot.directed?'→':'↔'} ${snapshot.right.keyword}`:undefined;})() : undefined) ?? (row.entity_kind === 'relationship_type' ? relationshipNames.get(String(row.entity_id)) : undefined) ?? (type && row.entity_kind === 'object_type' ? label(type.labels, type)
         : type && field && ['field', 'classification_field'].includes(String(row.entity_kind)) ? label(field.labels, type)
         : names.get(`${row.object_type_id}:${row.entity_id}`) ?? row.entity_name ?? null),
     };

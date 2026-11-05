@@ -2,7 +2,7 @@ import {incidentFields} from './relationship-fields.js';
 import {sql} from 'kysely';
 import {v7} from 'uuid';
 import {isDeepStrictEqual} from 'node:util';
-import {defaultRecordSecurity,principalKey,accessRank,accessLevels,type RecordSecurity,type DataRecord,type Principal,type FieldPrincipal} from '@xobject/contracts';
+import {defaultRecordSecurity,principalKey,accessRank,accessLevels,type RecordSecurity,type RecordWriteResult,type Principal,type FieldPrincipal} from '@xobject/contracts';
 import {contentAccess,type ObjectAccess} from './content-permissions.js';
 import type {Executor} from './database.js';
 import {AppError} from './errors.js';
@@ -24,12 +24,12 @@ export async function recordSecurity(tx:Executor,objectId:string,recordId:string
  return {policy,principals,fieldAccess:Object.fromEntries(([...await contentAccess().fields(objectId),...await incidentFields(tx,objectId)]).map(field=>[field.id,p.field(field.id,recordId)])),version:record.version,effective:{...p.records.get(recordId)!.access,level:accessLevels[p.recordLevel(recordId)]},canManage:p.recordCapabilities(recordId).full&&Boolean((await sql`SELECT 1 FROM sys_object_types WHERE id=${objectId}::uuid AND state='active'`.execute(tx)).rows.length)};
 }
 export async function recordTable(tx:Executor,id:string){const row=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(tx)).rows[0];if(!row)throw new AppError(400,'Object must be active');return row.name;}
-export async function saveRecordSecurity(tx:Executor,args:{objectTypeId:string;recordId:string;version:number;policy:RecordSecurity;confirmPublic:boolean},actor:string,journal:RecordSecurityJournal):Promise<DataRecord>{
+export async function saveRecordSecurity(tx:Executor,args:{objectTypeId:string;recordId:string;version:number;policy:RecordSecurity;confirmPublic:boolean},actor:string,journal:RecordSecurityJournal):Promise<RecordWriteResult>{
  const before=await recordSecurity(tx,args.objectTypeId,args.recordId);
  if(before.version!==args.version)throw new AppError(409,'Record version conflict');
  if(await writeRecordSecurity(tx,args,journal))await sql`UPDATE ${sql.table(await recordTable(tx,args.objectTypeId))} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${args.recordId}::uuid`.execute(tx);
  const row=(await sql<Record<string,unknown>>`SELECT * FROM ${sql.table(await recordTable(tx,args.objectTypeId))} WHERE id=${args.recordId}::uuid`.execute(tx)).rows[0];
- return await contentAccess().project(args.objectTypeId,row) as DataRecord;
+ return await contentAccess().project(args.objectTypeId,row) as RecordWriteResult;
 }
 /** Shared policy write; the surrounding record operation owns its one version increment. */
 export async function writeRecordSecurity(tx:Executor,args:{objectTypeId:string;recordId:string;policy:RecordSecurity;confirmPublic:boolean},journal:RecordSecurityJournal):Promise<boolean>{
