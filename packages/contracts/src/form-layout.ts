@@ -20,7 +20,7 @@ export const formLayoutSchema=z.object({groups:z.array(z.object({
   if(new Set(groups).size!==groups.length||new Set(fields).size!==fields.length)ctx.addIssue({code:'custom',message:'Duplicate group or form element'});
 });
 export type FormLayout=z.infer<typeof formLayoutSchema>;
-export type FormLayouts=Record<string,FormLayout>;
+export type FormLayouts={default?:FormLayout};
 export const formLayoutEntries=(layout:FormLayout)=>[...layout.groups.flatMap(group=>group.fields),...(layout.unassigned??[])];
 type LayoutField={id:string;technicalName:string;kind:string;config?:{schema?:string};label?:string;required?:boolean;state?:string};
 export interface FormRelationship {definition:RelationshipType;side:'left'|'right'}

@@ -12,7 +12,7 @@ export const fieldConfigSchema = z.object({
   scale: z.number().int().min(0).max(12).optional(),
   currency: z.string().regex(/^[A-Z]{3}$/).optional(),
   formatted: z.boolean().optional(),
-  options: z.array(z.object({ id: uuidSchema, labels: translated, active: z.boolean(), group:z.enum(['usage','phone_type']).optional() }).strict()).max(300).optional(),
+  options: z.array(z.object({ id: uuidSchema, labels: translated, active: z.boolean(), group:z.enum(['usage','phone_type','messenger_type']).optional() }).strict()).max(300).optional(),
   referenceTarget: z.enum(['user', 'group', 'both']).optional(),
   multiple: z.boolean().optional(),
 }).strict();

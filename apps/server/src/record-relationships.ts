@@ -1,3 +1,4 @@
+import {candidateAttributes,projectEdgeAttributes,writeEdgeAttributes} from './relationship-fields.js';
 import {contentAccess} from './content-permissions.js';
 import {oppositeRelationshipSide,relationshipSidesForObject} from '@xobject/contracts';
 import {conditionColumn,endpointMatches,validateEndpointPair,validateConditionalRecord} from './relationship-conditions.js';
@@ -12,7 +13,7 @@ import { relationshipTypes } from './relationship-types.js';
 import type { RelationshipType, RelationshipWrite, RecordReference, RelatedRecord, RecordRelationships, RecordRelationship } from '@xobject/contracts';
 
 type Model = { id:string; workspace_id:string; technical_name:string; code:string; labels:Record<string,string>; state:'active'|'inactive'|'deleted' };
-type Edge = { id:string; workspace_id:string; relationship_type_id:string; left_object_type_id:string; left_record_id:string; right_object_type_id:string; right_record_id:string };
+type Edge = { version:number;id:string; workspace_id:string; relationship_type_id:string; left_object_type_id:string; left_record_id:string; right_object_type_id:string; right_record_id:string };
 const table = (model:Model) => `${model.code}_${model.technical_name}`;
 const key = (ref:RecordReference) => `${ref.objectTypeId}:${ref.recordId}`;
 const left = (edge:Edge):RecordReference => ({objectTypeId:edge.left_object_type_id,recordId:edge.left_record_id});
@@ -41,13 +42,14 @@ export async function recordRelationships(tx:Executor,objectTypeId:string,record
   const definitions=await relationshipTypes(tx,model.workspace_id),all=await edgesFor(tx,model.workspace_id),chain=await primaryChain(tx,model.workspace_id);
   const own=recordId?all.filter(e=>key(left(e))===`${objectTypeId}:${recordId}`||key(right(e))===`${objectTypeId}:${recordId}`):[];
   const edges:RecordRelationship[]=[];
-  for(const edge of own)if(await contentAccess().readable(edge.left_object_type_id,edge.left_record_id)&&await contentAccess().readable(edge.right_object_type_id,edge.right_record_id))edges.push({id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:await visibleReference(tx,left(edge),model.workspace_id),right:await visibleReference(tx,right(edge),model.workspace_id)});
+  for(const edge of own)if(await contentAccess().readable(edge.left_object_type_id,edge.left_record_id)&&await contentAccess().readable(edge.right_object_type_id,edge.right_record_id))edges.push({version:edge.version,attributes:(await projectEdgeAttributes(tx,edge)).values,id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:await visibleReference(tx,left(edge),model.workspace_id),right:await visibleReference(tx,right(edge),model.workspace_id)});
+  const attributeProjections=new Map(await Promise.all(own.map(async edge=>[edge.id,await projectEdgeAttributes(tx,edge)] as const)));
   const fields:RecordRelationships['fields']=[];
   for(const definition of definitions.filter(d=>(d.kind!=='primary'||d.active)&&(d.rulesState==='active'||own.some(e=>e.relationship_type_id===d.id)))) {
     for(const side of relationshipSidesForObject(definition,objectTypeId,chain)) {
       const targets=edges.filter(e=>e.definition.id===definition.id).flatMap(e=>{
-        if(symmetric(definition))return [key(e.left)===`${objectTypeId}:${recordId}`?e.right:e.left];
-        return key(e[side])===`${objectTypeId}:${recordId}`?[e[side==='left'?'right':'left']]:[];
+        if(symmetric(definition))return [{...(key(e.left)===`${objectTypeId}:${recordId}`?e.right:e.left),edgeId:e.id,edgeVersion:e.version,attributeValues:e.attributes,attributeAccess:attributeProjections.get(e.id)?.access}];
+        return key(e[side])===`${objectTypeId}:${recordId}`?[{...e[side==='left'?'right':'left'],edgeId:e.id,edgeVersion:e.version,attributeValues:e.attributes,attributeAccess:attributeProjections.get(e.id)?.access}]:[];
       });fields.push({definition,side,targets,editable:(recordId?sourcePolicy.recordCapabilities(recordId).edit:sourcePolicy.capabilities.create===true)&&!own.some(edge=>edge.relationship_type_id===definition.id&&!edges.some(visible=>visible.id===edge.id)),restricted:own.some(edge=>edge.relationship_type_id===definition.id&&!edges.some(visible=>visible.id===edge.id))});
     }
   }return {primaryChain:chain,fields,edges,dossier:await dossierEntries(tx,edges,objectTypeId,recordId)};
@@ -96,7 +98,7 @@ export async function searchRelationshipCandidates(tx:Executor,args:{sourceValue
   const rows=sql.join(selects,sql` UNION ALL `),filter=sql`position(lower(${args.query}) IN lower(keyword))>0 AND NOT ("objectTypeId"=${args.objectTypeId}::uuid AND "recordId"=${args.recordId??null}::uuid IS TRUE)`;
   const total=(await sql<{total:number}>`WITH candidates AS (${rows}) SELECT count(*)::integer AS total FROM candidates WHERE ${filter}`.execute(tx)).rows[0].total;
   const records=(await sql<RelatedRecord>`WITH candidates AS (${rows}) SELECT * FROM candidates WHERE ${filter} ORDER BY lower(keyword),"objectTypeId","recordId" LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
-  return {records,total,limit:args.limit,offset:args.offset};
+  return {records:await Promise.all(records.map(async record=>({...record,...await candidateAttributes(tx,type.id,{objectTypeId:args.objectTypeId,recordId:args.recordId},record)}))),total,limit:args.limit,offset:args.offset};
 }
 
 /** Preflight and record writes share the model lock. Counts are final-state counts, including both directions of symmetric edges. */
@@ -179,7 +181,7 @@ export async function activateRelationship(tx:Executor,args:{workspaceId:string;
 }
 
 /** Replace only supplied relationship fields, with explicit definition versions. Both endpoints' versions change. */
-export async function writeRecordRelationships(tx:Executor,objectTypeId:string,recordId:string,writes:RelationshipWrite[]|undefined,actor:string,changeId:string,alreadyTouched:boolean,newRecord=false) {
+export async function writeRecordRelationships(tx:Executor,objectTypeId:string,recordId:string,writes:RelationshipWrite[]|undefined,actor:string,changeId:string,alreadyTouched:boolean,newRecord=false,attributeWrites?:import('@xobject/contracts').RelationshipAttributeWrite[]) {
   const model=await modelFor(tx,objectTypeId),definitions=await relationshipTypes(tx,model.workspace_id);
   await sql`INSERT INTO sys_record_identities(workspace_id,object_type_id,record_id) VALUES(${model.workspace_id}::uuid,${objectTypeId}::uuid,${recordId}::uuid) ON CONFLICT DO NOTHING`.execute(tx);
   const chain=await primaryChain(tx,model.workspace_id);
@@ -213,7 +215,7 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
       if(!type.active)throw new AppError(400,'Relationship type is inactive');
       const ar=await reference(tx,a,model.workspace_id),br=await reference(tx,b,model.workspace_id);if(ar.state!=='active'||br.state!=='active')throw new AppError(400,'Related objects must be active');
       await validateEndpointPair(tx,type,a,b);
-      const edge:Edge={id:v7(),workspace_id:model.workspace_id,relationship_type_id:type.id,left_object_type_id:a.objectTypeId,left_record_id:a.recordId,right_object_type_id:b.objectTypeId,right_record_id:b.recordId};
+      const edge:Edge={version:1,id:v7(),workspace_id:model.workspace_id,relationship_type_id:type.id,left_object_type_id:a.objectTypeId,left_record_id:a.recordId,right_object_type_id:b.objectTypeId,right_record_id:b.recordId};
       await sql`INSERT INTO sys_relationships(id,workspace_id,relationship_type_id,left_object_type_id,left_record_id,right_object_type_id,right_record_id,created_by) VALUES(${edge.id}::uuid,${model.workspace_id}::uuid,${type.id}::uuid,${a.objectTypeId}::uuid,${a.recordId}::uuid,${b.objectTypeId}::uuid,${b.recordId}::uuid,${actor})`.execute(tx);
       addedJournal.push({edge,type});touched.set(key(a),a);touched.set(key(b),b);
     }
@@ -223,6 +225,7 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
   for(const type of definitions.filter(d=>affected.has(d.id)))await validateChangedRelationships(tx,type,[focus,...touched.values()]);
   await validateConditionalRecord(tx,objectTypeId,recordId,definitions);
   for(const {edge,type} of addedJournal)await journalEdge(tx,edge,type,actor,changeId,true);
+  for(const ref of await writeEdgeAttributes(tx,focus,attributeWrites,addedJournal.map(j=>j.edge.id),actor,changeId,newRecord))touched.set(key(ref),ref);
   for(const ref of touched.values()) {
     if(alreadyTouched&&key(ref)===key(focus))continue;
     const target=await modelFor(tx,ref.objectTypeId);

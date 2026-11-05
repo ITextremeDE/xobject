@@ -1,3 +1,4 @@
+import {relationshipFieldDefinitions} from './relationship-fields.js';
 import {conditionColumn} from './relationship-conditions.js';
 import { validateRelationshipGraph } from './record-relationships.js';
 import { sql } from 'kysely';
@@ -25,7 +26,7 @@ export async function relationshipTypes(tx: Executor, workspaceId: string): Prom
   const rows = (await sql<Omit<RelationshipType,'pairs'>>`SELECT (SELECT module_key FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "moduleKey",EXISTS(SELECT 1 FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "isProtected",id,workspace_id AS "workspaceId",technical_name AS "technicalName",kind,labels,left_labels AS "leftLabels",right_labels AS "rightLabels",directed,left_min AS "leftMin",left_max AS "leftMax",right_min AS "rightMin",right_max AS "rightMax",allow_all AS "allowAll",active,rules_state AS "rulesState",version,left_applicability AS "leftApplicability",right_applicability AS "rightApplicability" FROM sys_relationship_types WHERE workspace_id=${workspaceId}::uuid ORDER BY kind,technical_name`.execute(tx)).rows;
   const pairs = (await sql<{relationship_type_id:string;leftObjectTypeId:string;rightObjectTypeId:string}>`SELECT relationship_type_id,left_object_type_id AS "leftObjectTypeId",right_object_type_id AS "rightObjectTypeId" FROM sys_relationship_type_pairs WHERE workspace_id=${workspaceId}::uuid ORDER BY left_object_type_id,right_object_type_id`.execute(tx)).rows;
   const used=new Set((await sql<{id:string}>`SELECT DISTINCT COALESCE(new_value->>'relationshipTypeId',old_value->>'relationshipTypeId') AS id FROM sys_journal WHERE workspace_id=${workspaceId}::uuid AND entity_kind='relationship'`.execute(tx)).rows.map(row=>row.id));
-  return rows.map(row=>({...row,...(row.kind==='custom'?{pairLocked:used.has(row.id)}:{}),pairs:pairs.filter(pair=>pair.relationship_type_id===row.id).map(({leftObjectTypeId,rightObjectTypeId})=>({leftObjectTypeId,rightObjectTypeId}))}));
+  return Promise.all(rows.map(async row=>({...row,fields:await relationshipFieldDefinitions(tx,row.id),...(row.kind==='custom'?{pairLocked:used.has(row.id)}:{}),pairs:pairs.filter(pair=>pair.relationship_type_id===row.id).map(({leftObjectTypeId,rightObjectTypeId})=>({leftObjectTypeId,rightObjectTypeId}))})));
 }
 export async function configureRelationship(tx: Executor, args: {workspaceId:string;technicalName?:string;relationshipTypeId?:string;version?:number;configuration:RelationshipConfiguration}, journal: Journal) {
   const previous = args.relationshipTypeId ? (await relationshipTypes(tx,args.workspaceId)).find(row=>row.id===args.relationshipTypeId) : undefined;
@@ -76,36 +77,50 @@ async function ensureProjectsModule(tx:Executor,workspaceId:string,actor:string,
 }
 export async function workspaceModules(tx:Executor,workspaceId:string):Promise<WorkspaceModule[]> {
   if(!(await sql`SELECT 1 FROM sys_workspaces WHERE id=${workspaceId}::uuid`.execute(tx)).rows.length)throw new AppError(404,'Workspace not found');
-  return (await sql<WorkspaceModule>`SELECT m.module_key AS key,c.labels,c.description,c.available,c.objects,m.enabled,m.version,CASE WHEN m.module_key='projects' THEN (SELECT jsonb_object_agg(object_key,object_type_id::text) FROM sys_module_object_bindings l WHERE l.workspace_id=m.workspace_id AND l.object_key IN('contact','project','case')) ELSE NULL END AS "primaryChain" FROM sys_workspace_modules m JOIN sys_modules c ON c.key=m.module_key WHERE m.workspace_id=${workspaceId}::uuid ORDER BY c.position`.execute(tx)).rows;
+  return (await sql<WorkspaceModule>`SELECT c.template_version AS "templateVersion",COALESCE((SELECT min(template_version) FROM sys_module_contributions c2 WHERE c2.workspace_id=m.workspace_id AND c2.module_key=m.module_key),0) AS "installedVersion",m.module_key AS key,c.labels,c.description,c.available,c.objects,m.enabled,m.version,CASE WHEN m.module_key='projects' THEN (SELECT jsonb_object_agg(object_key,object_type_id::text) FROM sys_module_object_bindings l WHERE l.workspace_id=m.workspace_id AND l.object_key IN('contact','project','case')) ELSE NULL END AS "primaryChain" FROM sys_workspace_modules m JOIN sys_modules c ON c.key=m.module_key WHERE m.workspace_id=${workspaceId}::uuid ORDER BY c.position`.execute(tx)).rows;
 }
 export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:string;key:WorkspaceModule['key'];enabled:boolean;version:number},journal:Journal,install:()=>Promise<import('@xobject/contracts').PrimaryChain>) {
   const previous=(await workspaceModules(tx,args.workspaceId)).find(module=>module.key===args.key);
   if(!previous)throw new AppError(404,'Module not found');
   if(!previous.available)throw new AppError(409,'Module is not implemented yet');
   if(previous.version!==args.version)throw new AppError(409,'Module version conflict');
-  if(previous.enabled===args.enabled&&(!args.enabled||args.key!=='projects'||previous.primaryChain))return previous;
+  if(previous.enabled===args.enabled&&(!args.enabled||previous.installedVersion===previous.templateVersion))return previous;
+  if(previous.enabled&&args.enabled){
+    if(previous.installedVersion>previous.templateVersion)throw new AppError(409,'Module template downgrade is not supported');
+    await install();await reconcileModuleDefinitions(tx,args.workspaceId,journal);
+    await sql`UPDATE sys_workspace_modules SET version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
+    await journal('workspace',args.workspaceId,v7(),`module.${args.key}.template_version`,previous.installedVersion,previous.templateVersion);
+    return (await workspaceModules(tx,args.workspaceId)).find(m=>m.key===args.key)!;
+  }
   if(args.key!=='projects'){
     if(args.enabled)await install();
     await sql`UPDATE sys_workspace_modules SET enabled=${args.enabled},version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
+    await reconcileModuleDefinitions(tx,args.workspaceId,journal);
     await journal('workspace',args.workspaceId,v7(),`module.${args.key}`,previous.enabled,args.enabled);
-    return {...previous,enabled:args.enabled,version:previous.version+1};
+    return (await workspaceModules(tx,args.workspaceId)).find(m=>m.key===args.key)!;
   }
   const primary=(await relationshipTypes(tx,args.workspaceId)).find(type=>type.kind==='primary')!;
   if(!args.enabled&&(await sql`SELECT 1 FROM sys_relationships WHERE relationship_type_id=${primary.id}::uuid LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Remove existing Primary associations before disabling Projects');
   const chain=args.enabled?await install():previous.primaryChain;
   await sql`UPDATE sys_workspace_modules SET enabled=${args.enabled},version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
+  await reconcileModuleDefinitions(tx,args.workspaceId,journal);
   if(args.enabled)await validateRelationshipGraph(tx,{...primary,active:true});
   const change=v7();
 
   await sql`UPDATE sys_relationship_types SET active=${args.enabled},version=version+1 WHERE id=${primary.id}::uuid`.execute(tx);
   await journal('workspace',args.workspaceId,change,'module.projects',previous.enabled,args.enabled);
   await journal('relationship_type',primary.id,change,'active',primary.active,args.enabled);
-  return {...previous,primaryChain:chain,enabled:args.enabled,version:previous.version+1};
+  return (await workspaceModules(tx,args.workspaceId)).find(m=>m.key===args.key)!;
 }
 
-/** Frozen version-1 projection used only by the original schema installer. */
-async function baselineSystemDefinitions(tx:Executor,workspaceId:string) {
-  const rows=(await sql<RelationshipType>`SELECT (SELECT module_key FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "moduleKey",EXISTS(SELECT 1 FROM sys_module_relationship_bindings b WHERE b.relationship_type_id=sys_relationship_types.id) AS "isProtected",id,workspace_id AS "workspaceId",technical_name AS "technicalName",kind,labels,left_labels AS "leftLabels",right_labels AS "rightLabels",directed,left_min AS "leftMin",left_max AS "leftMax",right_min AS "rightMin",right_max AS "rightMax",allow_all AS "allowAll",active,rules_state AS "rulesState",version FROM sys_relationship_types WHERE workspace_id=${workspaceId}::uuid AND kind<>'custom' ORDER BY kind,technical_name`.execute(tx)).rows;
-  const pairs=(await sql<{relationship_type_id:string;leftObjectTypeId:string;rightObjectTypeId:string}>`SELECT relationship_type_id,left_object_type_id AS "leftObjectTypeId",right_object_type_id AS "rightObjectTypeId" FROM sys_relationship_type_pairs WHERE workspace_id=${workspaceId}::uuid ORDER BY left_object_type_id,right_object_type_id`.execute(tx)).rows;
-  return rows.map(row=>({...row,pairs:pairs.filter(pair=>pair.relationship_type_id===row.id).map(({leftObjectTypeId,rightObjectTypeId})=>({leftObjectTypeId,rightObjectTypeId}))}));
+/** Contributions retain identity/data/layouts; effective availability follows enabled contributors. */
+async function reconcileModuleDefinitions(tx:Executor,workspace:string,journal:Journal){
+ const change=v7();
+ const objects=(await sql<{id:string;state:string;enabled:boolean}>`SELECT o.id,o.state,bool_or(m.enabled) AS enabled FROM sys_object_types o JOIN sys_module_contributions c ON c.object_type_id=o.id JOIN sys_workspace_modules m ON m.workspace_id=c.workspace_id AND m.module_key=c.module_key WHERE c.workspace_id=${workspace}::uuid GROUP BY o.id`.execute(tx)).rows;
+ for(const object of objects){const next=object.enabled?'active':'inactive';if(object.state!==next){await sql`UPDATE sys_object_types SET state=${next},version=version+1 WHERE id=${object.id}::uuid`.execute(tx);await journal('object_type',object.id,change,'state',object.state,next);}}
+ for(const relationship of await relationshipTypes(tx,workspace)){
+  if(!relationship.moduleKey)continue;
+  const next=relationship.pairs.every(pair=>[pair.leftObjectTypeId,pair.rightObjectTypeId].every(id=>objects.find(o=>o.id===id)?.enabled));
+  if(relationship.active!==next){if(next)await validateRelationshipGraph(tx,{...relationship,active:true});await sql`UPDATE sys_relationship_types SET active=${next},version=version+1 WHERE id=${relationship.id}::uuid`.execute(tx);await journal('relationship_type',relationship.id,change,'active',relationship.active,next);}
+ }
 }

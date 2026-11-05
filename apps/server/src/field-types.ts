@@ -1,4 +1,4 @@
-import {parseStructuredValue} from '@xobject/contracts';
+import {parseStructuredValue,structuredOptionGroups} from '@xobject/contracts';
 import { z } from 'zod';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { sql } from 'kysely';
@@ -22,10 +22,10 @@ export function fieldConfig(kind: CustomFieldKind, input?: FieldConfig, previous
   if(previous?.fixedOptions&&JSON.stringify(previous.options?.map(o=>[o.id,o.active]))!==JSON.stringify(config.options?.map(o=>[o.id,o.active])))fail('Supplied choice identities and availability are fixed');
   if (config.options) {
     if (new Set(config.options.map(option => option.id)).size !== config.options.length) fail('Duplicate field option identities');
-    const phone=kind==='structured'&&config.schema==='phone_entries';
+    const groups=kind==='structured'?structuredOptionGroups(config.schema):[];
     for(const option of config.options){
-      if(phone&&!option.group)fail('Telephone options require a usage or phone-type group');
-      if(!phone&&option.group)fail('Option groups are only supported for telephone collections');
+      if(groups.length&&(!option.group||!groups.includes(option.group)))fail('Options require a valid group for this collection');
+      if(!groups.length&&option.group)fail('This field does not support option groups');
       const old=previous?.options?.find(item=>item.id===option.id);
       if(old&&old.group!==option.group)fail('Option groups cannot be changed; deactivate the option instead');
     }
@@ -142,7 +142,7 @@ export async function validateReferences(tx: Executor, field: TypedField, value:
 }
 export function convertFieldValue(previous: TypedField, next: TypedField, input: unknown): FieldValue {
   if (input === null || input === undefined) return normalizeFieldValue(next, null, input);
-  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'structured' && next.config.schema!=='partial_date' || next.kind === 'multiple_choice' || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
+  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'structured' && !['partial_date','time_zone'].includes(next.config.schema!) || next.kind === 'multiple_choice' || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
   if (input === '') return normalizeFieldValue(next, ['text', 'multiline'].includes(next.kind) ? '' : null, input);
   let value = normalizeFieldValue({ ...previous, required: false }, input, input);
   if(previous.kind==='structured'||next.kind==='structured'){if(previous.kind!==next.kind||previous.config.schema!==next.config.schema)return fail('Unsafe field conversion');return normalizeFieldValue(next,value,input);}

@@ -1,3 +1,4 @@
+import {incidentFields} from './relationship-fields.js';
 import {sql} from 'kysely';
 import {v7} from 'uuid';
 import {isDeepStrictEqual} from 'node:util';
@@ -20,7 +21,7 @@ export async function recordSecurity(tx:Executor,objectId:string,recordId:string
   const row=principal.kind==='user'?(await sql<{name:string;active:boolean}>`SELECT name,active FROM sys_users WHERE id=${principal.id}`.execute(tx)).rows[0]:(await sql<{name:string;active:boolean}>`SELECT name,active FROM sys_groups WHERE id=${principal.id}::uuid AND workspace_id=${p.workspace}::uuid`.execute(tx)).rows[0];
   principals.push({kind:principal.kind,id:principal.id,name:row?.name??principal.id,active:row?.active??false,assignable:false});
  }
- return {policy,principals,fieldAccess:Object.fromEntries((await contentAccess().fields(objectId)).map(field=>[field.id,p.field(field.id,recordId)])),version:record.version,effective:{...p.records.get(recordId)!.access,level:accessLevels[p.recordLevel(recordId)]},canManage:p.recordCapabilities(recordId).full&&Boolean((await sql`SELECT 1 FROM sys_object_types WHERE id=${objectId}::uuid AND state='active'`.execute(tx)).rows.length)};
+ return {policy,principals,fieldAccess:Object.fromEntries(([...await contentAccess().fields(objectId),...await incidentFields(tx,objectId)]).map(field=>[field.id,p.field(field.id,recordId)])),version:record.version,effective:{...p.records.get(recordId)!.access,level:accessLevels[p.recordLevel(recordId)]},canManage:p.recordCapabilities(recordId).full&&Boolean((await sql`SELECT 1 FROM sys_object_types WHERE id=${objectId}::uuid AND state='active'`.execute(tx)).rows.length)};
 }
 export async function recordTable(tx:Executor,id:string){const row=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(tx)).rows[0];if(!row)throw new AppError(400,'Object must be active');return row.name;}
 export async function saveRecordSecurity(tx:Executor,args:{objectTypeId:string;recordId:string;version:number;policy:RecordSecurity;confirmPublic:boolean},actor:string,journal:RecordSecurityJournal):Promise<DataRecord>{
@@ -54,7 +55,7 @@ async function validatePolicy(p:ObjectAccess,recordId:string|undefined,next:Reco
  for(const owner of next.owners){const key=principalKey(owner);if(seen.has(key))throw new AppError(400,'Duplicate owner');seen.add(key);
   if(!eligible.some(e=>principalKey(e)===key)&&!before.owners.some(e=>isDeepStrictEqual(e,owner)))throw new AppError(400,'Owner is not eligible');
  }
- const fields=await contentAccess().fields(p.id),exceptions=new Set<string>();
+ const fields=[...await contentAccess().fields(p.id),...await incidentFields(contentAccess().tx,p.id)],exceptions=new Set<string>();
  for(const rule of next.fields){const key=principalKey(rule);if(exceptions.has(key))throw new AppError(400,'Duplicate field exception principal');exceptions.add(key);
   if(!eligible.some(e=>principalKey(e)===key)&&!isDeepStrictEqual(before.fields.find(item=>principalKey(item)===key),rule))throw new AppError(400,'Invalid field exception principal');
   for(const [id,level] of Object.entries(rule.fields)){if(!fields.some(f=>f.id===id&&f.technical_name!=='access_principals'))throw new AppError(400,'Invalid field exception');const own=p.field(id,recordId);if(!p.admin&&before.fields.find(r=>principalKey(r)===key)?.fields[id]!==level&&accessRank(level)>(own.edit?5:own.read?2:0))throw new AppError(403,'Cannot delegate field capability');}

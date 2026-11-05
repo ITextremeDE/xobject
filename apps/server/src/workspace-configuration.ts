@@ -47,13 +47,14 @@ export async function validateDefinitionLanguages(tx: Executor, operation: strin
   let workspaceId = args.workspaceId as string | undefined;
   let previous: { labels?: Record<string, string>; config?: { options?: { id: string; labels: Record<string, string> }[] }; classification?: { options?: { id: string; labels: Record<string, string> }[] } } | undefined;
   if (operation === 'configure_field' || (operation === 'set_labels' && args.kind === 'field')) {
-    const row = (await sql<typeof previous & { workspace_id: string }>`SELECT f.labels, f.config, f.input_rules, o.workspace_id FROM sys_fields f JOIN sys_object_types o ON o.id = f.object_type_id WHERE f.id = ${args.fieldId ?? args.id}::uuid`.execute(tx)).rows[0];
+    const row = (await sql<typeof previous & { workspace_id: string }>`SELECT f.labels, f.config, f.input_rules, COALESCE(o.workspace_id,r.workspace_id) AS workspace_id FROM sys_fields f LEFT JOIN sys_object_types o ON o.id = f.object_type_id LEFT JOIN sys_relationship_types r ON r.id=f.relationship_type_id WHERE f.id = ${args.fieldId ?? args.id}::uuid`.execute(tx)).rows[0];
     previous = row; workspaceId = row?.workspace_id;
   } else if (args.objectTypeId || (operation === 'set_labels' && args.kind === 'object_type')) {
     const row = (await sql<typeof previous & { workspace_id: string }>`SELECT labels, classification, workspace_id FROM sys_object_types WHERE id = ${args.objectTypeId ?? args.id}::uuid`.execute(tx)).rows[0];
     if (operation !== 'create_field') previous = row;
     workspaceId = row?.workspace_id;
   }
+  if(!workspaceId&&args.relationshipTypeId)workspaceId=(await sql<{workspace_id:string}>`SELECT workspace_id FROM sys_relationship_types WHERE id=${args.relationshipTypeId}::uuid`.execute(tx)).rows[0]?.workspace_id;
   if (!workspaceId) return; // Existing operations retain their precise not-found checks.
   const workspace = (await sql<{ label_languages: string[] }>`SELECT label_languages FROM sys_workspaces WHERE id = ${workspaceId}::uuid`.execute(tx)).rows[0];
   if (!workspace) return;

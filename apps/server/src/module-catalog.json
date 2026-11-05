@@ -530,6 +530,213 @@
             "config": {
               "formatted": true
             }
+          },
+          {
+            "key": "nickname",
+            "technicalName": "nickname",
+            "labels": {
+              "en": "Nickname",
+              "de": "Spitzname"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "languages",
+            "technicalName": "languages",
+            "labels": {
+              "en": "Communication languages",
+              "de": "Kommunikationssprachen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "language_entries",
+              "options": []
+            }
+          },
+          {
+            "key": "messenger_addresses",
+            "technicalName": "messenger_addresses",
+            "labels": {
+              "en": "Messenger addresses",
+              "de": "Messenger-Adressen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "messenger_entries",
+              "options": []
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "xmpp",
+                "labels": {
+                  "en": "XMPP",
+                  "de": "XMPP"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "matrix",
+                "labels": {
+                  "en": "Matrix",
+                  "de": "Matrix"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "signal",
+                "labels": {
+                  "en": "Signal",
+                  "de": "Signal"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "whatsapp",
+                "labels": {
+                  "en": "WhatsApp",
+                  "de": "WhatsApp"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "teams",
+                "labels": {
+                  "en": "Microsoft Teams",
+                  "de": "Microsoft Teams"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "telegram",
+                "labels": {
+                  "en": "Telegram",
+                  "de": "Telegram"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "sip",
+                "labels": {
+                  "en": "SIP",
+                  "de": "SIP"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Andere"
+                },
+                "group": "messenger_type"
+              }
+            ]
+          },
+          {
+            "key": "contact_time_zone",
+            "technicalName": "contact_time_zone",
+            "labels": {
+              "en": "Contact time zone",
+              "de": "Zeitzone des Kontakts"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "time_zone",
+              "options": []
+            }
+          },
+          {
+            "key": "anniversary",
+            "technicalName": "anniversary",
+            "labels": {
+              "en": "Wedding anniversary",
+              "de": "Hochzeitstag"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "partial_date",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "death_date",
+            "technicalName": "death_date",
+            "labels": {
+              "en": "Date of death",
+              "de": "Todestag"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "partial_date",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "job_title",
+            "technicalName": "job_title",
+            "labels": {
+              "en": "Job title",
+              "de": "Position"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "function",
+            "technicalName": "function",
+            "labels": {
+              "en": "Function",
+              "de": "Funktion"
+            },
+            "kind": "multiple_choice",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "department",
+            "technicalName": "department",
+            "labels": {
+              "en": "Department",
+              "de": "Abteilung"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
           }
         ]
       },
@@ -572,7 +779,8 @@
           }
         ]
       }
-    ]
+    ],
+    "templateVersion": 1
   },
   {
     "key": "projects",
@@ -639,7 +847,8 @@
           "category"
         ]
       }
-    ]
+    ],
+    "templateVersion": 1
   },
   {
     "key": "documents",
@@ -670,6 +879,7 @@
         },
         "technicalName": "documents"
       }
-    ]
+    ],
+    "templateVersion": 1
   }
 ]

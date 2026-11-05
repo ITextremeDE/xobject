@@ -1,15 +1,19 @@
 import {uuidSchema} from './identity.js';
 import { z } from 'zod';
+import {fieldValueSchema,type FieldValue} from './field-types.js';
+import type {FieldDefinition} from './index.js';
 import type { ClassificationOption } from './classification.js';
 import type { RelationshipType } from './relationship-types.js';
+export const relationshipAttributeWritesSchema=z.array(z.object({relationshipTypeId:uuidSchema,definitionVersion:z.number().int().positive(),target:z.object({objectTypeId:uuidSchema,recordId:uuidSchema}).strict(),edgeId:uuidSchema.optional(),version:z.number().int().positive().optional(),values:z.record(uuidSchema,fieldValueSchema).refine(values=>Object.keys(values).length<=100,'At most 100 fields per attribute write')}).strict()).max(100);
+export type RelationshipAttributeWrite=z.infer<typeof relationshipAttributeWritesSchema>[number];
 export const recordReferenceSchema = z.object({ objectTypeId: uuidSchema, recordId: uuidSchema }).strict();
 export const relationshipWriteSchema = z.object({ relationshipTypeId: uuidSchema, version: z.number().int().positive(), side: z.enum(['left', 'right']), targets: z.array(recordReferenceSchema).max(1000) }).strict();
 export const relationshipWritesSchema = z.array(relationshipWriteSchema).max(200);
 export type RelationshipWrite = z.infer<typeof relationshipWriteSchema>;
 export type RecordReference = z.infer<typeof recordReferenceSchema>;
-export interface RelatedRecord extends RecordReference { keyword: string; objectTechnicalName: string; objectLabels: Record<string,string>; state: 'active' | 'inactive' }
+export interface RelatedRecord extends RecordReference {edgeId?:string;edgeVersion?:number;attributeValues?:Record<string,FieldValue>;attributeAccess?:Record<string,{read:boolean;edit:boolean}>; keyword: string; objectTechnicalName: string; objectLabels: Record<string,string>; state: 'active' | 'inactive' }
 export interface RelationshipField { editable?:boolean;restricted?:boolean; definition: RelationshipType; side: 'left' | 'right'; targets: RelatedRecord[] }
-export interface RecordRelationship { id: string; definition: RelationshipType; left: RelatedRecord; right: RelatedRecord }
+export interface RecordRelationship { version:number;attributes?:Record<string,FieldValue>;id: string; definition: RelationshipType; left: RelatedRecord; right: RelatedRecord }
 export interface DossierEntry {
   id: string;
   definition: RelationshipType;
