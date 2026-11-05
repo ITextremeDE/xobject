@@ -17,7 +17,7 @@ Move canonical operation input schemas and wire types into `packages/contracts`.
 
 The shell follows the official Sidebar 07 structure; record lists use the Tasks example as a layout reference. Use upstream component styles, variants and theme variables. The initial Radix experiment was switched to Base UI before merging, following the selected common component baseline. Preserve localized labels and unsaved-edit protection when updating generated primitives.
 
-React Router in data mode owns browser history and URL state. Personal settings use `/settings`; workspace Dashboards use `/w/:code`; object lists use `/w/:code/objects/:technicalName`, with an optional record UUID or `new` suffix. Search, sorting and pagination use query parameters. Route blocking preserves the existing discard dialog for internal navigation and Back/Forward; document reload/exit uses the native before-unload guard. The server serves the application shell for known document route patterns while keeping API/MCP and missing asset errors intact.
+React Router in data mode owns browser history and URL state. Personal settings use `/settings`; workspace Dashboards use `/w/:code`; object lists use `/w/:code/objects/:technicalName`, with an optional record UUID or `new` suffix. Search, sorting and pagination use query parameters. Route blocking preserves the existing discard dialog for internal navigation and Back/Forward; document reload/exit uses the native before-unload guard. The server serves the application shell for extensionless browser document routes, including unknown pages handled by the client error view. API/MCP paths, asset paths, file-like paths and non-HTML/non-GET requests retain their error responses.
 
 ## Consequences
 

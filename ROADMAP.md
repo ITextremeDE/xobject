@@ -20,7 +20,7 @@ xObject is in early development. A local application prototype and public projec
 
 Contacts & Relations V1 is locally accepted for Contacts and Distribution lists: three Contact kinds, derived names, single Organization, independent Identities, professional fields, explicit membership, typed history and restricted-user checks. Desktop/mobile forms and German/English labels are verified; the development guide records the evidence. Contact-kind conversion, guided reassignment, duplicate detection/merge, media uploads and exchange are later work.
 
-Field/numbering administration now uses clearer sections, compact previews, direct accessible hints and field-aware validation. Group name and graded memberships share one editor and atomic Save. These are locally verified refinements of the existing capabilities.
+Field/numbering administration now uses clearer sections, compact previews, direct accessible hints and field-aware validation. Record loading shares the loaded page frame; journals retain time/actor context on mobile, generated fields show read-only effective rights, and relationship definitions edit inside the settings frame with guarded focus return. Group name and graded memberships share one editor and atomic Save. These are locally verified refinements of the existing capabilities.
 
 ## Public project introduction
 
