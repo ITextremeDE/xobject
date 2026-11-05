@@ -1,3 +1,4 @@
+import {toast} from '@/components/ui/toast';
 import {WorkspaceLoading} from '@/components/loading';
 import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +19,7 @@ export default function App() {
   const client = useQueryClient();
   useEffect(installKeyboardShortcuts, []);
   const session = useQuery({ queryKey: ['session'], queryFn: getSession, retry: false });
-  function forgetSession() { void client.cancelQueries(); client.removeQueries({ predicate: query => query.queryKey[0] !== 'session' }); client.setQueryData(['session'], null); }
+  function forgetSession() { toast.close(); void client.cancelQueries(); client.removeQueries({ predicate: query => query.queryKey[0] !== 'session' }); client.setQueryData(['session'], null); }
   useEffect(() => {
     window.addEventListener('xobject:session-expired', forgetSession);
     return () => window.removeEventListener('xobject:session-expired', forgetSession);
