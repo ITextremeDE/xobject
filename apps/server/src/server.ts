@@ -116,7 +116,7 @@ export function buildServer(config: Config) {
     app.setNotFoundHandler((request, reply) => {
       const pathname = new URL(request.url, base).pathname;
       // Only application document routes fall back to the shell. Missing API/MCP/assets stay 404.
-      const documentRoute = /^\/(?:settings\/?|w\/[a-z][a-z0-9]*(?:\/recycle-bin|\/objects\/[a-z][a-z0-9_]*(?:\/(?:new|[0-9a-f-]{36}))?)?\/?)$/i.test(pathname);
+      const documentRoute = !/^\/(?:api|mcp|assets)(?:\/|$)/i.test(pathname) && !pathname.includes('.');
       if (request.method === 'GET' && request.headers.accept?.includes('text/html') && documentRoute) {
         return reply.header('Cache-Control', 'no-store').sendFile('index.html', { cacheControl: false });
       }
