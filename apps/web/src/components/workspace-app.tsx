@@ -1,3 +1,6 @@
+import {defaultNavigationLayout} from '@xobject/contracts';
+import {WorkspaceNavigation} from './workspace-navigation';
+import {NavigationDialog} from './navigation-dialog';
 import {linkedCreationSchema} from '@/lib/linked-record';
 import {RecycleBinLoading,WorkspaceLoading,DashboardLoading,RecordPageLoading,RecordListLoading,SettingsLoading} from './loading';
 import {TablePreferencesProvider} from '@/lib/column-preferences';
@@ -15,7 +18,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useBlocker, useLocation, matchPath, useNavigate } from 'react-router';
-import { Trash2Icon, DatabaseIcon, PlusIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
+import { Trash2Icon, PlusIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
 import { type AuthUser } from '@xobject/contracts';
 import { api, signOut } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -67,8 +70,10 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const validRoute = validRecordId && Boolean(recycleRoute || objectRoute || dashboardRoute || location.pathname === '/' || location.pathname === '/settings');
   const [returnAfterAccessLoss,setReturnAfterAccessLoss]=useState(false);
   const [savedRecordId, setSavedRecordId] = useState<string | null>(null);
+  const [navigationOpen,setNavigationOpen]=useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const helpOrigin = useRef<HTMLElement | null>(null);
+  const navigationOrigin=useRef<HTMLElement|null>(null);
   const [dialog, setDialog] = useState<'workspace' | 'object' | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -80,6 +85,9 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const language = effectiveWorkspaceLanguage(user.language, workspace?.available_languages ?? languageCodes, workspace?.default_language ?? 'en');
   useEffect(() => { if(workspaces.isSuccess)void i18n.changeLanguage(language); }, [i18n, language,workspaces.isSuccess]);
   const types = useQuery({ queryKey: ['types', workspace?.id, user.id, language], queryFn: async () => (await api('list_object_types', { workspaceId: workspace!.id, includeInactive: true })).sort((a,b)=>new Intl.Collator(language,{sensitivity:'base'}).compare(a.label,b.label)||a.id.localeCompare(b.id)), enabled: Boolean(workspace) });
+  const navigationSettings=useQuery({queryKey:['workspace-navigation',workspace?.id,user.id,language],queryFn:()=>api('get_workspace_navigation',{workspaceId:workspace!.id}),enabled:Boolean(workspace)});
+  useEffect(()=>{if(types.isSuccess&&navigationSettings.data)void queryClient.invalidateQueries({queryKey:['workspace-navigation',workspace?.id]});},[types.dataUpdatedAt,workspace?.id]);
+  const navigationLayout=navigationSettings.data?.personal.layout??navigationSettings.data?.workspace.layout??defaultNavigationLayout();
   const selectedType = view === 'records' ? types.data?.find(type => type.technicalName === objectRoute?.params.name) : undefined;
   const dashboardPath = workspace ? `/w/${workspace.code}` : '/';
   const objectPath = selectedType ? `${dashboardPath}/objects/${selectedType.technicalName}` : dashboardPath;
@@ -88,7 +96,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const blocker = useBlocker(({ currentLocation, nextLocation }) => (busy || dirty) && (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search));
   useEffect(() => { if (busy && blocker.state === 'blocked') blocker.reset(); }, [busy, blocker]);
   useEffect(() => { if (location.pathname === '/' && workspace) void routeNavigate(dashboardPath, { replace: true }); }, [location.pathname, workspace, dashboardPath, routeNavigate]);
-  useEffect(() => { setOpenMobile(false); setDialog(null); }, [location.pathname, setOpenMobile]);
+  useEffect(() => { setOpenMobile(false); setDialog(null);setNavigationOpen(false); }, [location.pathname, setOpenMobile]);
   useEffect(() => {
     if (savedRecordId && !busy && !dirty) {
       if (recordId === 'new') void routeNavigate(`${objectPath}/${savedRecordId}${location.search}`, { replace: true, state:{...location.state,linkedCreation:undefined} });
@@ -113,13 +121,13 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   }
   function navigateSidebar(path: string) {
     if (busy) return;
-    if (location.pathname !== path) { void routeNavigate(path); return; }
+    if (`${location.pathname}${location.search}` !== path) { void routeNavigate(path); return; }
     navigate(() => {
       setOpenMobile(false);
       // Re-read this view's data without replacing the document, URL or history entry.
       void queryClient.invalidateQueries({ predicate: ({ queryKey }) =>
         (queryKey[0] === 'workspaces' && queryKey[1] === user.id) ||
-        (queryKey[0] === 'types' && queryKey[1] === workspace?.id) ||
+        (['types','workspace-navigation'].includes(String(queryKey[0])) && queryKey[1] === workspace?.id) ||
         (['dashboard', 'workspace-records','recycled-records'].includes(String(queryKey[0])) && queryKey[1] === workspace?.id) ||
         (selectedType && ['definition', 'records'].includes(String(queryKey[0])) && queryKey[1] === selectedType.id) === true,
       });
@@ -188,19 +196,16 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
         <SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem>
           <SidebarMenuButton isActive={view === 'dashboard'} tooltip={t('dashboard')} disabled={busy} onClick={() => navigateSidebar(dashboardPath)}><LayoutDashboardIcon /><span>{t('dashboard')}</span></SidebarMenuButton>
         </SidebarMenuItem><SidebarMenuItem><SidebarMenuButton isActive={view==='recycle-bin'} tooltip={t('recycleBin')} disabled={busy||!workspace} onClick={()=>navigateSidebar(`${dashboardPath}/recycle-bin`)}><Trash2Icon/><span>{t('recycleBin')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>
-        <SidebarGroup><SidebarGroupLabel>{t('objects')}</SidebarGroupLabel><SidebarGroupContent>
-          {types.isPending && workspace ? <Loading variant="sidebar"/> : types.isError ? <ErrorNotice error={types.error} retry={() => { void types.refetch(); }} /> : <SidebarMenu className="gap-1">{types.data?.filter(type => (type.permissions?.read===true||type.permissions?.create===true)&&(!type.state || type.state === 'active')).map(type => <SidebarMenuItem key={type.id}>
-            <SidebarMenuButton isActive={selectedType?.id === type.id} onClick={() => navigateSidebar(`${dashboardPath}/objects/${type.technicalName}`)} tooltip={type.label} disabled={busy}><DatabaseIcon /><span>{type.label}</span></SidebarMenuButton>
-          </SidebarMenuItem>)}</SidebarMenu>}
-          {canManage ? <SidebarMenu className="mt-2"><SidebarMenuItem><SidebarMenuButton data-definition-trigger="object" tooltip={t('newObject')} disabled={!workspace || busy} onClick={() => navigate(() => { setOpenMobile(false); setDialog('object'); })}><PlusIcon /><span>{t('newObject')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu> : null}
-        </SidebarGroupContent></SidebarGroup>
-        <SidebarGroup className="mt-auto"><SidebarGroupLabel>{t('resources')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">{resourceLinks.map(item => <SidebarMenuItem key={item.label}><SidebarMenuButton tooltip={t('resourceNewTab', { name: t(item.label) })} aria-label={t('resourceNewTab', { name: t(item.label) })} render={<a href={item.href} target="_blank" rel="noopener noreferrer" />} onClick={() => setOpenMobile(false)}><item.icon /><span>{t(item.label)}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+        {workspace?(navigationSettings.isPending?<Loading variant="sidebar"/>:navigationSettings.isError?<ErrorNotice error={navigationSettings.error} retry={()=>{void navigationSettings.refetch();}}/>:<WorkspaceNavigation settings={navigationSettings.data} layout={navigationLayout} workspaceCode={workspace.code} selectedObjectId={selectedType?.id} recordId={recordId} search={location.search} disabled={busy} onNavigate={navigateSidebar}/>):null}
+        {canManage?<SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem><SidebarMenuButton data-definition-trigger="object" tooltip={t('newObject')} disabled={!workspace||busy} onClick={()=>navigate(()=>{setOpenMobile(false);setDialog('object');})}><PlusIcon/><span>{t('newObject')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>:null}
+        {workspace&&navigationSettings.isPending?<div className="mt-auto"><Loading variant="sidebar"/></div>:(!workspace||navigationSettings.isSuccess)&&navigationLayout.resources?<SidebarGroup className="mt-auto"><SidebarGroupLabel>{t('resources')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">{resourceLinks.map(item => <SidebarMenuItem key={item.label}><SidebarMenuButton size="sm" tooltip={t('resourceNewTab', { name: t(item.label) })} aria-label={t('resourceNewTab', { name: t(item.label) })} render={<a href={item.href} target="_blank" rel="noopener noreferrer" />} onClick={() => setOpenMobile(false)}><item.icon /><span>{t(item.label)}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup>:null}
       </SidebarContent>
       <SidebarFooter>
 
-        <SidebarMenu><SidebarMenuItem><UserMenu placement="sidebar" user={user} busy={busy} signingOut={logout.isPending} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} /></SidebarMenuItem></SidebarMenu></SidebarFooter>
+        <SidebarMenu><SidebarMenuItem><UserMenu placement="sidebar" user={user} busy={busy} signingOut={logout.isPending} onNavigation={workspace?(origin)=>{if(!dirty&&!busy){navigationOrigin.current=origin;setOpenMobile(false);setNavigationOpen(true);}}:undefined} navigationDisabled={dirty||navigationSettings.isPending||navigationSettings.isError} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} /></SidebarMenuItem></SidebarMenu></SidebarFooter>
       <SidebarRail aria-label={t('navigation')} title={t('navigation')} />
     </Sidebar>
+    {navigationOpen&&workspace&&navigationSettings.data?<NavigationDialog finalFocus={()=>navigationOrigin.current?.getClientRects().length?navigationOrigin.current:document.querySelector<HTMLElement>('[data-user-menu="header"]')??true} key={workspace.id} settings={navigationSettings.data} workspaceId={workspace.id} onClose={()=>{setNavigationOpen(false);setDirty(false);}} onDirtyChange={setDirty} onBusyChange={setBusy}/>:null}
     <SidebarInset className="min-w-0">
       <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-4">
@@ -215,7 +220,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
 
           <Button variant="outline" size="icon-lg" disabled aria-label={t('notificationsSoon')} title={t('notificationsSoon')}><BellIcon /></Button>
           <ThemeDropdown />
-          <UserMenu placement="header" user={user} busy={busy} signingOut={logout.isPending} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} />
+          <UserMenu placement="header" user={user} busy={busy} signingOut={logout.isPending} onNavigation={workspace?(origin)=>{if(!dirty&&!busy){navigationOrigin.current=origin;setOpenMobile(false);setNavigationOpen(true);}}:undefined} navigationDisabled={dirty||navigationSettings.isPending||navigationSettings.isError} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} />
         </div>
       </header>
       <main className="flex min-w-0 flex-1 flex-col gap-4 p-4 pt-0">

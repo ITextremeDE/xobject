@@ -36,7 +36,7 @@ export function CustomFieldControl({ field, value, workspaceId, objectTypeId, di
   const string = typeof value === 'string' ? value : '';
   const changeInput=(next:string)=>onChange(next||null);
   if(field.kind==='structured')return <StructuredFieldControl legendVariant={legendVariant} field={field} value={value} disabled={disabled} onChange={onChange} error={error}/>;
-  if(field.kind==='date'||field.kind==='datetime')return <Suspense fallback={<TemporalFieldSkeleton label={`${field.label}${field.required?' *':''}`} datetime={field.kind==='datetime'}/>}><RegionalTemporalField field={field} value={value} disabled={disabled} onChange={onChange}/></Suspense>;
+  if(field.kind==='date'||field.kind==='datetime')return <Suspense fallback={<TemporalFieldSkeleton label={`${field.label}${field.required?' *':''}`} datetime={field.kind==='datetime'}/>}><RegionalTemporalField field={field} value={value} disabled={disabled} onChange={onChange} error={error}/></Suspense>;
   if (field.kind === 'reference') return <ReferenceControl field={field} value={value} workspaceId={workspaceId} objectTypeId={objectTypeId} error={error} disabled={disabled} onChange={onChange} />;
   if (field.kind === 'multiple_choice') {
     const ids = Array.isArray(value) ? value as string[] : [];

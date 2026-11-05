@@ -1,3 +1,4 @@
+import {RecordIcon} from './record-icon';
 import {useColumnPreferences} from '@/lib/column-preferences';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +25,7 @@ export function RecordDossier({data,workspaceCode}:{data:RecordRelationships;rec
   const columns:RecordColumn<DossierRow>[]=[
     {key:'relationship',label:t('relationshipType'),cell:row=>row.relationship},
     {key:'object',label:t('objectSingular'),cell:row=>row.object},
-    {key:'keyword',label:t('keyword'),required:true,cell:row=><Button type="button" variant="link" className="max-w-80 justify-start truncate px-0" nativeButton={false} render={<Link to={path(row)}/>}>{row.keyword}</Button>},
+    {key:'keyword',label:t('keyword'),required:true,cell:row=><Button type="button" variant="link" className="max-w-80 justify-start truncate px-0" nativeButton={false} render={<Link to={path(row)}/>}><RecordIcon iconKey={row.iconKey} objectLabel={row.object}/><span className="truncate">{row.keyword}</span></Button>},
     {key:'type',label:t('classificationType'),cell:row=>row.type},
     {key:'status',label:t('classificationStatus'),cell:row=>row.status},
     {key:'category',label:t('classificationCategory'),cell:row=>row.category},

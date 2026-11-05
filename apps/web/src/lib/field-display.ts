@@ -1,4 +1,4 @@
-import {postalAddressLines,type StructuredEntry,structuredSummary,defaultRegionalSettings,type RegionalSettings,type FieldDefinition,type FieldPrincipal,type MoneyValue,type ReferenceValue} from '@xobject/contracts';
+import {temporalSchema,temporalInstant,postalAddressLines,type StructuredEntry,structuredSummary,defaultRegionalSettings,type RegionalSettings,type FieldDefinition,type FieldPrincipal,type MoneyValue,type ReferenceValue} from '@xobject/contracts';
 import type {TFunction} from 'i18next';
 import {formatRegionalDate,formatRegionalNumber,formatRegionalMoney} from './regional';
 const optionName=(labels:Record<string,string>,language:string)=>labels[language]??labels.en??labels.de??Object.values(labels)[0]??'—';
@@ -6,6 +6,7 @@ const optionName=(labels:Record<string,string>,language:string)=>labels[language
 export function displayFieldValue(field: Pick<FieldDefinition,'kind'|'config'>, value: unknown, language: string, t: TFunction, principals: FieldPrincipal[] = [], timeZone = 'UTC', regional: RegionalSettings = defaultRegionalSettings): string {
   if (value === null || value === undefined || value === '') return '—';
   if(field.kind==='structured'){
+    if(field.config.schema==='temporal'){const p=temporalSchema.parse(value);return p.kind==='date'?formatRegionalDate(p.date,regional,timeZone,false,true):formatRegionalDate(temporalInstant(p),regional,p.kind==='zoned'?p.timeZone:timeZone,true)+(p.kind==='zoned'?` · ${p.timeZone}`:'');}
     if(field.config.schema==='address_entries')return (value as Extract<StructuredEntry,{address:unknown}>[]).map(entry=>postalAddressLines(entry.address,t('structured_poBox')).join('\n')).join('\n\n')||'—';
     if(field.config.schema==='partial_date'){
       const date=value as {year:number|null;month:number;day:number},month=String(date.month).padStart(2,'0'),day=String(date.day).padStart(2,'0');

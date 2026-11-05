@@ -1,3 +1,4 @@
+import {RecordIcon} from './record-icon';
 import { Fragment, useEffect, useId, useState, type KeyboardEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
@@ -66,7 +67,7 @@ function TreeNode({record,hasChildren,root=false,via,workspaceCode,depth,path,no
   return <Collapsible open={open&&canExpand} onOpenChange={setOpen} render={<li/>} role="treeitem" id={nodeId} aria-label={`${record.keyword} · ${label(record.objectLabels)}${via?` · ${label(via.sideLabels)}`:''}${repeated?` · ${t('treeRepeated')}`:''}`} aria-expanded={canExpand?open:undefined} aria-level={depth+1} aria-posinset={position} aria-setsize={total} tabIndex={activeId===nodeId?0:-1} onFocus={event=>{event.stopPropagation();setActive(nodeId);}} onKeyDown={keyboard} className="min-w-0 rounded-md outline-none [&:focus-visible>div:first-child]:ring-2 [&:focus-visible>div:first-child]:ring-ring">
     <div className="flex min-w-48 items-start gap-2 rounded-md p-1">
       {canExpand?<CollapsibleTrigger tabIndex={-1} aria-label={t(open?'collapseTreeRecord':'expandTreeRecord',{name:record.keyword})} render={<Button type="button" variant="ghost" size="icon-sm"/>}><ChevronRightIcon className={cn('transition-transform',open&&'rotate-90')}/></CollapsibleTrigger>:<span aria-hidden="true" className="size-8 shrink-0"/>}
-      <div className="flex min-w-0 flex-1 flex-col gap-1 py-1">{root?<span className="font-medium wrap-anywhere">{record.keyword}</span>:<Button type="button" variant="link" tabIndex={-1} className="h-auto w-fit max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere" render={<Link to={recordPath(workspaceCode,record)}/>}>{record.keyword}</Button>}
+      <RecordIcon iconKey={record.iconKey} objectLabel={label(record.objectLabels)}/><div className="flex min-w-0 flex-1 flex-col gap-1 py-1">{root?<span className="font-medium wrap-anywhere">{record.keyword}</span>:<Button type="button" variant="link" tabIndex={-1} className="h-auto w-fit max-w-full justify-start px-0 text-left whitespace-normal wrap-anywhere" render={<Link to={recordPath(workspaceCode,record)}/>}>{record.keyword}</Button>}
         <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{label(record.objectLabels)}</span>{via?<Badge variant="secondary">{label(via.labels)}</Badge>:null}{record.state==='inactive'?<Badge variant="outline">{t('definition_inactive')}</Badge>:null}{repeated?<Badge variant="outline">{t('treeRepeated')}</Badge>:null}{depthLimit&&hasChildren?<span className="text-xs text-muted-foreground">{t('treeDepthLimit')}</span>:null}</div>
       </div>
     </div>

@@ -48,3 +48,17 @@ test('Contact loading uses semantic controller values and read permissions for e
  const ids=(kind:string)=>recordLoadingModel(contactLoadingDefinition,{renamed_kind:kind}).fields.map(f=>f.id);
  assert.deepEqual(ids('ap'),['kind','professional']);assert.deepEqual(ids('org'),['kind','company']);assert.deepEqual(ids('ek'),['kind','company','professional']);
 });
+
+test('known record loading keeps paired group widths and reserves date/time controls for temporal fields',async()=>{
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{date:'Date',time:'Time'}}}});
+ const fields=[{id:'number',technicalName:'business_number',label:'Number',kind:'text',config:{}},{id:'start',technicalName:'start',label:'Start',kind:'structured',config:{schema:'temporal'}}];
+ const definition={fields,formRelationships:[],formLayouts:{default:{groups:[{id:'details',labels:{en:'Details'},width:'half',fields:[{fieldId:'number',width:'full'}]},{id:'schedule',labels:{en:'Schedule'},width:'half',fields:[{fieldId:'start',width:'full'}]}]}}} as any;
+ const render=(values?:Record<string,any>)=>renderToStaticMarkup(createElement(I18nextProvider,{i18n},createElement(RecordPageLoading,{definition,values})));
+ const html=render();
+ // Both surfaces must share one two-column grid instead of separate full-width grids.
+ assert.match(html,/grid min-w-0 items-start gap-6 md:grid-cols-2/);
+ assert.equal((html.match(/data-slot="field-legend"/g)??[]).length,2);
+ assert.match(html,/>Date</);assert.match(html,/>Time</);
+ const allDay=render({start:{kind:'date',date:'2026-11-05'}});
+ assert.doesNotMatch(allDay,/>Time</,'a known all-day value reserves only its date input');
+});

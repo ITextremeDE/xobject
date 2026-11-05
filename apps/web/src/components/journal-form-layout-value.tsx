@@ -9,7 +9,7 @@ export function JournalFormLayoutValue({value,context}:{value:unknown;context:Jo
   const parsed=formLayoutSchema.safeParse(value);if(!parsed.success)return null;
   const groups=formSnapshotGroups(parsed.data,context,i18n.language,t);
   return <div className="flex flex-col gap-4">
-    {groups.map(group=><FieldSet key={group.id} className="gap-2"><FieldLegend variant="label" className="mb-0">{group.label}</FieldLegend>{!group.entries.length?<FieldDescription>{t('formGroupEmpty')}</FieldDescription>:<ol className="flex flex-col gap-3">{group.entries.map(entry=><li key={entry.key} className="flex flex-col gap-1"><span>{entry.label}</span><span className="flex flex-wrap gap-1">{entry.settings.map(setting=><Badge key={setting} variant="outline">{setting}</Badge>)}</span></li>)}</ol>}</FieldSet>)}
+    {groups.map(group=><FieldSet key={group.id} className="gap-2"><FieldLegend variant="label" className="mb-0">{group.label}</FieldLegend>{group.width?<Badge variant="outline">{t(group.width==='half'?'formHalf':'formFull')}</Badge>:null}{!group.entries.length?<FieldDescription>{t('formGroupEmpty')}</FieldDescription>:<ol className="flex flex-col gap-3">{group.entries.map(entry=><li key={entry.key} className="flex flex-col gap-1"><span>{entry.label}</span><span className="flex flex-wrap gap-1">{entry.settings.map(setting=><Badge key={setting} variant="outline">{setting}</Badge>)}</span></li>)}</ol>}</FieldSet>)}
     {!groups.length?<FieldDescription>{t('formSnapshotNoGroups')}</FieldDescription>:null}
   </div>;
 }

@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {uuidSchema,linkedRecordSourceSchema,oppositeRelationshipSide,type RelationshipField,type RecordLinkOption} from '@xobject/contracts';
-export const linkedCreationSchema=z.object({targetObjectTypeId:uuidSchema,linkFrom:linkedRecordSourceSchema,source:z.object({objectTypeId:uuidSchema,recordId:uuidSchema,keyword:z.string().max(200),objectTechnicalName:z.string().regex(/^[a-z][a-z0-9_]*$/),objectLabels:z.record(z.string(),z.string()),state:z.enum(['active','inactive'])}),labels:z.record(z.string(),z.string())});
+export const linkedCreationSchema=z.object({targetObjectTypeId:uuidSchema,linkFrom:linkedRecordSourceSchema,source:z.object({objectTypeId:uuidSchema,recordId:uuidSchema,keyword:z.string().max(200),objectTechnicalName:z.string().regex(/^[a-z][a-z0-9_]*$/),objectLabels:z.record(z.string(),z.string()),iconKey:z.enum(['object','contact','organization','person','individual','distribution_list','project','case','task']).optional(),state:z.enum(['active','inactive'])}),labels:z.record(z.string(),z.string())});
 export type LinkedCreation=z.infer<typeof linkedCreationSchema>;
 export function seedLinkedFields(fields:RelationshipField[],context?:LinkedCreation):RelationshipField[]{
  if(!context)return fields;

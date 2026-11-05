@@ -1,5 +1,5 @@
 import { ChevronDownIcon } from 'lucide-react';
-import { journalSecurityValue,journalLifecycleValue,journalEntityLabel, journalEntryTitle, journalPropertyLabel } from '@/lib/journal-presentation';
+import { journalTaskStateValue,journalSecurityValue,journalLifecycleValue,journalEntityLabel, journalEntryTitle, journalPropertyLabel } from '@/lib/journal-presentation';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {formLayoutSchema,type SystemJournalEntry} from '@xobject/contracts';
@@ -16,6 +16,7 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
   const { t, i18n } = useTranslation();
   const regional = useRegional(), timeZone = useTimeZone();
   function value(item: unknown, key = entry.field_key, depth = 0): ReactNode {
+    const taskState=journalTaskStateValue(entry,item,t);if(taskState!==undefined)return taskState;
     const security=journalSecurityValue(entry,item,t);if(security!==undefined)return security;
     const lifecycle=journalLifecycleValue(entry,item,t);if(lifecycle!==undefined)return lifecycle;
     if(entry.field_key.startsWith('form_layout.')&&formLayoutSchema.safeParse(item).success)return <JournalFormLayoutValue value={item} context={entry.form_layout_context}/>;

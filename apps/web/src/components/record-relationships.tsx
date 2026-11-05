@@ -1,3 +1,4 @@
+import {RecordIcon} from './record-icon';
 import {RelationshipAttributes} from './relationship-attributes';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from '@/components/ui/collapsible';
 import {PrimaryAssociationFields} from './primary-association-fields';
@@ -59,7 +60,7 @@ function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, 
     {single && field.targets.length <= 1 ? <>
       <FieldLabel id={`${id}-title`} htmlFor={id}>{fieldLabel}</FieldLabel>
       <InputGroup>
-        <InputGroupInput id={id} readOnly disabled={disabled} value={target?.keyword ?? ''} title={target?.keyword} placeholder={t('noSelection')} aria-required={required || undefined} aria-invalid={invalid || undefined} aria-describedby={invalid ? `${id}-error` : undefined}/>
+        {target?<InputGroupAddon><RecordIcon iconKey={target.iconKey} objectLabel={label(target.objectLabels)}/></InputGroupAddon>:null}<InputGroupInput id={id} readOnly disabled={disabled} value={target?.keyword ?? ''} title={target?.keyword} placeholder={t('noSelection')} aria-required={required || undefined} aria-invalid={invalid || undefined} aria-describedby={invalid ? `${id}-error` : undefined}/>
         <InputGroupAddon align="inline-end" className="shrink-0 gap-0.5 has-[>button]:mr-0">
           {editable ? <InputGroupButton id={`${id}-choose`} size="icon-xs" disabled={disabled} title={t(target ? 'relationshipChange' : 'relationshipChoose')} aria-label={chooseLabel} onClick={() => setPickerOpen(true)}>{target ? <PencilIcon/> : <Link2Icon/>}</InputGroupButton> : null}
           {target ? <InputGroupButton size="icon-xs" disabled={disabled} nativeButton={false} title={t('openRecord')} aria-label={t('relationshipOpenRecord', {name: target.keyword})} render={<Link to={path(target)}/>}><ArrowUpRightIcon/></InputGroupButton> : null}
@@ -79,7 +80,7 @@ function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, 
           if (event.target instanceof Element && event.target.closest('a, button, input, label')) return;
           void navigate(path(target));
         }}>
-          <TableCell className="truncate"><Button type="button" variant="link" className="h-auto max-w-full justify-start px-0" disabled={disabled} nativeButton={false} render={<Link to={path(target)} />} title={target.keyword}><span className="truncate">{target.keyword}</span></Button></TableCell>
+          <TableCell className="truncate"><Button type="button" variant="link" className="h-auto max-w-full justify-start px-0" disabled={disabled} nativeButton={false} render={<Link to={path(target)} />} title={target.keyword}><RecordIcon iconKey={target.iconKey} objectLabel={label(target.objectLabels)}/><span className="truncate">{target.keyword}</span></Button></TableCell>
           <TableCell className="truncate" title={label(target.objectLabels)}>{label(target.objectLabels)}{target.state === 'inactive' ? <Badge variant="outline" className="ml-2">{t('definition_inactive')}</Badge> : null}</TableCell>
           <TableCell><div className="flex items-center justify-end">{controls(target)}</div></TableCell>
         </TableRow>)}
