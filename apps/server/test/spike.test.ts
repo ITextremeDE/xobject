@@ -1643,33 +1643,37 @@ test('journal read context resolves current localized names without exposing rec
 test('fictional demo fixtures use validated fields, canonical field order and actual idempotent demo relationships', async () => {
   const { seedDemoData } = await import('../src/demo-data.js');
   const result = await seedDemoData(runtime.db, adminId, 'demofixture');
-  assert.deepEqual(Object.keys(result.objects), ['contacts', 'projects', 'cases', 'tasks', 'vehicles', 'distribution_lists', 'contracts', 'devices', 'access_checks']);
+  assert.deepEqual(Object.keys(result.objects), ['contacts', 'projects', 'cases', 'tasks', 'mobile_workshops', 'distribution_lists', 'support_packages', 'workshop_tools', 'access_checks']);
   assert.equal(Object.values(result.records).flat().length, 74);
   for (const [name, model] of Object.entries(result.objects)) {
     const definition = await ok('get_object_type', { objectTypeId: model.id });
     for (const field of definition.fields.filter((f:any) => f.kind === 'multiline')) {
       if (name === 'distribution_lists' && field.technicalName === 'description') {
-        assert.equal(field.config.formatted, false);
-        const description = result.records[name][0].description;
-        assert.ok(typeof description === 'string');
-        assert.equal(description.split('\n').length, 3);
-        continue;
+        assert.equal(field.config.formatted,false);assert.equal(String(result.records[name][0].description).split('\n').length,3);continue;
       }
-      assert.equal(field.config.formatted, true);
-      for (const row of result.records[name]) {
-        const text = row[field.technicalName];
-        assert.ok(typeof text === 'string');
-        assert.match(text, /### Working notes/);
-        assert.match(text, /\(John Doe\) -----\n/);
-        assert.match(text, /\(Jane Doe\) -----\n/);
-        assert.ok(text.length > 350);
+      assert.equal(field.config.formatted,true);
+      for(const row of result.records[name]){
+        const text=row[field.technicalName];assert.ok(typeof text==='string');
+        if(field.technicalName==='notes'||field.technicalName.endsWith('_notes')){
+          assert.match(text,/\(John Doe\) -----\n/);assert.match(text,/\(Jane Doe\) -----\n/);assert.match(text,/\(James Doe\) -----\n/);assert.doesNotMatch(text,/^#{1,6}\s/m);
+          if(typeof row.description==='string')assert.notEqual(text,row.description);
+        }else if(field.technicalName==='description'){
+          assert.match(text,/^## /);assert.match(text,/```text/);assert.match(text,/> /);assert.match(text,/\[Example reference\]\(https:\/\/example.org\/\)/);assert.doesNotMatch(text,/-----.*Doe/);
+        }
       }
     }
     const expected=['id','created_at','created_by','updated_at','updated_by','version',...(name==='contacts'?[]:['keyword']),'type','status','category'];
     assert.deepEqual(definition.columns.slice(0,expected.length),expected);
     assert.ok(definition.fields.find((field: { technicalName: string; required: boolean }) => field.technicalName === 'keyword').required);
     assert.equal((await ok('list_records', { objectTypeId: model.id, limit: 100 })).total, result.records[name].length);
-    if(name!=='contacts'){const groups=definition.formLayouts.default.groups;assert.equal(groups[0].labels.en,'General');assert.ok(groups.find((g:any)=>g.labels.en==='Classification'));const primary=groups.findIndex((g:any)=>g.labels.en==='Primary association');if(primary>=0)assert.ok(primary<groups.findIndex((g:any)=>g.labels.en==='Classification'));assert.ok(groups[0].fields.some((e:any)=>e.fieldId===definition.fields.find((f:any)=>f.technicalName==='keyword').id));if(name==='vehicles'||name==='distribution_lists')assert.equal(groups.at(-1).labels.en,'Notes');assert.ok(!groups[0].fields.some((e:any)=>definition.fields.some((f:any)=>f.id===e.fieldId&&['type','status','category','notes'].includes(f.technicalName))));}
+    const groups=definition.formLayouts.default.groups;
+    if(name==='projects'||name==='cases'){
+      assert.ok(groups.find((g:any)=>g.id===(name==='projects'?'project_details':'case_details')));assert.ok(groups.find((g:any)=>g.id==='schedule'));assert.equal(groups.at(-1).labels.en,'Notes');
+    }
+    if(name==='workshop_tools')assert.ok(groups.some((g:any)=>g.id==='inventory'&&g.width==='half'));
+    if(name==='support_packages')assert.ok(groups.some((g:any)=>g.id==='service_terms'));
+    if(name==='mobile_workshops')assert.ok(groups.some((g:any)=>g.id==='operation'));
+
   }
   assert.ok(result.objects.distribution_lists.numbering);assert.equal(result.objects.distribution_lists.numbering.enabled,false);assert.ok(!result.objects.distribution_lists.fields.some((f:any)=>f.technicalName==='business_number'));
   const identities = new Map(Object.entries(result.records).flatMap(([name, rows]) => rows.map(row => [row.id, result.objects[name].id])));
@@ -1681,7 +1685,7 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   }
   assert.ok(result.records.tasks.some(row => !primaryChildren.has(row.id)), 'Standalone task is retained');
   assert.ok(result.records.projects.some(row => !primaryChildren.has(row.id)), 'Project without a contact is retained');
-  assert.ok((await journalEntries({ objectTypeId: result.objects.tasks.id, recordId: result.records.tasks[0].id })).some((entry: { old_value: unknown; new_value: unknown }) => entry.old_value === '1' && entry.new_value === '2.5'));
+  assert.ok((await journalEntries({ objectTypeId: result.objects.tasks.id, recordId: result.records.tasks[0].id })).some((entry: { old_value: unknown; new_value: unknown }) => entry.old_value === '0' && entry.new_value === '25'));
   const edgeCount=(await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count;
   assert.equal(edgeCount,54);
   const {connectDemoRelationships}=await import('../src/demo-data.js');
@@ -1689,6 +1693,8 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count,54);
   const workspace=(await ok('list_workspaces',{})).find((item:any)=>item.id===result.workspaceId);
   assert.equal(workspace.default_language,'en');
+  const modules=await ok('list_workspace_modules',{workspaceId:result.workspaceId});assert.ok(modules.filter((m:any)=>m.available).every((m:any)=>m.enabled));assert.ok(modules.filter((m:any)=>!m.available).every((m:any)=>!m.enabled));
+  const navigation=await ok('get_workspace_navigation',{workspaceId:result.workspaceId});assert.equal(navigation.workspace.layout,null);assert.equal(navigation.personal.layout,null);
   assert.deepEqual(workspace.available_languages,['de','en']);
   assert.deepEqual(result.accounts.map(account=>[account.name,account.role]),[['Jane Doe','designer'],['James Doe','user']]);
   const kinds = new Set<string>();
@@ -1699,6 +1705,8 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
     for(const item of model.fields)if(item.state==='active')kinds.add(item.kind);
   }
   for(const kind of (await import('@xobject/contracts')).customFieldKinds)assert.ok(kinds.has(kind),`Demo covers ${kind}`);
+  const customKinds=new Set(['mobile_workshops','support_packages','workshop_tools','access_checks'].flatMap(name=>result.objects[name].fields.filter((f:any)=>f.state==='active').map((f:any)=>f.kind)));
+  for(const kind of (await import('@xobject/contracts')).customFieldKinds)assert.ok(customKinds.has(kind),`Custom demo covers ${kind}`);
   const {Application}=await import('../src/domain.js');const app=new Application(runtime.db);
   // Exercise the real initial-password change gate before assessing role/content differences.
   for(const account of result.accounts) {
@@ -1715,10 +1723,10 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
     else {const actual=await app.execute('get_record',{objectTypeId:result.objects.access_checks.id,recordId:row.id},member.id) as any;assert.equal(actual.permissions.edit,['edit','delete','full'].includes(level));assert.equal(actual.permissions.full,level==='full');assert.equal(actual.permissions.delete,['delete','full'].includes(level));assert.equal(actual.permissions.duplicate,level!=='read');assert.equal(actual.permissions.schedule,['schedule','edit','delete','full'].includes(level));}
   }
   for(const privacy of ['personal','confidential'])await assert.rejects(app.execute('get_record',{objectTypeId:result.objects.access_checks.id,recordId:result.records.access_checks.find(row=>row.keyword===`Privacy – ${privacy}`)!.id},member.id));
-  const contract=await app.execute('get_record',{objectTypeId:result.objects.contracts.id,recordId:result.records.contracts[0].id},member.id) as any;
+  const contract=await app.execute('get_record',{objectTypeId:result.objects.support_packages.id,recordId:result.records.support_packages[0].id},member.id) as any;
   assert.equal(contract.internal_notes,undefined);
-  await assert.rejects(app.execute('create_field',{objectTypeId:result.objects.devices.id,technicalName:'forbidden',labels:{en:'Forbidden'}},member.id));
-  const designerField=await app.execute('create_field',{objectTypeId:result.objects.devices.id,technicalName:'designer_test',labels:{en:'Designer test',de:'Gestaltertest'}},designer.id) as any;assert.ok(designerField.id);
+  await assert.rejects(app.execute('create_field',{objectTypeId:result.objects.workshop_tools.id,technicalName:'forbidden',labels:{en:'Forbidden'}},member.id));
+  const designerField=await app.execute('create_field',{objectTypeId:result.objects.workshop_tools.id,technicalName:'designer_test',labels:{en:'Designer test',de:'Gestaltertest'}},designer.id) as any;assert.ok(designerField.id);
   await app.execute('set_definition_state',{kind:'field',id:designerField.id,expectedState:'active',state:'deleted',confirm:true},designer.id);
   await assert.rejects(seedDemoData(runtime.db, adminId, 'demofixture'), /already exists/);
   assert.equal((await api('list_records', { objectTypeId: result.objects.contacts.id }, userCookie)).statusCode, 403);
@@ -3166,7 +3174,7 @@ test('unique input errors identify only the field and context while global searc
 });
 
 test('structured contact fields share API/MCP, field permissions, safe conversion, versions and atomic history',async()=>{
- const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,9);
+ const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,10);
  const ws=await ok('create_workspace',{name:'Structured contacts',code:'structuredcontacts'});
  const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'people',labels:{en:'People',de:'Personen'},standardFields:['keyword']});
  const names=await ok('create_field',{objectTypeId:object.id,technicalName:'given_names',labels:{en:'Given names',de:'Vornamen'},kind:'structured',config:{schema:'name_components'}});
@@ -3524,4 +3532,164 @@ test('CRM acceptance keeps Distribution membership explicit, independent, rights
  const retained=(await ok('get_record_relationships',{objectTypeId:listId,recordId:list.id})).dossier;assert.equal(retained.length,3);assert.ok(JSON.stringify(retained).includes(hidden.id));assert.equal((await ok('get_record',{objectTypeId:id,recordId:org.id})).keyword,'Visible Organization');
  const journal=await journalEntries({objectTypeId:listId,recordId:list.id});assert.ok(journal.some((e:any)=>e.entity_kind==='relationship'));
  assert.equal((await ok('get_record',{objectTypeId:listId,recordId:list.id})).description,'One\nTwo\nThree');assert.deepEqual((await ok('get_record',{objectTypeId:id,recordId:ek.id})).category,[]);
+});
+
+test('Projects module supplies lean bilingual profiles, editable common forms and shared Contacts',async()=>{
+ const ws=await ok('create_workspace',{name:'Projects profiles',code:'workprofiles'});await enableProjects(ws.id);
+ const objects=await ok('list_object_types',{workspaceId:ws.id});assert.deepEqual(objects.map((o:any)=>o.technicalName).sort(),['cases','contacts','projects','tasks']);
+ for(const kind of ['project','case','task']){
+  const object=objects.find((o:any)=>o.technicalName===({project:'projects',case:'cases',task:'tasks'} as any)[kind]);let model=await ok('get_object_type',{objectTypeId:object.id});assert.equal(model.workProfile.kind,kind);if(kind==='task'){assert.ok(!model.fields.some((f:any)=>f.technicalName==='assigned_to'));assert.ok(model.formLayouts.default.groups.some((g:any)=>g.id==='task_details'&&g.width==='half'));}
+  assert.equal(model.activity,true);assert.equal(model.sensitive,true);assert.equal(model.fields.find((f:any)=>f.technicalName==='access_principals').state,'active');
+  const rights=await ok('get_content_permissions',{objectTypeId:model.id});
+  const rejected=await api('configure_content_permissions',{...rights,sensitive:false,confirmWidening:true});assert.equal(rejected.statusCode,400,rejected.body);assert.equal(rejected.json().details.code,'activitySensitivityRequired');
+  const rejectedSettings=await api('configure_object_settings',{objectTypeId:model.id,version:model.version,labels:model.labels,security:{version:rights.version,sensitive:false,confirmWidening:true}});assert.equal(rejectedSettings.statusCode,400,rejectedSettings.body);
+  assert.equal((await ok('get_content_permissions',{objectTypeId:model.id})).version,rights.version);
+  for(const id of Object.values(model.workProfile.fields)){const field=model.fields.find((f:any)=>f.id===id);assert.ok(field.isProtected);assert.ok(field.labels.de&&field.labels.en);assert.equal(field.required,false);}
+  assert.equal(model.fields.find((f:any)=>f.technicalName==='notes').config.formatted,true);
+  assert.equal(model.formLayouts.default.groups.at(-1).labels.en,'Notes');
+  const layout={groups:[{id:'custom',labels:{en:'Our workflow',de:'Unser Ablauf'},fields:model.fields.map((f:any)=>({fieldId:f.id,width:'full'}))}]};
+  model=await tool('configure_form_layout',{objectTypeId:model.id,version:model.version,layout});
+  await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:2});
+  assert.deepEqual((await ok('get_object_type',{objectTypeId:model.id})).formLayouts.default,layout);
+ }
+});
+
+test('Project dates and Task scheduling/completion validate final values through API/MCP and journal atomically',async()=>{
+ const ws=await ok('create_workspace',{name:'Work rules',code:'workrules'});await enableProjects(ws.id);const types=await ok('list_object_types',{workspaceId:ws.id});
+ const project=types.find((o:any)=>o.technicalName==='projects'),task=await ok('get_object_type',{objectTypeId:types.find((o:any)=>o.technicalName==='tasks').id});
+ assert.equal((await api('create_record',{objectTypeId:project.id,values:{start_date:'2026-11-05',target_date:'2026-11-04'}})).statusCode,400);
+ await tool('create_record',{objectTypeId:project.id,values:{start_date:'2026-11-05',target_date:'2026-11-05'}});
+ const caseType=types.find((o:any)=>o.technicalName==='cases');const invalidCase=await api('create_record',{objectTypeId:caseType.id,values:{start_date:'2026-11-05',target_date:'2026-11-04'}});assert.equal(invalidCase.statusCode,400);assert.equal(invalidCase.json().details.code,'workDateOrder');
+ const datedCase=await tool('create_record',{objectTypeId:caseType.id,values:{start_date:'2026-11-05',target_date:'2026-11-05'}});assert.equal((await api('update_record',{objectTypeId:caseType.id,recordId:datedCase.id,version:datedCase.version,values:{target_date:'2026-11-04'}})).statusCode,400);
+ const done=task.classification.options.find((o:any)=>o.meaning==='done'),open=task.classification.options.find((o:any)=>o.meaning==='open');
+ assert.equal((await api('create_record',{objectTypeId:task.id,classification:{status:done.id}})).statusCode,400);
+ for(const values of [{progress:'101'},{progress:'-1'},{progress:'100'},{completed_at:'2026-11-05T10:00:00Z'},{start:{kind:'date',date:'2026-11-05'},due:{kind:'date',date:'2026-11-05'}},{start:{kind:'date',date:'2026-11-05'},due:{kind:'instant',instant:'2026-11-06T10:00:00Z'}}])assert.equal((await api('create_record',{objectTypeId:task.id,values})).statusCode,400);
+ let row=await tool('create_record',{objectTypeId:task.id,keyword:'A result',values:{start:{kind:'zoned',local:'2026-10-25T02:30:00',timeZone:'Europe/Berlin',occurrence:'earlier'},due:{kind:'zoned',local:'2026-10-25T02:30:00',timeZone:'Europe/Berlin',occurrence:'later'}}});
+ const before=(await journalEntries({objectTypeId:task.id,recordId:row.id})).length;
+ assert.equal((await api('update_record',{objectTypeId:task.id,recordId:row.id,version:row.version,classification:{status:done.id},values:{progress:'100'}})).statusCode,400);
+ assert.equal((await journalEntries({objectTypeId:task.id,recordId:row.id})).length,before);
+ row=await tool('update_record',{objectTypeId:task.id,recordId:row.id,version:row.version,classification:{status:done.id},values:{progress:'100',completed_at:'2026-11-05T10:00:00Z'}});
+ const changes=(await journalEntries({objectTypeId:task.id,recordId:row.id})).slice(before);assert.equal(changes.length,3);assert.equal(new Set(changes.map((e:any)=>e.change_id)).size,1);
+ assert.equal((await api('update_record',{objectTypeId:task.id,recordId:row.id,version:row.version,classification:{status:open.id}})).statusCode,400);
+ const {version,...config}=task.classification;config.options=config.options.map(({label,canDelete,...o}:any)=>o.id===done.id?{...o,meaning:'open'}:o);const rejected=await api('configure_classification',{objectTypeId:task.id,version,config});assert.equal(rejected.statusCode,400);assert.equal(rejected.json().details.code,'taskCompletionNotDone');
+ row=await tool('update_record',{objectTypeId:task.id,recordId:row.id,version:row.version,classification:{status:open.id},values:{progress:null,completed_at:null}});
+ assert.equal(row.completed_at,null);assert.equal(row.progress,null);
+});
+
+test('Task completion respects field ceilings, journal rollback and recycled-record configuration preflight',async()=>{
+ const ws=await ok('create_workspace',{name:'Task protection',code:'taskprotection'});await enableProjects(ws.id);
+ const task=await ok('get_object_type',{objectTypeId:(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='tasks').id}),done=task.classification.options.find((o:any)=>o.meaning==='done');
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const completed=task.fields.find((f:any)=>f.id===task.workProfile.fields.completed_at),permissions=await ok('get_content_permissions',{objectTypeId:task.id});
+ await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'edit',create:true,fields:{[completed.id]:'read'}}]});
+ let row=await tool('create_record',{objectTypeId:task.id,keyword:'Protected completion'});
+ const write=()=>({objectTypeId:task.id,recordId:row.id,version:row.version,classification:{status:done.id},values:{progress:'100',completed_at:'2026-11-05T11:00:00Z'}});
+ assert.equal((await api('update_record',write(),userCookie)).statusCode,403);
+ const initialJournal=(await journalEntries({objectTypeId:task.id,recordId:row.id})).length;
+ await sql`CREATE TRIGGER reject_task_completion BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('update_record',write())).statusCode,500);}finally{await sql`DROP TRIGGER reject_task_completion ON sys_journal`.execute(runtime.db);}
+ assert.equal((await ok('get_record',{objectTypeId:task.id,recordId:row.id})).version,row.version);assert.equal((await journalEntries({objectTypeId:task.id,recordId:row.id})).length,initialJournal);
+ row=await tool('update_record',write());
+ const recycled=await tool('recycle_record',{objectTypeId:task.id,recordId:row.id,version:row.version});
+ const {version,...config}=task.classification;config.options=config.options.map(({label,canDelete,...o}:any)=>o.id===done.id?{...o,meaning:'open'}:o);
+ const response=await api('configure_classification',{objectTypeId:task.id,version,config});assert.equal(response.statusCode,400);assert.equal(response.json().details.code,'taskCompletionNotDone');
+ await tool('restore_record',{objectTypeId:task.id,recordId:row.id,version:recycled.version});
+ assert.equal((await ok('get_record',{objectTypeId:task.id,recordId:row.id})).progress,'100');
+});
+
+test('workspace navigation derives active module sections, repeated Contact lists and catalog priorities through API/MCP',async()=>{
+ const ws=await ok('create_workspace',{name:'Module navigation',code:'modulenav'});await enableProjects(ws.id);await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const custom=await ok('create_object_type',{workspaceId:ws.id,technicalName:'assets',labels:{en:'Assets',de:'Inventar'},standardFields:['keyword']});
+ const model=await tool('get_workspace_navigation',{workspaceId:ws.id});assert.equal(model.workspace.version,0);assert.equal(model.personal.version,0);assert.equal(model.canManage,true);
+ const contact=model.nodes.filter((n:any)=>n.kind==='object'&&n.technicalName==='contacts');assert.equal(contact.length,2);assert.equal(new Set(contact.map((n:any)=>n.objectTypeId)).size,1);
+ for(const entry of contact){const children=model.nodes.filter((n:any)=>n.parentId===entry.id);assert.deepEqual(children.map((n:any)=>n.contactKind),['organization','person','individual']);assert.ok(children.every((n:any)=>n.labels.en&&n.labels.de&&n.contactKindId));}
+ assert.deepEqual(model.nodes.filter((n:any)=>n.parentId==='module:projects').map((n:any)=>n.technicalName),['projects','cases','tasks','contacts']);
+ const retainedEntry=model.nodes.find((n:any)=>n.parentId==='module:projects'&&n.technicalName==='tasks').id;
+ await ok('configure_navigation',{workspaceId:ws.id,scope:'personal',version:0,layout:{order:[retainedEntry],hidden:[],resources:true}});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:false,version:2});
+ const disabled=await ok('get_workspace_navigation',{workspaceId:ws.id});assert.equal(disabled.nodes.find((n:any)=>n.id==='module:projects').available,false);assert.deepEqual(disabled.personal.layout.order,[retainedEntry]);
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:3});assert.ok((await ok('get_workspace_navigation',{workspaceId:ws.id})).nodes.some((n:any)=>n.id===retainedEntry&&n.available));
+
+ assert.ok(model.nodes.some((n:any)=>n.parentId==='custom'&&n.objectTypeId===custom.id));assert.equal(model.nodes.find((n:any)=>n.id==='module:documents').available,false);
+ await ok('set_definition_state',{kind:'object_type',id:custom.id,expectedState:'active',state:'deleted',confirm:true});
+ const retained=(await ok('get_workspace_navigation',{workspaceId:ws.id})).nodes.find((n:any)=>n.objectTypeId===custom.id);assert.equal(retained.available,false);
+});
+
+test('navigation defaults and personal overrides have separate rights, versions, isolation, resets and atomic journals',async()=>{
+ const ws=await ok('create_workspace',{name:'Navigation policy',code:'navpolicy'});await enableProjects(ws.id);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const layout={order:['module:projects','module:contacts'],hidden:['module:contacts'],resources:false};
+ assert.equal((await api('configure_navigation',{workspaceId:ws.id,scope:'workspace',version:0,layout},userCookie)).statusCode,403);
+ const shared=await tool('configure_navigation',{workspaceId:ws.id,scope:'workspace',version:0,layout});assert.equal(shared.workspace.version,1);
+ const inherited=(await api('get_workspace_navigation',{workspaceId:ws.id},userCookie)).json();assert.deepEqual(inherited.workspace.layout,layout);assert.equal(inherited.personal.layout,null);
+ const personal={...layout,resources:true};const writes=await Promise.all([api('configure_navigation',{workspaceId:ws.id,scope:'personal',version:0,layout:personal},userCookie),api('configure_navigation',{workspaceId:ws.id,scope:'personal',version:0,layout:personal},userCookie)]);assert.deepEqual(writes.map(r=>r.statusCode).sort(),[200,409]);
+ assert.equal((await ok('get_workspace_navigation',{workspaceId:ws.id})).personal.layout,null,'cannot read another user override');
+ assert.equal((await api('configure_navigation',{workspaceId:ws.id,scope:'personal',version:1,layout:{...personal,hidden:['foreign-object-id']}},userCookie)).statusCode,400);
+ await ok('configure_navigation',{workspaceId:ws.id,scope:'workspace',version:1,layout:{...layout,resources:true}});
+ const reset=await api('configure_navigation',{workspaceId:ws.id,scope:'personal',version:1,layout:null},userCookie);assert.equal(reset.statusCode,200,reset.body);assert.equal(reset.json().personal.version,2);assert.equal(reset.json().personal.layout,null);assert.equal(reset.json().workspace.layout.resources,true);
+ assert.equal((await api('configure_navigation',{workspaceId:ws.id,scope:'personal',version:1,layout:null},userCookie)).statusCode,409);
+ const other=await ok('create_workspace',{name:'Other navigation',code:'othernav'});assert.equal((await api('get_workspace_navigation',{workspaceId:other.id},userCookie)).statusCode,403);
+ await sql`CREATE TRIGGER reject_navigation BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('configure_navigation',{workspaceId:ws.id,scope:'workspace',version:2,layout:null})).statusCode,500);}finally{await sql`DROP TRIGGER reject_navigation ON sys_journal`.execute(runtime.db);}
+ assert.equal((await ok('get_workspace_navigation',{workspaceId:ws.id})).workspace.version,2);
+ const events=(await sql<any>`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid AND field_key LIKE 'navigation.workspace.%' ORDER BY created_at,id`.execute(runtime.db)).rows;assert.ok(events.length>=4);assert.equal(new Set(events.slice(0,4).map((e:any)=>e.change_id)).size,1);
+ assert.ok(events.find((e:any)=>e.field_key.endsWith('.order')).new_value[0].en);
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'designer',expectedRole:'user'});
+ assert.equal((await api('configure_navigation',{workspaceId:ws.id,scope:'workspace',version:2,layout:null},userCookie)).statusCode,200);
+ assert.equal((await api('configure_navigation',{workspaceId:ws.id,scope:'personal',version:2,userId:adminId,layout:null},userCookie)).statusCode,400);
+});
+
+test('Contact navigation filters apply before counts/paging and respect Contact-kind field rights',async()=>{
+ const ws=await ok('create_workspace',{name:'Contact lists',code:'contactlists'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),definition=await ok('get_object_type',{objectTypeId:object.id}),profile=definition.contactProfile;
+ for(let i=0;i<3;i++){
+  const created=await ok('create_record',{objectTypeId:object.id,values:{contact_kind:profile.kinds.organization,company_name:`Company ${i}`}});
+  assert.equal(created.iconKey,'organization');
+  const updated=await tool('update_record',{objectTypeId:object.id,recordId:created.id,version:created.version,values:{company_name:`Company ${i}`}});
+  assert.equal(updated.iconKey,'organization');assert.deepEqual(updated,await ok('get_record',{objectTypeId:object.id,recordId:created.id}));
+ }
+ for(const key of ['person','individual'])await ok('create_record',{objectTypeId:object.id,values:{contact_kind:profile.kinds[key],last_name:[{id:randomUUID(),text:key}]}});
+ const page=await tool('list_records',{objectTypeId:object.id,contactKindId:profile.kinds.organization,limit:1,offset:1});assert.equal(page.total,3);assert.equal(page.records.length,1);assert.equal(page.records[0].contact_kind,profile.kinds.organization);assert.equal(page.records[0].iconKey,'organization');
+ for(const kind of ['person','individual'])assert.equal((await ok('list_records',{objectTypeId:object.id,contactKindId:profile.kinds[kind]})).records[0].iconKey,kind);
+ assert.ok((await ok('list_workspace_records',{workspaceId:ws.id,objectTypeId:object.id})).records.every((r:any)=>['organization','person','individual'].includes(r.iconKey)));
+ assert.ok((await ok('search_workspace',{workspaceId:ws.id,query:'Company'})).records.every((r:any)=>r.iconKey==='organization'));
+ assert.equal((await ok('list_records',{objectTypeId:object.id,contactKindId:profile.kinds.person})).total,1);
+ assert.equal((await ok('list_records',{objectTypeId:object.id,contactKindId:profile.kinds.organization,query:'Company 2'})).total,1);
+ assert.equal((await api('list_records',{objectTypeId:object.id,contactKindId:randomUUID()})).statusCode,400);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const initial=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...initial,grants:[{kind:'user',id:user.id,level:'read',fields:{[profile.fields.contact_kind]:'none'}}]});
+ assert.equal((await api('list_records',{objectTypeId:object.id,contactKindId:profile.kinds.organization},userCookie)).statusCode,403);
+ const nav=(await api('get_workspace_navigation',{workspaceId:ws.id},userCookie)).json();assert.ok(nav.nodes.filter((n:any)=>n.kind==='contact_kind').every((n:any)=>!n.permitted));
+ const hiddenKinds=(await api('list_records',{objectTypeId:object.id},userCookie)).json();assert.equal(hiddenKinds.total,5);assert.ok(hiddenKinds.records.every((r:any)=>r.iconKey==='contact'));
+ assert.equal((await api('get_record',{objectTypeId:object.id,recordId:hiddenKinds.records[0].id},userCookie)).json().iconKey,'contact');
+ assert.ok((await api('list_workspace_records',{workspaceId:ws.id,objectTypeId:object.id},userCookie)).json().records.every((r:any)=>r.iconKey==='contact'));
+ assert.ok((await api('search_workspace',{workspaceId:ws.id,query:'Company'},userCookie)).json().records.every((r:any)=>r.iconKey==='contact'));
+ const permissions=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...permissions,sensitive:true,grants:[{kind:'user',id:user.id,level:'read',fields:{}}]});
+ const one=(await ok('list_records',{objectTypeId:object.id,contactKindId:profile.kinds.organization})).records[0],security=await ok('get_record_security',{objectTypeId:object.id,recordId:one.id});
+ await ok('configure_record_security',{objectTypeId:object.id,recordId:one.id,version:security.version,policy:{...security.policy,fields:[{kind:'user',id:user.id,fields:{[profile.fields.contact_kind]:'none'}}]},confirmPublic:true});
+ const filtered=await api('list_records',{objectTypeId:object.id,contactKindId:profile.kinds.organization,limit:1},userCookie);assert.equal(filtered.statusCode,200,filtered.body);assert.equal(filtered.json().total,2);assert.ok(filtered.json().records.every((r:any)=>r.id!==one.id));
+ const mixed=(await api('list_records',{objectTypeId:object.id},userCookie)).json();assert.equal(mixed.records.find((r:any)=>r.id===one.id).iconKey,'contact');assert.ok(mixed.records.filter((r:any)=>r.id!==one.id).every((r:any)=>r.iconKey!=='contact'));
+ const dashboard=(await api('list_workspace_records',{workspaceId:ws.id,objectTypeId:object.id},userCookie)).json();assert.equal(dashboard.records.find((r:any)=>r.id===one.id).iconKey,'contact');
+});
+
+test('Task assignment uses Access principals and foreign access never adds assignees',async()=>{
+ const ws=await ok('create_workspace',{name:'Task ownership',code:'taskowners'});await enableProjects(ws.id);
+ const task=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='tasks');
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const team=await ok('create_group',{workspaceId:ws.id,name:'Execution team'}),rights=await ok('get_content_permissions',{objectTypeId:task.id});
+ await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}},{kind:'group',id:team.id,level:'full',create:true,fields:{}}]});
+ const teamPolicy={owners:[{kind:'group',id:team.id,level:'full'}],publicLevel:null,privacy:'normal',foreignMax:'full',fields:[]};
+ const row=await tool('create_record',{objectTypeId:task.id,keyword:'Team result',security:{policy:teamPolicy}});
+ assert.deepEqual(row.access_principals,teamPolicy.owners);assert.equal((await api('get_record',{objectTypeId:task.id,recordId:row.id},userCookie)).statusCode,403);
+ const foreign=await ok('get_foreign_access',{workspaceId:ws.id});await ok('configure_foreign_access',{...foreign,rules:[{id:randomUUID(),requester:{kind:'user',id:user.id},owner:{kind:'group',id:team.id},level:'read',confidential:false,objects:{}}]});
+ const read=await api('get_record',{objectTypeId:task.id,recordId:row.id},userCookie);assert.equal(read.statusCode,200,read.body);assert.equal(read.json().permissions.edit,false);assert.deepEqual(read.json().access_principals,teamPolicy.owners);
+ const before=(await journalEntries({objectTypeId:task.id,recordId:row.id})).length;
+ const userPolicy={...teamPolicy,owners:[{kind:'user',id:user.id,level:'full'}]};
+ const delegated=await tool('update_record',{objectTypeId:task.id,recordId:row.id,version:row.version,values:{description:'Agreed result'},security:{policy:userPolicy}});
+ assert.deepEqual(delegated.access_principals,userPolicy.owners);
+ const changed=(await journalEntries({objectTypeId:task.id,recordId:row.id})).slice(before);assert.equal(new Set(changed.map((e:any)=>e.change_id)).size,1);assert.ok(changed.some((e:any)=>e.field_key==='access.owners'));assert.ok(changed.some((e:any)=>e.field_key==='description'));
+ const own=await api('get_record',{objectTypeId:task.id,recordId:row.id},userCookie);assert.equal(own.json().permissions.full,true);
+ assert.equal((await api('create_record',{objectTypeId:task.id,values:{assigned_to:{kind:'user',id:user.id}}})).statusCode,400);
+ assert.equal((await api('update_record',{objectTypeId:task.id,recordId:row.id,version:delegated.version,values:{assigned_to:{kind:'user',id:user.id}}})).statusCode,400);
+ assert.equal((await sql`SELECT 1 FROM information_schema.columns WHERE table_name='taskowners_tasks' AND column_name='assigned_to'`.execute(runtime.db)).rows.length,0);
 });

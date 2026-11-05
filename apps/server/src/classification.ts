@@ -9,6 +9,7 @@ export function validateRules(config: ClassificationRules, previous: Classificat
     if ((options.has(old.id) && options.get(old.id)?.kind !== old.kind) || (!options.has(old.id) && old.kind === 'category' && !removable.has(old.id))) throw new AppError(400, 'Options must be retained with their kind; deactivate instead of deleting');
   }
   for (const option of config.options) {
+    if(option.meaning&&option.kind!=='status')throw new AppError(400,'Only Status options have a meaning');
     if (option.kind !== 'status' && option.typeId !== null) throw new AppError(400, 'Only Status options have a Type');
     if (option.kind === 'status' && option.typeId && options.get(option.typeId)?.kind !== 'type') throw new AppError(400, 'Unknown Status Type');
   }

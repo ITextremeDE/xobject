@@ -9,7 +9,7 @@ export const classificationRulesSchema = z.object({
   type: z.object({ required: z.boolean(), defaultId: id.nullable() }).strict(),
   status: z.object({ required: z.boolean(), defaults: z.array(z.object({ typeId: id.nullable(), statusId: id }).strict()).max(100) }).strict(),
   category: z.object({ required: z.boolean(), multiple: z.boolean(), defaultIds: ids }).strict(),
-  options: z.array(z.object({ id, kind: z.enum(['type', 'status', 'category']), labels, active: z.boolean(), typeId: id.nullable() }).strict()).max(300),
+  options: z.array(z.object({ id, kind: z.enum(['type', 'status', 'category']), labels, active: z.boolean(), meaning:z.enum(['open','in_progress','done','canceled']).optional(), typeId: id.nullable() }).strict()).max(300),
 }).strict();
 export const classificationValuesSchema = z.object({ type: id.nullable().optional(), status: id.nullable().optional(), category: ids.optional() }).strict();
 export type ClassificationRules = z.infer<typeof classificationRulesSchema>;

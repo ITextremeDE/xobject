@@ -1,8 +1,9 @@
+import {temporalSchema} from './temporal.js';
 import {z} from 'zod';
 import {timeZoneSchema} from './time-zones.js';
 import {uuidSchema} from './identity.js';
 
-export const structuredSchemaKeys=['name_components','email_entries','phone_entries','address_entries','url_entries','language_entries','messenger_entries','time_zone','partial_date'] as const;
+export const structuredSchemaKeys=['name_components','email_entries','phone_entries','address_entries','url_entries','language_entries','messenger_entries','time_zone','partial_date','temporal'] as const;
 export const structuredSchemaKey=z.enum(structuredSchemaKeys);
 export type StructuredSchemaKey=z.infer<typeof structuredSchemaKey>;
 const component=z.string().trim().min(1).max(200);
@@ -32,6 +33,7 @@ export const messagingURI=z.string().trim().min(1).max(2000).refine(value=>{
  try{const uri=new URL(value);return ['xmpp:','sip:','sips:','im:','irc:','ircs:','matrix:','skype:','https:','http:'].includes(uri.protocol)&&value.length>uri.protocol.length&&!/\s/.test(value)&&!uri.password;}catch{return false;}
 },'Unsupported messaging URI');
 export const structuredSchemas={
+ temporal:temporalSchema,
  language_entries:entries(z.object({...metadata,value:communicationLanguage}).strict()),
  messenger_entries:entries(z.object({...metadata,value:messagingURI}).strict()),
  time_zone:z.object({timeZone:timeZoneSchema}).strict(),
@@ -42,7 +44,7 @@ export const structuredSchemas={
  address_entries:entries(z.object({...metadata,address:postalAddressSchema}).strict()),
  partial_date:z.object({month:z.number().int().min(1).max(12),day:z.number().int().min(1).max(31),year:z.number().int().min(1).max(9999).nullable()}).strict().refine(p=>{const year=p.year??2000;return p.day<=[31,year%4===0&&(year%100!==0||year%400===0)?29:28,31,30,31,30,31,31,30,31,30,31][p.month-1];},'Invalid partial date'),
 };
-export const structuredValueSchema=z.union([structuredSchemas.name_components,structuredSchemas.email_entries,structuredSchemas.phone_entries,structuredSchemas.url_entries,structuredSchemas.address_entries,structuredSchemas.partial_date,structuredSchemas.language_entries,structuredSchemas.messenger_entries,structuredSchemas.time_zone]);
+export const structuredValueSchema=z.union([structuredSchemas.temporal,structuredSchemas.name_components,structuredSchemas.email_entries,structuredSchemas.phone_entries,structuredSchemas.url_entries,structuredSchemas.address_entries,structuredSchemas.partial_date,structuredSchemas.language_entries,structuredSchemas.messenger_entries,structuredSchemas.time_zone]);
 export type StructuredValue=z.infer<typeof structuredValueSchema>;
 export type StructuredEntry=Extract<StructuredValue,{id:string}[]>[number];
 export function parseStructuredValue(schema:StructuredSchemaKey,input:unknown):StructuredValue{
@@ -51,10 +53,12 @@ export function parseStructuredValue(schema:StructuredSchemaKey,input:unknown):S
  return value as StructuredValue;
 }
 export const structuredSchemaLabels:Record<StructuredSchemaKey,{en:string;de:string}>={
+ temporal:{en:'Date or time',de:'Datum oder Zeitpunkt'},
  name_components:{en:'Name components',de:'Namensbestandteile'},email_entries:{en:'Email addresses',de:'E-Mail-Adressen'},phone_entries:{en:'Telephone numbers',de:'Telefonnummern'},address_entries:{en:'Postal addresses',de:'Postanschriften'},url_entries:{en:'Websites',de:'Webseiten'},language_entries:{en:'Communication languages',de:'Kommunikationssprachen'},messenger_entries:{en:'Messenger addresses',de:'Messenger-Adressen'},time_zone:{en:'Named time zone',de:'Benannte Zeitzone'},partial_date:{en:'Date (optional year)',de:'Datum (Jahr optional)'},
 };
 export function structuredSummary(schema:StructuredSchemaKey,value:unknown):string{
  if(value===null||value===undefined)return '—';
+ if(schema==='temporal'){const p=temporalSchema.parse(value);return p.kind==='date'?p.date:p.kind==='instant'?p.instant:`${p.local} [${p.timeZone}]${p.occurrence?' · '+p.occurrence:''}`;}
  if(schema==='time_zone')return (value as {timeZone:string}).timeZone;
  if(schema==='partial_date'){const p=value as {month:number;day:number;year:number|null};return `${p.year===null?'--':String(p.year).padStart(4,'0')+'-'}${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}`;}
  return (value as StructuredEntry[]).map(entry=>'text'in entry?entry.text:'value'in entry?entry.value:postalAddressLines(entry.address).join(', ')).join('; ')||'—';
