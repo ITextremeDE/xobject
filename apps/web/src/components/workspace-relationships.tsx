@@ -5,10 +5,11 @@ import { relationshipCardinality, withRelationshipCardinality, type Relationship
 import {FieldApplicabilitySettings} from './applicability-settings';
 import { cn } from 'cn';
 import { TechnicalNameField } from './technical-name-field';
-import { useEffect, useState } from 'react';
+import {createPortal} from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { PlusIcon } from 'lucide-react';
+import { PlusIcon,ArrowLeftIcon } from 'lucide-react';
 import { relationshipConfigurationSchema, customRelationshipConfigurationSchema, type RelationshipConfiguration, type RelationshipType, type ObjectSummary } from '@xobject/contracts';
 import { api, ApiError } from '@/lib/api';
 import { keyboardCommands, saveShortcutLabel } from '@/lib/keyboard';
@@ -19,11 +20,9 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Field, FieldTitle, FieldLabel, FieldGroup, FieldSet, FieldLegend, FieldDescription } from '@/components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 import { TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Kbd } from '@/components/ui/kbd';
 import { Spinner } from '@/components/ui/spinner';
-import { DialogActions } from './dialog-actions';
 import { TranslatedLabelInput, cleanLabels } from './translated-label-input';
 import { SettingsTable, SettingsTableSearch, useSettingsTable } from './settings-table';
 import { ClientTablePagination } from './client-table-pagination';
@@ -36,9 +35,16 @@ function normalizeSymmetric(value: RelationshipConfiguration): RelationshipConfi
 }
 function configuration(row: RelationshipType): RelationshipConfiguration { const { leftApplicability,rightApplicability,labels,leftLabels,rightLabels,directed,leftMin,leftMax,rightMin,rightMax,allowAll,pairs,active }=row; return structuredClone({leftApplicability:leftApplicability??null,rightApplicability:rightApplicability??null,labels,leftLabels,rightLabels,directed,leftMin,leftMax,rightMin,rightMax,allowAll,pairs,active}); }
 
-export function WorkspaceRelationships({ workspaceId, canManage, onDirtyChange, onBusyChange }: {workspaceId:string;canManage:boolean;onDirtyChange:(dirty:boolean)=>void;onBusyChange:(busy:boolean)=>void}) {
+export function WorkspaceRelationships({ workspaceId, canManage, actionTarget, onDirtyChange, onBusyChange }: {workspaceId:string;canManage:boolean;actionTarget?:HTMLElement|null;onDirtyChange:(dirty:boolean)=>void;onBusyChange:(busy:boolean)=>void}) {
   const {t,i18n}=useTranslation();
   const [selected,setSelected]=useState<string|null>(null),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false);
+  const returnFocus=useRef<string|null>(null),focusAnchor=useRef<HTMLDivElement|null>(null);
+  useEffect(()=>{
+    if(selected||!returnFocus.current)return;
+    const target=returnFocus.current;
+    const frame=requestAnimationFrame(()=>document.querySelector<HTMLElement>(target==='new'?'[data-relation-create]':`[data-relation-editor="${target}"]`)?.focus());
+    return ()=>cancelAnimationFrame(frame);
+  },[selected]);
   const rows=useQuery({queryKey:['relationship-types',workspaceId],queryFn:()=>api('list_relationship_types',{workspaceId})});
   const objects=useQuery({queryKey:['types',workspaceId,'relationship-settings'],queryFn:()=>api('list_object_types',{workspaceId,includeInactive:true})});
   const label=(row:RelationshipType)=>row.labels[i18n.language as 'de'|'en']??row.labels.de??row.labels.en??row.technicalName;
@@ -46,15 +52,18 @@ export function WorkspaceRelationships({ workspaceId, canManage, onDirtyChange, 
   const pairLabel=(row:RelationshipType)=>row.allowAll?t('relationSystemAllObjects'):row.pairs.map(pair=>`${objects.data?.find(o=>o.id===pair.leftObjectTypeId)?.label??t('definition_inactive')} ${row.directed?'→':'↔'} ${objects.data?.find(o=>o.id===pair.rightObjectTypeId)?.label??t('definition_inactive')}`).join(', ');
   const table=useSettingsTable(sorted,row=>`${label(row)} ${row.technicalName} ${pairLabel(row)}`);
   useEffect(()=>onDirtyChange(dirty),[dirty,onDirtyChange]);useEffect(()=>onBusyChange(busy),[busy,onBusyChange]);
-  function close(){if(!busy){if(dirty)setConfirm(true);else setSelected(null);}}
-  return <FieldGroup><FieldDescription>{t('relationshipSettingsHelp')}</FieldDescription><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><SettingsTableSearch value={table.search} onChange={table.onSearch} disabled={busy}/>{canManage?<Button type="button" variant="outline" data-relation-create disabled={busy} onClick={()=>setSelected('new')}><PlusIcon data-icon="inline-start"/>{t('createRelationshipType')}</Button>:null}</div>
+  // Keep focus inside the dialog while replacing the editor, then restore the originating row.
+  function finish(){focusAnchor.current?.focus();returnFocus.current=selected;setDirty(false);setBusy(false);setSelected(null);}
+  function close(){if(!busy){if(dirty)setConfirm(true);else finish();}}
+
+  return <FieldGroup ref={focusAnchor} tabIndex={-1}>{selected?(selected&&(selected==='new'||rows.data?.some(row=>row.id===selected))&&objects.data?<RelationshipEditor key={selected} row={rows.data?.find(row=>row.id===selected)} actionTarget={actionTarget} objects={objects.data} workspaceId={workspaceId} readOnly={!canManage} onClose={close} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={finish}/>:null): <><FieldDescription>{t('relationshipSettingsHelp')}</FieldDescription><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><SettingsTableSearch value={table.search} onChange={table.onSearch} disabled={busy}/>{canManage?<Button type="button" variant="outline" data-relation-create disabled={busy} onClick={()=>setSelected('new')}><PlusIcon data-icon="inline-start"/>{t('createRelationshipType')}</Button>:null}</div>
     {rows.isPending||objects.isPending?<Loading variant="table" headings={[t('objectName'),t('relationDirection'),t('relationshipLimits')]} columnClasses={['w-1/2','','hidden sm:table-cell']}/>:rows.isError||objects.isError?<ErrorNotice error={rows.error??objects.error}/>:<><SettingsTable aria-label={t('relationshipTypes')}><TableHeader><TableRow><TableHead className="w-1/2">{t('objectName')}</TableHead><TableHead>{t('relationDirection')}</TableHead><TableHead className="hidden sm:table-cell">{t('relationshipLimits')}</TableHead></TableRow></TableHeader><TableBody>{!table.pagination.total?<TableRow><TableCell colSpan={3}>{t('settingsNoMatches')}</TableCell></TableRow>:null}{table.pagination.rows.map(row=><TableRow key={row.id} onClick={event=>{if(!busy&&!event.defaultPrevented&&event.button===0&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey&&event.target instanceof Element&&!event.target.closest('button,a,input')&&!window.getSelection()?.toString())setSelected(row.id);}}><TableCell><Button type="button" variant="link" data-relation-editor={row.id} disabled={busy} className="h-auto max-w-full justify-start px-0 text-left whitespace-normal" onClick={()=>setSelected(row.id)}>{label(row)}</Button><p className="mt-1 text-sm text-muted-foreground">{pairLabel(row)}</p><div className="mt-1 flex flex-wrap gap-1"><Badge variant="outline">{row.moduleKey?t('moduleRelationshipBadge',{module:t(`moduleName_${row.moduleKey}`)}):t(row.kind==='primary'?'projectsModule':row.kind==='custom'?'relationCustom':'relationSystem')}</Badge><Badge variant="secondary">{t(row.rulesState==='active'?'relationActiveRules':'relationDraftRules')}</Badge>{!row.active?<Badge variant="secondary">{t('definition_inactive')}</Badge>:null}</div></TableCell><TableCell>{t(row.directed?'relationDirected':'relationUndirected')}</TableCell><TableCell className="hidden sm:table-cell">{relationshipCardinality(row)}</TableCell></TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={table.pagination} countLabel={t('relationshipTypeCount',{count:table.pagination.total})}/></>}
-    {selected&&(selected==='new'||rows.data?.some(row=>row.id===selected))&&objects.data?<RelationshipEditor key={selected} row={rows.data?.find(row=>row.id===selected)} objects={objects.data} workspaceId={workspaceId} readOnly={!canManage} onClose={close} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={()=>{setDirty(false);setBusy(false);setSelected(null);}}/>:null}
-    <AlertDialog open={confirm} onOpenChange={setConfirm}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={()=>{setDirty(false);setSelected(null);setConfirm(false);}}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    </>}<AlertDialog open={confirm} onOpenChange={setConfirm}><AlertDialogContent finalFocus={()=>document.querySelector<HTMLElement>(returnFocus.current==='new'?'[data-relation-create]':`[data-relation-editor="${returnFocus.current}"]`)??true}><AlertDialogHeader><AlertDialogTitle>{t('unsaved')}</AlertDialogTitle><AlertDialogDescription>{t('unsavedDescription')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('keepEditing')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={()=>{finish();setConfirm(false);}}>{t('discard')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </FieldGroup>;
 }
 
-function RelationshipEditor({row,objects,workspaceId,readOnly,onClose,onDirtyChange,onBusyChange,onSaved}:{row?:RelationshipType;objects:ObjectSummary[];workspaceId:string;readOnly:boolean;onClose:()=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void;onSaved:()=>void}) {
+function RelationshipEditor({row,actionTarget,objects,workspaceId,readOnly,onClose,onDirtyChange,onBusyChange,onSaved}:{row?:RelationshipType;actionTarget?:HTMLElement|null;objects:ObjectSummary[];workspaceId:string;readOnly:boolean;onClose:()=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void;onSaved:()=>void}) {
+  useEffect(()=>{document.querySelector<HTMLElement>('[data-relationship-editor-title]')?.focus();},[]);
   const [attributeDirty,setAttributeDirty]=useState(false),[attributeBusy,setAttributeBusy]=useState(false);
   const structureLocked=readOnly||Boolean(row?.isProtected);
   const {t,i18n}=useTranslation(),client=useQueryClient();
@@ -103,9 +112,9 @@ function RelationshipEditor({row,objects,workspaceId,readOnly,onClose,onDirtyCha
     </FieldSet>;
   }
   function objectSelect(id:string,value:string,onChange:(value:string)=>void){const selected=objects.find(object=>object.id===value);return <Field>{structureLocked||row?.pairLocked?<><FieldTitle>{t(id.endsWith('left')?'relationLeftObject':'relationRightObject')}</FieldTitle><FieldDescription>{selected?.label??t('selectObjectType')}{selected?.state==='inactive'?` (${t('definition_inactive')})`:''}</FieldDescription></>:<><FieldLabel htmlFor={id}>{t(id.endsWith('left')?'relationLeftObject':'relationRightObject')}</FieldLabel><Select items={sortedObjects.map(type=>({value:type.id,label:type.label}))} value={value||null} disabled={disabled||Boolean(row?.pairLocked)} onValueChange={next=>onChange(next??'')}><SelectTrigger id={id} className="w-full"><SelectValue placeholder={t('selectObjectType')}/></SelectTrigger><SelectContent><SelectGroup>{sortedObjects.map(type=><SelectItem key={type.id} value={type.id} disabled={type.state==='inactive'&&type.id!==value}>{type.label}{type.state==='inactive'?` (${t('definition_inactive')})`:''}</SelectItem>)}</SelectGroup></SelectContent></Select></>}</Field>;}
-  return <Dialog open onOpenChange={open=>{if(!open&&!save.isPending&&!activate.isPending)onClose();}}><DialogContent className="bg-background text-foreground flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-3xl" closeButtonDisabled={save.isPending||activate.isPending||attributeBusy} finalFocus={()=>document.querySelector<HTMLElement>(row?`[data-relation-editor="${row.id}"]`:'[data-relation-create]')??true}>
-    <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{row?`${t('editRelationshipType')} · ${(row.labels[i18n.language as 'de'|'en']??row.labels.en??row.labels.de)}`:t('createRelationshipType')}</DialogTitle><DialogDescription>{row?.moduleKey?t('moduleRelationshipHelp',{module:t(`moduleName_${row.moduleKey}`)}):t(row&&row.kind!=='custom'?'relationSystemProtected':!row?'relationCreateHelp':row.rulesState==='draft'?'relationDraftHelp':'relationEditingHelp')}</DialogDescription></DialogHeader>
-    <form id="relationship-form" data-shortcut-submit className="min-h-0 overflow-y-auto px-4 pb-4" onSubmit={event=>{event.preventDefault();if(!disabled&&dirty&&valid)save.mutate();}}><FieldGroup>
+  const actions=<>{!readOnly?<>{row?.rulesState==='draft'?<Button type="button" variant="outline" disabled={dirty||disabled} onClick={()=>activate.mutate()}>{t(activate.isPending?'saving':'activateRelationshipRules')}</Button>:null}{row?<Button type="button" variant="outline" disabled={!dirty||disabled} onClick={()=>{setBaseline(row);setDraft(configuration(row));setName(row.technicalName);setNameTouched(false);setLeft(row.pairs[0]?.leftObjectTypeId??'');setRight(row.pairs[0]?.rightObjectTypeId??'');save.reset();}}>{t('resetPreferences')}</Button>:null}<Button type="submit" form="relationship-form" disabled={!dirty||!valid||disabled||attributeBusy} aria-keyshortcuts={keyboardCommands.save.aria}>{save.isPending?<Spinner data-icon="inline-start"/>:null}{t(row?'save':'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></>:null}</>;
+  return <FieldGroup><div className="flex flex-col gap-3"><Button type="button" variant="ghost" className="w-fit -ml-2" disabled={save.isPending||activate.isPending||attributeBusy} onClick={onClose}><ArrowLeftIcon data-icon="inline-start"/>{t('backToRelationshipTypes')}</Button><h3 tabIndex={-1} data-relationship-editor-title className="font-medium">{row?`${t('editRelationshipType')} · ${(row.labels[i18n.language as 'de'|'en']??row.labels.en??row.labels.de)}`:t('createRelationshipType')}</h3><FieldDescription>{row?.moduleKey?t('moduleRelationshipHelp',{module:t(`moduleName_${row.moduleKey}`)}):t(row&&row.kind!=='custom'?'relationSystemProtected':!row?'relationCreateHelp':row.rulesState==='draft'?'relationDraftHelp':'relationEditingHelp')}</FieldDescription></div>
+    <form id="relationship-form" data-shortcut-submit onSubmit={event=>{event.preventDefault();if(!disabled&&dirty&&valid)save.mutate();}}><FieldGroup>
       {save.isError?<ErrorNotice error={save.error}/>:null}{activate.isError?<ErrorNotice error={activate.error}/>:null}
       {row?.kind==='primary'?<FieldDescription>{t('relationPrimaryHelp')}</FieldDescription>:null}
       <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t(custom?'relationObjectPair':'relationScope')}</FieldLegend><FieldGroup>
@@ -127,6 +136,6 @@ function RelationshipEditor({row,objects,workspaceId,readOnly,onClose,onDirtyCha
       {row?.kind==='custom'?<RelationshipFieldSettings row={row} workspaceId={workspaceId} readOnly={readOnly} disabled={dirty||save.isPending||activate.isPending} onDirtyChange={setAttributeDirty} onBusyChange={setAttributeBusy}/>:null}
       {pairReady&&!valid&&dirty?<FieldDescription>{t('relationInvalidHelp')}</FieldDescription>:null}
     </FieldGroup></form>
-    <DialogActions onClose={onClose} closeLabel={t(row?'close':'cancel')} disabled={save.isPending||activate.isPending||attributeBusy}>{!readOnly?<>{row?.rulesState==='draft'?<Button type="button" variant="outline" disabled={dirty||disabled} onClick={()=>activate.mutate()}>{t(activate.isPending?'saving':'activateRelationshipRules')}</Button>:null}{row?<Button type="button" variant="outline" disabled={!dirty||save.isPending} onClick={()=>{setBaseline(row);setDraft(configuration(row));setName(row.technicalName);setNameTouched(false);setLeft(row.pairs[0]?.leftObjectTypeId??'');setRight(row.pairs[0]?.rightObjectTypeId??'');save.reset();}}>{t('resetPreferences')}</Button>:null}<Button type="submit" form="relationship-form" disabled={!dirty||!valid||save.isPending} aria-keyshortcuts={keyboardCommands.save.aria}>{save.isPending?<Spinner data-icon="inline-start"/>:null}{t(row?'save':'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></>:null}</DialogActions>
-  </DialogContent></Dialog>;
+    {actionTarget?createPortal(actions,actionTarget):<div className="flex flex-wrap justify-end gap-2">{actions}</div>}
+  </FieldGroup>;
 }

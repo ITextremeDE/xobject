@@ -1,4 +1,4 @@
-import {FieldExplanation,fieldDescriptionIds} from './record-field-hints';
+import {FieldExplanation,FieldFormatHelp,fieldDescriptionIds} from './record-field-hints';
 import {useEffect,useRef,useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {CalendarIcon} from 'lucide-react';
@@ -9,7 +9,7 @@ import {useTimeZone} from '@/lib/time-zone-context';
 import {regionalWeekStart} from '@/lib/regional';
 import {isInstant,localTimestamp,timestampCandidates} from '@/lib/time-zone';
 import {dateInputPattern,formatDateInput,parseDateInput,isCalendarDate,formatTimeInput,timeInputPattern,parseTimeInput,temporalInputParts,temporalInputValue} from '@/lib/temporal-input';
-import {Field,FieldGroup,FieldLabel,FieldDescription,FieldError} from '@/components/ui/field';
+import {Field,FieldGroup,FieldLabel,FieldError} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {InputGroup,InputGroupInput,InputGroupAddon,InputGroupButton} from '@/components/ui/input-group';
 import {Calendar} from '@/components/ui/calendar';
@@ -55,8 +55,8 @@ export function RegionalTemporalField({field,value,disabled,onChange}:{field:Fie
     setOpen(false);
   }}/></PopoverContent></Popover>;
   return <Field className="@container/temporal min-w-0" data-disabled={disabled||undefined} data-invalid={invalid} aria-labelledby={datetime?`${id}-label`:undefined}>
-    {datetime?<><FieldLabel id={`${id}-label`}>{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><FieldGroup className="grid min-w-0 gap-3 @sm/temporal:grid-cols-2"><Field data-invalid={invalid}><FieldLabel htmlFor={id}>{t('date')}</FieldLabel><FieldExplanation field={field}/>{dateControl}</Field><Field data-invalid={invalid}><FieldLabel htmlFor={`${id}-time`}>{t('time')}</FieldLabel><Input id={`${id}-time`} aria-label={t('timeFor',{name:field.label})} value={draft.time} placeholder={timeInputPattern(regional)} maxLength={32} disabled={disabled} required={field.required} autoComplete="off" aria-invalid={invalid} aria-describedby={`${fieldDescriptionIds(field)??''} ${helpId}${invalid?' '+errorId:''}`} onChange={event=>change({...draft,time:event.target.value})} onBlur={blur}/></Field></FieldGroup></>:<><FieldLabel htmlFor={id}>{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/>{dateControl}</>}
-    <FieldExplanation field={field} help/><FieldDescription id={helpId}>{datetime?t('regionalDateTimeInputHelp',{date:dateInputPattern(regional),time:timeInputPattern(regional),timezone:zone}):t('regionalDateInputHelp',{format:dateInputPattern(regional)})}</FieldDescription>
+    {datetime?<><FieldLabel id={`${id}-label`}>{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><FieldGroup className="grid min-w-0 gap-3 @sm/temporal:grid-cols-2"><Field data-invalid={invalid}><FieldLabel htmlFor={id}>{t('date')}</FieldLabel>{dateControl}</Field><Field data-invalid={invalid}><FieldLabel htmlFor={`${id}-time`}>{t('time')}</FieldLabel><Input id={`${id}-time`} aria-label={t('timeFor',{name:field.label})} value={draft.time} placeholder={timeInputPattern(regional)} maxLength={32} disabled={disabled} required={field.required} autoComplete="off" aria-invalid={invalid} aria-describedby={`${fieldDescriptionIds(field)??''} ${helpId}${invalid?' '+errorId:''}`} onChange={event=>change({...draft,time:event.target.value})} onBlur={blur}/></Field></FieldGroup></>:<><FieldLabel htmlFor={id}>{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/>{dateControl}</>}
+    <FieldExplanation field={field} help/><FieldFormatHelp id={helpId}>{datetime?t('regionalDateTimeInputHelp',{date:dateInputPattern(regional),time:timeInputPattern(regional),timezone:zone}):t('regionalDateInputHelp',{format:dateInputPattern(regional)})}</FieldFormatHelp>
     {invalid?<FieldError id={errorId}>{t(error,{format:dateInputPattern(regional),time:timeInputPattern(regional)})}</FieldError>:null}
     {datetime&&candidates.length>1?<Select items={candidates.map(instant=>({value:instant,label:`${formatTimeInput(localTimestamp(instant,zone),regional)} ${new Intl.DateTimeFormat(regional.locale,{timeZone:zone,timeZoneName:'longOffset'}).formatToParts(new Date(instant)).find(part=>part.type==='timeZoneName')?.value??''}`}))} value={isInstant(current)?current:null} disabled={disabled} onValueChange={instant=>{if(instant){emitted.current=instant;onChange(instant);}}}><SelectTrigger aria-label={t('timeOccurrence')} className="w-full"><SelectValue placeholder={t('timeOccurrence')}/></SelectTrigger><SelectContent><SelectGroup>{candidates.map(instant=><SelectItem key={instant} value={instant}>{formatTimeInput(localTimestamp(instant,zone),regional)} {new Intl.DateTimeFormat(regional.locale,{timeZone:zone,timeZoneName:'longOffset'}).formatToParts(new Date(instant)).find(part=>part.type==='timeZoneName')?.value}</SelectItem>)}</SelectGroup></SelectContent></Select>:null}
   </Field>;
