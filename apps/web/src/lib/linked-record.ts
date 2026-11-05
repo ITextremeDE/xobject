@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {uuidSchema,linkedRecordSourceSchema,oppositeRelationshipSide,type RelationshipField,type RecordLinkOption} from '@xobject/contracts';
 export const linkedCreationSchema=z.object({targetObjectTypeId:uuidSchema,linkFrom:linkedRecordSourceSchema,source:z.object({objectTypeId:uuidSchema,recordId:uuidSchema,keyword:z.string().max(200),objectTechnicalName:z.string().regex(/^[a-z][a-z0-9_]*$/),objectLabels:z.record(z.string(),z.string()),state:z.enum(['active','inactive'])}),labels:z.record(z.string(),z.string())});
 export type LinkedCreation=z.infer<typeof linkedCreationSchema>;
-export function seedLinkedFields(fields:RelationshipField[],context?:LinkedCreation){
+export function seedLinkedFields(fields:RelationshipField[],context?:LinkedCreation):RelationshipField[]{
  if(!context)return fields;
  return fields.map(field=>field.definition.id===context.linkFrom.relationshipTypeId&&field.side===oppositeRelationshipSide(field.definition,context.linkFrom.side)?{...field,targets:[context.source]}:field);
 }

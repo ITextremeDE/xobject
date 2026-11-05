@@ -32,3 +32,27 @@ test('both header menus omit the explicit Organization assignment but retain Ide
  assert.deepEqual(groups.find(g=>g.objectType.id==='distribution_lists')!.choices.map(c=>c.relationshipTypeId),['general','distribution_member']);
  assert.equal(fields[1].definition.moduleKey,'contacts');assert.equal(fields[1].targets.length,0);
 });
+
+test('reselecting or restoring a link keeps its edge identity and local attribute draft instead of candidate defaults',async()=>{
+ const {retainRelationshipAttributes}=await import('../src/lib/relationship-selection');
+ const saved={objectTypeId:'contact',recordId:'org',keyword:'Organization',objectTechnicalName:'contacts',objectLabels:{en:'Contacts'},state:'active' as const,edgeId:'edge',edgeVersion:2,attributeValues:{title:'Saved title'},attributeAccess:{title:{read:true,edit:true}}};
+ const field={definition:custom,side:'right',targets:[saved]} as unknown as RelationshipField;
+ const candidate={...saved,edgeId:undefined,edgeVersion:undefined,attributeValues:{title:'Default title'}};
+ const result=retainRelationshipAttributes([{...field,targets:[candidate]}],[{...field,targets:[{...saved,attributeValues:{title:'Local draft'}}]}],[field]);
+ assert.equal(result[0].targets[0].edgeId,'edge');assert.equal(result[0].targets[0].attributeValues?.title,'Local draft');
+ assert.equal(retainRelationshipAttributes([{...field,targets:[candidate]}],[{...field,targets:[]}],[field])[0].targets[0].attributeValues?.title,'Saved title');
+ assert.equal(retainRelationshipAttributes([{...field,targets:[{...candidate,recordId:'another'}]}],[field],[field])[0].targets[0].attributeValues?.title,'Default title');
+});
+
+test('relationship numeric drafts honor regional formatting and reformat without changing amounts',async()=>{
+ const {localizedRelationshipFields,reformatRelationshipFields}=await import('../src/lib/relationship-selection');
+ const {normalizedFieldDraft}=await import('../src/lib/numeric-input');
+ const {defaultRegionalSettings}=await import('@xobject/contracts');
+ const german={...defaultRegionalSettings,locale:'de-DE',numberFormat:'comma' as const},english={...defaultRegionalSettings,locale:'en-US',numberFormat:'dot' as const};
+ const amount={id:'amount',kind:'money',config:{scale:2,currency:'EUR'}},ratio={id:'ratio',kind:'decimal',config:{scale:2}};
+ const fields=[{definition:{...custom,fields:[amount,ratio]},side:'right',targets:[{objectTypeId:'contact',recordId:'org',attributeValues:{amount:{amount:'1234.5',currency:'EUR'},ratio:'1234.5'}}]}] as unknown as RelationshipField[];
+ const local=localizedRelationshipFields(fields,german);assert.equal((local[0].targets[0].attributeValues!.amount as any).amount,'1.234,50');assert.equal(local[0].targets[0].attributeValues!.ratio,'1.234,50');
+ assert.deepEqual(normalizedFieldDraft(amount as any,local[0].targets[0].attributeValues!.amount,german),{amount:'1234.50',currency:'EUR'});
+ const reformatted=reformatRelationshipFields(local,german,english)!;assert.equal((reformatted[0].targets[0].attributeValues!.amount as any).amount,'1,234.50');assert.equal(reformatted[0].targets[0].attributeValues!.ratio,'1,234.50');
+ local[0].targets[0].attributeValues!.ratio='invalid';assert.equal(reformatRelationshipFields(local,german,english),null);
+});

@@ -1,4 +1,4 @@
-import {structuredSchemaKeys,structuredSchemaLabels} from '@xobject/contracts';
+import {structuredOptionGroups,type StructuredOptionGroup,structuredSchemaKeys,structuredSchemaLabels} from '@xobject/contracts';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { v7 } from 'uuid';
@@ -24,10 +24,13 @@ export function FieldTypeSettings({ readOnly = false, structureReadOnly=false, k
   useEffect(() => { onPendingChange(Object.values(newLabels).some(Boolean)); }, [newLabels, onPendingChange]);
   const options = config.options ?? [];
   const phone=kind==='structured'&&config.schema==='phone_entries';
-  const [newGroup,setNewGroup]=useState<'usage'|'phone_type'>('usage');
+  const optionGroups=kind==='structured'?structuredOptionGroups(config.schema):[];
+  const [newGroup,setNewGroup]=useState<StructuredOptionGroup>('usage');
+  const selectedGroup=optionGroups.includes(newGroup)?newGroup:'usage';
+  const groupTitle=(group:StructuredOptionGroup)=>t(group==='usage'?'contactPhoneUsage':group==='phone_type'?'contactPhoneType':'contactMessengerType');
   function move(id:string,target:string){
     const from=options.findIndex(option=>option.id===id),to=options.findIndex(option=>option.id===target);
-    if(from<0||to<0||from===to||phone&&options[from].group!==options[to].group)return;
+    if(from<0||to<0||from===to||optionGroups.length>0&&options[from].group!==options[to].group)return;
     const next=[...options];next.splice(to,0,next.splice(from,1)[0]);onChange({...config,options:next});
     requestAnimationFrame(()=>document.querySelector<HTMLElement>(`[data-choice-handle="${id}"]`)?.focus());
   }
@@ -43,13 +46,13 @@ export function FieldTypeSettings({ readOnly = false, structureReadOnly=false, k
     </> : null}
     {config.fixedOptions?<FieldSet><FieldLegend>{t('choiceValues')}</FieldLegend><FieldGroup>{options.map(option=><TranslatedLabelInput key={option.id} id={`fixed-choice-${option.id}`} value={option.labels} onChange={labels=>onChange({...config,options:options.map(item=>item.id===option.id?{...item,labels}:item)})} disabled={disabled} readOnly={readOnly} showHelp={false}/>)}</FieldGroup></FieldSet>:null}
     {(!config.fixedOptions&&(kind === 'single_choice' || kind === 'multiple_choice' || kind==='structured'&&config.schema?.endsWith('_entries'))) ? <FieldSet><FieldLegend>{t(kind==='structured'?'contactContexts':'choiceValues')}</FieldLegend><FieldGroup>
-      {kind==='structured'?<FieldDescription>{t(phone?'contactPhoneGroupsHelp':'contactContextsHelp')}</FieldDescription>:null}<SettingsHelp title={t('configurationDetails')}>{t('choiceEditorHelp')} {t('translationHelp')}</SettingsHelp>
-      {(phone?(['usage','phone_type'] as const):[undefined]).map(group=>{
-       const grouped=phone?options.filter(option=>option.group===group):options;
+      {kind==='structured'?<FieldDescription>{t(phone?'contactPhoneGroupsHelp':optionGroups.length?'contactMessengerGroupsHelp':'contactContextsHelp')}</FieldDescription>:null}<SettingsHelp title={t('configurationDetails')}>{t('choiceEditorHelp')} {t('translationHelp')}</SettingsHelp>
+      {(optionGroups.length?optionGroups:[undefined]).map(group=>{
+       const grouped=optionGroups.length?options.filter(option=>option.group===group):options;
        const entries=grouped.map((option,index)=><div key={option.id}>{index?<Separator className="mb-3"/>:null}<ChoiceValueEditor id={option.id} labels={option.labels} active={option.active} readOnly={readOnly} disabled={disabled&&!readOnly} onLabels={labels=>onChange({...config,options:options.map(item=>item.id===option.id?{...item,labels}:item)})} onActive={active=>onChange({...config,options:options.map(item=>item.id===option.id?{...item,active}:item)})} onUp={index>0?()=>move(option.id,grouped[index-1].id):undefined} onDown={index<grouped.length-1?()=>move(option.id,grouped[index+1].id):undefined} onMoveTo={target=>move(option.id,target)}/></div>);
-       return phone?<FieldSet key={group}><FieldLegend variant="label">{t(group==='usage'?'contactPhoneUsage':'contactPhoneType')}</FieldLegend><FieldGroup>{entries.length?entries:<FieldDescription>{t('structuredEmpty')}</FieldDescription>}</FieldGroup></FieldSet>:<FieldGroup key="all">{entries}</FieldGroup>;
+       return group?<FieldSet key={group}><FieldLegend variant="label">{groupTitle(group)}</FieldLegend><FieldGroup>{entries.length?entries:<FieldDescription>{t('structuredEmpty')}</FieldDescription>}</FieldGroup></FieldSet>:<FieldGroup key="all">{entries}</FieldGroup>;
       })}
-      {!readOnly?<Collapsible><CollapsibleTrigger render={<Button type="button" variant="outline" className="group/new-choice w-fit"/>}><PlusIcon data-icon="inline-start"/>{t('newChoice')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/new-choice:rotate-180"/></CollapsibleTrigger><CollapsibleContent className="pt-3"><FieldSet><FieldLegend variant="label" className="sr-only">{t('newChoice')}</FieldLegend>{phone?<Field><FieldLabel htmlFor="phone-option-group">{t('contactOptionGroup')}</FieldLabel><Select items={[{value:'usage',label:t('contactPhoneUsage')},{value:'phone_type',label:t('contactPhoneType')}]} value={newGroup} disabled={disabled} onValueChange={group=>{if(group)setNewGroup(group as 'usage'|'phone_type');}}><SelectTrigger id="phone-option-group" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup><SelectItem value="usage">{t('contactPhoneUsage')}</SelectItem><SelectItem value="phone_type">{t('contactPhoneType')}</SelectItem></SelectGroup></SelectContent></Select></Field>:null}<TranslatedLabelInput id="field-new-option" value={newLabels} onChange={setNewLabels} disabled={disabled} showHelp={false} requireOne={false}/><Button type="button" variant="outline" disabled={disabled||!hasLabel(newLabels)||options.length>=300} onClick={()=>{onChange({...config,options:[...options,{id:v7(),labels:cleanLabels(newLabels),active:true,...(phone?{group:newGroup}:{})}]});setNewLabels({});}}><PlusIcon data-icon="inline-start"/>{t('addChoice')}</Button>{Object.values(newLabels).some(Boolean)?<FieldDescription>{t('pendingChoiceHelp')}</FieldDescription>:null}</FieldSet></CollapsibleContent></Collapsible>:null}
+      {!readOnly?<Collapsible><CollapsibleTrigger render={<Button type="button" variant="outline" className="group/new-choice w-fit"/>}><PlusIcon data-icon="inline-start"/>{t('newChoice')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/new-choice:rotate-180"/></CollapsibleTrigger><CollapsibleContent className="pt-3"><FieldSet><FieldLegend variant="label" className="sr-only">{t('newChoice')}</FieldLegend>{optionGroups.length?<Field><FieldLabel htmlFor="collection-option-group">{t('contactOptionGroup')}</FieldLabel><Select items={optionGroups.map(value=>({value,label:groupTitle(value)}))} value={selectedGroup} disabled={disabled} onValueChange={group=>{if(group)setNewGroup(group as StructuredOptionGroup);}}><SelectTrigger id="collection-option-group" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{optionGroups.map(group=><SelectItem key={group} value={group}>{groupTitle(group)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>:null}<TranslatedLabelInput id="field-new-option" value={newLabels} onChange={setNewLabels} disabled={disabled} showHelp={false} requireOne={false}/><Button type="button" variant="outline" disabled={disabled||!hasLabel(newLabels)||options.length>=300} onClick={()=>{onChange({...config,options:[...options,{id:v7(),labels:cleanLabels(newLabels),active:true,...(optionGroups.length?{group:selectedGroup}:{})}]});setNewLabels({});}}><PlusIcon data-icon="inline-start"/>{t('addChoice')}</Button>{Object.values(newLabels).some(Boolean)?<FieldDescription>{t('pendingChoiceHelp')}</FieldDescription>:null}</FieldSet></CollapsibleContent></Collapsible>:null}
     </FieldGroup></FieldSet> : null}
   </FieldGroup>;
 }

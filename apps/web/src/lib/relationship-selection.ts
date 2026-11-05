@@ -1,3 +1,4 @@
+import {localizedFieldDraft,reformatNumericDrafts} from './numeric-input';
 import type { RelatedRecord, RelationshipType } from '@xobject/contracts';
 export const relatedIdentity=(record:Pick<RelatedRecord,'objectTypeId'|'recordId'>)=>`${record.objectTypeId}:${record.recordId}`;
 export function sameRelatedSelection(left:RelatedRecord[],right:RelatedRecord[]) {
@@ -12,4 +13,24 @@ export function eligibleTargetObject(type:RelationshipType,source:string,side:'l
   if(type.allowAll)return true;
   return type.pairs.some(pair=>side==='left'?pair.leftObjectTypeId===source&&pair.rightObjectTypeId===target:pair.rightObjectTypeId===source&&pair.leftObjectTypeId===target)
     ||!type.directed&&type.pairs.some(pair=>side==='left'?pair.rightObjectTypeId===source&&pair.leftObjectTypeId===target:pair.leftObjectTypeId===source&&pair.rightObjectTypeId===target);
+}
+/** A picker returns candidate metadata; reselecting an existing edge retains its saved/draft attributes. */
+export function retainRelationshipAttributes(next:import('@xobject/contracts').RelationshipField[],current:import('@xobject/contracts').RelationshipField[],baseline:import('@xobject/contracts').RelationshipField[]){
+ return next.map(field=>({...field,targets:field.targets.map(target=>{
+  if(target.edgeId)return target;
+  const candidates=[...current,...baseline].filter(f=>f.definition.id===field.definition.id&&f.side===field.side).flatMap(f=>f.targets);
+  const retained=candidates.find(r=>relatedIdentity(r)===relatedIdentity(target)&&r.edgeId);
+  return retained?{...target,edgeId:retained.edgeId,edgeVersion:retained.edgeVersion,attributeValues:retained.attributeValues,attributeAccess:retained.attributeAccess}:target;
+ })}));
+}
+export function localizedRelationshipFields(fields:import('@xobject/contracts').RelationshipField[],regional:import('@xobject/contracts').RegionalSettings):import('@xobject/contracts').RelationshipField[]{
+ return fields.map(relation=>({...relation,targets:relation.targets.map(target=>({...target,attributeValues:target.attributeValues?Object.fromEntries(Object.entries(target.attributeValues).map(([id,value])=>{const field=relation.definition.fields?.find(f=>f.id===id);return [id,field?localizedFieldDraft(field,value,regional):value];})):undefined}))}));
+}
+export function reformatRelationshipFields(fields:import('@xobject/contracts').RelationshipField[],from:import('@xobject/contracts').RegionalSettings,to:import('@xobject/contracts').RegionalSettings):import('@xobject/contracts').RelationshipField[]|null{
+ let invalid=false;
+ const result=fields.map(relation=>({...relation,targets:relation.targets.map(target=>{
+  if(!target.attributeValues)return target;
+  const definitions=(relation.definition.fields??[]).map(f=>({...f,technicalName:f.id}));
+  const next=reformatNumericDrafts(definitions,target.attributeValues,from,to);if(!next){invalid=true;return target;}return {...target,attributeValues:next};
+ })}));return invalid?null:result;
 }

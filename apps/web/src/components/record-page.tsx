@@ -1,3 +1,6 @@
+import {DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuGroup,DropdownMenuItem} from './ui/dropdown-menu';
+import {localizedRelationshipFields,reformatRelationshipFields,retainRelationshipAttributes} from '@/lib/relationship-selection';
+import {ContactMediaPreparation} from './contact-media-preparation';
 import {ContactCoreGroups} from './contact-core-groups';
 import {contactKindLabel} from '@/lib/contact-kind';
 import {contactKindOrder,contactCoreFieldIds,contactCoreEntry,contactCoreLayout,contactExtensionLayout} from '@xobject/contracts';
@@ -29,7 +32,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftIcon, RotateCcwIcon, SaveIcon, ChevronDownIcon, CopyIcon } from 'lucide-react';
+import { ArrowLeftIcon, RotateCcwIcon, SaveIcon, ChevronDownIcon, CopyIcon, MoreHorizontalIcon, Trash2Icon } from 'lucide-react';
 import { fieldApplies, isCustomFieldKind, type FieldValue, type AuthUser, type DataRecord, type ObjectDefinition, type RecordRelationships, type JournalEntry } from '@xobject/contracts';
 import { RecordJournalTable } from './record-journal-table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
@@ -62,12 +65,15 @@ export function RecordPage(props: Props) {
   const security=useQuery({queryKey:['record-security',props.definition.id,props.recordId],queryFn:()=>api('get_record_security',{objectTypeId:props.definition.id,recordId:props.recordId}),enabled:props.definition.sensitive===true&&props.recordId!=='new'});
   const newOwners=useQuery({queryKey:['access-principals',props.definition.id],queryFn:()=>api('list_access_principals',{objectTypeId:props.definition.id}),enabled:props.definition.sensitive===true&&props.recordId==='new'&&props.definition.permissions?.full===true});
   const relationships=useQuery({queryKey:['record-relationships',props.definition.id,props.recordId],queryFn:()=>api('get_record_relationships',{objectTypeId:props.definition.id,recordId:props.recordId==='new'?undefined:props.recordId})});
-  if (relationships.isPending) return <RecordPageLoading definition={props.definition} isNew={props.recordId==='new'}/>;
+  const kindField=props.definition.fields.find(field=>field.id===props.definition.contactProfile?.fields.contact_kind);
+  const loadingApplicable=record.data?.applicableFieldIds;
+  const loadingValues=record.data??(kindField&&contactKind?{[kindField.technicalName]:contactKind}:undefined);
+  if (relationships.isPending) return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} isNew={props.recordId==='new'}/>;
   if (relationships.isError) return <ErrorNotice error={relationships.error} retry={()=>{void relationships.refetch();}}/>;
-  if (props.recordId !== 'new' && record.isPending) return <RecordPageLoading definition={props.definition} treeAvailable={Boolean(relationships.data.primaryChain)}/>;
+  if (props.recordId !== 'new' && record.isPending) return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} treeAvailable={Boolean(relationships.data.primaryChain)}/>;
   if (record.isError) return <FieldGroup><Button type="button" variant="outline" className="w-fit" onClick={props.onClose}><ArrowLeftIcon data-icon="inline-start" />{t(props.returnToSource?'backToSource':'backToOverview')}</Button><ErrorNotice error={record.error} retry={() => { void record.refetch(); }} /></FieldGroup>;
   const sensitive=props.definition.sensitive===true,isNew=props.recordId==='new';
-  if(sensitive&&(!isNew?security.isPending:props.definition.permissions?.full&&newOwners.isPending))return <RecordPageLoading definition={props.definition} isNew={isNew}/>;
+  if(sensitive&&(!isNew?security.isPending:props.definition.permissions?.full&&newOwners.isPending))return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} isNew={isNew}/>;
   if(sensitive&&(security.isError||newOwners.isError))return <ErrorNotice error={security.error??newOwners.error}/>;
   const newPolicy:import('@xobject/contracts').RecordSecurity={owners:[{kind:'user',id:props.user.id,level:'full'}],publicLevel:null,privacy:'normal',foreignMax:'full',fields:[]};
   const accessSnapshot:SecuritySnapshot|undefined=sensitive?(isNew?{policy:newPolicy,version:1,canManage:props.definition.permissions?.full===true,effective:{level:props.definition.permissions?.full?'full':props.definition.permissions?.delete?'delete':props.definition.permissions?.edit?'edit':props.definition.permissions?.schedule?'schedule':props.definition.permissions?.duplicate?'duplicate':props.definition.permissions?.read?'read':'none',source:props.user.isAdmin?'administrator':'ownership',path:[`user:${props.user.id}`]},principals:[...(newOwners.data??[]).filter(person=>person.id!==props.user.id).map(person=>({...person,active:true,assignable:true})),{kind:'user',id:props.user.id,name:props.user.name,active:true,assignable:true}],fieldAccess:Object.fromEntries(props.definition.fields.map(field=>[field.id,{read:field.fieldPermissions?.create===true,edit:field.fieldPermissions?.create===true}]))}:security.data):undefined;
@@ -84,11 +90,20 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const queryClient = useQueryClient(),navigate=useNavigate();
   const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
   const userName = (id: string) => id === user.id ? user.name : principals.data?.find(principal => principal.kind === 'user' && principal.id === id)?.name ?? id;
-  const [relationFields,setRelationFields]=useState(()=>seedLinkedFields(relationships.fields,linkedCreation));
-  const [relationBaseline,setRelationBaseline]=useState(()=>seedLinkedFields(relationships.fields,linkedCreation));
+  const requestedRegional=useRegional(),requestedTimeZone=useTimeZone();
+  const [draftFormat,setDraftFormat]=useState(()=>({regional:requestedRegional,timeZone:requestedTimeZone}));
+  const {regional,timeZone}=draftFormat;
+  const formatChangePending=JSON.stringify(regional)!==JSON.stringify(requestedRegional)||timeZone!==requestedTimeZone;
+  const [relationFields,setRelationFields]=useState(()=>localizedRelationshipFields(seedLinkedFields(relationships.fields,linkedCreation),regional));
+  const [relationBaseline,setRelationBaseline]=useState(()=>localizedRelationshipFields(seedLinkedFields(relationships.fields,linkedCreation),regional));
   const relationDirty=JSON.stringify(relationFields)!==JSON.stringify(relationBaseline);
-  useEffect(()=>{if(!relationDirty){setRelationFields(seedLinkedFields(relationships.fields,linkedCreation));setRelationBaseline(seedLinkedFields(relationships.fields,linkedCreation));}},[relationships,relationDirty]);
+  useEffect(()=>{if(!relationDirty){setRelationFields(localizedRelationshipFields(seedLinkedFields(relationships.fields,linkedCreation),regional));setRelationBaseline(localizedRelationshipFields(seedLinkedFields(relationships.fields,linkedCreation),regional));}},[relationships,relationDirty]);
   const relationshipWrites=()=>relationFields.filter(field=>field.editable!==false&&(!record||JSON.stringify(field.targets)!==JSON.stringify(relationBaseline.find(item=>item.definition.id===field.definition.id&&item.side===field.side)?.targets))).map(field=>({relationshipTypeId:field.definition.id,version:field.definition.version,side:field.side,targets:field.targets.map(({objectTypeId,recordId})=>({objectTypeId,recordId}))}));
+  const relationshipAttributes=()=>relationFields.flatMap(field=>field.targets.flatMap(target=>{
+    const before=relationBaseline.find(f=>f.definition.id===field.definition.id&&f.side===field.side)?.targets.find(t=>t.objectTypeId===target.objectTypeId&&t.recordId===target.recordId);
+    const values=Object.fromEntries(Object.entries(target.attributeValues??{}).filter(([id,value])=>target.attributeAccess?.[id]?.edit!==false&&JSON.stringify(value)!==JSON.stringify(before?.attributeValues?.[id]??null)));
+    return Object.keys(values).length?[{relationshipTypeId:field.definition.id,definitionVersion:field.definition.version,target:{objectTypeId:target.objectTypeId,recordId:target.recordId},edgeId:target.edgeId,version:target.edgeVersion,values:Object.fromEntries(Object.entries(values).map(([id,value])=>[id,normalizedFieldDraft(field.definition.fields!.find(f=>f.id===id)!,value,regional)]))}]:[];
+  }));
   const [accessOpen,setAccessOpen]=useState(false);
   const [securityBaseline,setSecurityBaseline]=useState(accessSnapshot?.policy),[securityDraft,setSecurityDraft]=useState(accessSnapshot?.policy),[securityConfirmed,setSecurityConfirmed]=useState(false),[accessDetailDirty,setAccessDetailDirty]=useState(false);
   const securityDirty=Boolean(securityBaseline&&securityDraft&&!sameRecordSecurity(securityBaseline,securityDraft));
@@ -96,10 +111,6 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const [tab, setTab] = useState('details');
   const treeAvailable=Boolean(relationships.primaryChain);
   useEffect(()=>{if(!treeAvailable&&tab==='tree')setTab('details');},[treeAvailable,tab]);
-  const requestedRegional=useRegional(),requestedTimeZone=useTimeZone();
-  const [draftFormat,setDraftFormat]=useState(()=>({regional:requestedRegional,timeZone:requestedTimeZone}));
-  const {regional,timeZone}=draftFormat;
-  const formatChangePending=JSON.stringify(regional)!==JSON.stringify(requestedRegional)||timeZone!==requestedTimeZone;
   const inactiveObject=Boolean(definition.state&&definition.state!=='active');
   const readOnly = Boolean((record?record.permissions?.edit!==true:definition.permissions?.create!==true)||inactiveObject);
   const activeFields = definition.fields.filter(field => field.technicalName!=='access_principals'&&field.fieldPermissions?.read!==false&&(!field.state || field.state === 'active'));
@@ -154,12 +165,12 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     const classification = Object.fromEntries(Object.entries(choices).filter(([key]) => activeFields.some(field => field.technicalName === key&&field.fieldPermissions?.edit!==false)));
     const keyword = hasKeyword&&activeFields.find(field=>field.technicalName==='keyword')?.fieldPermissions?.edit!==false ? { keyword: String(values.keyword ?? '').trim() } : {};
     const security=securityDraft&&(securityDirty||!record&&accessSnapshot?.canManage)?{security:{policy:securityDraft,confirmPublic:securityConfirmed}}:{};
-    if (record && version) return api('update_record', { objectTypeId: definition.id, recordId: record.id, version,...security, ...keyword, values: data, classification, relationships:relationshipWrites() });
-    return api('create_record', {linkFrom:linkedCreation?.linkFrom, objectTypeId: definition.id,...security, ...keyword, values: data, classification, relationships:relationshipWrites() });
+    if (record && version) return api('update_record', { objectTypeId: definition.id, recordId: record.id, version,...security, ...keyword, values: data, classification, relationshipAttributes:relationshipAttributes(),relationships:relationshipWrites() });
+    return api('create_record', {linkFrom:linkedCreation?.linkFrom, objectTypeId: definition.id,...security, ...keyword, values: data, classification, relationshipAttributes:relationshipAttributes(),relationships:relationshipWrites() });
   }, onMutate: () => { onBusyChange(true); setSaved(false); }, onSuccess: async result => {
       if(result.permissions?.read===false){setLostAccess(true);onDirtyChange(false);onBusyChange(false);onAccessLost?.();queryClient.removeQueries({queryKey:['record',definition.id,result.id]});void queryClient.invalidateQueries();return;}
     const latest=await api('get_record_relationships',{objectTypeId:definition.id,recordId:result.id}).catch(()=>null);
-    if(latest){setRelationFields(latest.fields);setRelationBaseline(latest.fields);queryClient.setQueryData(['record-relationships',definition.id,result.id],latest);}else setRelationBaseline(relationFields);
+    if(latest){setRelationFields(localizedRelationshipFields(latest.fields,regional));setRelationBaseline(localizedRelationshipFields(latest.fields,regional));queryClient.setQueryData(['record-relationships',definition.id,result.id],latest);}else setRelationBaseline(relationFields);
     void queryClient.invalidateQueries({queryKey:['record-relationships']});
     void queryClient.invalidateQueries({queryKey:['relationship-tree']});
     void queryClient.invalidateQueries({queryKey:['primary-chain-context']});
@@ -195,8 +206,9 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   }
   function renderEntry(entry:FormEntry,singleGroupLabel?:string){
     if('fieldId' in entry){const field=layoutFields.find(field=>field.id===entry.fieldId);return field?<div className="min-w-0" data-record-field={field.id}>{renderField(field,field.kind==='multiline'&&!field.required&&field.label===singleGroupLabel)}</div>:null;}
-    return <RecordRelationshipFields singleGroupLabel={singleGroupLabel} entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly||Boolean(linkedCreation&&!record&&(('relationshipTypeId' in entry&&entry.relationshipTypeId===linkedCreation.linkFrom.relationshipTypeId)||('primary' in entry&&relationFields.some(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.definition.kind==='primary'))))} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
+    return <RecordRelationshipFields workspaceId={definition.workspaceId} singleGroupLabel={singleGroupLabel} entry={entry} fieldDefinitions={activeFields} values={values} primaryChain={relationships.primaryChain} objectTypeId={definition.id} recordId={record?.id} fields={relationFields} disabled={mutation.isPending} readOnly={readOnly||Boolean(linkedCreation&&!record&&(('relationshipTypeId' in entry&&entry.relationshipTypeId===linkedCreation.linkFrom.relationshipTypeId)||('primary' in entry&&relationFields.some(field=>field.definition.id===linkedCreation.linkFrom.relationshipTypeId&&field.definition.kind==='primary'))))} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} workspaceCode={workspaceCode} onChange={updateRelationships}/>;
   }
+  const [recycleOpen,setRecycleOpen]=useState(false);
   const validationFieldId=mutation.error instanceof ApiError&&mutation.error.details?.code==='unique_value'?mutation.error.details.fieldId:undefined;
   useEffect(()=>{if(validationFieldId)requestAnimationFrame(()=>document.querySelector<HTMLElement>(`[data-record-field="${validationFieldId}"] input, [data-record-field="${validationFieldId}"] [role="combobox"]`)?.focus());},[mutation.error]);
   function renderField(source:FieldDefinition,labelHidden=false){
@@ -208,11 +220,12 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     if(field.isDerived)return <Field><FieldLabel htmlFor={`derived-${field.id}`}>{field.label}</FieldLabel><Input id={`derived-${field.id}`} value={String(record?.[field.technicalName]??'')} readOnly placeholder={t('derivedOnSave')}/>{field.technicalName==='keyword'?<FieldDescription>{t(dirty?'derivedUpdatesOnSave':'derivedFieldHelp')}</FieldDescription>:null}</Field>;
     if(field.technicalName==='keyword')return <Field data-disabled={(mutation.isPending||readOnly)||undefined}><FieldLabel htmlFor="record-keyword">{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><Input aria-invalid={Boolean(fieldError)} aria-describedby={fieldDescriptionIds(field,fieldError?`keyword-validation-error`:undefined)} id="record-keyword" value={String(values.keyword??'')} maxLength={200} required={field.required} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={event=>update('keyword',event.target.value)}/><FieldExplanation field={field} help/>{fieldError?<FieldError id="keyword-validation-error">{fieldError}</FieldError>:null}</Field>;
     if(['type','status','category'].includes(field.technicalName))return <ClassificationFields allowedStatusIds={definition.fields.some(item=>item.technicalName==='type'&&item.fieldPermissions?.read===false)?dependencyContext.allowedStatusIds:undefined} fields={[field]} config={definition.classification} value={choices} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={next=>{setChoices(next);setSaved(false);onDirtyChange(securityDirty||relationDirty||JSON.stringify(next)!==JSON.stringify(choiceBaseline)||valuesChanged(values));}}/>;
-    return <CustomFieldControl labelHidden={labelHidden} legendVariant={[definition.contactProfile?.fields.addresses,definition.contactProfile?.fields.notes].includes(field.id)?'legend':'label'} error={fieldError} field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} objectTypeId={definition.id} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={value=>update(field.technicalName,value)}/>;
+    return <CustomFieldControl compactChoices={field.id===definition.contactProfile?.fields.function} labelHidden={labelHidden} legendVariant={[definition.contactProfile?.fields.addresses,definition.contactProfile?.fields.notes].includes(field.id)?'legend':'label'} error={fieldError} field={field} value={values[field.technicalName]??null} workspaceId={definition.workspaceId} objectTypeId={definition.id} disabled={mutation.isPending||readOnly||field.fieldPermissions?.edit===false} onChange={value=>update(field.technicalName,value)}/>;
   }
   useEffect(() => { document.querySelector<HTMLElement>('[data-record-page-title]')?.focus(); }, [recordId]);
   const title = record ? record.keyword || record.id : kindKey?t('contactNewKind',{kind:contactKindLabel(definition,kindKey,i18n.language,t(`contactKind_${kindKey}`))}):t('newRecord');
   const missingFields = [
+    ...relationFields.flatMap(relation=>relation.targets.flatMap(target=>(relation.definition.fields??[]).filter(field=>field.state==='active'&&field.required&&target.attributeAccess?.[field.id]?.read!==false&&emptyCustomValue(target.attributeValues?.[field.id])).map(f=>f.label))),
     ...contactValidation.filter(issue=>issue.code!=='contactKindRequired').map(issue=>t(issue.code)),
     ...applicableFields.filter(field => !field.isDerived&&isCustomFieldKind(field.kind) && field.required && emptyCustomValue(values[field.technicalName])).map(field => field.label),
     ...(['type', 'status', 'category'] as const).filter(kind => activeFields.some(field => field.kind === kind) && definition.classification[kind].required && (kind === 'category' ? !choices.category.length : !choices[kind])).map(kind => t(kind === 'type' ? 'classificationType' : kind === 'status' ? 'classificationStatus' : 'classificationCategory')),
@@ -225,17 +238,27 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   const linkedRule=linkedField?(linkedField.side==='left'?linkedField.definition.leftApplicability:linkedField.definition.rightApplicability):undefined;
   const linkedConditionInvalid=Boolean(linkedCreation&&!record&&linkedRule&&!fieldApplies({applicability:linkedRule},activeFields,values));
   const structuredInvalid=applicableFields.some(field=>{if(field.kind!=='structured'||values[field.technicalName]===null||values[field.technicalName]===undefined)return false;try{parseStructuredValue(field.config.schema!,values[field.technicalName]);return false;}catch{return true;}});
-  const invalid = structuredInvalid||!securityValid||linkedConditionInvalid||timestampInvalid || missingFields.length > 0 || applicableFields.some(field=>Boolean(numericDraftError(field,values[field.technicalName]??null,regional)));
+  const attributeInvalid=relationFields.some(relation=>relation.targets.some(target=>(relation.definition.fields??[]).some(field=>{
+    if(field.state!=='active'||target.attributeAccess?.[field.id]?.edit===false)return false;
+    const value=target.attributeValues?.[field.id]??null;
+    if(numericDraftError(field,value,regional))return true;
+    if(field.kind==='structured'&&value!==null){try{parseStructuredValue(field.config.schema!,value);}catch{return true;}}
+    return value!==null&&(field.kind==='date'?!isCalendarDate(String(value)):field.kind==='datetime'?!isInstant(String(value)):false);
+  })));
+  const invalid = attributeInvalid||structuredInvalid||!securityValid||linkedConditionInvalid||timestampInvalid || missingFields.length > 0 || applicableFields.some(field=>Boolean(numericDraftError(field,values[field.technicalName]??null,regional)));
   useEffect(()=>{
-    if(!formatChangePending||mutation.isPending||timestampInvalid)return;
+    if(!formatChangePending||mutation.isPending||timestampInvalid||attributeInvalid)return;
     const next=reformatNumericDrafts(activeFields,values,regional,requestedRegional);
     const previous=reformatNumericDrafts(activeFields,baseline,regional,requestedRegional);
-    if(!next||!previous)return;
+    const nextRelations=reformatRelationshipFields(relationFields,regional,requestedRegional),previousRelations=reformatRelationshipFields(relationBaseline,regional,requestedRegional);
+    if(!next||!previous||!nextRelations||!previousRelations)return;
+    setRelationFields(nextRelations);setRelationBaseline(previousRelations);
     setValues(next);setBaseline(previous);setDraftFormat({regional:requestedRegional,timeZone:requestedTimeZone});
-  },[formatChangePending,requestedRegional,requestedTimeZone,regional,activeFields,values,baseline,timestampInvalid,mutation.isPending]);
+  },[formatChangePending,requestedRegional,requestedTimeZone,regional,activeFields,values,baseline,timestampInvalid,attributeInvalid,relationFields,relationBaseline,mutation.isPending]);
   function reset() {setTouchedDefaults(new Set());setSecurityDraft(securityBaseline);setSecurityConfirmed(false);setAccessDetailDirty(false);setApplicabilityError('');setRelationFields(relationBaseline); setValues({ ...baseline }); setChoices(choiceBaseline); setSaved(false); mutation.reset(); onDirtyChange(false); }
   const linkSourceValues=Object.fromEntries(relationFields.flatMap(field=>{const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;const controller=activeFields.find(item=>item.id===rule?.fieldId);return controller?[[controller.technicalName,values[controller.technicalName]??null]]:[];}));
-  const updateRelationships = (next: typeof relationFields) => {
+  const updateRelationships = (candidate: typeof relationFields) => {
+    const next=retainRelationshipAttributes(candidate.map(field=>({...field,targets:field.targets.map(target=>{const existing=[...relationFields,...relationBaseline].filter(f=>f.definition.id===field.definition.id&&f.side===field.side).flatMap(f=>f.targets).some(t=>t.objectTypeId===target.objectTypeId&&t.recordId===target.recordId);return existing?target:localizedRelationshipFields([{...field,targets:[target]}],regional)[0].targets[0];})})),relationFields,relationBaseline);
     setRelationFields(next);setSaved(false);
     onDirtyChange(securityDirty||JSON.stringify(next)!==JSON.stringify(relationBaseline)||choicesDirty||valuesChanged(values));
   };
@@ -243,6 +266,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
   return <RegionalProvider value={regional}><TimeZoneProvider value={timeZone}><form id="record-form" data-shortcut-submit className="flex w-full min-w-0 flex-col gap-6 pb-6" onSubmit={event => { event.preventDefault(); if (tab === 'details' && !readOnly && !formatChangePending && !invalid && (!record || dirty) && !mutation.isPending) mutation.mutate(); }}>
     <header className="flex min-w-0 flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-3"><Button type="button" variant="ghost" className="w-fit -ml-2" disabled={mutation.isPending} onClick={onClose}><ArrowLeftIcon data-icon="inline-start" />{t(returnToSource?'backToSource':'backToOverview')}</Button>
+      {record&&(record.permissions?.delete||record.permissions?.duplicate&&definition.permissions?.create)?<DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" className="sm:hidden" aria-label={t('recordActions')}/> }><MoreHorizontalIcon/></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-56 max-w-[calc(100vw-2rem)]"><DropdownMenuGroup>{record.permissions?.duplicate&&definition.permissions?.create?<DropdownMenuItem disabled={inactiveObject||dirty||mutation.isPending||duplicate.isPending} onClick={()=>duplicate.mutate()}><CopyIcon/>{t('duplicateRecord')}</DropdownMenuItem>:null}{record.permissions?.delete?<DropdownMenuItem disabled={inactiveObject||dirty||mutation.isPending||duplicate.isPending} onClick={()=>setRecycleOpen(true)}><Trash2Icon/>{t('recycleRecord')}</DropdownMenuItem>:null}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>:null}
       <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{kindKey?contactKindLabel(definition,kindKey,i18n.language,t(`contactKind_${kindKey}`)):definition.label}</Badge>{record&&!readOnly?<RecordLinkActions excludedRelationshipIds={definition.contactProfile?[definition.contactProfile.relationships.contact_person]:[]} source={{objectTypeId:definition.id,recordId:record.id,keyword:record.keyword,objectTechnicalName:definition.technicalName,objectLabels:definition.labels,state:'active'}} version={version!} fields={relationFields} sourceValues={linkSourceValues} workspaceCode={workspaceCode} disabled={mutation.isPending} dirty={dirty||formatChangePending} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} onApply={(field,targets)=>{updateRelationships(relationFields.map(item=>item===field?{...item,targets}:item));setTab('details');}}/>:null}{readOnly?<Badge variant="outline">{t(inactiveObject?'definition_inactive':'readOnly')}</Badge>:null}</div></div>
       <h1 data-record-page-title tabIndex={-1} className="wrap-anywhere text-2xl font-semibold outline-none">{title}</h1>
       <p className="text-sm text-muted-foreground">{t(inactiveObject?'inactiveObjectHelp':readOnly?'recordReadOnlyHelp':record?'recordDetails':'newRecordDescription')}</p>
@@ -250,8 +274,8 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
     {linkedCreation&&!record?<Alert><AlertDescription>{t('linkedRecordContext',{relationship:groupLabel(linkedCreation.labels),source:linkedCreation.source.keyword})}{linkedConditionInvalid?<p>{t('linkedRecordConditionHelp',{field:activeFields.find(field=>field.id===linkedRule?.fieldId)?.label??t('fieldName')})}</p>:null}</AlertDescription></Alert>:null}
     {formatChangePending?<Alert><AlertDescription>{t('regionalFormatChangePending')}</AlertDescription></Alert>:null}
     {dirty?<Alert><AlertDescription role="status" className="flex flex-wrap items-center justify-between gap-2">{t('recordDraftPending')}{tab!=='details'?<Button type="button" variant="outline" size="sm" onClick={()=>setTab('details')}>{t('keepEditing')}</Button>:null}</AlertDescription></Alert>:null}
-    {record?<div className="flex flex-wrap items-center gap-2">
-      {record.permissions?.delete?<RecordLifecycleAction objectTypeId={definition.id} recordId={record.id} version={version!} name={record.keyword||record.id} disabled={inactiveObject||dirty||mutation.isPending||duplicate.isPending} onBusyChange={onBusyChange} onDone={()=>{onBusyChange(false);onAccessLost?.();}}/>:null}
+    {record?<div className="hidden flex-wrap items-center gap-2 sm:flex">
+      {record.permissions?.delete?<RecordLifecycleAction open={recycleOpen} onOpenChange={setRecycleOpen} objectTypeId={definition.id} recordId={record.id} version={version!} name={record.keyword||record.id} disabled={inactiveObject||dirty||mutation.isPending||duplicate.isPending} onBusyChange={onBusyChange} onDone={()=>{onBusyChange(false);onAccessLost?.();}}/>:null}
       {record.permissions?.duplicate&&definition.permissions?.create?<Button type="button" variant="outline" disabled={inactiveObject||dirty||mutation.isPending||duplicate.isPending} onClick={()=>duplicate.mutate()}><CopyIcon data-icon="inline-start"/>{t('duplicateRecord')}</Button>:null}
     </div>:null}
     {duplicate.isError?<ErrorNotice error={duplicate.error}/>:null}
@@ -265,7 +289,7 @@ function RecordForm({ accessSnapshot,returnToSource,linkedCreation,definition, r
       {saved ? <Alert><AlertDescription role="status">{t('saved')}</AlertDescription></Alert> : null}
       {!record?<FieldDescription>{t('recordCreateHelp')}</FieldDescription>:null}
       {hiddenRelationships?<Button type="button" variant="outline" className="self-start" onClick={()=>setShowHiddenRelationships(value=>!value)}>{t(showHiddenRelationships?'formHideOptionalRelationships':'formShowOptionalRelationships',{count:hiddenRelationships})}</Button>:null}
-      {coreLayout?<ContactCoreGroups layout={coreLayout} renderGroup={(group,singleColumn)=>['contact-addresses','contact-notes'].includes(group.id)?<SettingsSection key={group.id}>{group.fields.map(entry=><div key={'fieldId'in entry?entry.fieldId:'core'}>{renderEntry(entry)}</div>)}</SettingsSection>:<RecordFormGroups key={group.id} singleColumn={singleColumn} layout={{groups:[group]}} renderEntry={renderEntry}/>}/>:null}
+      {coreLayout?<ContactCoreGroups layout={coreLayout} media={<ContactMediaPreparation kind={kindKey}/>} renderGroup={(group,singleColumn)=>['contact-addresses','contact-notes'].includes(group.id)?<SettingsSection key={group.id}>{group.fields.map(entry=><div key={'fieldId'in entry?entry.fieldId:'core'}>{renderEntry(entry)}</div>)}</SettingsSection>:<RecordFormGroups key={group.id} singleColumn={singleColumn} layout={{groups:[group]}} renderEntry={renderEntry}/>}/>:null}
       <RecordFormGroups layout={layout} renderEntry={renderEntry}/>
       {record && inactiveFields.length ? <Collapsible className="rounded-lg border"><CollapsibleTrigger className="group/record-inactive" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between px-4 py-3"/>}>{t('inactiveFields')}<ChevronDownIcon data-icon="inline-end" className="transition-transform group-aria-expanded/record-inactive:rotate-180"/></CollapsibleTrigger><CollapsibleContent><Separator/><FieldSet className="p-4"><FieldLegend className="sr-only">{t('inactiveFields')}</FieldLegend><FieldGroup>
         {inactiveFields.filter(field => isCustomFieldKind(field.kind)).map(field => <CustomFieldControl key={field.id} field={field} value={localizedFieldDraft(field,record[field.technicalName] as FieldValue ?? null,regional)} workspaceId={definition.workspaceId} disabled onChange={() => {}} />)}
@@ -290,12 +314,12 @@ export function Journal({ definition, recordId, user, record, workspaceName,incl
   const regional=useRegional(),timeZone=useTimeZone();
   const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
   const [fieldId,setFieldId]=useState('all'),[kind,setKind]=useState('all'),[page,setPage]=useState(1),[pageSize,setPageSize]=useState(10);
-  const allFields=[...definition.fields,...(definition.historicalFields??[])];
+  const allFields=[...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[]).map(field=>({...field,label:`${t('relationshipAttributes')} · ${field.label}`}))];
   const result = useQuery({ placeholderData:keepPreviousData, queryKey: ['journal', definition.id, recordId,includeRecycled,fieldId,kind,page,pageSize], queryFn: () => api('list_record_journal', {includeRecycled, objectTypeId: definition.id, recordId,fieldId:fieldId==='all'?undefined:fieldId,entityKind:kind==='all'?undefined:kind as 'record'|'relationship',offset:(page-1)*pageSize,limit:pageSize }) });
   const fields=[{value:'all',label:t('journalAllFields')},...allFields.map(field=>({value:field.id,label:field.label})).sort((a,b)=>a.label.localeCompare(b.label,i18n.language))];
   const kinds=[{value:'all',label:t('journalAllChanges')},{value:'record',label:t('journalFieldChanges')},{value:'relationship',label:t('recordRelationships')}];
   const filters=<FieldGroup className="w-full gap-4 sm:flex-row sm:items-end sm:max-w-xl"><Field><FieldLabel htmlFor="record-journal-kind">{t('recordJournalChangeFilter')}</FieldLabel><Select items={kinds} value={kind} onValueChange={value=>{if(value){setKind(value);setFieldId('all');setPage(1);}}}><SelectTrigger id="record-journal-kind" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{kinds.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-  {kind!=='relationship'?<Field><FieldLabel htmlFor="record-journal-field">{t('field')}</FieldLabel><Select items={fields} value={fieldId} onValueChange={value=>{if(value){setFieldId(value);setPage(1);}}}><SelectTrigger id="record-journal-field" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{fields.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>:null}</FieldGroup>;
+  {<Field><FieldLabel htmlFor="record-journal-field">{t('field')}</FieldLabel><Select items={fields} value={fieldId} onValueChange={value=>{if(value){setFieldId(value);setPage(1);}}}><SelectTrigger id="record-journal-field" className="w-full"><SelectValue/></SelectTrigger><SelectContent><SelectGroup>{fields.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>}</FieldGroup>;
   const entries=(result.data?.entries??[]).map(entry=>{
     const field=allFields.find(field=>field.id===entry.field_id);
     return {...entry,entity_kind:entry.entity_kind??'record',entity_id:entry.entity_id??recordId,workspace_id:definition.workspaceId,workspace_name:workspaceName,object_type_name:definition.label,actor_name:entry.actor_name??(entry.actor_id===user.id?user.name:entry.actor_id),entity_name:record.keyword||record.id,field_label:field?.label??entry.field_label??null};

@@ -18,3 +18,19 @@ test('pending record tables retain headers and page size while hiding empty/coun
  assert.equal((html.match(/<th\b/g)??[]).length,4,'selection, actual columns and actions retain their header cells');
  assert.equal((html.match(/<tr\b[^>]*aria-hidden="true"/g)??[]).length,10,'placeholder rows use the record-row height and are hidden from assistive output');
 });
+
+import {recordLoadingModel} from '../src/lib/record-loading.js';
+import type {ObjectDefinition} from '@xobject/contracts';
+const contactLoadingDefinition={contactProfile:{fields:{contact_kind:'kind'},relationships:{},kinds:{organization:'org',individual:'ek',person:'ap'}},fields:[
+ {id:'kind',technicalName:'renamed_kind',state:'active'},
+ {id:'company',technicalName:'company',state:'active',applicability:{fieldId:'kind',optionIds:['org','ek']}},
+ {id:'professional',technicalName:'job',state:'active',applicability:{fieldId:'kind',optionIds:['ap','ek']}},
+ {id:'hidden',technicalName:'private',state:'active',fieldPermissions:{read:false}},
+],formRelationships:[]} as unknown as ObjectDefinition;
+test('Contact loading never guesses a kind or exposes all conditional fields before values arrive',()=>{
+ const model=recordLoadingModel(contactLoadingDefinition);assert.equal(model.knownKind,false);assert.deepEqual(model.fields,[]);assert.deepEqual(model.relationships,[]);
+});
+test('Contact loading uses semantic controller values and read permissions for each kind',()=>{
+ const ids=(kind:string)=>recordLoadingModel(contactLoadingDefinition,{renamed_kind:kind}).fields.map(f=>f.id);
+ assert.deepEqual(ids('ap'),['kind','professional']);assert.deepEqual(ids('org'),['kind','company']);assert.deepEqual(ids('ek'),['kind','company','professional']);
+});

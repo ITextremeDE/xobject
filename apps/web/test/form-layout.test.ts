@@ -4,7 +4,7 @@ import {formLayoutSchema,resolveFormLayout,formEntryKey,formLayoutEntries} from 
 const a={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',technicalName:'keyword',kind:'text'};
 const b={id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',technicalName:'notes',kind:'multiline'};
 const c={id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',technicalName:'serial',kind:'text'};
-test('module views keep explicit selections while standard forms append new fields without duplicating or mutating views',()=>{
+test('authored forms keep explicit selections while standard forms append new fields without duplication',()=>{
  const saved={groups:[{id:'main',labels:{en:'Main'},fields:[{fieldId:b.id,width:'half' as const}]}]};
  assert.deepEqual(resolveFormLayout(saved,[a,b,c],false),saved);
  const standard=resolveFormLayout(saved,[a,b,c],true);assert.deepEqual(standard.groups[0].fields.map(formEntryKey),[b.id]);

@@ -50,7 +50,7 @@ function PrincipalObjectPermissions(props:EditorProps){
 function GrantEditor({objectTypeId,kind,principalId,groups,users,actionTarget,initial,definition,onDirtyChange,onBusyChange}:EditorProps&{initial:ContentPermissions;definition:ObjectDefinition}){
  const {t,i18n}=useTranslation(),client=useQueryClient(),empty:ContentGrant={kind,id:principalId,level:null,fields:{}};
  const [baseline,setBaseline]=useState(initial),[draft,setDraft]=useState(()=>initial.grants.find(g=>g.kind===kind&&g.id===principalId)??empty),[savedMessage,setSavedMessage]=useState(false);
- const {search,onSearch,pagination}=useSettingsTable([...definition.fields,...(definition.historicalFields??[])].filter(f=>f.technicalName!=='access_principals').sort((a,b)=>a.label.localeCompare(b.label,i18n.language)),field=>`${field.label} ${field.technicalName}`);
+ const {search,onSearch,pagination}=useSettingsTable([...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[]).map(f=>({...f,label:`${t('relationshipAttributes')} · ${f.label}`}))].filter(f=>f.technicalName!=='access_principals').sort((a,b)=>a.label.localeCompare(b.label,i18n.language)),field=>`${field.label} ${field.technicalName}`);
  const saved=baseline.grants.find(g=>g.kind===kind&&g.id===principalId)??empty,dirty=JSON.stringify(draft)!==JSON.stringify(saved);
  const grants=[...baseline.grants.filter(g=>g.kind!==kind||g.id!==principalId),...(draft.level!==null||draft.create!=null||Object.keys(draft.fields).length?[draft]:[])];
  function adopt(result:ContentPermissions){setBaseline(result);setDraft(result.grants.find(g=>g.kind===kind&&g.id===principalId)??empty);}

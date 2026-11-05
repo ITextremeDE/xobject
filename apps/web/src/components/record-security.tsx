@@ -38,7 +38,7 @@ function RecordSecurityEditor({definition,snapshot,value,confirmed:initialConfir
   const name=(p:Principal)=>people.find(person=>principalKey(person)===principalKey(p))?.name??p.id;
   const label=(p:Principal)=>`${name(p)} · ${t(p.kind==='user'?'reference_user':'reference_group')}`;
   const assignable=people.filter(person=>person.assignable&&person.active);
-  const fields=[...definition.fields,...(definition.historicalFields??[])].filter(field=>field.technicalName!=='access_principals').sort((a,b)=>a.label.localeCompare(b.label,i18n.language));
+  const fields=[...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[]).map(f=>({...f,label:`${t('relationshipAttributes')} · ${f.label}`}))].filter(field=>field.technicalName!=='access_principals').sort((a,b)=>a.label.localeCompare(b.label,i18n.language));
   const {search,onSearch,pagination}=useSettingsTable(fields,field=>field.label);
   const owners=useSettingsTable(draft.owners,owner=>label(owner));
   const publicWidening=publicAccess&&(!baseline.policy.publicLevel||accessRank(draft.publicLevel!)>accessRank(baseline.policy.publicLevel));

@@ -34,7 +34,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
   const dirty=!readOnly&&JSON.stringify(draft)!==JSON.stringify(baseline);
   const valid=draft.groups.every(group=>hasLabel(group.labels));
   const localLabel=(labels:Record<string,string>)=>labels[i18n.language]??labels.en??labels.de??Object.values(labels)[0]??'';
-  const mutation=useMutation({mutationFn:()=>api('configure_form_layout',{objectTypeId:definition.id,version,context:'default',layout:{...draft,groups:draft.groups.map(group=>({...group,labels:cleanLabels(group.labels)}))}}),onSuccess:async result=>{
+  const mutation=useMutation({mutationFn:()=>api('configure_form_layout',{objectTypeId:definition.id,version,layout:{...draft,groups:draft.groups.map(group=>({...group,labels:cleanLabels(group.labels)}))}}),onSuccess:async result=>{
     const next=resolveFormLayout(definition.contactProfile?contactExtensionLayout(definition.contactProfile,definition.fields,result.formLayouts?.default):result.formLayouts?.default,fields,true,relationships,true);setVersion(result.version);setDraft(next);setBaseline(next);
     await client.invalidateQueries({queryKey:['definition',definition.id]});
   },onError:async()=>{await client.invalidateQueries({queryKey:['definition',definition.id]});}});
