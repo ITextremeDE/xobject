@@ -62,6 +62,9 @@ The project is in early development. These entries describe source changes, incl
 
 ### Changed
 
+- Present the Primary tree as compact Explorer rows with permission-filtered status captions, compact ancestor context, keyboard help and cancellable sequential Expand all / Collapse all controls, including remaining pages. Align tree loading placeholders.
+- Use one standard Base UI Toaster for short save/copy/revocation results; retain inline validation, security guidance and unsaved-change state without layout-shifting success callouts.
+- Open duplication as an editable unsaved creation draft, rechecking source rights/version on Save without allocating rows/numbers/history beforehand. Add permission-aware Duplicate/Recycle actions to record-list, Dashboard and Dossier menus and Copy ID to record-header actions.
 - Make external-access tables usable on narrow screens, with named token confirmations and readable, regionally formatted token history. Keep command search available when the mobile Sidebar is closed. Mount Settings sections on first visit while retaining drafts; align Contact creation, token-table and retained-journal loading states with their finished layouts. Administrator deleted-record history adds frozen display captions, authorized search, object filters, sorting and shared table controls.
 - Defer personal table-column order and widths to V2 and an additional explanatory module-dependency UI beyond V1 until a concrete use case exists; V1 retains column visibility and existing required-field validation. Align the PRD remaining-work summary with implemented Primary-context requirements and the locally accepted Projects slice.
 - Give every Primary-association level Choose/Change, Open and Clear controls. Changes clear following selections; clearing falls back to the nearest earlier level without modifying parent records. Project/Case pickers filter by the selected ancestor through the shared permission-aware API/MCP search before counts/paging.
@@ -104,6 +107,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Fixed
 
+- Include Customize navigation in command search, keep one record-draft notice in the footer across tabs and match Dashboard/Recycle bin sidebar spacing to the other navigation groups.
 - Place Task Priority in Schedule & progress directly before Progress, rather than in Classification.
 - Use the same permission-aware record icon projection for creation, updates, duplication, recycling/restoration and single/list reads.
 - Align record-loading groups with the shared form grid and temporal control structure. Simplify domain time inputs with expandable representation/zone options; associate validation errors with inputs and focus the first failing field on submission. Settings tables fit narrow screens, with stacked membership/field-right controls.
