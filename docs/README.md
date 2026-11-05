@@ -36,14 +36,14 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0022](adr/0022-database-integrity-and-concurrency.md) | Versions/locks/installation/roles | Local storage safeguards; release packaging remains open. |
 | [0023](adr/0023-record-journal-and-conditional-fields.md) | Journal/applicability | Current-rights projections refined by 0026 and 0027. |
 | [0024](adr/0024-primary-levels-and-relationship-conditions.md) | Fixed Primary roles/conditions | Protected supplied UUID roles, conditional endpoints. |
-| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Standard forms/base installation implemented; PRD defines the expanded V1 target, while domain/shared-module views remain open. |
+| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Standard forms/base installation implemented; PRD defines the expanded V1 target, with shared contributions, retained lifecycle and one common object form implemented; released upgrades remain open. |
 | [0026](adr/0026-content-permissions.md) | Object/field ceilings | Current object/field grants; record policy in 0027. |
 | [0027](adr/0027-ownership-and-foreign-access.md) | Ownership and foreign access | Local graded ownership/membership, privacy, foreign paths, Create and record security UI; calendar/notifications later. |
 | [0028](adr/0028-current-installation-baseline.md) | Current unreleased installation | One empty installation definition, explicit local reset, schema fingerprint and current contracts without compatibility paths. |
 | [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; permanent erasure remains pending. |
 | [0030](adr/0030-field-input-rules-and-business-numbers.md) | Input rules and numbering | Translated field explanations, typed creation defaults, scalar uniqueness and transactional business numbers. |
 | [0031](adr/0031-standards-aligned-groupware-models.md) | Standards-aligned groupware models | Vendor-neutral profile direction; storage architecture in 0032, runtime and later DAV delivery remain open. |
-| [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: six typed contact codecs and base Contacts/Distribution-list provisioning implemented locally; relationship attributes, temporal codecs and sparse exceptions pending. |
+| [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: nine typed contact codecs and locally accepted Contacts/Distribution lists; relationship attributes and both-endpoint rights/history implemented; temporal codecs and sparse exceptions pending. |
 
 ## Ownership of repeated information
 

@@ -91,3 +91,8 @@ test('security history translates owners and grades without interpreting busines
  await i18n.changeLanguage('de');assert.equal(journalEntryTitle(entry,i18n.t),'Zugriffsberechtigte');assert.equal(journalSecurityValue(entry,entry.new_value,i18n.t),'John Doe (Benutzer) · Vollzugriff; Sales (Gruppe) · Lesen');
  assert.deepEqual(entry,snapshot);
 });
+
+test('relationship attribute history uses its field label rather than the structural link title',()=>{
+ const t=((key:string)=>key) as any;
+ assert.equal(journalEntryTitle({entity_kind:'relationship',field_id:'attribute',field_label:'Position',field_key:'job_title',old_value:'Director',new_value:'Chair'},t,'de'),'Position');
+});

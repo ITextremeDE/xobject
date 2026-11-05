@@ -28,6 +28,7 @@ export function journalPropertyLabel(key: string, t: TFunction, technicalFallbac
 export function journalEntryTitle(entry: Pick<SystemJournalEntry, 'field_key' | 'entity_kind' | 'old_value' | 'new_value' | 'field_label'> & {field_id?:string|null}, t: TFunction, language='en'): string {
   if(entry.entity_kind==='record'&&entry.field_key.startsWith('access.'))return journalPropertyLabel(entry.field_key,t)+(entry.field_key.startsWith('access.field.')?` · ${entry.field_label??t('fieldName')}`:'');
   if(entry.entity_kind==='record'&&entry.field_key==='lifecycle'&&!entry.field_id)return t('recordLifecycle');
+  if (entry.entity_kind==='relationship'&&entry.field_id)return entry.field_label??journalPropertyLabel(entry.field_key,t,true);
   if (entry.entity_kind==='relationship') {const snapshot=(entry.new_value??entry.old_value) as {labels?:Record<string,string>}|null;return snapshot?.labels?.[language]??snapshot?.labels?.en??snapshot?.labels?.de??t('link');}
   if (entry.field_key.startsWith('member:')) {
     if (entry.entity_kind === 'group') return t(entry.new_value === true ? 'journalGroupMemberAdded' : 'journalGroupMemberRemoved');

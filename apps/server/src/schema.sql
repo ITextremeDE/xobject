@@ -52,7 +52,9 @@ CREATE TABLE public.sys_content_grants (
 
 CREATE TABLE public.sys_fields (
     id uuid NOT NULL,
-    object_type_id uuid NOT NULL,
+    object_type_id uuid,
+    relationship_type_id uuid,
+    CONSTRAINT sys_fields_owner_check CHECK ((object_type_id IS NULL) <> (relationship_type_id IS NULL)),
     technical_name text NOT NULL,
     labels jsonb NOT NULL,
     kind text NOT NULL,
@@ -125,6 +127,7 @@ CREATE TABLE public.sys_module_object_bindings (
 
 CREATE TABLE public.sys_modules (
     key text NOT NULL,
+    template_version integer NOT NULL DEFAULT 1 CHECK(template_version>0),
     labels jsonb NOT NULL,
     description jsonb NOT NULL,
     objects jsonb NOT NULL,
@@ -145,7 +148,7 @@ CREATE TABLE public.sys_object_types (
     state text DEFAULT 'active'::text NOT NULL,
     version integer DEFAULT 1 NOT NULL,
     permissions_version integer DEFAULT 1 NOT NULL,
-    CONSTRAINT sys_object_types_form_layouts_check CHECK ((jsonb_typeof(form_layouts) = 'object'::text)),
+    CONSTRAINT sys_object_types_form_layouts_check CHECK ((jsonb_typeof(form_layouts) = 'object'::text) AND (form_layouts - 'default' = '{}'::jsonb)),
     CONSTRAINT sys_object_types_state_check CHECK ((state = ANY (ARRAY['active'::text, 'inactive'::text, 'deleted'::text]))),
     CONSTRAINT sys_object_types_version_check CHECK ((version > 0))
 );
@@ -225,6 +228,10 @@ CREATE TABLE public.sys_relationships (
     right_record_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    updated_by text NOT NULL REFERENCES public.sys_users(id),
+    version integer NOT NULL DEFAULT 1 CHECK (version > 0),
+    values jsonb NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(values)='object'),
     CONSTRAINT sys_relationships_check CHECK (((left_object_type_id <> right_object_type_id) OR (left_record_id <> right_record_id)))
 );
 
@@ -522,3 +529,38 @@ BEGIN
 END $$;
 CREATE CONSTRAINT TRIGGER sys_module_field_binding_scope AFTER INSERT OR UPDATE ON public.sys_module_field_bindings
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.sys_check_module_field_binding();
+
+-- One definition owner, one typed value per actual edge and field.
+ALTER TABLE public.sys_fields ADD FOREIGN KEY (relationship_type_id) REFERENCES public.sys_relationship_types(id) ON DELETE RESTRICT;
+ALTER TABLE public.sys_fields ADD UNIQUE (id,relationship_type_id);
+ALTER TABLE public.sys_fields ADD UNIQUE (id,object_type_id);
+CREATE UNIQUE INDEX sys_relationship_fields_live_name_idx ON public.sys_fields(relationship_type_id,technical_name) WHERE state<>'deleted';
+ALTER TABLE public.sys_relationships ADD UNIQUE (id,relationship_type_id);
+CREATE TABLE public.sys_module_contributions (
+ workspace_id uuid NOT NULL REFERENCES public.sys_workspaces(id),
+ module_key text NOT NULL REFERENCES public.sys_modules(key),
+ object_type_id uuid NOT NULL,
+ template_version integer NOT NULL CHECK(template_version>0),
+ PRIMARY KEY(workspace_id,module_key,object_type_id),
+ FOREIGN KEY(object_type_id,workspace_id) REFERENCES public.sys_object_types(id,workspace_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE public.sys_module_field_contributions (
+ workspace_id uuid NOT NULL,
+ module_key text NOT NULL,
+ object_type_id uuid NOT NULL,
+ field_id uuid NOT NULL,
+ FOREIGN KEY(field_id,object_type_id) REFERENCES public.sys_fields(id,object_type_id) ON DELETE RESTRICT,
+ PRIMARY KEY(workspace_id,module_key,field_id),
+ FOREIGN KEY(workspace_id,module_key,object_type_id) REFERENCES public.sys_module_contributions(workspace_id,module_key,object_type_id) ON DELETE RESTRICT
+);
+
+CREATE FUNCTION public.sys_check_relationship_values() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ NEW.updated_by := COALESCE(NEW.updated_by,NEW.created_by);
+ IF EXISTS(SELECT 1 FROM jsonb_object_keys(NEW.values) k WHERE NOT EXISTS(SELECT 1 FROM sys_fields f WHERE f.id::text=k AND f.relationship_type_id=NEW.relationship_type_id)) THEN
+  RAISE EXCEPTION 'Attribute field must belong to its relationship definition' USING ERRCODE='23503';
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER sys_relationship_values_scope BEFORE INSERT OR UPDATE OF values,relationship_type_id ON public.sys_relationships FOR EACH ROW EXECUTE FUNCTION public.sys_check_relationship_values();

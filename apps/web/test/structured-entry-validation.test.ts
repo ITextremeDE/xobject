@@ -13,3 +13,11 @@ test('invalid collection drafts leave correct sibling entries valid',()=>{
  assert.equal(structuredEntryInvalid('address_entries',{id,contexts:[],preference:1,address}),false);
  assert.equal(structuredEntryInvalid('address_entries',{id,contexts:[],preference:1,address:{...address,streetLines:[]}}),true);
 });
+
+test('language and messenger drafts report errors on their own entries',()=>{
+ const base={id,contexts:[],preference:1};
+ assert.equal(structuredEntryInvalid('language_entries',{...base,value:'de-DE'}),false);
+ assert.equal(structuredEntryInvalid('language_entries',{...base,value:'de_DE'}),true);
+ assert.equal(structuredEntryInvalid('messenger_entries',{...base,value:'xmpp:ada@example.test'}),false);
+ assert.equal(structuredEntryInvalid('messenger_entries',{...base,value:'javascript:alert(1)'}),true);
+});

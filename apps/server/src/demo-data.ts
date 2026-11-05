@@ -101,7 +101,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   for (let i = 0; i < companies.length; i++) organizations.push(await record('contacts', companies[i], { contact_kind: contactKinds[0].id, company_name: companies[i], emails: email(`contact${i+1}@example.test`), phones: email(`+4989201000${10+i}`,'phones'), websites: email('https://example.org','websites'), addresses: address(['Workshop Road','Forest Lane','River Street'][i%3],String(i+1)), commercial_register: i === 3 ? 'VR 900004 (fictional)' : `HRB ${900001+i} (fictional)`, notes: 'Fictional organization for project and contact-person testing.' }));
   for (const [i, person] of [['Emily','Example'],['Oliver','Sample'],['Emily','Example']].entries()) {
     const individual = i === 2;
-    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[i]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, salutation:contactChoice('salutation',i===1?'Mr':'Ms'), name_prefix:i===0?contactChoice('name_prefix','Dr.'):null, first_name: name(person[0]), last_name: name(person[1]), emails: email(`person${i+1}@example.test`), phones: email(`+4989201000${30+i}`,'phones','Mobile'), birthday: {year:i===2?null:1990+i,month:6,day:15}, addresses: address('Example Lane','10'), notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[i]}. The relationship is stored as a real link.` });
+    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[i]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, salutation:contactChoice('salutation',i===1?'Mr':'Ms'), name_prefix:i===0?contactChoice('name_prefix','Dr.'):null, nickname: i===0?'Em':null, languages:[{id:v7(),value:'en-GB',contexts:[],preference:1},{id:v7(),value:'de-DE',contexts:[],preference:2}], messenger_addresses:[{id:v7(),value:`xmpp:person${i+1}@example.test`,contexts:[contactChoice('messenger_addresses','Work'),contactChoice('messenger_addresses','XMPP')],preference:1}], contact_time_zone:{timeZone:i===1?'America/New_York':'Europe/Berlin'}, anniversary:i===2?{year:null,month:9,day:12}:null, death_date:i===1?{year:2024,month:11,day:3}:null, first_name: name(person[0]), last_name: name(person[1]), emails: email(`person${i+1}@example.test`), phones: email(`+4989201000${30+i}`,'phones','Mobile'), birthday: {year:i===2?null:1990+i,month:6,day:15}, addresses: address('Example Lane','10'), notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[i]}. The relationship is stored as a real link.` });
     if (!individual) link('contacts', organizations[i], 'contacts', row, 'contact_person');
   }
   await object('projects', 'Projekte', 'Projects', [field('objective', 'Projektziel', 'Objective', 'multiline', { formatted: true }), field('start_date', 'Beginn', 'Start date', 'date'), field('target_date', 'Zieldatum', 'Target date', 'date'), field('budget', 'Budget', 'Budget', 'money'), field('progress', 'Fortschritt (%)', 'Progress (%)', 'decimal', { scale: 1 }), field('project_owner', 'Verantwortlich', 'Owner', 'reference', { referenceTarget: 'user', multiple: false }), field('team', 'Projektteam', 'Team', 'reference', { referenceTarget: 'group', multiple: false })], ['Kundenprojekt', 'Internes Projekt'], ['Geplant', 'In Arbeit', 'Abgeschlossen']);
@@ -191,6 +191,16 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   link('contacts', records.contacts[6], 'contacts', records.contacts[8], 'identity');
   await connectDemoRelationships(db, actorId, workspace.id, links);
 
+  // One Contact person belongs to at most one Organization; professional details are Contact fields.
+  const contactDefinition=await app.execute('get_object_type',{objectTypeId:objects.contacts.id},actorId) as ObjectDefinition;
+  const role=contactDefinition.fields.find(f=>f.id===contactDefinition.contactProfile!.fields.function)!;
+  const roleChoices=[{id:v7(),labels:{en:'Board member',de:'Vorstand'},active:true},{id:v7(),labels:{en:'Advisory board member',de:'Aufsichtsrat'},active:true},{id:v7(),labels:{en:'Member',de:'Mitglied'},active:true}];
+  await app.execute('configure_field',{fieldId:role.id,version:role.version,required:false,config:{...role.config,options:roleChoices}},actorId);
+  for(const [index,title,department] of [[6,'Managing director','Sales'],[7,'Service coordinator','Operations'],[8,'Consultant','Independent services']] as const){
+    const contact=await app.execute('get_record',{objectTypeId:objects.contacts.id,recordId:records.contacts[index].id},actorId) as DataRecord;
+    await app.execute('update_record',{objectTypeId:objects.contacts.id,recordId:contact.id,version:contact.version,values:{job_title:title,department,function:[roleChoices[index===6?0:index===7?1:2].id]}},actorId);
+  }
+
   // Explicit ceilings for regular users; Designer controls structure, not content rights.
   for (const [name, model] of Object.entries(objects)) {
     const before = await app.execute('get_content_permissions', {objectTypeId: model.id}, actorId) as ContentPermissions;
@@ -251,9 +261,6 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     const baseGroups=resolveFormLayout(undefined,model.fields.filter(item=>item.state==='active'),true,model.formRelationships??[]).groups;
     const groups=model.contactProfile?contactExtensionLayout(model.contactProfile,model.fields,{groups:baseGroups})!.groups.filter(g=>g.fields.length):baseGroups;
     model=await app.execute('configure_form_layout',{objectTypeId:model.id,version:model.version,layout:{groups}},actorId) as ObjectDefinition;
-    if(name==='contacts') {
-      await app.execute('configure_form_layout',{objectTypeId:model.id,version:model.version,context:'projects',layout:{groups}},actorId);
-    }
     objects[name]=await app.execute('get_object_type',{objectTypeId:model.id},actorId) as ObjectDefinition;
     // Return current versions after relationship/security changes, not stale creation snapshots.
     for(let i=0;i<records[name].length;i++)records[name][i]=await app.execute('get_record',{objectTypeId:model.id,recordId:records[name][i].id},actorId) as DataRecord;

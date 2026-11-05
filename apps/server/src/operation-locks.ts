@@ -14,7 +14,7 @@ export async function lockOperation(tx: Executor, operation: Operation, args: Re
   await sql`SELECT pg_advisory_xact_lock_shared(hashtext('xobject:model'))`.execute(tx);
   let workspace = args.workspaceId as string | undefined;
   if (!workspace && args.objectTypeId) workspace = (await sql<{workspace_id:string}>`SELECT workspace_id FROM sys_object_types WHERE id=${args.objectTypeId}::uuid`.execute(tx)).rows[0]?.workspace_id;
-  if (!workspace && (args.fieldId || args.kind === 'field')) workspace = (await sql<{workspace_id:string}>`SELECT o.workspace_id FROM sys_fields f JOIN sys_object_types o ON o.id=f.object_type_id WHERE f.id=${args.fieldId ?? args.id}::uuid`.execute(tx)).rows[0]?.workspace_id;
+  if (!workspace && (args.fieldId || args.kind === 'field')) workspace = (await sql<{workspace_id:string}>`SELECT COALESCE(o.workspace_id,r.workspace_id) AS workspace_id FROM sys_fields f LEFT JOIN sys_object_types o ON o.id=f.object_type_id LEFT JOIN sys_relationship_types r ON r.id=f.relationship_type_id WHERE f.id=${args.fieldId ?? args.id}::uuid`.execute(tx)).rows[0]?.workspace_id;
   if (!workspace && args.kind === 'object_type') workspace = (await sql<{workspace_id:string}>`SELECT workspace_id FROM sys_object_types WHERE id=${args.id}::uuid`.execute(tx)).rows[0]?.workspace_id;
   if (workspace) {
     const key = `xobject:workspace:${workspace.toLowerCase()}`;

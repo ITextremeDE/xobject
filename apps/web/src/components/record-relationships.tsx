@@ -1,3 +1,4 @@
+import {RelationshipAttributes} from './relationship-attributes';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from '@/components/ui/collapsible';
 import {PrimaryAssociationFields} from './primary-association-fields';
 import { useState } from 'react';
@@ -15,7 +16,7 @@ import { useClientPagination, ClientTablePagination } from './client-table-pagin
 import { RelationshipPicker } from './relationship-picker';
 export { RecordDossier } from './record-dossier';
 
-type Props = { singleGroupLabel?:string;entry:FormEntry; objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
+type Props = { workspaceId:string;singleGroupLabel?:string;entry:FormEntry; objectTypeId: string; recordId?: string; fields: RelationshipField[]; fieldDefinitions:FieldDefinition[]; values:Record<string,FieldValue>; primaryChain?:import('@xobject/contracts').PrimaryChain|null; disabled: boolean; readOnly?: boolean; onChange: (fields: RelationshipField[]) => void; onPickerDirtyChange: (dirty: boolean) => void; workspaceCode: string };
 
 export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fieldDefinitions,values,singleGroupLabel,...props }:Props){
   const {t}=useTranslation();
@@ -31,7 +32,7 @@ export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fi
 }
 
 
-function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'fieldDefinitions' | 'values' | 'entry'> & { expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
+function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'fieldDefinitions' | 'values' | 'entry'> & { expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
   const { t, i18n } = useTranslation(), [pickerOpen, setPickerOpen] = useState(false);
   const navigate = useNavigate();
   const label = (labels: Record<string, string>) => labels[i18n.language] ?? labels.de ?? labels.en ?? Object.values(labels)[0] ?? '';
@@ -86,6 +87,7 @@ function RelationshipControl({ sourceValues,objectTypeId, recordId, field, disab
       </Table></div>
       {field.targets.length > 10 ? <ClientTablePagination pagination={pagination} disabled={disabled} countLabel={t('relationshipCount', { count: field.targets.length })} /> : null}
       </CollapsibleContent></Collapsible>}
+    <RelationshipAttributes field={field} targets={field.targets} workspaceId={workspaceId} disabled={disabled} readOnly={readOnly} onChange={onChange}/>
     {!field.definition.active ? <FieldDescription>{t('relationshipInactiveHelp')}</FieldDescription> : null}
     {invalid ? <FieldError id={`${id}-error`}>{t('relationshipRequiredHelp')}</FieldError> : null}
     {pickerOpen ? <RelationshipPicker sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); setExpanded(true); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}

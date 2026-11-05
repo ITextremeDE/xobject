@@ -60,6 +60,10 @@ async function enableProjects(workspaceId:string) {
   await ok('configure_workspace_module',{workspaceId,key:'projects',enabled:true,version:module.version});
   return (await ok('list_relationship_types',{workspaceId})).find((type:any)=>type.kind==='primary');
 }
+async function createOrganization(objectTypeId:string,name='Organization'){
+ const definition=await ok('get_object_type',{objectTypeId});
+ return ok('create_record',{objectTypeId,values:{contact_kind:definition.contactProfile.kinds.organization,company_name:name}});
+}
 async function tool(operation: Operation, args: Record<string, unknown>) {
   args = await versionedInput(operation,args) as Record<string,unknown>;
   const result = await client.callTool({ name: operation, arguments: args });
@@ -1782,7 +1786,7 @@ test('record relationships enforce final-state cardinalities, Primary uniqueness
   const ws=await ok('create_workspace',{code:'edges',name:'Edges'});
   await enableProjects(ws.id);const models=await Promise.all(['contacts','projects','tasks'].map(async technicalName=>{const list=await ok('list_object_types',{workspaceId:ws.id});return list.find((o:any)=>o.technicalName===technicalName);}));
   const [parents,children,tasks]=models;
-  const make=(model:any,keyword:string)=>ok('create_record',{objectTypeId:model.id,keyword});
+  const make=(model:any,keyword:string)=>model.id===parents.id?createOrganization(model.id,keyword):ok('create_record',{objectTypeId:model.id,keyword});
   const [a,b,c,d,e]=await Promise.all([make(parents,'Parent A'),make(parents,'Parent B'),make(children,'Child'),make(tasks,'Task'),make(tasks,'Other task')]);
   const types=await ok('list_relationship_types',{workspaceId:ws.id});
   const primary=types.find((t:any)=>t.kind==='primary');
@@ -1927,7 +1931,7 @@ test('relationship tree branches derive only Primary context and descendants wit
   const ws=await ok('create_workspace',{code:'treefixture',name:'Tree fixture'});
   await enableProjects(ws.id);const installed=await ok('list_object_types',{workspaceId:ws.id});const models=await Promise.all(['contacts','projects','cases','tasks','vehicles'].map(technicalName=>installed.find((o:any)=>o.technicalName===technicalName)??ok('create_object_type',{workspaceId:ws.id,technicalName,labels:{en:technicalName},standardFields:['keyword']})));
   const [contact,project,caseType,task,vehicle]=models;
-  const make=(model:any,keyword:string)=>ok('create_record',{objectTypeId:model.id,keyword});
+  const make=(model:any,keyword:string)=>model.id===contact.id?createOrganization(model.id,keyword):ok('create_record',{objectTypeId:model.id,keyword});
   const [c,p,independent,ca,tc,tp,tcontact,standalone,v]=await Promise.all([make(contact,'Contact'),make(project,'Project'),make(project,'Independent project'),make(caseType,'Case'),make(task,'Case task'),make(task,'Project task'),make(task,'Contact task'),make(task,'Standalone'),make(vehicle,'Vehicle')]);
   const defs=await ok('list_relationship_types',{workspaceId:ws.id}),primary=defs.find((d:any)=>d.kind==='primary');
   const config=(({id,workspaceId,technicalName,kind,rulesState,version,...rest}:any)=>rest)(primary);
@@ -1994,7 +1998,7 @@ test('Projects activation gates global Primary while General is always available
   const currentPrimary=(await ok('list_relationship_types',{workspaceId:ws.id})).find((t:any)=>t.kind==='primary');
   const later=await ok('create_object_type',{workspaceId:ws.id,technicalName:'later',labels:{en:'Later'}});
   assert.equal((await ok('get_record_relationships',{objectTypeId:later.id})).fields.filter((f:any)=>f.definition.kind==='primary').length,1,'custom objects can have one direct Primary parent but cannot become a Primary level');
-  const root=await ok('create_record',{objectTypeId:enabled.primaryChain.contact});
+  const root=await createOrganization(enabled.primaryChain.contact);
   const linked=await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:br.version,relationships:[{relationshipTypeId:currentPrimary.id,version:currentPrimary.version,side:'right',targets:[{objectTypeId:enabled.primaryChain.contact,recordId:root.id}]}]});
   assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:false,version:enabled.version})).statusCode,409,'module off must not orphan existing Primary links');
   await ok('update_record',{objectTypeId:b.id,recordId:br.id,version:linked.version,relationships:[{relationshipTypeId:currentPrimary.id,version:currentPrimary.version,side:'right',targets:[]}]});
@@ -2072,7 +2076,7 @@ test('readers share schema/workspace locks while unrelated workspace writes proc
 test('scalar saves avoid graph scans but changed endpoints still enforce minimums, maxima and cycles',async()=>{
   const ws=await ok('create_workspace',{code:'targetgraph',name:'Targeted validation'});
   await enableProjects(ws.id);const a=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'children',labels:{en:'Children'},standardFields:['keyword']});
-  const parent=await ok('create_record',{objectTypeId:a.id}),child=await ok('create_record',{objectTypeId:b.id,keyword:'Child'});
+  const parent=await createOrganization(a.id),child=await ok('create_record',{objectTypeId:b.id,keyword:'Child'});
   const primary=await enableProjects(ws.id);
   await ok('update_record',{objectTypeId:b.id,recordId:child.id,version:child.version,relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:a.id,recordId:parent.id}]}]});
   const current=await ok('get_record',{objectTypeId:b.id,recordId:child.id});
@@ -2244,7 +2248,7 @@ test('fixed module Primary levels use stable identities, inherited context and c
   await enableProjects(ws.id);const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');
   const levels=module.primaryChain;
   const ids:Record<string,string>={customers:levels.contact,jobs:levels.project,tickets:levels.case,items:(await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']})).id};
-  const rows:Record<string,any>={};for(const name of Object.keys(ids))rows[name]=await ok('create_record',{objectTypeId:ids[name],keyword:name});
+  const rows:Record<string,any>={};for(const name of Object.keys(ids))rows[name]=name==='customers'?await createOrganization(ids[name],name):await ok('create_record',{objectTypeId:ids[name],keyword:name});
   async function assign(child:string,parent:string|null){const record=await ok('get_record',{objectTypeId:ids[child],recordId:rows[child].id});const field=(await ok('get_record_relationships',{objectTypeId:ids[child],recordId:record.id})).fields.find((f:any)=>f.definition.kind==='primary'&&f.side==='right');return api('update_record',{objectTypeId:ids[child],recordId:record.id,version:record.version,relationships:[{relationshipTypeId:field.definition.id,version:field.definition.version,side:'right',targets:parent?[{objectTypeId:ids[parent],recordId:rows[parent].id}]:[]}]});}
   for(const [child,parent] of [['jobs','customers'],['tickets','jobs'],['items','tickets']])assert.equal((await assign(child,parent)).statusCode,200);
   const args={objectTypeId:ids.items,recordId:rows.items.id};const before=(await sql`SELECT * FROM sys_journal ORDER BY id`.execute(runtime.db)).rows;
@@ -2310,30 +2314,30 @@ test('form layouts share object identities, reject foreign fields and stale writ
   let model=await ok('get_object_type',{objectTypeId:type.id});
   const layout={groups:[{id:'details',labels:{en:'Details'},fields:[{fieldId:model.fields[0].id,width:'full'}]}]};
   const before=(await ok('get_definition_journal',{objectTypeId:type.id})).length;
-  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'constructor',layout})).statusCode,400);
-  const first=await tool('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'contacts',layout});
-  assert.deepEqual(first.formLayouts.contacts,layout);assert.equal(first.version,model.version+1);
-  const event=(await tool('get_definition_journal',{objectTypeId:type.id})).find((entry:any)=>entry.field_key==='form_layout.contacts');
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'contacts',layout})).statusCode,400);
+  const first=await tool('configure_form_layout',{objectTypeId:type.id,version:model.version,layout});
+  assert.deepEqual(first.formLayouts.default,layout);assert.equal(first.version,model.version+1);
+  const event=(await tool('get_definition_journal',{objectTypeId:type.id})).find((entry:any)=>entry.field_key==='form_layout.default');
   assert.equal(event.form_layout_context.fields[model.fields[0].id],'Serial');
   assert.deepEqual(event.new_value,layout,'name enrichment preserves immutable historical values');
-  const globalEvent=(await ok('list_system_journal',{workspaceId:ws.id,fieldKey:'form_layout.contacts'})).entries.find((entry:any)=>entry.id===event.id);
+  const globalEvent=(await ok('list_system_journal',{workspaceId:ws.id,fieldKey:'form_layout.default'})).entries.find((entry:any)=>entry.id===event.id);
   assert.deepEqual(globalEvent.form_layout_context,event.form_layout_context,'definition and instance journals share the same context');
 
-  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'projects',layout})).statusCode,409);
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:model.version,layout})).statusCode,409);
   assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,layout},userCookie)).statusCode,403);
-  const same=await ok('configure_form_layout',{objectTypeId:type.id,version:first.version,context:'contacts',layout});assert.equal(same.version,first.version);
+  const same=await ok('configure_form_layout',{objectTypeId:type.id,version:first.version,layout});assert.equal(same.version,first.version);
   assert.equal((await ok('get_definition_journal',{objectTypeId:type.id})).length,before+1);
   const foreign=await ok('create_object_type',{workspaceId:ws.id,technicalName:'other',labels:{en:'Other'},standardFields:['keyword']});
   const foreignModel=await ok('get_object_type',{objectTypeId:foreign.id});
-  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,context:'projects',layout:{groups:[{...layout.groups[0],fields:[{fieldId:foreignModel.fields[0].id,width:'half'}]}]}})).statusCode,400);
+  assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,layout:{groups:[{...layout.groups[0],fields:[{fieldId:foreignModel.fields[0].id,width:'half'}]}]}})).statusCode,400);
   assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,layout:{groups:[layout.groups[0],layout.groups[0]]}})).statusCode,400);
-  await sql`CREATE FUNCTION fail_form_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='form_layout.projects' THEN RAISE EXCEPTION 'journal failure'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+  await sql`CREATE FUNCTION fail_form_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='form_layout.default' THEN RAISE EXCEPTION 'journal failure'; END IF; RETURN NEW; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER fail_form_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_form_journal()`.execute(runtime.db);
-  try{assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,context:'projects',layout})).statusCode,500);}finally{await sql`DROP TRIGGER fail_form_journal ON sys_journal;DROP FUNCTION fail_form_journal()`.execute(runtime.db);}
-  model=await ok('get_object_type',{objectTypeId:type.id});assert.equal(model.version,first.version);assert.equal(model.formLayouts.projects,undefined);
-  const second=await ok('configure_form_layout',{objectTypeId:type.id,version:model.version,context:'projects',layout:{groups:[{...layout.groups[0],fields:[]}]}});
-  assert.deepEqual(second.formLayouts.contacts,layout);assert.equal(second.fields[0].id,model.fields[0].id);
-  const removed=await ok('configure_form_layout',{objectTypeId:type.id,version:second.version,context:'contacts',layout:null});assert.equal(removed.formLayouts.contacts,undefined);assert.ok(removed.formLayouts.projects);
+  try{assert.equal((await api('configure_form_layout',{objectTypeId:type.id,version:first.version,layout:{groups:[]}})).statusCode,500);}finally{await sql`DROP TRIGGER fail_form_journal ON sys_journal;DROP FUNCTION fail_form_journal()`.execute(runtime.db);}
+  model=await ok('get_object_type',{objectTypeId:type.id});assert.equal(model.version,first.version);assert.deepEqual(model.formLayouts.default,layout);
+  const second=await ok('configure_form_layout',{objectTypeId:type.id,version:model.version,layout:{groups:[{...layout.groups[0],fields:[]}]}});
+  assert.deepEqual(second.formLayouts.default,{groups:[{...layout.groups[0],fields:[]}]});assert.equal(second.fields[0].id,model.fields[0].id);
+  const removed=await ok('configure_form_layout',{objectTypeId:type.id,version:second.version,layout:null});assert.equal(removed.formLayouts.default,undefined);
 });
 
 test('relationship form elements enforce side scope, width and required visibility without changing link rules',async()=>{
@@ -2373,7 +2377,8 @@ test('Primary is one full-width form element and its stored position survives a 
   const saved=await ok('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout});assert.deepEqual(saved.formLayouts.default,layout);
   module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:module.version,enabled:false});
   model=await ok('get_object_type',{objectTypeId:ids[1]});assert.equal(model.formRelationships.length,0);
-  layout.groups[0].labels.en='Retained context';const retained=await ok('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout});assert.equal(retained.formLayouts.default.groups[0].fields[0].primary,true);
+  assert.deepEqual(model.formLayouts.default,layout,'disabled module retains the authored view');
+  layout.groups[0].labels.en='Retained context';assert.equal((await api('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout})).statusCode,400,'inactive module definitions are read-only');
   const unconfigured=await ok('get_object_type',{objectTypeId:ids[2]});assert.equal((await api('configure_form_layout',{objectTypeId:ids[2],version:unconfigured.version,layout})).statusCode,400);
 });
 
@@ -2424,7 +2429,7 @@ test('module catalog is complete and planned modules cannot activate; fixed inst
   const enabled=await tool('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true});
   const objects=await ok('list_object_types',{workspaceId:clean.id});assert.equal(objects.length,4);
   for(const object of objects){const definition=await ok('get_object_type',{objectTypeId:object.id});assert.equal(definition.isProtected,true);assert.ok(definition.fields.every((f:any)=>f.isProtected));}
-  const contact=await ok('create_record',{objectTypeId:enabled.primaryChain.contact,keyword:'Retain me'});
+  const contact=await createOrganization(enabled.primaryChain.contact,'Retain me');
   const disabled=await ok('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:enabled.version,enabled:false});
   assert.deepEqual((await ok('get_primary_chain_context',{objectTypeId:enabled.primaryChain.project})).levels,[]);
   assert.equal((await ok('get_record',{objectTypeId:enabled.primaryChain.contact,recordId:contact.id})).keyword,'Retain me');
@@ -2503,7 +2508,8 @@ test('content permissions protect relationship candidates, Primary context, tree
   const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
   const objects=await ok('list_object_types',{workspaceId:ws.id}),contact=objects.find((o:any)=>o.technicalName==='contacts'),project=objects.find((o:any)=>o.technicalName==='projects'),task=objects.find((o:any)=>o.technicalName==='tasks');
   for(const type of [contact,project,task]){const current=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...current,sensitive:true,grants:[{kind:'user',id:user.id,level:'edit',fields:{}}]});}
-  const hidden=await ok('create_record',{objectTypeId:contact.id,keyword:'Hidden organization',security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true}});
+  const contactDefinition=await ok('get_object_type',{objectTypeId:contact.id});
+  const hidden=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:contactDefinition.contactProfile.kinds.organization,company_name:'Hidden organization'},security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true}});
   const parent=await ok('create_record',{objectTypeId:project.id,keyword:'Visible project',security:{policy:defaultRecordSecurity(),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:contact.id,recordId:hidden.id}]}]});
   await ok('create_record',{objectTypeId:task.id,keyword:'Hidden task',security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:project.id,recordId:parent.id}]}]});
   const input={objectTypeId:project.id,recordId:parent.id};
@@ -2997,7 +3003,7 @@ test('recycle and restore roll back on journal failure and restore rejects chang
 test('recycle bin keeps Primary children active and cardinality slots reserved until restoration',async()=>{
  const ws=await ok('create_workspace',{code:'recycleprimary',name:'Recycle Primary'});
  const primary=await enableProjects(ws.id),context=await ok('get_primary_chain_context',{objectTypeId:(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='projects').id}),chain=context.configuration;
- let parent=await ok('create_record',{objectTypeId:chain.contact,keyword:'Parent contact'});
+ let parent=await createOrganization(chain.contact,'Parent contact');
  let project=await ok('create_record',{objectTypeId:chain.project,keyword:'Project remains',relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:chain.contact,recordId:parent.id}]}]});
  parent=await ok('get_record',{objectTypeId:chain.contact,recordId:parent.id});
  const oldProject=project.version;
@@ -3160,7 +3166,7 @@ test('unique input errors identify only the field and context while global searc
 });
 
 test('structured contact fields share API/MCP, field permissions, safe conversion, versions and atomic history',async()=>{
- const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,6);
+ const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,9);
  const ws=await ok('create_workspace',{name:'Structured contacts',code:'structuredcontacts'});
  const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'people',labels:{en:'People',de:'Personen'},standardFields:['keyword']});
  const names=await ok('create_field',{objectTypeId:object.id,technicalName:'given_names',labels:{en:'Given names',de:'Vornamen'},kind:'structured',config:{schema:'name_components'}});
@@ -3328,4 +3334,194 @@ test('collection order derives consecutive preferences for every contact collect
   const history=(await ok('list_record_journal',{objectTypeId:object.id,recordId:row.id})).entries.find((e:any)=>e.field_id===field.id&&e.old_value!==null);assert.ok(history.detail_context.changes.some((c:any)=>c.path==='$order'));assert.equal(history.new_value[0].preference,1);assert.equal(history.old_value[0].id,entries[0].id);
   const removed=await tool('update_record',{objectTypeId:object.id,recordId:row.id,version:reversed.version,values:{[schema]:[reversed[schema][1]]}});assert.equal(removed[schema][0].preference,1);
  }
+});
+
+test('additional Contact details retain kind applicability, typed API/MCP history, field rights and independent contact zones',async()=>{
+ const ws=await ok('create_workspace',{name:'More Contact details',code:'contactdetails'});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const contact=await ok('get_object_type',{objectTypeId:(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts').id});
+ const kinds=contact.fields.find((f:any)=>f.technicalName==='contact_kind').config.options,person=kinds.find((o:any)=>o.labels.en==='Contact person').id,organization=kinds.find((o:any)=>o.labels.en==='Organization').id;
+ const lang={id:randomUUID(),value:'EN-gb',contexts:[],preference:null},messenger={id:randomUUID(),value:'xmpp:jane@example.test',contexts:[],preference:null};
+ const row=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:person,last_name:[{id:randomUUID(),text:'Example'}],nickname:'Jay',languages:[lang],messenger_addresses:[messenger],contact_time_zone:{timeZone:'America/New_York'},anniversary:{year:null,month:9,day:12},death_date:{year:2024,month:2,day:29}}});
+ assert.equal(row.languages[0].value,'en-GB');assert.equal(row.languages[0].preference,1);assert.equal(row.contact_time_zone.timeZone,'America/New_York');assert.equal(row.anniversary.year,null);
+ assert.equal((await api('update_record',{objectTypeId:contact.id,recordId:row.id,version:row.version,values:{contact_time_zone:{timeZone:'Invalid/Zone'}}})).statusCode,400);
+ assert.equal((await ok('get_record',{objectTypeId:contact.id,recordId:row.id})).version,row.version);
+ assert.equal((await api('create_record',{objectTypeId:contact.id,values:{contact_kind:organization,company_name:'Test organization',death_date:{year:null,month:1,day:1}}})).statusCode,400);
+ const updated=await tool('update_record',{objectTypeId:contact.id,recordId:row.id,version:row.version,values:{death_date:null,contact_time_zone:{timeZone:'UTC'}}});
+ assert.equal(updated.death_date,null);assert.equal(updated.contact_time_zone.timeZone,'UTC');
+ assert.equal((await api('update_record',{objectTypeId:contact.id,recordId:row.id,version:row.version,values:{nickname:'stale'}})).statusCode,409);
+ const history=await journalEntries({objectTypeId:contact.id,recordId:row.id});const zone=history.find((e:any)=>e.field_key==='contact_time_zone'&&e.old_value!==null);assert.deepEqual(zone.old_value,{timeZone:'America/New_York'});assert.deepEqual(zone.new_value,{timeZone:'UTC'});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const hidden=contact.fields.find((f:any)=>f.technicalName==='anniversary'),permissions=await ok('get_content_permissions',{objectTypeId:contact.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'edit',fields:{[hidden.id]:'none'}}]});
+ const visible=(await api('get_record',{objectTypeId:contact.id,recordId:row.id},userCookie)).json();assert.ok(!Object.hasOwn(visible,'anniversary'));assert.deepEqual(visible.contact_time_zone,{timeZone:'UTC'});
+ assert.equal((await api('update_record',{objectTypeId:contact.id,recordId:row.id,version:updated.version,values:{anniversary:null}},userCookie)).statusCode,403);
+ const hiddenHistory=(await api('list_record_journal',{objectTypeId:contact.id,recordId:row.id},userCookie)).json();assert.ok(!JSON.stringify(hiddenHistory).includes(hidden.id));
+ const currentWs=(await ok('list_workspaces',{})).find((w:any)=>w.id===ws.id);assert.equal(currentWs.time_zone,'UTC');
+});
+
+test('Messenger usage and type groups share configurable API/MCP identities, retained choices and atomic history',async()=>{
+ const ws=await ok('create_workspace',{name:'Messenger groups',code:'messengergroups'});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const definition=await ok('get_object_type',{objectTypeId:(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='contacts').id});
+ const field=definition.fields.find((f:any)=>f.technicalName==='messenger_addresses'),profile=definition.contactProfile;
+ assert.ok(field.config.options.some((o:any)=>o.group==='usage'&&o.labels.en==='Work'));assert.ok(field.config.options.some((o:any)=>o.group==='messenger_type'&&o.labels.en==='XMPP'));
+ const option=(label:string)=>field.config.options.find((o:any)=>o.labels.en===label).id,extra={id:randomUUID(),labels:{en:'Support messenger',de:'Support-Messenger'},active:true,group:'messenger_type'};
+ await tool('configure_field',{fieldId:field.id,required:false,config:{...field.config,options:[...field.config.options,extra]}});
+ const first={id:randomUUID(),value:'xmpp:jane@example.test',contexts:[option('Work'),extra.id],preference:null};
+ const row=await tool('create_record',{objectTypeId:definition.id,values:{contact_kind:profile.kinds.individual,last_name:[{id:randomUUID(),text:'Example'}],messenger_addresses:[first]}});
+ assert.deepEqual(row.messenger_addresses,[{...first,preference:1}]);
+ const inactive={...field.config,options:[...field.config.options,{...extra,active:false}]};await ok('configure_field',{fieldId:field.id,required:false,config:inactive});
+ const updated=await ok('update_record',{objectTypeId:definition.id,recordId:row.id,version:row.version,values:{messenger_addresses:[{...first,value:'xmpp:jane.updated@example.test'}]}});
+ assert.deepEqual(updated.messenger_addresses[0].contexts,[option('Work'),extra.id]);
+ assert.equal((await api('create_record',{objectTypeId:definition.id,values:{contact_kind:profile.kinds.individual,last_name:[{id:randomUUID(),text:'New'}],messenger_addresses:[{...first,id:randomUUID()}]}})).statusCode,400);
+ assert.equal((await api('configure_field',{fieldId:field.id,required:false,config:{...inactive,options:[...field.config.options,{...extra,active:false,group:'usage'}]}})).statusCode,400);
+ const events=await journalEntries({objectTypeId:definition.id,recordId:row.id}),event=events.find((e:any)=>e.field_id===field.id&&e.old_value!==null);
+ assert.equal(event.value_context.after.kind,'structured');assert.ok(event.value_context.after.config.options.some((o:any)=>o.id===extra.id&&o.group==='messenger_type'));assert.equal(event.detail_context.schema,'messenger_entries');
+});
+
+test('postal components roundtrip through API/MCP with exact limits and per-field history without a stored formatted label',async()=>{
+ const ws=await ok('create_workspace',{name:'Postal addresses',code:'postaladdresses'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
+ const field=await ok('create_field',{objectTypeId:object.id,technicalName:'addresses',labels:{en:'Addresses',de:'Adressen'},kind:'structured',config:{schema:'address_entries',options:[]}});
+ const address={poBox:'42',extended:'Building B',streetLines:['Example Road','North entrance'],houseNumber:'10',postalCode:'80331',locality:'Munich',region:'Bavaria',country:'Germany',formatted:''},entry={id:randomUUID(),contexts:[],preference:null,address};
+ const row=await tool('create_record',{objectTypeId:object.id,values:{addresses:[entry]}});assert.deepEqual(row.addresses,[{...entry,preference:1}]);
+ const invalid=await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{addresses:[{...entry,address:{...address,houseNumber:'x'.repeat(101)}}]}});assert.equal(invalid.statusCode,400);assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).version,row.version);
+ const updated=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{addresses:[{...entry,address:{...address,extended:'Building C',region:'Other region'}}]}});assert.equal(updated.addresses[0].address.formatted,'');assert.equal(updated.addresses[0].address.poBox,'42');
+ const history=await journalEntries({objectTypeId:object.id,recordId:row.id}),change=history.find((e:any)=>e.field_id===field.id&&e.old_value!==null);assert.ok(change.detail_context.changes.some((c:any)=>c.entryId===entry.id&&c.path==='address.extended'));assert.ok(change.detail_context.changes.some((c:any)=>c.path==='address.region'));assert.equal(change.new_value[0].address.formatted,'');
+});
+
+test('relationship attributes use both endpoints and preserve typed versioned history',async()=>{
+ const ws=await ok('create_workspace',{name:'CRM attributes',code:'crmattributes'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const id=(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='contacts').id,definition=await ok('get_object_type',{objectTypeId:id}),profile=definition.contactProfile;
+ let rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===profile.relationships.contact_person);assert.equal(rel.fields.length,0);for(const [technicalName,kind] of [['context_title','text'],['context_roles','multiple_choice'],['context_department','text']])await ok('create_field',{relationshipTypeId:rel.id,technicalName,kind,labels:{en:technicalName}});rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===rel.id);
+ const title=rel.fields.find((f:any)=>f.technicalName==='context_title'),role=rel.fields.find((f:any)=>f.technicalName==='context_roles'),option=randomUUID();
+ await tool('configure_field',{fieldId:role.id,required:false,config:{...role.config,options:[{id:option,labels:{en:'Board member',de:'Vorstand'},active:true}]}});rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===rel.id);
+ const org=await ok('create_record',{objectTypeId:id,values:{contact_kind:profile.kinds.organization,company_name:'Organization A'}}),other=await ok('create_record',{objectTypeId:id,values:{contact_kind:profile.kinds.organization,company_name:'Organization B'}});
+ const target={objectTypeId:id,recordId:org.id},attributes={relationshipTypeId:rel.id,definitionVersion:rel.version,target,values:{[title.id]:'Director',[role.id]:[option]}};
+ let person=await tool('create_record',{objectTypeId:id,values:{contact_kind:profile.kinds.person,last_name:[{id:randomUUID(),text:'Doe'}]},relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'right',targets:[target]}],relationshipAttributes:[attributes]});
+ const read=async()=> (await ok('get_record_relationships',{objectTypeId:id,recordId:person.id})).fields.find((f:any)=>f.definition.id===rel.id&&f.side==='right').targets[0];
+ const edge=await read();assert.equal(edge.attributeValues[title.id],'Director');
+ const write={...attributes,edgeId:edge.edgeId,version:edge.edgeVersion,values:{[title.id]:'Managing director'}};
+ person=await tool('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationshipAttributes:[write]});assert.equal((await read()).edgeVersion,edge.edgeVersion+1);
+ assert.equal((await api('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationshipAttributes:[write]})).statusCode,409);
+ const event=(await journalEntries({objectTypeId:id,recordId:person.id})).find((e:any)=>e.field_id===title.id&&e.old_value==='Director');assert.ok(event);assert.equal(event.value_context.after.kind,'text');assert.ok((await journalEntries({objectTypeId:id,recordId:org.id})).some((e:any)=>e.id===event.id));
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',{objectTypeId:id});await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{[title.id]:'none'}}]});
+ const hidden=(await api('get_record_relationships',{objectTypeId:id,recordId:person.id},userCookie)).json().fields.find((f:any)=>f.definition.id===rel.id&&f.side==='right').targets[0];assert.ok(!Object.hasOwn(hidden.attributeValues,title.id));assert.ok(!(await api('list_record_journal',{objectTypeId:id,recordId:org.id},userCookie)).json().entries.some((e:any)=>e.field_id===title.id));
+ assert.equal((await api('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationshipAttributes:[{...write,version:edge.edgeVersion+1}]},userCookie)).statusCode,403);
+ person=await ok('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'right',targets:[{objectTypeId:id,recordId:other.id}]}]});assert.notEqual((await read()).edgeId,edge.edgeId);assert.equal((await read()).attributeValues[title.id],null);assert.ok((await journalEntries({objectTypeId:id,recordId:person.id})).some((e:any)=>e.id===event.id));
+});
+
+test('shared CRM lifecycle retains identities and authored forms across module activation',async()=>{
+ const ws=await ok('create_workspace',{name:'Shared modules',code:'sharedmodules'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:1});
+ let types=await ok('list_object_types',{workspaceId:ws.id});const id=types.find((t:any)=>t.technicalName==='contacts').id;let definition=await ok('get_object_type',{objectTypeId:id});assert.ok(definition.contactProfile);assert.deepEqual(definition.moduleKeys,['projects']);assert.ok(!types.some((t:any)=>t.technicalName==='distribution_lists'));
+ const field=await ok('create_field',{objectTypeId:id,technicalName:'custom_info',labels:{en:'Custom info',de:'Zusatz'}}),row=await ok('create_record',{objectTypeId:id,values:{contact_kind:definition.contactProfile.kinds.organization,company_name:'Shared organization',custom_info:'Retained'}});
+ const layout={groups:[{id:'custom',labels:{en:'Shared details',de:'Gemeinsame Angaben'},fields:[{fieldId:field.id,width:'full'}]}]};definition=await tool('configure_form_layout',{objectTypeId:id,version:definition.version,layout});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});definition=await ok('get_object_type',{objectTypeId:id});assert.equal(definition.moduleKeys.length,2);assert.deepEqual(definition.formLayouts.default,layout);
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:false,version:2});definition=await ok('get_object_type',{objectTypeId:id});assert.equal(definition.state,'active');assert.deepEqual(definition.moduleKeys,['contacts']);
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:false,version:2});definition=await ok('get_object_type',{objectTypeId:id});assert.equal(definition.state,'inactive');assert.deepEqual(definition.formLayouts.default,layout);
+ await tool('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:3});definition=await ok('get_object_type',{objectTypeId:id});assert.equal(definition.state,'active');assert.deepEqual(definition.formLayouts.default,layout);assert.ok(definition.fields.some((f:any)=>f.id===field.id));assert.equal((await ok('get_record',{objectTypeId:id,recordId:row.id})).custom_info,'Retained');
+});
+
+test('relationship attributes enforce each endpoint exception, rollback atomically and survive recycle/restore',async()=>{
+ const ws=await ok('create_workspace',{name:'CRM transaction',code:'crmtransaction'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const id=(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='contacts').id,definition=await ok('get_object_type',{objectTypeId:id}),p=definition.contactProfile;
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',{objectTypeId:id});await ok('configure_content_permissions',{...rights,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const org=await createOrganization(id,'Company');let relation=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===p.relationships.contact_person);const field=await ok('create_field',{relationshipTypeId:relation.id,technicalName:'context_title',labels:{en:'Context title'}});relation=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===relation.id);
+ let person=await ok('create_record',{objectTypeId:id,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Doe'}]},relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'right',targets:[{objectTypeId:id,recordId:org.id}]}]});
+ for(const row of [person,await ok('get_record',{objectTypeId:id,recordId:org.id})]){const security=await ok('get_record_security',{objectTypeId:id,recordId:row.id});await ok('configure_record_security',{objectTypeId:id,recordId:row.id,version:security.version,policy:{...security.policy,owners:[{kind:'user',id:user.id,level:'full'}],fields:row.id===org.id?[{kind:'user',id:user.id,fields:{[field.id]:'none'}}]:[]}});}
+ person=await ok('get_record',{objectTypeId:id,recordId:person.id});const edges=await ok('get_record_relationships',{objectTypeId:id,recordId:person.id}),target=edges.fields.find((f:any)=>f.definition.id===relation.id&&f.side==='right').targets[0];
+ const write={relationshipTypeId:relation.id,definitionVersion:relation.version,edgeId:target.edgeId,version:target.edgeVersion,target:{objectTypeId:id,recordId:org.id},values:{[field.id]:'Director'}};
+ assert.equal((await api('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationshipAttributes:[write]},userCookie)).statusCode,403,'Organization exception also applies from Contact person');
+ const orgView=(await api('get_record_relationships',{objectTypeId:id,recordId:org.id},userCookie)).json();assert.ok(!Object.hasOwn(orgView.fields.find((f:any)=>f.definition.id===relation.id&&f.side==='left').targets[0].attributeValues,field.id));
+ const originalOrg=await ok('get_record',{objectTypeId:id,recordId:org.id});
+ await sql`CREATE TRIGGER reject_crm_attribute BEFORE INSERT ON sys_journal FOR EACH ROW WHEN (NEW.field_key='context_title') EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{assert.equal((await api('update_record',{objectTypeId:id,recordId:person.id,version:person.version,values:{nickname:'Rollback'},relationshipAttributes:[write]})).statusCode,500);assert.equal((await ok('get_record',{objectTypeId:id,recordId:person.id})).version,person.version);assert.equal((await ok('get_record',{objectTypeId:id,recordId:org.id})).version,originalOrg.version);assert.equal((await sql<any>`SELECT version,values FROM sys_relationships WHERE id=${target.edgeId}::uuid`.execute(runtime.db)).rows[0].version,target.edgeVersion);}
+ finally{await sql`DROP TRIGGER reject_crm_attribute ON sys_journal`.execute(runtime.db);}
+ person=await tool('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationshipAttributes:[write]});
+ const recycled=await ok('recycle_record',{objectTypeId:id,recordId:person.id,version:person.version});const restored=await tool('restore_record',{objectTypeId:id,recordId:person.id,version:recycled.version});assert.equal(restored.id,person.id);
+ const retained=(await ok('get_record_relationships',{objectTypeId:id,recordId:person.id})).fields.find((f:any)=>f.definition.id===relation.id&&f.side==='right').targets[0];assert.equal(retained.edgeId,target.edgeId);assert.equal(retained.attributeValues[field.id],'Director');
+});
+
+test('shared module template additions retain authored views and configurable values and reject structural collisions atomically',async()=>{
+ const ws=await ok('create_workspace',{name:'Module evolution',code:'moduleevolution'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const id=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts').id;let definition=await ok('get_object_type',{objectTypeId:id});
+ const row=await createOrganization(id,'Preserved'),extra=await ok('create_field',{objectTypeId:id,technicalName:'my_field',labels:{en:'My field'}}),layout={groups:[{id:'personal',labels:{en:'Our view'},fields:[{fieldId:extra.id,width:'full'}]}]};
+ definition=await ok('configure_form_layout',{objectTypeId:id,version:definition.version,layout});
+ const catalog=(await sql<any>`SELECT objects FROM sys_modules WHERE key='contacts'`.execute(runtime.db)).rows[0].objects;
+ const revised=structuredClone(catalog);revised.find((o:any)=>o.key==='contact').fields.push({key:'crm_segment',technicalName:'crm_segment',labels:{en:'CRM segment',de:'CRM-Segment'},kind:'text'});
+ try{
+  await sql`UPDATE sys_modules SET objects=${JSON.stringify(revised)}::jsonb,template_version=2 WHERE key='contacts'`.execute(runtime.db);
+  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');assert.equal(module.installedVersion,1);assert.equal(module.templateVersion,2);
+  const updated=await tool('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:module.version});assert.equal(updated.installedVersion,2);
+  const next=await ok('get_object_type',{objectTypeId:id});assert.deepEqual(next.formLayouts.default,layout);assert.equal(next.fields.find((f:any)=>f.technicalName==='my_field').id,extra.id);assert.ok(next.moduleFieldIds.contacts.includes(next.fields.find((f:any)=>f.technicalName==='crm_segment').id));assert.equal((await ok('get_record',{objectTypeId:id,recordId:row.id})).keyword,'Preserved');
+  const conflict=structuredClone(revised);conflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='crm_segment').kind='boolean';await sql`UPDATE sys_modules SET objects=${JSON.stringify(conflict)}::jsonb,template_version=3 WHERE key='contacts'`.execute(runtime.db);
+  assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);assert.equal((await ok('get_object_type',{objectTypeId:id})).fields.find((f:any)=>f.technicalName==='crm_segment').kind,'text');
+  const codecConflict=structuredClone(revised);codecConflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='birthday').config={schema:'url_entries'};await sql`UPDATE sys_modules SET objects=${JSON.stringify(codecConflict)}::jsonb WHERE key='contacts'`.execute(runtime.db);assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);
+ }finally{await sql`UPDATE sys_modules SET objects=${JSON.stringify(catalog)}::jsonb,template_version=1 WHERE key='contacts'`.execute(runtime.db);}
+});
+
+test('custom relationship fields have scoped configuration, preflighted requiredness and a retained definition lifecycle',async()=>{
+ const ws=await ok('create_workspace',{name:'Attribute definitions',code:'attributedefinitions'}),a=await ok('create_object_type',{workspaceId:ws.id,technicalName:'left_items',labels:{en:'Left'}}),b=await ok('create_object_type',{workspaceId:ws.id,technicalName:'right_items',labels:{en:'Right'}});
+ let relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'detail_link',configuration:{labels:{en:'Details'},leftLabels:{en:'Right'},rightLabels:{en:'Left'},directed:true,leftMin:0,rightMin:0,leftMax:1,rightMax:1,allowAll:false,active:true,pairs:[{leftObjectTypeId:a.id,rightObjectTypeId:b.id}]}});
+ relation=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
+ const field=await tool('create_field',{relationshipTypeId:relation.id,technicalName:'detail',labels:{en:'Detail',de:'Angabe'},kind:'text'});relation=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===relation.id);
+ const right=await ok('create_record',{objectTypeId:b.id}),left=await ok('create_record',{objectTypeId:a.id,relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'left',targets:[{objectTypeId:b.id,recordId:right.id}]}]});
+ assert.equal((await api('configure_field',{fieldId:field.id,version:field.version,required:true})).statusCode,400);
+ const edge=(await ok('get_record_relationships',{objectTypeId:a.id,recordId:left.id})).fields.find((f:any)=>f.definition.id===relation.id).targets[0];
+ const changed=await ok('update_record',{objectTypeId:a.id,recordId:left.id,version:left.version,relationshipAttributes:[{relationshipTypeId:relation.id,definitionVersion:relation.version,target:{objectTypeId:b.id,recordId:right.id},edgeId:edge.edgeId,version:edge.edgeVersion,values:{[field.id]:'Retained'}}]});
+ const inactive=await ok('set_definition_state',{kind:'field',id:field.id,expectedState:'active',state:'inactive'});assert.equal(inactive.state,'inactive');assert.equal((await api('set_definition_state',{kind:'field',id:field.id,expectedState:'inactive',state:'deleted',confirm:true})).statusCode,409);
+ const retained=(await ok('get_record_relationships',{objectTypeId:b.id,recordId:right.id})).fields.find((f:any)=>f.definition.id===relation.id).targets[0];assert.equal(retained.attributeValues[field.id],'Retained');
+ assert.ok((await ok('get_definition_journal',{objectTypeId:b.id})).some((e:any)=>e.field_id===field.id));
+ const designer=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:designer.id,role:'designer',expectedRole:null});
+ const edited=await api('configure_field',{fieldId:field.id,required:false,inputRules:{description:{en:'Relationship detail',de:'Verknüpfungsangabe'}}},userCookie);assert.equal(edited.statusCode,200,edited.body);assert.equal((await api('get_record',{objectTypeId:a.id,recordId:left.id},userCookie)).statusCode,403,'Designer does not acquire contents');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:designer.id,role:'user',expectedRole:'designer'});assert.equal((await api('create_field',{relationshipTypeId:relation.id,technicalName:'forbidden',labels:{en:'Forbidden'}},userCookie)).statusCode,403);
+ const unused=await ok('create_field',{relationshipTypeId:relation.id,technicalName:'unused',labels:{en:'Unused'}});assert.equal((await ok('set_definition_state',{kind:'field',id:unused.id,expectedState:'active',state:'deleted',confirm:true})).state,'deleted');
+ assert.equal((await api('create_field',{objectTypeId:a.id,relationshipTypeId:relation.id,technicalName:'bad_owner',labels:{en:'Bad'}})).statusCode,400);
+});
+
+test('professional Contact fields belong directly to Contact persons and all Individuals and survive Organization changes',async()=>{
+ const ws=await ok('create_workspace',{name:'Professional Contacts',code:'professionalcontacts'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const id=(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='contacts').id,definition=await ok('get_object_type',{objectTypeId:id}),p=definition.contactProfile;
+ const title=definition.fields.find((f:any)=>f.id===p.fields.job_title),role=definition.fields.find((f:any)=>f.id===p.fields.function),department=definition.fields.find((f:any)=>f.id===p.fields.department),option=randomUUID();
+ for(const field of [title,role,department]){assert.ok(field.isProtected);assert.deepEqual(new Set(field.applicability.optionIds),new Set([p.kinds.person,p.kinds.individual]));}
+ await tool('configure_field',{fieldId:role.id,required:false,config:{...role.config,options:[{id:option,labels:{en:'Board member',de:'Vorstand'},active:true}]}});
+ const individual=await tool('create_record',{objectTypeId:id,values:{contact_kind:p.kinds.individual,last_name:[{id:randomUUID(),text:'Doe'}],job_title:'Consultant',department:'Independent',function:[option]}});assert.equal(individual.company_name,null);assert.equal(individual.job_title,'Consultant');
+ assert.equal((await api('create_record',{objectTypeId:id,values:{contact_kind:p.kinds.organization,company_name:'Invalid',job_title:'Not an organization field'}})).statusCode,400);
+ const a=await createOrganization(id,'Organization A'),b=await createOrganization(id,'Organization B'),relation=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===p.relationships.contact_person);assert.deepEqual(relation.fields,[]);
+ let person=await ok('create_record',{objectTypeId:id,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Example'}],job_title:'Director',department:'Sales',function:[option]}});
+ for(const target of [a,b,null]){person=await tool('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'right',targets:target?[{objectTypeId:id,recordId:target.id}]:[]}]});assert.equal(person.job_title,'Director');assert.equal(person.department,'Sales');assert.deepEqual(person.function,[option]);}
+ const before=person;person=await ok('update_record',{objectTypeId:id,recordId:person.id,version:person.version,values:{job_title:'Chair'}});const event=(await journalEntries({objectTypeId:id,recordId:person.id})).find((e:any)=>e.field_id===title.id&&e.old_value==='Director');assert.equal(event.entity_kind,'record');assert.equal(event.entity_id,person.id);assert.equal(event.new_value,'Chair');assert.equal(person.version,before.version+1);
+ const identities=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===p.relationships.contact_identity);
+ person=await tool('update_record',{objectTypeId:id,recordId:person.id,version:person.version,relationships:[{relationshipTypeId:identities.id,version:identities.version,side:'left',targets:[{objectTypeId:id,recordId:individual.id}]}]});
+ const currentIndividual=await ok('get_record',{objectTypeId:id,recordId:individual.id});await ok('update_record',{objectTypeId:id,recordId:individual.id,version:currentIndividual.version,values:{job_title:'Independent director'}});
+ assert.equal((await ok('get_record',{objectTypeId:id,recordId:person.id})).job_title,'Chair');assert.equal((await ok('get_record_relationships',{objectTypeId:id,recordId:person.id})).fields.find((f:any)=>f.definition.id===identities.id).targets.length,1);
+});
+
+test('CRM acceptance keeps Distribution membership explicit, independent, rights-filtered and journalled',async()=>{
+ const ws=await ok('create_workspace',{name:'CRM acceptance',code:'crmacceptance'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const types=await ok('list_object_types',{workspaceId:ws.id}),id=types.find((t:any)=>t.technicalName==='contacts').id,listId=types.find((t:any)=>t.technicalName==='distribution_lists').id;
+ const definition=await ok('get_object_type',{objectTypeId:id}),profile=definition.contactProfile,user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',{objectTypeId:id});await ok('configure_content_permissions',{...rights,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',fields:{}}]});
+ const listRights=await ok('get_content_permissions',{objectTypeId:listId});await ok('configure_content_permissions',{...listRights,grants:[{kind:'user',id:user.id,level:'full',fields:{}}]});
+ const org=await createOrganization(id,'Visible Organization'),name=(text:string)=>[{id:randomUUID(),text}];
+ const ap=await tool('create_record',{objectTypeId:id,values:{contact_kind:profile.kinds.person,last_name:name('Example'),first_name:name('Jane')}}),ek=await ok('create_record',{objectTypeId:id,values:{contact_kind:profile.kinds.individual,last_name:name('Example'),first_name:name('John')}});
+ for(const record of [org,ap,ek])await ok('configure_record_security',{objectTypeId:id,recordId:record.id,version:record.version,policy:defaultRecordSecurity([{kind:'user',id:user.id,level:'full'}])});
+ const hidden=await ok('create_record',{objectTypeId:id,values:{contact_kind:profile.kinds.organization,company_name:'Hidden membership secret'},security:{policy:{...defaultRecordSecurity(),publicLevel:null,owners:[{kind:'user',id:adminId,level:'full'}]},confirmPublic:false}});
+ const relation=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.technicalName==='distribution_members');
+ let list=await tool('create_record',{objectTypeId:listId,keyword:'Acceptance list',values:{description:'One\nTwo\nThree',notes:'## Notes\nFictional acceptance record.'}});
+ assert.equal((await ok('get_record_relationships',{objectTypeId:listId,recordId:list.id})).dossier.length,0);
+ const payload=(records:any[])=>({relationshipTypeId:relation.id,version:relation.version,side:'left',targets:records.map(record=>({objectTypeId:id,recordId:record.id}))});
+ list=await ok('update_record',{objectTypeId:listId,recordId:list.id,version:list.version,relationships:[payload([org,ap,ek,hidden])]});
+ const original=list;const repeated=await api('update_record',{objectTypeId:listId,recordId:list.id,version:list.version,relationships:[payload([org,org])]});assert.ok([400,409].includes(repeated.statusCode));assert.equal((await ok('get_record',{objectTypeId:listId,recordId:list.id})).version,original.version);
+ const visible=(await api('get_record_relationships',{objectTypeId:listId,recordId:list.id},userCookie)).json();assert.equal(visible.dossier.length,3);assert.ok(!JSON.stringify(visible).includes('Hidden membership secret'));
+ const history=(await api('list_record_journal',{objectTypeId:listId,recordId:list.id},userCookie)).json();assert.ok(!JSON.stringify(history).includes('Hidden membership secret'));
+ const updated=await api('update_record',{objectTypeId:listId,recordId:list.id,version:list.version,relationships:[payload([ap,ek])]},userCookie);assert.equal(updated.statusCode,403,updated.body);assert.equal((await ok('get_record',{objectTypeId:listId,recordId:list.id})).version,list.version);
+ const restricted=visible.fields.find((f:any)=>f.definition.id===relation.id&&f.side==='left');assert.equal(restricted.restricted,true);assert.equal(restricted.editable,false);
+ const scalar=await api('update_record',{objectTypeId:listId,recordId:list.id,version:list.version,values:{description:'One\nTwo\nThree'}},userCookie);assert.equal(scalar.statusCode,200,scalar.body);list=scalar.json();
+ list=await tool('update_record',{objectTypeId:listId,recordId:list.id,version:list.version,relationships:[payload([ap,ek,hidden])]});
+ const retained=(await ok('get_record_relationships',{objectTypeId:listId,recordId:list.id})).dossier;assert.equal(retained.length,3);assert.ok(JSON.stringify(retained).includes(hidden.id));assert.equal((await ok('get_record',{objectTypeId:id,recordId:org.id})).keyword,'Visible Organization');
+ const journal=await journalEntries({objectTypeId:listId,recordId:list.id});assert.ok(journal.some((e:any)=>e.entity_kind==='relationship'));
+ assert.equal((await ok('get_record',{objectTypeId:listId,recordId:list.id})).description,'One\nTwo\nThree');assert.deepEqual((await ok('get_record',{objectTypeId:id,recordId:ek.id})).category,[]);
 });

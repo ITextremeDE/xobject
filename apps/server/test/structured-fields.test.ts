@@ -30,3 +30,40 @@ test('typed collections validate scopes, phone normalization, protocols and exac
  assert.throws(()=>normalizeFieldValue(configured,[{...retained,id:v7()}],[retained]));
  assert.throws(()=>parseStructuredValue('address_entries',Array.from({length:100},()=>({id:v7(),contexts:[],preference:null,address:{poBox:'',extended:'',streetLines:Array(20).fill('ä'.repeat(200)),houseNumber:'',postalCode:'',locality:'',region:'',country:'',formatted:'x'.repeat(2000)}}))));
 });
+
+test('communication languages, messenger URIs and named domain zones are typed without network or display-zone conversion',()=>{
+ const entry={id:v7(),value:'EN-gb',contexts:[],preference:null};
+ assert.deepEqual(normalizeFieldValue(field('language_entries'),[entry]),[{...entry,value:'en-GB',preference:1}]);
+ assert.throws(()=>normalizeFieldValue(field('language_entries'),[{...entry,value:'not_a_language'}]));
+ assert.deepEqual(normalizeFieldValue(field('messenger_entries'),[{...entry,value:'xmpp:ada@example.test'}]),[{...entry,value:'xmpp:ada@example.test',preference:1}]);
+ for(const uri of ['javascript:alert(1)','data:text/plain,test','file:///etc/passwd','xmpp:','xmpp:ada smith@example.test','https://user:secret@example.test'])assert.throws(()=>normalizeFieldValue(field('messenger_entries'),[{...entry,value:uri}]));
+ assert.deepEqual(normalizeFieldValue(field('time_zone'),{timeZone:'America/New_York'}),{timeZone:'America/New_York'});
+ assert.throws(()=>normalizeFieldValue(field('time_zone'),{timeZone:'Unknown/Somewhere'}));
+ assert.throws(()=>normalizeFieldValue(field('time_zone'),{timeZone:'+02:00'}));
+ assert.throws(()=>normalizeFieldValue(field('partial_date'),{month:2,day:29,year:2025}));
+ assert.deepEqual(normalizeFieldValue(field('partial_date'),{month:2,day:29,year:null}),{month:2,day:29,year:null});
+});
+
+test('telephone and messenger option groups remain codec-specific and immutable',()=>{
+ const usage={id:v7(),labels:{en:'Work'},active:true,group:'usage' as const},type={id:v7(),labels:{en:'XMPP'},active:true,group:'messenger_type' as const};
+ const config={schema:'messenger_entries' as const,options:[usage,type]};
+ assert.deepEqual(fieldConfig('structured',config),{...defaultFieldConfig('structured'),...config});
+ assert.throws(()=>fieldConfig('structured',{...config,options:[{...type,group:'phone_type'}]}));
+ assert.throws(()=>fieldConfig('structured',{...config,options:[{id:v7(),labels:{en:'No group'},active:true}]}));
+ assert.throws(()=>fieldConfig('structured',{schema:'phone_entries',options:[type]}));
+ assert.throws(()=>fieldConfig('structured',{schema:'email_entries',options:[usage]}));
+ assert.throws(()=>fieldConfig('structured',{...config,options:[usage,{...type,group:'usage'}]},config));
+ const stored={id:v7(),value:'xmpp:ada@example.test',contexts:[usage.id,type.id],preference:1};
+ const inactive={...field('messenger_entries'),config:{...config,options:[usage,{...type,active:false}]}};
+ assert.throws(()=>normalizeFieldValue(inactive,[stored]));
+ assert.deepEqual(normalizeFieldValue(inactive,[{...stored,value:'xmpp:ada.new@example.test'}],[stored]),[{...stored,value:'xmpp:ada.new@example.test'}]);
+});
+
+test('postal address limits reject oversized components and preserve supplemental data without generating a stored label',()=>{
+ const address={poBox:'42',extended:'Building B',streetLines:['Example Road','North entrance'],houseNumber:'10',postalCode:'80331',locality:'Munich',region:'Bavaria',country:'Germany',formatted:''};
+ const entry={id:v7(),contexts:[],preference:null,address};
+ assert.deepEqual(normalizeFieldValue(field('address_entries'),[entry]),[{...entry,preference:1}]);
+ for(const [key,limit] of [['houseNumber',100],['postalCode',100],['poBox',200],['extended',200],['region',200]] as const)assert.throws(()=>normalizeFieldValue(field('address_entries'),[{...entry,address:{...address,[key]:'x'.repeat(limit+1)}}]));
+ assert.throws(()=>normalizeFieldValue(field('address_entries'),[{...entry,address:{...address,streetLines:['Example Road','x'.repeat(201)]}}]));
+ assert.equal(address.formatted,'');
+});

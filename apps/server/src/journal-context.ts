@@ -66,7 +66,7 @@ export async function enrichJournalContext(tx: Executor, rows: Row[], userId: st
     return { ...row,
       ...(layoutContexts.has(String(row.id))?{form_layout_context:layoutContexts.get(String(row.id))}:{}),
       object_type_name: type ? label(type.labels, type) : null,
-      field_label: type && field ? label(field.labels, type) : null,
+      field_label: field ? (type?label(field.labels,type):field.labels[language??'en']??field.labels.en??field.labels.de??Object.values(field.labels)[0]) : null,
       entity_name: (row.entity_kind==='object_permissions'&&type?`${label(type.labels,type)}${(()=>{const match=/^permission\.(user|group):([^.]+)\./.exec(String(row.field_key));return match?' · '+(principalNames.get(`${match[1]}:${match[2]}`)??match[2]):'';})()}`:undefined) ?? (row.entity_kind==='relationship' ? (()=>{const snapshot=(row.new_value??row.old_value) as {left?:{keyword?:string};right?:{keyword?:string};directed?:boolean}|null;return snapshot?.left?.keyword&&snapshot.right?.keyword?`${snapshot.left.keyword} ${snapshot.directed?'→':'↔'} ${snapshot.right.keyword}`:undefined;})() : undefined) ?? (row.entity_kind === 'relationship_type' ? relationshipNames.get(String(row.entity_id)) : undefined) ?? (type && row.entity_kind === 'object_type' ? label(type.labels, type)
         : type && field && ['field', 'classification_field'].includes(String(row.entity_kind)) ? label(field.labels, type)
         : names.get(`${row.object_type_id}:${row.entity_id}`) ?? row.entity_name ?? null),

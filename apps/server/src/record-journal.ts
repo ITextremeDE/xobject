@@ -6,7 +6,7 @@ import type { JournalEntry, FieldConfig } from '@xobject/contracts';
 export async function journalValueContexts(tx:Executor,entries:JournalEntry[]):Promise<JournalEntry[]> {
   if(!entries.length)return entries;
   entries=await enrichRecordSecurityContext(tx,entries);
-  const ids=entries.filter(e=>e.entity_kind==='record'&&e.field_id).map(e=>e.id);
+  const ids=entries.filter(e=>['record','relationship'].includes(e.entity_kind??'')&&e.field_id).map(e=>e.id);
   if(!ids.length)return entries;
   const fields=(await sql<{id:string;kind:string;config:FieldConfig}>`SELECT id,kind,config FROM sys_fields WHERE id IN(SELECT field_id FROM sys_journal WHERE id=ANY(${ids}::uuid[]))`.execute(tx)).rows;
   const changes=(await sql<{entry_id:string;field_key:'kind'|'config';old_value:unknown;new_value:unknown;same_change:boolean}>`
@@ -15,7 +15,7 @@ export async function journalValueContexts(tx:Executor,entries:JournalEntry[]):P
     WHERE e.id=ANY(${ids}::uuid[]) AND (m.created_at>e.created_at OR (m.created_at=e.created_at AND m.id>e.id) OR m.change_id=e.change_id)
     ORDER BY m.created_at DESC,m.id DESC`.execute(tx)).rows;
   return entries.map(entry=>{
-    const field=fields.find(f=>f.id===entry.field_id);if(!field||entry.entity_kind!=='record')return entry;
+    const field=fields.find(f=>f.id===entry.field_id);if(!field||!['record','relationship'].includes(entry.entity_kind??''))return entry;
     const after={kind:field.kind,config:field.config};
     for(const change of changes.filter(c=>c.entry_id===entry.id&&!c.same_change)) {
       if(change.old_value!==null){if(change.field_key==='kind')after.kind=String(change.old_value);else after.config=change.old_value as FieldConfig;}

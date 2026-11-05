@@ -1,3 +1,4 @@
+import {incidentFields} from './relationship-fields.js';
 import {contactDerivedValue} from './contact-domain.js';
 import {securityGraph} from './ownership-settings.js';
 import {accessRank,membershipRights,resolveRecordAccess,defaultRecordSecurity,type RecordSecurity,type AccessExplanation,type Principal} from '@xobject/contracts';
@@ -115,7 +116,7 @@ export async function getContentPermissions(tx:Executor,id:string):Promise<Conte
 export async function configureContentPermissions(tx:Executor,args:{objectTypeId:string;version:number;sensitive:boolean;confirmWidening?:boolean;grants:ContentGrant[]},actor:string,journal:(key:string,before:unknown,after:unknown,field?:string)=>Promise<void>){
   const before=await getContentPermissions(tx,args.objectTypeId),p=await contentAccess().policy(args.objectTypeId);if(!p.admin)throw new AppError(403,'Only Administrators manage content permissions');if(before.version!==args.version)throw new AppError(409,'Permissions version conflict');
   if(before.sensitive&&!args.sensitive&&!args.confirmWidening)throw new AppError(400,'Confirm removal of record-level restrictions');
-  const seen=new Set<string>();const fields=await contentAccess().fields(args.objectTypeId);
+  const seen=new Set<string>();const fields=[...await contentAccess().fields(args.objectTypeId),...await incidentFields(tx,args.objectTypeId)];
   for(const grant of args.grants){const key=`${grant.kind}:${grant.id}`;if(seen.has(key))throw new AppError(400,'Duplicate permission principal');seen.add(key);for(const id of Object.keys(grant.fields))if(!fields.some(f=>f.id===id&&f.technical_name!=='access_principals'))throw new AppError(400,'Unknown or protected permission field');
     const exists=grant.kind==='user'?(await sql`SELECT 1 FROM sys_users u JOIN sys_workspace_members m ON m.user_id=u.id WHERE m.workspace_id=${p.workspace}::uuid AND u.id=${grant.id}`.execute(tx)).rows.length:(await sql`SELECT 1 FROM sys_groups WHERE workspace_id=${p.workspace}::uuid AND id::text=${grant.id}`.execute(tx)).rows.length;if(!exists)throw new AppError(400,'Permission principal must belong to workspace');
   }
@@ -147,7 +148,9 @@ export async function readableRecordJournal(objectTypeId:string,entries:import('
     }
     if(entry.entity_kind!=='relationship')continue;
     let visible=true;const projected={...entry};
-    for(const name of ['old_value','new_value'] as const){
+    if(entry.field_id){const endpoints=(await sql<{object_type_id:string;record_id:string}>`SELECT object_type_id,record_id FROM sys_relationship_journal_endpoints WHERE journal_id=${entry.id}::uuid`.execute(access.tx)).rows;for(const ref of endpoints)if(!await access.readable(ref.object_type_id,ref.record_id,includeRecycled)||!(await access.policy(ref.object_type_id)).field(entry.field_id,ref.record_id).read)visible=false;if(endpoints.length!==2)visible=false;}
+
+    if(!entry.field_id)for(const name of ['old_value','new_value'] as const){
       const value=structuredClone(entry[name]) as {left?:{objectTypeId:string;recordId:string;keyword:string};right?:{objectTypeId:string;recordId:string;keyword:string}}|null;
       if(value)for(const endpoint of [value.left,value.right]){
         if(!endpoint||!await access.readable(endpoint.objectTypeId,endpoint.recordId,includeRecycled)){visible=false;break;}
