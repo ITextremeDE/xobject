@@ -3,6 +3,11 @@ import { z } from 'zod';
 import type { RelatedRecord } from './record-relationships.js';
 export const primaryChainRoles = ['contact', 'project', 'case'] as const;
 export type PrimaryChainRole = typeof primaryChainRoles[number];
+export const primaryRequirementsSchema=z.object({associationRequired:z.boolean(),requiredLevels:z.array(z.enum(primaryChainRoles)).max(3).refine(items=>new Set(items).size===items.length,'Duplicate Primary level')}).strict();
+export type PrimaryRequirements=z.infer<typeof primaryRequirementsSchema>;
+export function primaryRequirementsSatisfied(requirements:PrimaryRequirements,present:readonly PrimaryChainRole[]) {
+ return (!requirements.associationRequired||present.length>0)&&requirements.requiredLevels.every(role=>present.includes(role));
+}
 export const primaryChainSchema = z.object({contact:uuidSchema,project:uuidSchema,case:uuidSchema}).strict().refine(value=>new Set(Object.values(value).map(id=>id.toLowerCase())).size===3,'Primary levels require different object types');
 export type PrimaryChain = z.infer<typeof primaryChainSchema>;
 export interface PrimaryChainContext { unavailable?:boolean; configuration: PrimaryChain | null; levels: { role:PrimaryChainRole;objectTypeId:string;record:RelatedRecord|null;inherited:boolean }[]; direct:RelatedRecord|null }

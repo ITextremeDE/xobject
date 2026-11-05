@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {uuidSchema} from './identity.js';
 import type {RelationshipType} from './relationship-types.js';
-import type {PrimaryChain} from './primary-chain.js';
+import type {PrimaryRequirements,PrimaryChain} from './primary-chain.js';
 import {languageSchema} from './languages.js';
 const width=z.enum(['half','full']);
 export const formEntrySchema=z.union([
@@ -24,20 +24,20 @@ export type FormLayout=z.infer<typeof formLayoutSchema>;
 export type FormLayouts={default?:FormLayout};
 export const formLayoutEntries=(layout:FormLayout)=>[...layout.groups.flatMap(group=>group.fields),...(layout.unassigned??[])];
 type LayoutField={id:string;technicalName:string;kind:string;config?:{schema?:string};label?:string;required?:boolean;state?:string};
-export interface FormRelationship {definition:RelationshipType;side:'left'|'right'}
+export interface FormRelationship {required?:boolean;definition:RelationshipType;side:'left'|'right'}
 export interface FormElement {key:string;entry:FormEntry;field?:LayoutField;relationship?:FormRelationship;single:boolean;required:boolean}
 export function relationshipSidesForObject(type:RelationshipType,objectId:string,chain?:PrimaryChain|null):('left'|'right')[]{
   const symmetric=!type.directed&&(type.allowAll||type.pairs.some(pair=>type.pairs.some(other=>other.leftObjectTypeId===pair.rightObjectTypeId)));
   const eligible=(side:'left'|'right')=>type.allowAll||type.pairs.some(pair=>(side==='left'?pair.leftObjectTypeId:pair.rightObjectTypeId)===objectId);
   return (['left','right'] as const).filter(side=>!(side==='right'&&symmetric)&&!(type.kind==='primary'&&chain&&((side==='left'&&!Object.values(chain).includes(objectId))||(side==='right'&&chain.contact===objectId)))&&(eligible(side)||(symmetric&&eligible('right'))));
 }
-export function formRelationshipFields(types:RelationshipType[],objectId:string,chain?:PrimaryChain|null):FormRelationship[]{
-  return types.filter(type=>type.kind!=='general'&&type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side})));
+export function formRelationshipFields(types:RelationshipType[],objectId:string,chain?:PrimaryChain|null,requirements?:PrimaryRequirements):FormRelationship[]{
+  return types.filter(type=>type.kind!=='general'&&type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side,...(definition.kind==='primary'?{required:Boolean(requirements?.associationRequired||requirements?.requiredLevels.length)}:{})})));
 }
 export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||(['multiline','multiple_choice'].includes(field.kind)||field.kind==='structured'&&field.config?.schema!=='name_components')?'full':'half';}
 export function formLayoutElements(fields:LayoutField[],relationships:FormRelationship[]=[]):FormElement[]{
   return [...fields.map(field=>({key:field.id,entry:{fieldId:field.id,width:defaultFormWidth(field)} as FormEntry,field,single:true,required:Boolean(field.required)})),...relationships.map(relationship=>{
-    const {definition,side}=relationship,single=(side==='left'?definition.leftMax:definition.rightMax)===1,required=definition.active&&(side==='left'?definition.leftMin:definition.rightMin)>0;
+    const {definition,side}=relationship,single=(side==='left'?definition.leftMax:definition.rightMax)===1,required=relationship.required||definition.active&&(side==='left'?definition.leftMin:definition.rightMin)>0;
     const entry:FormEntry=definition.kind==='primary'?{primary:true,width:'full',visible:true}:{relationshipTypeId:definition.id,side,width:single?'half':'full',visible:true,expanded:'auto'};
     return {key:formEntryKey(entry),entry,relationship,single:definition.kind!=='primary'&&single,required};
   })];

@@ -3,7 +3,7 @@ import {candidateAttributes,projectEdgeAttributes,writeEdgeAttributes} from './r
 import {contentAccess} from './content-permissions.js';
 import {oppositeRelationshipSide,relationshipSidesForObject} from '@xobject/contracts';
 import {conditionColumn,endpointMatches,validateEndpointPair,validateConditionalRecord} from './relationship-conditions.js';
-import {primaryChain,primaryPairAllowed,validatePrimaryChain} from './primary-chain.js';
+import {validatePrimaryRequirements,primaryChain,primaryPairAllowed,validatePrimaryChain} from './primary-chain.js';
 import {primaryChainRoles,primaryRolesForObject,type PrimaryChainContext,type RecordReference as PrimaryRef} from '@xobject/contracts';
 import { effectiveWorkspaceLanguage, type Language, type ClassificationConfig, type DossierEntry } from '@xobject/contracts';
 import { sql } from 'kysely';
@@ -70,7 +70,7 @@ async function dossierEntries(tx:Executor,edges:RecordRelationship[],objectTypeI
   }
   return entries.map(entry=>({id:entry.id,definition:entry.definition,record:{...entry.target,...values.get(key(entry.target))!}}));
 }
-export async function searchRelationshipCandidates(tx:Executor,args:{sourceValues?:Record<string,unknown>;targetObjectTypeId?:string;objectTypeId:string;recordId?:string;relationshipTypeId:string;side:'left'|'right';query:string;offset:number;limit:number}) {
+export async function searchRelationshipCandidates(tx:Executor,args:{primaryAncestor?:RecordReference;sourceValues?:Record<string,unknown>;targetObjectTypeId?:string;objectTypeId:string;recordId?:string;relationshipTypeId:string;side:'left'|'right';query:string;offset:number;limit:number}) {
   await contentAccess().require(args.objectTypeId,args.recordId,args.recordId?'read':'create');
   const model=await modelFor(tx,args.objectTypeId);
   const type=(await relationshipTypes(tx,model.workspace_id)).find(d=>d.id===args.relationshipTypeId);
@@ -81,6 +81,26 @@ export async function searchRelationshipCandidates(tx:Executor,args:{sourceValue
   if(ownCondition){const column=await conditionColumn(tx,ownCondition,model.id);const source=args.recordId?(await sql<Record<string,unknown>>`SELECT * FROM ${sql.table(table(model))} WHERE id=${args.recordId}::uuid`.execute(tx)).rows[0]??{}:{};const value=Object.hasOwn(args.sourceValues??{},column!)?args.sourceValues![column!]:source[column!];if(!ownCondition.optionIds.includes(String(value??'').toLowerCase()))return {records:[],total:0,offset:args.offset,limit:args.limit};}
   const models=(await sql<Model>`SELECT o.*,w.code FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.workspace_id=${model.workspace_id}::uuid AND o.state='active'`.execute(tx)).rows;
   const chain=type.kind==='primary'?await primaryChain(tx,model.workspace_id):null;
+  let descendants:Map<string,string[]>|undefined;
+  if(args.primaryAncestor){
+    const ancestor=args.primaryAncestor,ancestorModel=await modelFor(tx,ancestor.objectTypeId);
+    if(ancestorModel.workspace_id!==model.workspace_id)throw new AppError(400,'Primary filter must share the source workspace');
+    if(!chain||args.side!=='right'||!args.targetObjectTypeId||!primaryPairAllowed(chain,ancestor.objectTypeId,args.targetObjectTypeId))throw new AppError(400,'Invalid Primary ancestor filter');
+    if(ancestorModel.state!=='active')throw new AppError(400,'Primary filter unavailable');
+    await contentAccess().require(ancestor.objectTypeId,ancestor.recordId);
+    const active=new Set(models.map(model=>model.id)),adjacent=new Map<string,RecordReference[]>();
+    for(const edge of (await edgesFor(tx,model.workspace_id)).filter(edge=>edge.relationship_type_id===type.id)){
+      const children=adjacent.get(key(left(edge)))??[];children.push(right(edge));adjacent.set(key(left(edge)),children);
+    }
+    // Follow only visible active paths, as in the Primary tree. Hidden intermediates
+    // must not become an ancestry/count oracle for otherwise readable descendants.
+    descendants=new Map();const queue=[ancestor],seen=new Set([key(ancestor)]);
+    for(let i=0;i<queue.length;i++)for(const child of adjacent.get(key(queue[i]))??[]){
+      if(seen.has(key(child))||!active.has(child.objectTypeId))continue;
+      seen.add(key(child));if(!await contentAccess().readable(child.objectTypeId,child.recordId))continue;
+      queue.push(child);const ids=descendants.get(child.objectTypeId)??[];ids.push(child.recordId);descendants.set(child.objectTypeId,ids);
+    }
+  }
   const selects=[];
   for(const other of models) {
     const policy=await contentAccess().policy(other.id);if(!policy.capabilities.read)continue;
@@ -93,7 +113,7 @@ export async function searchRelationshipCandidates(tx:Executor,args:{sourceValue
     const conditionName=await conditionColumn(tx,condition,other.id);
     const conditionFilter=conditionName?sql`${policy.fieldValue(condition!.fieldId,conditionName)}=ANY(${condition!.optionIds}::uuid[])`:sql`true`;
     const hasKeyword=await contentAccess().canField(other.id,'keyword')&&(await sql`SELECT 1 FROM sys_fields WHERE object_type_id=${other.id}::uuid AND technical_name='keyword' AND state<>'deleted'`.execute(tx)).rows.length;
-    selects.push(sql`SELECT ${other.id}::uuid AS "objectTypeId",id AS "recordId",${await contentAccess().keywordValue(other.id)} AS keyword,${other.technical_name}::text AS "objectTechnicalName",${JSON.stringify(other.labels)}::jsonb AS "objectLabels",'active'::text AS state FROM ${sql.table(table(other))} WHERE ${policy.predicate()} AND ${conditionFilter}`);
+    selects.push(sql`SELECT ${other.id}::uuid AS "objectTypeId",id AS "recordId",${await contentAccess().keywordValue(other.id)} AS keyword,${other.technical_name}::text AS "objectTechnicalName",${JSON.stringify(other.labels)}::jsonb AS "objectLabels",'active'::text AS state FROM ${sql.table(table(other))} WHERE ${policy.predicate()} AND ${conditionFilter} AND ${descendants?sql`id=ANY(${descendants.get(other.id)??[]}::uuid[])`:sql`true`}`);
   }
   if(!selects.length)return {records:[],total:0,offset:args.offset,limit:args.limit};
   const rows=sql.join(selects,sql` UNION ALL `),filter=sql`position(lower(${args.query}) IN lower(keyword))>0 AND NOT ("objectTypeId"=${args.objectTypeId}::uuid AND "recordId"=${args.recordId??null}::uuid IS TRUE)`;
@@ -225,6 +245,7 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
   if(newRecord)for(const type of definitions.filter(d=>d.rulesState==='active'&&((eligible(d,objectTypeId,'left')&&d.leftMin)||(eligible(d,objectTypeId,'right')&&d.rightMin))))affected.add(type.id);
   for(const type of definitions.filter(d=>affected.has(d.id)))await validateChangedRelationships(tx,type,[focus,...touched.values()]);
   await validateConditionalRecord(tx,objectTypeId,recordId,definitions);
+  await validatePrimaryRequirements(tx,model.workspace_id);
   for(const {edge,type} of addedJournal)await journalEdge(tx,edge,type,actor,changeId,true);
   for(const ref of await writeEdgeAttributes(tx,focus,attributeWrites,addedJournal.map(j=>j.edge.id),actor,changeId,newRecord))touched.set(key(ref),ref);
   for(const ref of touched.values()) {

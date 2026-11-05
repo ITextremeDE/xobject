@@ -28,9 +28,9 @@ export function LoadingRegion({children,className}:{children:ReactNode;className
 export function FieldSkeleton({multiline=false,label}:{multiline?:boolean;label?:ReactNode}){
   return <Field>{label?<FieldLabel>{label}</FieldLabel>:<Skeleton className="h-4 w-28"/>}<Skeleton className={multiline?'h-20 w-full':'h-8 w-full'}/></Field>;
 }
-export function TemporalFieldSkeleton({label,datetime=false}:{label:ReactNode;datetime?:boolean}){
+export function TemporalFieldSkeleton({label,datetime=false,showZone=false}:{label:ReactNode;datetime?:boolean;showZone?:boolean}){
   const {t}=useTranslation();
-  return <Field className="@container/temporal min-w-0"><FieldLabel>{label}</FieldLabel>{datetime?<FieldGroup className="grid min-w-0 gap-3 @sm/temporal:grid-cols-2"><FieldSkeleton label={t('date')}/><FieldSkeleton label={t('time')}/></FieldGroup>:<Skeleton className="h-8 w-full"/>}<Skeleton className="h-4 w-full"/></Field>;
+  return <Field className="@container/temporal min-w-0"><FieldGroup className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 @lg/temporal:grid-cols-[8rem_minmax(0,1fr)_auto]"><div className="flex min-w-0 flex-col gap-1 @lg/temporal:pt-1.5"><FieldLabel>{label}</FieldLabel>{showZone?<Skeleton className="h-4 w-24 max-w-full"/>:null}</div><FieldGroup className={cn('col-span-2 row-start-2 min-w-0 gap-2 @lg/temporal:col-span-1 @lg/temporal:col-start-2 @lg/temporal:row-start-1',datetime&&'grid @[17rem]/temporal:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]')}><Field><span className="sr-only">{t('date')}</span><Skeleton className="h-8 w-full"/></Field>{datetime?<Field><span className="sr-only">{t('time')}</span><Skeleton className="h-8 w-full"/></Field>:null}</FieldGroup><Skeleton className="col-start-2 row-start-1 size-8 @lg/temporal:col-start-3"/></FieldGroup></Field>;
 }
 export function TableSkeletonRows({columns,rows=5,columnClasses=[],dense=false,selectable=false}:{columns:number;rows?:number;columnClasses?:string[];dense?:boolean;selectable?:boolean}){
   return <>{Array.from({length:rows},(_,row)=><TableRow key={row} aria-hidden="true" className={dense?'h-10':'h-12'}>{Array.from({length:columns},(_,column)=><TableCell key={column} className={columnClasses[column]}><Skeleton className={selectable&&column===0?'size-4':selectable&&column===columns-1?'size-7':'h-4 w-full'}/></TableCell>)}</TableRow>)}</>;
@@ -68,7 +68,7 @@ export function RecordPageLoading({definition,values,applicableFieldIds,isNew=fa
     const label=field?.label??('primary' in entry?t('primaryChainTitle'):names?.[i18n.language]??names?.en??names?.de);
     if(field?.kind==='structured'&&field.config.schema==='temporal'){
       const value=values?.[field.technicalName],kind=value&&typeof value==='object'&&!Array.isArray(value)&&'kind' in value?value.kind:undefined;
-      return <FieldGroup className="gap-3"><TemporalFieldSkeleton label={label} datetime={kind!=='date'}/><Skeleton className="h-7 w-56 max-w-full"/></FieldGroup>;
+      return <TemporalFieldSkeleton label={label} datetime={kind!=='date'} showZone={kind!=='date'}/>;
     }
     return field?.kind==='date'||field?.kind==='datetime'?<TemporalFieldSkeleton label={label} datetime={field.kind==='datetime'}/>:<FieldSkeleton label={label} multiline={field?.kind==='multiline'}/>;
   };

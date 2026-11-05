@@ -7,7 +7,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useRegional } from '@/lib/regional-context';
 import { useTimeZone } from '@/lib/time-zone-context';
 import { formatRegionalDate } from '@/lib/regional';
-import { journalEntryTitle,journalLifecycleValue,journalTaskStateValue,journalSecurityValue } from '@/lib/journal-presentation';
+import { journalPrimaryRequirementsValue,journalEntryTitle,journalLifecycleValue,journalTaskStateValue,journalSecurityValue } from '@/lib/journal-presentation';
 import { journalValueSummary } from '@/lib/journal-value-summary';
 import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
@@ -32,7 +32,7 @@ export function RecordJournalTable({ entries, filters, total, page, pageSize, bu
   const title = (entry: Entry) => journalEntryTitle(entry, t, i18n.language);
   const summary = (entry: Entry, side: 'before' | 'after') => {
     const value = side === 'before' ? entry.old_value : entry.new_value;
-    return journalTaskStateValue(entry,value,t) ?? journalSecurityValue(entry,value,t) ?? journalLifecycleValue(entry,value,t) ?? renderValue?.(entry, value, side) ?? journalFieldValue(entry,value,side,i18n.language,t,timeZone,regional) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count}));
+    return journalPrimaryRequirementsValue(entry,value,t) ?? journalTaskStateValue(entry,value,t) ?? journalSecurityValue(entry,value,t) ?? journalLifecycleValue(entry,value,t) ?? renderValue?.(entry, value, side) ?? journalFieldValue(entry,value,side,i18n.language,t,timeZone,regional) ?? journalValueSummary(value, i18n.language, t('journalNotSet'), t('yes'), t('no'),(kind,count)=>t(`journalSummary_${kind}`,{count}));
   };
   const columns: RecordColumn<Entry>[] = [
     { key: 'created_at', label: mobile?t('journalWhenWho'):t('changedAt'), className:mobile?'w-28':undefined, required: true, sortable: false, cell: entry => <div className="flex flex-col gap-1 whitespace-normal"><time dateTime={entry.created_at}>{formatRegionalDate(entry.created_at, regional, timeZone, true)}</time>{mobile?<span className="text-muted-foreground">{entry.actor_name??t('journalUnknownUser')}</span>:null}</div> },

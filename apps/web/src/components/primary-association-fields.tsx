@@ -1,11 +1,12 @@
 import {RecordIcon} from './record-icon';
+import {primaryPreviousRecord} from '@/lib/primary-chain-selection';
 import {cn} from '@/lib/utils';
-import {Fragment,useState} from 'react';
+import {Fragment,useEffect,useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {useTranslation} from 'react-i18next';
 import {Link} from 'react-router';
 import {ArrowUpRightIcon,ChevronRightIcon,Link2Icon,PencilIcon,XIcon} from 'lucide-react';
-import {primaryRolesForObject,primaryChainRoles,type PrimaryChain,type PrimaryChainRole,type RelationshipField,type RelatedRecord} from '@xobject/contracts';
+import {primaryRolesForObject,type PrimaryChain,type PrimaryChainRole,type RelationshipField,type RelatedRecord} from '@xobject/contracts';
 import {api} from '@/lib/api';
 import {Badge} from '@/components/ui/badge';
 import {Field,FieldGroup,FieldLabel,FieldSet,FieldLegend,FieldDescription} from '@/components/ui/field';
@@ -13,32 +14,34 @@ import {InputGroup,InputGroupInput,InputGroupAddon,InputGroupButton} from '@/com
 import {Skeleton} from '@/components/ui/skeleton';
 import {RelationshipPicker} from './relationship-picker';
 import {ErrorNotice} from './feedback';
-type Props={headingHidden?:boolean;configuration:PrimaryChain|null;field:RelationshipField;objectTypeId:string;recordId?:string;workspaceCode:string;disabled:boolean;readOnly?:boolean;onChange:(targets:RelatedRecord[])=>void;onPickerDirtyChange:(dirty:boolean)=>void};
-export function PrimaryAssociationFields({headingHidden=false,configuration,field,objectTypeId,recordId,workspaceCode,disabled,readOnly,onChange,onPickerDirtyChange}:Props) {
-  const {t,i18n}=useTranslation(),[picker,setPicker]=useState<PrimaryChainRole|null>(null),target=field.targets[0]??null;
+type Props={primaryRequirements:import('@xobject/contracts').PrimaryRequirements;headingHidden?:boolean;configuration:PrimaryChain|null;field:RelationshipField;objectTypeId:string;recordId?:string;workspaceCode:string;disabled:boolean;readOnly?:boolean;onChange:(targets:RelatedRecord[])=>void;onPickerDirtyChange:(dirty:boolean)=>void};
+export function PrimaryAssociationFields({primaryRequirements,headingHidden=false,configuration,field,objectTypeId,recordId,workspaceCode,disabled,readOnly,onChange,onPickerDirtyChange}:Props) {
+  const {t,i18n}=useTranslation(),[picker,setPicker]=useState<PrimaryChainRole|null>(null),[focusRole,setFocusRole]=useState<PrimaryChainRole|null>(null),target=field.targets[0]??null;
   const context=useQuery({queryKey:['primary-chain-context',objectTypeId,recordId,target?.objectTypeId,target?.recordId,configuration,i18n.language],queryFn:()=>api('get_primary_chain_context',{objectTypeId,recordId,parent:target?{objectTypeId:target.objectTypeId,recordId:target.recordId}:null}),enabled:Boolean(configuration)});
+  useEffect(()=>{if(focusRole&&!context.isFetching){document.getElementById(`primary-${field.definition.id}-${focusRole}-choose`)?.focus();setFocusRole(null);}},[focusRole,context.isFetching,field.definition.id]);
   if(!configuration)return <FieldSet className="min-w-0"><FieldLegend className={headingHidden?'sr-only':undefined}>{t('primaryChainTitle')}</FieldLegend><FieldDescription>{t('primaryChainSetupRequired')}</FieldDescription></FieldSet>;
-  const roles=primaryRolesForObject(configuration,objectTypeId),directRole=target?primaryChainRoles.find(role=>configuration[role]===target.objectTypeId):undefined;
+  const roles=primaryRolesForObject(configuration,objectTypeId),levels=context.data?.levels??[],editable=!readOnly&&field.definition.active&&!context.isFetching&&!context.isError;
+  const pickerRecord=picker?levels.find(level=>level.role===picker)?.record:null,ancestor=picker?primaryPreviousRecord(levels,picker):null;
   const id=(role:PrimaryChainRole)=>`primary-${field.definition.id}-${role}`;
-  const close=()=>{onPickerDirtyChange(false);setPicker(null);};
-  return <FieldSet className="min-w-0"><FieldLegend className={headingHidden?'sr-only':undefined}>{t('primaryChainTitle')}</FieldLegend><FieldDescription>{t('primaryChainHelp')}</FieldDescription>{field.restricted?<FieldDescription>{t('restrictedRelationshipHelp')}</FieldDescription>:null}
+  const close=()=>{setFocusRole(picker);onPickerDirtyChange(false);setPicker(null);};
+  return <FieldSet className="min-w-0"><FieldLegend className={headingHidden?'sr-only':undefined}>{t('primaryChainTitle')}</FieldLegend><FieldDescription>{t('primaryChainHelp')}</FieldDescription>{primaryRequirements.associationRequired||primaryRequirements.requiredLevels.length?<FieldDescription>{primaryRequirements.requiredLevels.length?t('primaryRequiredSummary',{levels:primaryRequirements.requiredLevels.map(role=>t(`primaryRole_${role}`)).join(', ')}):t('primaryAssociationRequired')}</FieldDescription>:null}{field.restricted?<FieldDescription>{t('restrictedRelationshipHelp')}</FieldDescription>:null}
     {context.isError?<ErrorNotice error={context.error} retry={()=>{void context.refetch();}}/>:null}
     {/* This grid uses page breakpoints; keep intrinsic height without another size-query container. */}
     <FieldGroup className={cn("grid min-w-0 items-start gap-3 [container-type:normal]",roles.length===3&&"md:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)_1rem_minmax(0,1fr)]",roles.length===2&&"md:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)]")}>
       {roles.map((role,index)=>{
-        const direct=role===directRole,record=direct?target:context.isSuccess?context.data.levels.find(level=>level.role===role)?.record??null:null;
-        const inherited=Boolean(record&&!direct),editable=!readOnly&&field.definition.active&&(!directRole||primaryChainRoles.indexOf(role)>=primaryChainRoles.indexOf(directRole));
+        const record=levels.find(level=>level.role===role)?.record??(target?.objectTypeId===configuration[role]?target:null);
+        const inherited=Boolean(record&&record.objectTypeId!==target?.objectTypeId);
         const label=t(`primaryRole_${role}`);
-        return <Fragment key={role}>{index?<ChevronRightIcon aria-hidden className="size-4 justify-self-center rotate-90 md:mt-9 md:rotate-0"/>:null}<Field className="min-w-0"><FieldLabel htmlFor={id(role)}>{label}{inherited?<Badge variant="secondary">{t('primaryChainInherited')}</Badge>:null}</FieldLabel>
-          <InputGroup>{record?<InputGroupAddon><RecordIcon iconKey={record.iconKey} objectLabel={record.objectLabels[i18n.language]??record.objectLabels.en}/></InputGroupAddon>:null}<InputGroupInput id={id(role)} readOnly disabled={disabled} value={record?.keyword??''} title={record?.keyword} placeholder={field.restricted?t('unavailableAssociation'):context.isPending&&!direct?t('loading'):t('noSelection')}/><InputGroupAddon align="inline-end" className="shrink-0 gap-0.5 has-[>button]:mr-0">
-            {editable?<InputGroupButton id={`${id(role)}-choose`} disabled={disabled} size="icon-xs" title={t(record?'relationshipChange':'relationshipChoose')} aria-label={t('relationshipChooseFor',{name:label})} onClick={()=>setPicker(role)}>{direct?<PencilIcon/>:<Link2Icon/>}</InputGroupButton>:null}
-            {record?<InputGroupButton size="icon-xs" disabled={disabled} nativeButton={false} title={t('openRecord')} aria-label={t('relationshipOpenRecord',{name:record.keyword})} render={<Link to={`/w/${workspaceCode}/objects/${record.objectTechnicalName}/${record.recordId}`}/>}><ArrowUpRightIcon/></InputGroupButton>:null}
-            {direct&&!readOnly&&field.definition.active?<InputGroupButton size="icon-xs" disabled={disabled} title={t('removeRelationship',{name:record?.keyword})} aria-label={t('removeRelationship',{name:record?.keyword})} onClick={()=>{onChange([]);requestAnimationFrame(()=>document.getElementById(`${id(role)}-choose`)?.focus());}}><XIcon/></InputGroupButton>:null}
+        return <Fragment key={role}>{index?<ChevronRightIcon aria-hidden className="size-4 justify-self-center rotate-90 md:mt-9 md:rotate-0"/>:null}<Field className="min-w-0"><FieldLabel htmlFor={id(role)}>{label}{primaryRequirements.requiredLevels.includes(role)?<Badge variant="outline">{t('requiredField')}</Badge>:null}{inherited?<Badge variant="secondary">{t('primaryChainInherited')}</Badge>:null}</FieldLabel>
+          <InputGroup>{record?<InputGroupAddon><RecordIcon iconKey={record.iconKey} objectLabel={record.objectLabels[i18n.language]??record.objectLabels.en}/></InputGroupAddon>:null}<InputGroupInput id={id(role)} readOnly disabled={disabled} value={record?.keyword??''} title={record?.keyword} placeholder={field.restricted?t('unavailableAssociation'):context.isPending?t('loading'):t('noSelection')}/><InputGroupAddon align="inline-end" className="shrink-0 gap-0.5 has-[>button]:mr-0">
+            <InputGroupButton id={`${id(role)}-choose`} disabled={disabled||!editable} size="icon-xs" title={t(record?'relationshipChange':'relationshipChoose')} aria-label={t('relationshipChooseFor',{name:label})} onClick={()=>setPicker(role)}>{record?<PencilIcon/>:<Link2Icon/>}</InputGroupButton>
+            {record?<InputGroupButton size="icon-xs" disabled={disabled} nativeButton={false} title={t('openRecord')} aria-label={t('relationshipOpenRecord',{name:record.keyword})} render={<Link to={`/w/${workspaceCode}/objects/${record.objectTechnicalName}/${record.recordId}`}/>}><ArrowUpRightIcon/></InputGroupButton>:<InputGroupButton size="icon-xs" disabled title={t('openRecord')} aria-label={t('primaryOpenLevel',{name:label})}><ArrowUpRightIcon/></InputGroupButton>}
+            <InputGroupButton size="icon-xs" disabled={disabled||!editable||!record} title={t('primaryClearLevel',{name:label})} aria-label={t('primaryClearLevel',{name:label})} onClick={()=>{const previous=primaryPreviousRecord(levels,role);setFocusRole(role);onChange(previous?[previous]:[]);}}><XIcon/></InputGroupButton>
           </InputGroupAddon></InputGroup>
         </Field></Fragment>;
       })}
     </FieldGroup>
     {context.isPending?<Skeleton className="h-1 w-full"/>:null}
-    {picker?<RelationshipPicker objectTypeId={objectTypeId} recordId={recordId} field={field} title={t(`primaryRole_${picker}`)} targetObjectTypeId={configuration[picker]} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets=>{close();onChange(targets);}} finalFocus={()=>document.getElementById(`${id(picker)}-choose`)??true}/>:null}
+    {picker?<RelationshipPicker objectTypeId={objectTypeId} recordId={recordId} primaryAncestor={ancestor??undefined} field={{...field,targets:pickerRecord?[pickerRecord]:[]}} description={t('primaryPickerHelp',{name:t(`primaryRole_${picker}`),context:ancestor?.keyword??t('primaryAnyContext')})} title={t(`primaryRole_${picker}`)} targetObjectTypeId={configuration[picker]} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets=>{close();onChange(targets.length?targets:ancestor?[ancestor]:[]);}} finalFocus={()=>document.getElementById(`${id(picker)}-choose`)??true}/>:null}
   </FieldSet>;
 }

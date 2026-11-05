@@ -22,8 +22,8 @@ import { DialogActions } from './dialog-actions';
 import { TablePagination } from './table-pagination';
 import { ErrorNotice, Loading } from './feedback';
 
-type Props={dialogTitle?:string;description?:string;sourceValues?:Record<string,import('@xobject/contracts').FieldValue>;targetObjectTypeId?:string;objectTypeId:string;recordId?:string;field:RelationshipField;title:string;onClose:()=>void;onApply:(targets:RelatedRecord[])=>void;onDirtyChange:(dirty:boolean)=>void;finalFocus:()=>HTMLElement|true};
-export function RelationshipPicker({dialogTitle,description,sourceValues,targetObjectTypeId,objectTypeId,recordId,field,title,onClose,onApply,onDirtyChange,finalFocus}:Props) {
+type Props={primaryAncestor?:import('@xobject/contracts').RecordReference;dialogTitle?:string;description?:string;sourceValues?:Record<string,import('@xobject/contracts').FieldValue>;targetObjectTypeId?:string;objectTypeId:string;recordId?:string;field:RelationshipField;title:string;onClose:()=>void;onApply:(targets:RelatedRecord[])=>void;onDirtyChange:(dirty:boolean)=>void;finalFocus:()=>HTMLElement|true};
+export function RelationshipPicker({primaryAncestor,dialogTitle,description,sourceValues,targetObjectTypeId,objectTypeId,recordId,field,title,onClose,onApply,onDirtyChange,finalFocus}:Props) {
   const {t,i18n}=useTranslation();
   const label=(labels:Record<string,string>)=>labels[i18n.language]??labels.de??labels.en??Object.values(labels)[0]??'';
   const single=(field.side==='left'?field.definition.leftMax:field.definition.rightMax)===1;
@@ -33,7 +33,7 @@ export function RelationshipPicker({dialogTitle,description,sourceValues,targetO
   const objects=useQuery({queryKey:['relationship-picker-objects',field.definition.workspaceId],queryFn:()=>api('list_object_types',{workspaceId:field.definition.workspaceId})});
   const eligible=(objects.data??[]).filter(object=>eligibleTargetObject(field.definition,objectTypeId,field.side,object.id));
   const objectChoices=[{value:'all',label:t('allObjectTypes')},...Array.from(new Map([...eligible.map(object=>({value:object.id,label:label(object.labels)})),...field.targets.map(target=>({value:target.objectTypeId,label:label(target.objectLabels)}))].map(item=>[item.value,item])).values()).sort((a,b)=>a.label.localeCompare(b.label,i18n.language))];
-  const candidates=useQuery({placeholderData:keepPreviousData,queryKey:['relationship-candidates',objectTypeId,recordId,field.definition.id,field.definition.version,field.side,sourceValues,search,targetObject,page,pageSize],queryFn:()=>api('search_relationship_candidates',{sourceValues,objectTypeId,recordId,relationshipTypeId:field.definition.id,side:field.side,query:search,targetObjectTypeId:targetObject==='all'?undefined:targetObject,offset:(page-1)*pageSize,limit:pageSize}),enabled:mode==='available'});
+  const candidates=useQuery({placeholderData:keepPreviousData,queryKey:['relationship-candidates',objectTypeId,recordId,field.definition.id,field.definition.version,field.side,primaryAncestor,sourceValues,search,targetObject,page,pageSize],queryFn:()=>api('search_relationship_candidates',{primaryAncestor:primaryAncestor?{objectTypeId:primaryAncestor.objectTypeId,recordId:primaryAncestor.recordId}:undefined,sourceValues,objectTypeId,recordId,relationshipTypeId:field.definition.id,side:field.side,query:search,targetObjectTypeId:targetObject==='all'?undefined:targetObject,offset:(page-1)*pageSize,limit:pageSize}),enabled:mode==='available'});
   const selected=targets.filter(target=>(targetObject==='all'||target.objectTypeId===targetObject)&&target.keyword.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a,b)=>a.keyword.localeCompare(b.keyword,i18n.language)||relatedIdentity(a).localeCompare(relatedIdentity(b)));
   const selectedPage=Math.min(page,Math.max(1,Math.ceil(selected.length/pageSize)));
   const rows=mode==='selected'?selected.slice((selectedPage-1)*pageSize,selectedPage*pageSize):candidates.data?.records??[];
