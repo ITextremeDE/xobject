@@ -15,9 +15,9 @@ export function installKeyboardShortcuts() {
     const blocked = Array.from(document.querySelectorAll('[role="dialog"]:not([data-nonmodal-panel="true"]), [role="alertdialog"], [role="menu"]')).some(element =>
       !element.hasAttribute('data-workspace-search-dialog') && element.getClientRects().length && !element.hasAttribute('data-ending-style') && !element.hasAttribute('data-closed'));
     if (blocked) { event.preventDefault(); return; }
-    const trigger = document.querySelector<HTMLButtonElement>('[data-workspace-search-trigger]');
-    if (!trigger || trigger.disabled) return;
-    event.preventDefault(); event.stopPropagation(); window.dispatchEvent(new Event(keyboardCommands.workspaceSearch.event));
+    const action=new Event(keyboardCommands.workspaceSearch.event,{cancelable:true});
+    window.dispatchEvent(action);
+    if(action.defaultPrevented){event.preventDefault();event.stopPropagation();}
   }
 
   function handle(event: KeyboardEvent) {

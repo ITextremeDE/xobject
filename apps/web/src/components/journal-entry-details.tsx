@@ -1,5 +1,5 @@
 import { ChevronDownIcon } from 'lucide-react';
-import { journalPrimaryRequirementsValue,journalTaskStateValue,journalSecurityValue,journalLifecycleValue,journalEntityLabel, journalEntryTitle, journalPropertyLabel } from '@/lib/journal-presentation';
+import { journalCredentialValue,journalPrimaryRequirementsValue,journalTaskStateValue,journalSecurityValue,journalLifecycleValue,journalEntityLabel, journalEntryTitle, journalPropertyLabel } from '@/lib/journal-presentation';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {formLayoutSchema,type SystemJournalEntry} from '@xobject/contracts';
@@ -16,6 +16,12 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
   const { t, i18n } = useTranslation();
   const regional = useRegional(), timeZone = useTimeZone();
   function value(item: unknown, key = entry.field_key, depth = 0): ReactNode {
+    if(entry.entity_kind==='api_credential'&&entry.field_key==='created'&&item&&typeof item==='object'&&!Array.isArray(item)){
+      const token=item as {name?:string;userId?:string;channels?:string[];readOnly?:boolean;expiresAt?:string};
+      const fields=[[t('objectName'),token.name],[t('tokenOwner'),entry.credential_context?.userName??token.userId],[t('tokenChannels'),token.channels?.map(channel=>channel==='api'?'REST API':'MCP').join(', ')],[t('tokenAccess'),t(token.readOnly?'tokenReadOnly':'tokenUserRights')],[t('tokenExpires'),token.expiresAt?formatRegionalDate(token.expiresAt,regional,timeZone,true):undefined]];
+      return <dl className="flex flex-col gap-3">{fields.map(([label,text])=><div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd>{text??t('journalNotSet')}</dd></div>)}</dl>;
+    }
+    const credential=journalCredentialValue(entry,item,t);if(credential!==undefined)return credential;
     const primary=journalPrimaryRequirementsValue(entry,item,t);if(primary!==undefined)return primary;
     const taskState=journalTaskStateValue(entry,item,t);if(taskState!==undefined)return taskState;
     const security=journalSecurityValue(entry,item,t);if(security!==undefined)return security;
@@ -51,6 +57,7 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
     [t('entityId'), entry.entity_id], ...(entry.field_id ? [[t('journalFieldId'), entry.field_id]] : []), [t('journalActorId'), entry.actor_id],
     [t('journalWorkspaceId'), entry.workspace_id ?? t('instance')], [t('changeId'), entry.change_id],
     [t('journalEntryId'), entry.id], [t('journalTimestampUtc'), entry.created_at],
+    [t('journalAccessChannel'),entry.access_channel??'internal'],...(entry.credential_id?[[t('journalCredential'),entry.credential_id]]:[]),...(entry.agent_name?[[t('journalAgent'),entry.agent_name]]:[]),
   ];
 
   return <article aria-label={journalEntryTitle(entry,t,i18n.language)}><FieldGroup>
@@ -82,7 +89,7 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
             <dl className="grid min-w-0 gap-3 border-t p-3 sm:grid-cols-2">
               {details.map(([label, text]) => <div key={label} className="min-w-0"><dt className="mb-1 text-xs text-muted-foreground">{label}</dt><dd className="select-text font-mono text-xs wrap-anywhere">{text}</dd></div>)}
             </dl>
-            {entry.field_key.startsWith('form_layout.')||entry.field_key.startsWith('access.')?<div className="grid gap-3 border-t p-3 sm:grid-cols-2">{[[t('before'),entry.old_value],[t('after'),entry.new_value]].map(([label,value])=><div key={String(label)} className="min-w-0"><p className="text-xs text-muted-foreground">{String(label)}</p><pre className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere text-xs">{JSON.stringify(value,null,2)}</pre></div>)}</div>:null}
+            {entry.entity_kind==='api_credential'||entry.field_key.startsWith('form_layout.')||entry.field_key.startsWith('access.')?<div className="grid gap-3 border-t p-3 sm:grid-cols-2">{[[t('before'),entry.old_value],[t('after'),entry.new_value]].map(([label,value])=><div key={String(label)} className="min-w-0"><p className="text-xs text-muted-foreground">{String(label)}</p><pre className="max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere text-xs">{JSON.stringify(value,null,2)}</pre></div>)}</div>:null}
           </CollapsibleContent>
         </Collapsible>
     </FieldGroup></article>;

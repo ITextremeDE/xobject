@@ -1,3 +1,4 @@
+import {ApiCredentialSettings} from './api-credentials';
 import {SettingsHelp} from './settings-help';
 import {SettingsSection} from './settings-section';
 import {AccountSecurityLoading} from './loading';
@@ -44,19 +45,21 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
   const [revokeOthers, setRevokeOthers] = useState(true);
   const [confirmSession, setConfirmSession] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const [credentialDirty,setCredentialDirty]=useState(false),[credentialBusy,setCredentialBusy]=useState(false);
   const dirty = Boolean(currentPassword || newPassword || confirmation) || !revokeOthers;
   const valid = currentPassword.length > 0 && currentPassword.length <= 128 && newPassword.length >= 12 && newPassword.length <= 128 && newPassword === confirmation && currentPassword !== newPassword;
   const password = useMutation({ mutationFn: () => api('change_password', { currentPassword, newPassword, revokeOtherSessions: revokeOthers }), onSuccess: async () => {
     setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true); setNotice('passwordChanged');
     await client.invalidateQueries({ queryKey: ['account-security', user.id] });
+    await client.invalidateQueries({queryKey:['api-credentials']});
     await client.invalidateQueries({ queryKey: ['session'] });
   } });
   const revoke = useMutation({ mutationFn: (id: string) => id === 'others' ? api('revoke_other_sessions', {}) : api('revoke_session', { sessionId: id }), onSuccess: async () => {
     setConfirmSession(null); setNotice('sessionsRevoked');
     await client.invalidateQueries({ queryKey: ['account-security', user.id] });
   } });
-  const busy = password.isPending || revoke.isPending;
-  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  const busy = password.isPending || revoke.isPending || credentialBusy;
+  useEffect(() => { onDirtyChange(dirty||credentialDirty); }, [dirty,credentialDirty,onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
   function reset() { setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true); setNotice(''); password.reset(); }
   const passwordErrors: Record<string, string> = { 'Current password is incorrect': 'currentPasswordWrong', 'New password must be different': 'passwordMustDiffer', 'Local password is not available': 'noLocalPassword', 'Password attempts exceeded': 'passwordRateLimit' };
@@ -85,6 +88,7 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
         <SettingsTable aria-label={t('activeSessions')}><TableHeader><TableRow><TableHead className="w-full sm:w-[45%]">{t('sessionDevice')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[30%]">{t('sessionUpdated')}</TableHead><TableHead className="hidden sm:table-cell sm:w-[25%]"><span className="sr-only">{t('action')}</span></TableHead></TableRow></TableHeader><TableBody>{pagination.rows.map(session => <TableRow key={session.id}><TableCell className="whitespace-normal"><div>{sessionDevice(session, t('unknownDevice'))}</div><FieldDescription>{session.current ? t('currentSession') : session.ipAddress ?? t('unknownDevice')}</FieldDescription><FieldDescription>{t('sessionExpires', { time: formatDate(session.expiresAt) })}</FieldDescription><div className="mt-2 sm:hidden"><FieldDescription>{t('sessionUpdated')}: <time dateTime={session.updatedAt}>{formatDate(session.updatedAt)}</time></FieldDescription>{!session.current ? <Button type="button" variant="outline" className="mt-2" disabled={busy} aria-label={t('revokeNamedSession', { name: sessionDevice(session, t('unknownDevice')) })} onClick={() => { revoke.reset(); setConfirmSession(session.id); }}><LogOutIcon data-icon="inline-start" />{t('signOut')}</Button> : null}</div></TableCell><TableCell className="hidden whitespace-normal sm:table-cell"><time dateTime={session.updatedAt}>{formatDate(session.updatedAt)}</time></TableCell><TableCell className="hidden sm:table-cell">{!session.current ? <Button type="button" variant="outline" disabled={busy} aria-label={t('revokeNamedSession', { name: sessionDevice(session, t('unknownDevice')) })} onClick={() => { revoke.reset(); setConfirmSession(session.id); }}><LogOutIcon data-icon="inline-start" />{t('signOut')}</Button> : null}</TableCell></TableRow>)}</TableBody></SettingsTable><ClientTablePagination pagination={pagination} countLabel={t('sessionCount', { count: pagination.total })} disabled={busy} />
       </FieldSet></SettingsSection></> : null}
     </>}
+    {!initialOnly&&security.isSuccess?<ApiCredentialSettings ownerName={user.name} active={active} disabled={password.isPending||revoke.isPending||dirty} onDirtyChange={setCredentialDirty} onBusyChange={setCredentialBusy}/>:null}
     <AlertDialog open={confirmSession !== null} onOpenChange={open => { if (!open && !revoke.isPending) setConfirmSession(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t(confirmSession === 'others' ? 'revokeOtherSessions' : 'revokeSession')}</AlertDialogTitle><AlertDialogDescription>{t('revokeSessionHelp')}</AlertDialogDescription></AlertDialogHeader>{revoke.isError ? <ErrorNotice error={revoke.error} /> : null}<AlertDialogFooter><AlertDialogCancel disabled={revoke.isPending}>{t('cancel')}</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={revoke.isPending} onClick={() => { if (confirmSession) revoke.mutate(confirmSession); }}>{revoke.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{t('signOut')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </FieldGroup>;
 }

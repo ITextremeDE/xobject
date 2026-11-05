@@ -1,7 +1,7 @@
 import {accessLevels, type SystemJournalEntry} from '@xobject/contracts';
 import type { TFunction } from 'i18next';
 
-export const journalEntityKinds = ['object_permissions','user', 'workspace', 'workspace_member', 'group', 'object_type', 'field', 'classification_field', 'classification_option', 'relationship_type', 'relationship', 'record', 'account_security', 'session'] as const;
+export const journalEntityKinds = ['api_credential','object_permissions','user', 'workspace', 'workspace_member', 'group', 'object_type', 'field', 'classification_field', 'classification_option', 'relationship_type', 'relationship', 'record', 'account_security', 'session'] as const;
 const entityLabels = Object.fromEntries(journalEntityKinds.map(kind => [kind, `journalKind_${kind}`]));
 const properties: Record<string, string> = {meaning:'taskStatusMeaning',applicability:'fieldApplicability',link:'link',rulesState:'relationRules', leftLabels: 'relationLeft', rightLabels: 'relationRight', directed: 'relationDirection', leftMin: 'relationMinimum', rightMin: 'relationMinimum', leftMax: 'relationMaximum', rightMax: 'relationMaximum', allowAll: 'relationAllowAll', pairs: 'relationObjectPairs', time_zone: 'timeZone', name: 'objectName', email: 'email', labels: 'objectName', technical_name: 'technicalName', kind: 'fieldType', config: 'journalConfiguration', required: 'requiredField', state: 'definitionState', active: 'definition_active', language: 'language', available_languages: 'availableInterfaceLanguages', default_language: 'defaultLanguage', label_languages: 'availableLabelLanguages', is_admin: 'roleAdministrator', must_change_password: 'initialPasswordPending', password_changed: 'journalPasswordChanged', revoked: 'journalSessionRevoked', definition: 'journalDefinition', created: 'createdAt', deleted: 'journalDeleted', option_order: 'journalOptionOrder', defaultId: 'defaultValue', defaults: 'defaultValue', defaultIds: 'defaultValue', multiple: 'selectionMode', typeId: 'classificationType', statusId: 'classificationStatus', physical_column_order: 'journalColumnOrder', scale: 'decimalScale', currency: 'currency', formatted: 'markdownFormatting', referenceTarget: 'referenceTarget', options: 'journalOptions' };
 const regionLabels: Record<string, string> = { locale: 'regionalFormat', dateFormat: 'dateFormat', hourCycle: 'clockFormat', numberFormat: 'numberFormat', weekStart: 'weekStart' };
@@ -28,6 +28,7 @@ export function journalPropertyLabel(key: string, t: TFunction, technicalFallbac
   return properties[key] ? t(properties[key]) : technicalFallback ? key : t('journalOtherProperty');
 }
 export function journalEntryTitle(entry: Pick<SystemJournalEntry, 'field_key' | 'entity_kind' | 'old_value' | 'new_value' | 'field_label'> & {field_id?:string|null}, t: TFunction, language='en'): string {
+  if(entry.entity_kind==='api_credential'&&['created','revoked'].includes(entry.field_key))return t(entry.field_key==='created'?'journalTokenCreated':'journalTokenRevoked');
   if(entry.entity_kind==='record'&&entry.field_key.startsWith('access.'))return journalPropertyLabel(entry.field_key,t)+(entry.field_key.startsWith('access.field.')?` · ${entry.field_label??t('fieldName')}`:'');
   if(entry.entity_kind==='record'&&entry.field_key==='lifecycle'&&!entry.field_id)return t('recordLifecycle');
   if (entry.entity_kind==='relationship'&&entry.field_id)return entry.field_label??journalPropertyLabel(entry.field_key,t,true);
@@ -42,7 +43,7 @@ export function journalEntryTitle(entry: Pick<SystemJournalEntry, 'field_key' | 
 }
 
 export function journalLifecycleValue(entry:{entity_kind:string;field_key:string;field_id?:string|null},value:unknown,t:TFunction):string|undefined {
- return entry.entity_kind==='record'&&entry.field_key==='lifecycle'&&!entry.field_id&&(value==='active'||value==='recycled')?t(value==='active'?'recordActive':'recordRecycled'):undefined;
+ return entry.entity_kind==='record'&&entry.field_key==='lifecycle'&&!entry.field_id&&(value==='active'||value==='recycled'||value==='deleted')?t(value==='deleted'?'recordDeleted':value==='active'?'recordActive':'recordRecycled'):undefined;
 }
 
 export function journalSecurityValue(entry:Pick<SystemJournalEntry,'entity_kind'|'field_key'|'security_context'>,value:unknown,t:TFunction):string|undefined {
@@ -62,4 +63,11 @@ export function journalTaskStateValue(entry:{entity_kind:string;field_key:string
 export function journalPrimaryRequirementsValue(entry:{entity_kind:string;field_key:string},value:unknown,t:TFunction):string|undefined {
  if(entry.entity_kind!=='object_type'||entry.field_key!=='primaryRequirements.requiredLevels')return undefined;
  return Array.isArray(value)&&value.length?value.map(role=>t(`primaryRole_${role}`)).join(', '):t('journalNotSet');
+}
+
+export function journalCredentialValue(entry:Pick<SystemJournalEntry,'entity_kind'|'field_key'>,value:unknown,t:TFunction):string|undefined{
+ if(entry.entity_kind!=='api_credential'||value===null||value===undefined)return undefined;
+ if(entry.field_key==='revoked'&&typeof value==='boolean')return t(value?'tokenRevoked':'definition_active');
+ if(entry.field_key==='created'&&typeof value==='object'&&'name' in value&&typeof value.name==='string')return value.name;
+ return undefined;
 }
