@@ -2327,6 +2327,180 @@
         }
       }
     },
+    "/api/v1/get_record_duplicate": {
+      "post": {
+        "operationId": "get_record_duplicate",
+        "summary": "get record duplicate",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-XObject-API-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "name": "X-XObject-Request",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for cookie-authenticated requests."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input_get_record_duplicate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation-specific result. Additional response fields may be introduced.",
+            "headers": {
+              "X-XObject-API-Version": {
+                "schema": {
+                  "type": "string",
+                  "const": "1.0.0"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "classification": {
+                      "properties": {
+                        "category": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "status": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "keyword": {
+                      "type": "string"
+                    },
+                    "sourceVersion": {
+                      "type": "number"
+                    },
+                    "values": {
+                      "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+                    }
+                  },
+                  "required": [
+                    "classification",
+                    "sourceVersion",
+                    "values"
+                  ],
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/duplicate_record": {
       "post": {
         "operationId": "duplicate_record",
@@ -13993,7 +14167,7 @@
             "type": "number"
           },
           "record": {
-            "$ref": "#/components/schemas/record-relationships.RelatedRecord"
+            "$ref": "#/components/schemas/record-relationships.TreeRecord"
           },
           "total": {
             "type": "number"
@@ -14030,7 +14204,7 @@
             "$ref": "#/components/schemas/Record_string_string_"
           },
           "record": {
-            "$ref": "#/components/schemas/record-relationships.RelatedRecord"
+            "$ref": "#/components/schemas/record-relationships.TreeRecord"
           },
           "relationshipTypeId": {
             "type": "string"
@@ -14048,6 +14222,78 @@
           "record",
           "relationshipTypeId",
           "sideLabels"
+        ],
+        "type": "object"
+      },
+      "record-relationships.TreeRecord": {
+        "properties": {
+          "attributeAccess": {
+            "$ref": "#/components/schemas/Record_string_read_boolean_edit_boolean_"
+          },
+          "attributeValues": {
+            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+          },
+          "edgeId": {
+            "type": "string"
+          },
+          "edgeVersion": {
+            "type": "number"
+          },
+          "iconKey": {
+            "enum": [
+              "case",
+              "contact",
+              "distribution_list",
+              "individual",
+              "object",
+              "organization",
+              "person",
+              "project",
+              "task"
+            ],
+            "type": "string"
+          },
+          "keyword": {
+            "type": "string"
+          },
+          "objectLabels": {
+            "$ref": "#/components/schemas/Record_string_string_"
+          },
+          "objectTechnicalName": {
+            "type": "string"
+          },
+          "objectTypeId": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "type": "string"
+          },
+          "statusLabels": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Record_string_string_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "keyword",
+          "objectLabels",
+          "objectTechnicalName",
+          "objectTypeId",
+          "recordId",
+          "state",
+          "statusLabels"
         ],
         "type": "object"
       },
@@ -16651,6 +16897,26 @@
         },
         "required": [
           "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "Input_get_record_duplicate": {
+        "type": "object",
+        "properties": {
+          "objectTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "objectTypeId",
+          "recordId"
         ],
         "additionalProperties": false
       },
@@ -24002,6 +24268,26 @@
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "duplicateFrom": {
+            "type": "object",
+            "properties": {
+              "recordId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "version": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "recordId",
+              "version"
+            ],
+            "additionalProperties": false
           },
           "keyword": {
             "type": "string",

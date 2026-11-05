@@ -58,17 +58,22 @@ export async function recordRelationships(tx:Executor,objectTypeId:string,record
 /** Current standard-field projection for the opposite endpoint; it never changes journal snapshots. */
 async function dossierEntries(tx:Executor,edges:RecordRelationship[],objectTypeId:string,recordId?:string):Promise<DossierEntry[]> {
   const entries=edges.map(edge=>({id:edge.id,definition:edge.definition,target:key(edge.left)===`${objectTypeId}:${recordId}`?edge.right:edge.left}));
+  const values=await classificationSnapshots(tx,entries.map(entry=>entry.target));
+  return entries.map(entry=>({id:entry.id,definition:entry.definition,record:{...entry.target,...values.get(key(entry.target))!}}));
+}
+/** Batch standard-field projection with per-record field ceilings for Dossier and Tree. */
+async function classificationSnapshots(tx:Executor,targets:RelatedRecord[]){
   const values=new Map<string,{type:string|null;status:string|null;category:string[];classificationOptions:ClassificationConfig['options']}>();
-  for(const id of new Set(entries.map(entry=>entry.target.objectTypeId))) {
+  for(const id of new Set(targets.map(target=>target.objectTypeId))) {
     const model=await modelFor(tx,id);
     const classification=(await sql<{classification:ClassificationConfig}>`SELECT classification FROM sys_object_types WHERE id=${id}::uuid`.execute(tx)).rows[0].classification;
     const installed=(await sql<{technical_name:string}>`SELECT technical_name FROM sys_fields WHERE object_type_id=${id}::uuid AND state<>'deleted' AND technical_name IN('type','status','category')`.execute(tx)).rows.map(field=>field.technical_name);
     const readableFields=new Set<string>();for(const name of installed)if(await contentAccess().canField(id,name))readableFields.add(name);
     const policy=await contentAccess().policy(id),metadata=await contentAccess().fields(id);const projection=(name:string)=>installed.includes(name)&&readableFields.has(name)?policy.fieldValue(metadata.find(f=>f.technical_name===name)!.id,name):name==='category'?sql`'{}'::uuid[]`:sql`NULL::uuid`;
-    const rows=(await sql<{id:string;type:string|null;status:string|null;category:string[]}>`SELECT id,${projection('type')} AS type,${projection('status')} AS status,${projection('category')} AS category FROM ${sql.table(table(model))} WHERE id=ANY(${entries.filter(entry=>entry.target.objectTypeId===id).map(entry=>entry.target.recordId)}::uuid[])`.execute(tx)).rows;
+    const rows=(await sql<{id:string;type:string|null;status:string|null;category:string[]}>`SELECT id,${projection('type')} AS type,${projection('status')} AS status,${projection('category')} AS category FROM ${sql.table(table(model))} WHERE id=ANY(${targets.filter(target=>target.objectTypeId===id).map(target=>target.recordId)}::uuid[])`.execute(tx)).rows;
     for(const row of rows)values.set(`${id}:${row.id}`,{type:row.type,status:row.status,category:row.category??[],classificationOptions:classification.options.filter(option=>option.kind==='type'?option.id===row.type:option.kind==='status'?option.id===row.status:row.category?.includes(option.id))});
   }
-  return entries.map(entry=>({id:entry.id,definition:entry.definition,record:{...entry.target,...values.get(key(entry.target))!}}));
+  return values;
 }
 export async function searchRelationshipCandidates(tx:Executor,args:{primaryAncestor?:RecordReference;sourceValues?:Record<string,unknown>;targetObjectTypeId?:string;objectTypeId:string;recordId?:string;relationshipTypeId:string;side:'left'|'right';query:string;offset:number;limit:number}) {
   await contentAccess().require(args.objectTypeId,args.recordId,args.recordId?'read':'create');
@@ -278,7 +283,7 @@ export async function relationshipTreeBranch(tx:Executor,args:{objectTypeId:stri
     if(seen.has(key(parent)))throw new AppError(409,'Invalid Primary hierarchy');seen.add(key(parent));
     ancestors.unshift(await visibleReference(tx,parent,model.workspace_id));parent=parents.get(key(parent));
   }
-  const candidates:import('@xobject/contracts').RelationshipTreeChild[]=[];
+  const candidates:(Omit<import('@xobject/contracts').RelationshipTreeChild,'record'>&{record:RelatedRecord})[]=[];
   for(const edge of childrenFor(focus)) {
     const type=byId.get(edge.relationship_type_id)!,target=right(edge);
     candidates.push({edgeId:edge.id,record:await visibleReference(tx,target,model.workspace_id),relationshipTypeId:type.id,kind:'primary',labels:type.labels,sideLabels:type.leftLabels,direction:'outgoing',hasChildren:childrenFor(key(target)).length>0});
@@ -286,7 +291,9 @@ export async function relationshipTreeBranch(tx:Executor,args:{objectTypeId:stri
   const locale=(await sql<{language:Language|null;default_language:Language;available_languages:Language[]}>`SELECT u.language,w.default_language,w.available_languages FROM sys_users u CROSS JOIN sys_workspaces w WHERE u.id=${actor} AND w.id=${model.workspace_id}::uuid`.execute(tx)).rows[0];
   const collator=new Intl.Collator(effectiveWorkspaceLanguage(locale.language,locale.available_languages,locale.default_language),{numeric:true,sensitivity:'base'});
   candidates.sort((a,b)=>collator.compare(a.record.keyword,b.record.keyword)||a.record.objectTypeId.localeCompare(b.record.objectTypeId)||a.record.recordId.localeCompare(b.record.recordId)||a.edgeId.localeCompare(b.edgeId));
-  return {record,ancestors,ancestorsTruncated:Boolean(parent),children:candidates.slice(args.offset,args.offset+args.limit),total:candidates.length,limit:args.limit,offset:args.offset};
+  const page=candidates.slice(args.offset,args.offset+args.limit),snapshots=await classificationSnapshots(tx,[record,...page.map(child=>child.record)]);
+  const treeRecord=(record:RelatedRecord)=>({...record,statusLabels:snapshots.get(key(record))?.classificationOptions.find(option=>option.kind==='status'&&option.id===snapshots.get(key(record))?.status)?.labels??null});
+  return {record:treeRecord(record),ancestors,ancestorsTruncated:Boolean(parent),children:page.map(child=>({...child,record:treeRecord(child.record)})),total:candidates.length,limit:args.limit,offset:args.offset};
 }
 
 /** Read the same authoritative chain for persisted records and a proposed direct parent. */
@@ -299,7 +306,7 @@ export async function primaryChainContext(tx:Executor,args:{objectTypeId:string;
   const roles=primaryRolesForObject(chain,model.id);
   let path:RelatedRecord[]=[];let unavailable=false;
   if(parent&&!await contentAccess().readable(parent.objectTypeId,parent.recordId)){if(args.parent)throw new AppError(403,'Content access denied');parent=null;unavailable=true;}
-  if(parent){if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');if(!primaryPairAllowed(chain,parent.objectTypeId,model.id))throw new AppError(400,'Primary association does not follow configured levels');const branch=await relationshipTreeBranch(tx,{objectTypeId:parent.objectTypeId,recordId:parent.recordId,offset:0,limit:1},actor);if(branch.record.objectTypeId!==parent.objectTypeId)throw new AppError(400,'Invalid Primary context');if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');path=[...branch.ancestors,branch.record];}
+  if(parent){if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');if(!primaryPairAllowed(chain,parent.objectTypeId,model.id))throw new AppError(400,'Primary association does not follow configured levels');const branch=await relationshipTreeBranch(tx,{objectTypeId:parent.objectTypeId,recordId:parent.recordId,offset:0,limit:1},actor);if(branch.record.objectTypeId!==parent.objectTypeId)throw new AppError(400,'Invalid Primary context');if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');const {statusLabels,...parentRecord}=branch.record;path=[...branch.ancestors,parentRecord];}
   const direct=path.at(-1)??null;
   return {configuration:chain,direct,unavailable,levels:roles.map(role=>({role,objectTypeId:chain[role],record:path.find(row=>row.objectTypeId===chain[role])??null,inherited:Boolean(direct&&direct.objectTypeId!==chain[role])}))};
 }

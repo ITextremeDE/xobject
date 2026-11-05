@@ -67,6 +67,7 @@ export const schemas = {
   restore_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive()}).strict(),
   get_recycled_record:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
   list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['business_number','keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
+  get_record_duplicate:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
   duplicate_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),keyword:z.string().trim().max(200).optional()}).strict(),
   configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,numbering:numberingSchema.optional(),primaryRequirements:primaryRequirementsSchema.optional(),security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
   get_content_permissions:z.object({objectTypeId:uuid}).strict(),
@@ -127,7 +128,7 @@ export const schemas = {
   set_workspace_appearance: z.object({ workspaceId: uuid, version: z.number().int().positive(), appearance: workspaceAppearanceSchema }).strict(),
   set_user_profile: z.object({ name: label }).strict(),
   configure_classification: z.object({ fieldInputRules:z.array(z.object({fieldId:uuid,version:z.number().int().positive(),inputRules:fieldInputRulesSchema}).strict()).max(3).refine(items=>new Set(items.map(item=>item.fieldId)).size===items.length,'Field IDs must be unique').optional(),objectTypeId: uuid, version: z.number().int().positive(), config: classificationRulesSchema }).strict(),
-  create_record: z.object({ objectTypeId: uuid, keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationshipAttributes:relationshipAttributeWritesSchema.optional(),relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional(),security:recordSecurityWrite.optional() }).strict(),
+  create_record: z.object({ objectTypeId: uuid, duplicateFrom:z.object({recordId:uuid,version:z.number().int().positive()}).strict().optional(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationshipAttributes:relationshipAttributeWritesSchema.optional(),relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional(),security:recordSecurityWrite.optional() }).strict(),
   update_record: z.object({ security:recordSecurityWrite.optional(), objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional(),relationshipAttributes:relationshipAttributeWritesSchema.optional() }).strict(),
   get_record: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
   list_record_journal: z.object({includeDeleted:z.boolean().default(false),includeRecycled:z.boolean().default(false),objectTypeId:uuid,recordId:uuid,fieldId:uuid.optional(),entityKind:z.enum(['record','relationship']).optional(),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).max(1000000).default(0)}).strict(),
@@ -178,6 +179,7 @@ export interface Outputs {
   restore_record:{id:string;version:number};
   get_recycled_record:DataRecord;
   list_recycled_records:{records:RecycledRecord[];total:number;limit:number;offset:number};
+  get_record_duplicate:{sourceVersion:number;keyword?:string;values:Record<string,FieldValue>;classification:{type?:string|null;status?:string|null;category?:string[]}};
   duplicate_record:RecordWriteResult;
   configure_object_settings:ObjectDefinition;
   get_content_permissions:ContentPermissions;
