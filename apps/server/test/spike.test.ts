@@ -404,14 +404,14 @@ test('workspace search shares API/MCP behavior, isolates workspaces and treats t
 });
 
 test('web deep links serve only the application shell and preserve API/asset errors', { skip: !existsSync(new URL('../../web/dist/index.html', import.meta.url)) }, async () => {
-  for (const url of ['/settings', '/w/itx', '/w/itx/recycle-bin', '/w/itx/objects/vehicles?q=sample&sort=keyword&direction=asc&page=2', '/w/itx/objects/vehicles/new', `/w/itx/objects/vehicles/${randomUUID()}`]) {
+  for (const url of ['/settings', '/w/itx', '/w/itx/recycle-bin', '/w/itx/objects/vehicles?q=sample&sort=keyword&direction=asc&page=2', '/w/itx/objects/vehicles/new', `/w/itx/objects/vehicles/${randomUUID()}`, '/unknown', '/w/itx/review-missing-route']) {
     const response = await runtime.app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4100', accept: 'text/html' } });
     assert.equal(response.statusCode, 200, response.body);
     assert.match(response.headers['content-type']!, /text\/html/);
     assert.equal(response.headers['cache-control'], 'no-store');
     assert.match(response.body, /id="root"/);
   }
-  for (const url of ['/api/v1/missing', '/api/missing', '/mcp/missing', '/assets/missing.js', '/unknown']) {
+  for (const url of ['/api/v1/missing', '/api/missing', '/mcp/missing', '/assets/missing.js', '/missing.css', '/w/itx/missing.js']) {
     assert.equal((await runtime.app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4100', accept: 'text/html' } })).statusCode, 404);
   }
   assert.equal((await runtime.app.inject({ method: 'GET', url: '/settings', headers: { host: '127.0.0.1:4100', accept: 'application/json' } })).statusCode, 404);

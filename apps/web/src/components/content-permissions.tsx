@@ -1,6 +1,8 @@
 import {AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction} from '@/components/ui/alert-dialog';
 import {ForeignAccess} from './foreign-access';
 import {AccessChoice} from './access-controls';
+import {systemManagedField,displayedFieldLevel} from '@/lib/field-permission-display';
+import {Badge} from './ui/badge';
 import {useEffect,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {useQuery,useMutation,useQueryClient} from '@tanstack/react-query';
@@ -69,7 +71,8 @@ function GrantEditor({objectTypeId,kind,principalId,groups,users,actionTarget,in
   if(!active)return t('permissionEffective',{level:t('permission_none'),source:t(kind==='user'?'permissionInactiveUser':'permissionInactiveGroup')});
   const rule=resolveContentRule(grants,kind==='user'?principalId:'',memberships,fieldId);
   const names=rule.sources.map(source=>source.kind==='user'?t('permissionDirect'):t('permissionFromGroup',{name:groups.find(g=>g.id===source.id)?.name??source.id}));
-  return t('permissionEffective',{level:t(`permission_${rule.level}`),source:names.length?[...new Set(names)].join(', '):t('permissionNoRule')});
+  const field=fieldId?[...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[])].find(field=>field.id===fieldId):undefined;
+  return t('permissionEffective',{level:t(`permission_${field?displayedFieldLevel(rule.level,field):rule.level}`),source:names.length?[...new Set(names)].join(', '):t('permissionNoRule')});
  }
  const formId=`grant-${kind}-${objectTypeId}`;
  const actions=<><Button type="button" variant="outline" disabled={busy||(!dirty&&!mutation.isError&&!reset.isError)} onClick={()=>reset.mutate()}>{t('resetPreferences')}</Button><Button type="submit" form={formId} disabled={!dirty||busy} aria-keyshortcuts={keyboardCommands.save.aria}>{mutation.isPending?<Spinner aria-hidden="true" data-icon="inline-start"/>:null}{t('save')}<Kbd>{saveShortcutLabel}</Kbd></Button></>;
@@ -81,7 +84,7 @@ function GrantEditor({objectTypeId,kind,principalId,groups,users,actionTarget,in
  <SettingsHelp title={t('permissionRulesTitle')}>{t(kind==='user'?'userPermissionsHelp':'groupPermissionsHelp')} {t('permissionLevelsHelp')} {t('fieldPermissionHelp')} {t('permissionPreviewHelp')}</SettingsHelp>
  <FieldSet className="min-w-0"><FieldLegend variant="label">{t('fieldPermissionExceptions')}</FieldLegend><FieldDescription>{t('permissionFieldsSummary')}</FieldDescription><SettingsTableSearch value={search} onChange={onSearch} disabled={busy}/><SettingsTable aria-label={t('fieldPermissionExceptions')}><TableHeader className="max-sm:sr-only"><TableRow><TableHead className="w-[40%] sm:w-1/2">{t('fieldName')}</TableHead><TableHead>{t('permission')}</TableHead></TableRow></TableHeader><TableBody>
  {!pagination.total?<TableRow><TableCell colSpan={2}>{t(search.trim()?'settingsNoMatches':'noFieldsYet')}</TableCell></TableRow>:null}
- {pagination.rows.map(field=><TableRow key={field.id} className="max-sm:flex max-sm:flex-col"><TableCell className="max-sm:pb-1"><span>{field.label}</span>{field.state&&field.state!=='active'?<FieldDescription>{t(`definition_${field.state}`)}</FieldDescription>:null}</TableCell><TableCell className="max-sm:pt-1"><AccessChoice id={`permission-field-${kind}-${field.id}`} label={`${t('permission')}: ${field.label}`} value={draft.fields[field.id]??'inherit'} items={fieldItems} disabled={busy} onChange={value=>{const fields={...draft.fields};if(value==='inherit')delete fields[field.id];else fields[field.id]=value as FieldLevel;change({...draft,fields});}}/><FieldDescription className="mt-2">{effective(field.id)}</FieldDescription></TableCell></TableRow>)}
+ {pagination.rows.map(field=><TableRow key={field.id} className="max-sm:flex max-sm:flex-col"><TableCell className="max-sm:pb-1"><span>{field.label}</span>{systemManagedField(field)?<><Badge variant="outline" className="mt-2">{t('systemManagedReadOnly')}</Badge><FieldDescription>{t('systemManagedPermissionHelp')}</FieldDescription></>:null}{field.state&&field.state!=='active'?<FieldDescription>{t(`definition_${field.state}`)}</FieldDescription>:null}</TableCell><TableCell className="max-sm:pt-1"><AccessChoice id={`permission-field-${kind}-${field.id}`} label={`${t('permission')}: ${field.label}`} value={draft.fields[field.id]??'inherit'} items={fieldItems} disabled={busy} onChange={value=>{const fields={...draft.fields};if(value==='inherit')delete fields[field.id];else fields[field.id]=value as FieldLevel;change({...draft,fields});}}/><FieldDescription className="mt-2">{effective(field.id)}</FieldDescription></TableCell></TableRow>)}
  </TableBody></SettingsTable><ClientTablePagination pagination={pagination} disabled={busy} countLabel={t('fieldCount',{count:pagination.total})}/></FieldSet>
  {actionTarget?createPortal(actions,actionTarget):null}
  </FieldGroup></form>;

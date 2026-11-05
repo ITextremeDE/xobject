@@ -6,6 +6,20 @@ import {MemoryRouter} from 'react-router';
 import i18next from 'i18next';
 import {I18nextProvider} from 'react-i18next';
 import {RecordDataTable} from '../src/components/record-data-table.js';
+import {RecordPageLoading} from '../src/components/loading.js';
+
+test('record loading reserves actions and footer without guessing unknown tabs',async()=>{
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{loading:'Loading…',recordFormActions:'Record actions',details:'Details',recordTree:'Tree',recordDossier:'Dossier',journal:'Journal'}}}});
+ const render=(props:Parameters<typeof RecordPageLoading>[0])=>renderToStaticMarkup(createElement(I18nextProvider,{i18n},createElement(RecordPageLoading,props)));
+ const unknown=render({});
+ assert.match(unknown,/<footer[^>]*sticky[^>]*mt-auto/);
+ assert.match(unknown,/min-h-\[calc\(100svh-8rem\)\]/);
+ assert.doesNotMatch(unknown,/role="tab"/,'unknown module state has a neutral tab slot');
+ const known=render({treeAvailable:true});
+ assert.equal((known.match(/role="tab"/g)??[]).length,4);
+ const fresh=render({isNew:true});
+ assert.equal((fresh.match(/role="tab"/g)??[]).length,1);
+});
 
 // Protect the asynchronous state: keep actual table structure, never announce fake empty results.
 test('pending record tables retain headers and page size while hiding empty/count states and disabling actions',async()=>{
