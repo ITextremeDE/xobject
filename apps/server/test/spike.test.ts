@@ -3484,7 +3484,7 @@ test('custom relationship fields have scoped configuration, preflighted required
  const designer=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:designer.id,role:'designer',expectedRole:null});
  const edited=await api('configure_field',{fieldId:field.id,required:false,inputRules:{description:{en:'Relationship detail',de:'Verknüpfungsangabe'}}},userCookie);assert.equal(edited.statusCode,200,edited.body);assert.equal((await api('get_record',{objectTypeId:a.id,recordId:left.id},userCookie)).statusCode,403,'Designer does not acquire contents');
  await ok('set_workspace_member',{workspaceId:ws.id,userId:designer.id,role:'user',expectedRole:'designer'});assert.equal((await api('create_field',{relationshipTypeId:relation.id,technicalName:'forbidden',labels:{en:'Forbidden'}},userCookie)).statusCode,403);
- const unused=await ok('create_field',{relationshipTypeId:relation.id,technicalName:'unused',labels:{en:'Unused'}});assert.equal((await ok('set_definition_state',{kind:'field',id:unused.id,expectedState:'active',state:'deleted',confirm:true,confirm:true})).state,'deleted');
+ const unused=await ok('create_field',{relationshipTypeId:relation.id,technicalName:'unused',labels:{en:'Unused'}});assert.equal((await ok('set_definition_state',{kind:'field',id:unused.id,expectedState:'active',state:'deleted',confirm:true})).state,'deleted');
  assert.equal((await api('create_field',{objectTypeId:a.id,relationshipTypeId:relation.id,technicalName:'bad_owner',labels:{en:'Bad'}})).statusCode,400);
 });
 
