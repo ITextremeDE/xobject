@@ -68,7 +68,17 @@ export class ContentAccess {
   if(model.is_sensitive&&model.state!=='deleted'){
    const rows=(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT r.id,s.policy FROM ${sql.table(model.name)} r LEFT JOIN sys_record_security s ON s.object_type_id=${id}::uuid AND s.record_id=r.id`.execute(this.tx)).rows;
    rows.push(...(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT record_id AS id,deleted_policy AS policy,true AS deleted FROM sys_record_identities WHERE object_type_id=${id}::uuid AND deleted_at IS NOT NULL`.execute(this.tx)).rows);
-   for(const row of rows){if(!row.policy)throw new AppError(500,'Sensitive record is missing its security policy');const policy=row.policy;const access=admin?{level:'full' as const,source:'administrator' as const,path:[]}:resolveRecordAccess(this.actor,id,policy,graph.members,graph.rules,graph.settings.find(u=>u.userId===this.actor)?.inherit??true);records.set(row.id,{policy,access,deleted:row.deleted});}
+   // Access explanations depend on ownership/privacy/maxima, not record IDs or
+   // field exceptions. Reuse equal resolutions only inside this object load and
+   // transaction; retain each record's original field policy for later checks.
+   const explanations=new Map<string,AccessExplanation>();
+   for(const row of rows){
+    if(!row.policy)throw new AppError(500,'Sensitive record is missing its security policy');
+    const policy=row.policy,key=JSON.stringify([policy.owners,policy.publicLevel,policy.privacy,policy.foreignMax]);
+    let explanation=explanations.get(key);
+    if(!explanation){explanation=admin?{level:'full',source:'administrator',path:[]}:resolveRecordAccess(this.actor,id,policy,graph.members,graph.rules,graph.settings.find(u=>u.userId===this.actor)?.inherit??true);explanations.set(key,explanation);}
+    records.set(row.id,{policy,access:{...explanation,path:[...explanation.path]},deleted:row.deleted});
+   }
   }
   return new ObjectAccess(id,model.workspace_id,model.is_sensitive,admin,level,grants,groups,this.actor,canCreate,records);
  }

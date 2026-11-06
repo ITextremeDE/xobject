@@ -30,7 +30,6 @@ export async function modelFor(tx:Executor,id:string):Promise<Model> {
 async function reference(tx:Executor,ref:RecordReference,workspace:string):Promise<RelatedRecord> {
   const model=await modelFor(tx,ref.objectTypeId);
   if(model.workspace_id!==workspace)throw new AppError(400,'Relationship endpoints must share a workspace');
-  const hasKeyword=(await sql`SELECT 1 FROM sys_fields WHERE object_type_id=${model.id}::uuid AND technical_name='keyword' AND state<>'deleted'`.execute(tx)).rows.length;
   const row=(await sql<{keyword:string;iconKey:import('@xobject/contracts').RecordIconKey}>`SELECT ${await recordIconExpression(tx,model.id)} AS "iconKey", ${await contentAccess().keywordValue(model.id)} AS keyword FROM ${sql.table(table(model))} WHERE id=${ref.recordId}::uuid`.execute(tx)).rows[0];
   if(!row)throw new AppError(404,'Related record not found');
   return {...ref,iconKey:row.iconKey,keyword:row.keyword||ref.recordId,objectTechnicalName:model.technical_name,objectLabels:model.labels,state:model.state as 'active'|'inactive'};
@@ -40,11 +39,11 @@ async function edgesFor(tx:Executor,workspace:string) {return (await sql<Edge>`S
 export async function recordRelationships(tx:Executor,objectTypeId:string,recordId?:string):Promise<RecordRelationships> {
   const sourcePolicy=await contentAccess().require(objectTypeId,recordId,recordId?'read':'create');
   const model=await modelFor(tx,objectTypeId);if(recordId)await reference(tx,{objectTypeId,recordId},model.workspace_id);
-  const definitions=await relationshipTypes(tx,model.workspace_id),all=await edgesFor(tx,model.workspace_id),chain=await primaryChain(tx,model.workspace_id);
-  const own=recordId?all.filter(e=>key(left(e))===`${objectTypeId}:${recordId}`||key(right(e))===`${objectTypeId}:${recordId}`):[];
-  const edges:RecordRelationship[]=[];
-  for(const edge of own)if(await contentAccess().readable(edge.left_object_type_id,edge.left_record_id)&&await contentAccess().readable(edge.right_object_type_id,edge.right_record_id))edges.push({version:edge.version,attributes:(await projectEdgeAttributes(tx,edge)).values,id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:await visibleReference(tx,left(edge),model.workspace_id),right:await visibleReference(tx,right(edge),model.workspace_id)});
+  const definitions=await relationshipTypes(tx,model.workspace_id),chain=await primaryChain(tx,model.workspace_id);
+  const own=recordId?(await sql<Edge>`SELECT * FROM sys_relationships WHERE workspace_id=${model.workspace_id}::uuid AND ((left_object_type_id=${objectTypeId}::uuid AND left_record_id=${recordId}::uuid) OR (right_object_type_id=${objectTypeId}::uuid AND right_record_id=${recordId}::uuid)) ORDER BY id`.execute(tx)).rows:[];
   const attributeProjections=new Map(await Promise.all(own.map(async edge=>[edge.id,await projectEdgeAttributes(tx,edge)] as const)));
+  const edges:RecordRelationship[]=[];
+  for(const edge of own)if(await contentAccess().readable(edge.left_object_type_id,edge.left_record_id)&&await contentAccess().readable(edge.right_object_type_id,edge.right_record_id))edges.push({version:edge.version,attributes:attributeProjections.get(edge.id)!.values,id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:await visibleReference(tx,left(edge),model.workspace_id),right:await visibleReference(tx,right(edge),model.workspace_id)});
   const fields:RecordRelationships['fields']=[];
   for(const definition of definitions.filter(d=>(d.kind!=='primary'||d.active)&&(d.rulesState==='active'||own.some(e=>e.relationship_type_id===d.id)))) {
     for(const side of relationshipSidesForObject(definition,objectTypeId,chain)) {
