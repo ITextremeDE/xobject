@@ -289,7 +289,7 @@ CREATE TABLE public.sys_workspaces (
     label_languages text[] DEFAULT ARRAY['de'::text, 'en'::text] NOT NULL,
     time_zone text DEFAULT 'UTC'::text NOT NULL,
     regional jsonb DEFAULT '{"locale": "en-US", "hourCycle": "locale", "weekStart": "locale", "dateFormat": "locale", "numberFormat": "locale"}'::jsonb NOT NULL,
-    appearance jsonb DEFAULT '{"font": "geist", "theme": "neutral", "radius": "default", "baseColor": "neutral", "menuColor": "default", "chartColor": "neutral", "menuAccent": "subtle", "fontHeading": "inherit", "primaryColor": null, "secondaryColor": null}'::jsonb NOT NULL,
+    appearance jsonb DEFAULT '{"font": "geist", "theme": "neutral", "radius": "default", "baseColor": "neutral", "menuColor": "default", "chartColor": "neutral", "menuAccent": "subtle", "fontHeading": "inherit", "primaryColor": null, "primaryColorDark": null, "logoIcon": "layers", "secondaryColor": null, "secondaryColorDark": null}'::jsonb NOT NULL,
     appearance_version integer DEFAULT 1 NOT NULL,
     language_version integer DEFAULT 1 NOT NULL,
     security_version integer DEFAULT 1 NOT NULL,

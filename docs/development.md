@@ -561,3 +561,19 @@ Caddy loopback-HTTPS acceptance now also passes against the supplied Compose top
 ### 2026-11-06 — Native Linux CI portability
 
 The first native Ubuntu container check exposed use of `compose start --wait`, which is absent from the runner’s documented Compose 2.38.2. Backup resumption now uses the supported `up -d --wait --no-recreate` operation, retaining the existing container. CI records its Compose version and failures expose only bounded operator diagnostics. The PR checks must pass on the corrected head before merge.
+
+### 2026-11-06 — Demo branding and appearance controls
+
+The optional seed creates comparable Demo/Standard and ITextreme/brand-inspired workspaces with the same three installation users and independent definitions/contents/relationships. Custom examples use 21 additional Primary associations per workspace, with inherited customer chains, internal contexts and an intentionally unassigned tool. The ITextreme appearance uses the COS light/dark action colors, Inter/Orbitron and a configurable Network icon. HSL registry entries are normalized into complete CSS expressions. Logo upload remains a disabled placeholder.
+
+Focused appearance/rollback/demo integration checks and web appearance tests cover the new metadata, per-property journals, workspace role boundaries, shared users, independent color modes, font selection and token validity. The development installation is rebuilt against the one current schema after private backup; existing login credentials and the additional test record are retained as fixture data. Source, changelog and demo guidance are updated without a Git publication.
+
+The scoped acceptance passes with three backend integration tests, 125 web tests, root type checking/API verification and zero known production-dependency vulnerabilities. Chrome confirms the independent light/dark primary colors, local Inter/Orbitron rendering, all twelve icon choices and the disabled upload placeholder. Installation verification reports 20 object definitions and 151 record identities across both workspaces with valid integrity.
+
+The Gray surface follow-up completes missing sidebar roles using the same base palette rather than inheriting global Neutral tokens. All base palettes now pass a complete surface-role regression; 126 web tests and the web production build pass. Chrome verifies matching Gray content/sidebar surfaces in Light and Dark; System mode is restored. No additional brand palette or component CSS override is introduced.
+
+### 2026-11-06 — Complete appearance modes and preview
+
+Workspace secondary overrides now have independent light/dark values in the strict shared schema and per-property journal. Menu portals explicitly apply scoped interface fonts and color schemes. The preview composes the actual Sidebar, Card, Table and form/menu components, with local navigation/selection and advisory custom-primary link/focus contrast checks against resolved surfaces. Blank overrides follow their own mode. Browser and scoped regression acceptance are recorded after the current-schema development rebuild.
+
+Acceptance passes with three focused backend integration tests (including strict secondary-dark validation and nine atomic property journals), 128 web tests, root typecheck/API verification, the web production build and current-installation integrity (20 definitions, 151 record identities). Chrome verifies matching draft Lora fonts in input/menu portals, independent secondary mode overrides, the low-contrast warning, actual table selection, Light/Dark surfaces and clean Demo → ITextreme font/color replacement without horizontal overflow. Preview drafts were reset. A verified backup preceded the current-schema rebuild; the three test credentials and additional record were retained. No commit, push or external closeout was performed.

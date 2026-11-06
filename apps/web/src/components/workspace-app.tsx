@@ -18,7 +18,8 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useBlocker, useLocation, matchPath, useNavigate } from 'react-router';
-import { Trash2Icon, PlusIcon, ChevronsUpDownIcon, GalleryVerticalEndIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
+import {WorkspaceLogo} from './workspace-logo';
+import { Trash2Icon, PlusIcon, ChevronsUpDownIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
 import { type AuthUser } from '@xobject/contracts';
 import { api, signOut } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -173,14 +174,14 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
       <SidebarHeader>
         <SidebarMenu><SidebarMenuItem>
           <DropdownMenu><DropdownMenuTrigger render={<SidebarMenuButton data-definition-trigger="workspace" size="lg" className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground" disabled={busy || workspaces.isPending} aria-label={t('workspace')} />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"><GalleryVerticalEndIcon /></div>
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"><WorkspaceLogo icon={workspace?.appearance.logoIcon??'layers'}/></div>
               <div className="grid flex-1 text-left text-sm leading-tight"><span className="truncate font-medium">{workspace?.name ?? 'xObject'}</span><span className="truncate text-xs">xObject</span></div>
               <ChevronsUpDownIcon className="ml-auto" />
           </DropdownMenuTrigger><DropdownMenuContent className="w-fit" align="start" side={isMobile ? 'bottom' : 'right'} sideOffset={4}>
             <DropdownMenuGroup>
               <DropdownMenuLabel className="text-xs text-muted-foreground">{t('workspace')}</DropdownMenuLabel>
               {workspaces.data?.map(item => <DropdownMenuItem key={item.id} className="gap-2 p-2" onClick={() => selectWorkspace(item.id)} disabled={busy}>
-                <div className="flex size-6 items-center justify-center rounded-md border"><GalleryVerticalEndIcon /></div>
+                <div className="flex size-6 items-center justify-center rounded-md border"><WorkspaceLogo icon={item.appearance.logoIcon}/></div>
                 {item.name}
               </DropdownMenuItem>)}
             </DropdownMenuGroup>

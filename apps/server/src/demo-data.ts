@@ -1,14 +1,34 @@
 import {workFormLayout,contactExtensionLayout,resolveFormLayout} from '@xobject/contracts';
 import { randomBytes } from 'node:crypto';
 import { v7 } from 'uuid';
+import {sql} from 'kysely';
 import type { ContentPermissions, ForeignSettings, ManagedUser, RecordSecurity, Workspace, WorkspaceGroup, AccessLevel, ClassificationRules, CustomFieldKind, FieldConfig, FieldValue, ObjectDefinition, DataRecord } from '@xobject/contracts';
-import {emptyFieldInputRules,defaultNumbering} from '@xobject/contracts';
+import {emptyFieldInputRules,defaultNumbering,defaultWorkspaceAppearance,type WorkspaceAppearance} from '@xobject/contracts';
 import { Application } from './domain.js';
 import type { Database } from './database.js';
 
 type Labels = { de: string; en: string };
 type SeedField = { name: string; labels: Labels; kind?: CustomFieldKind; config?: FieldConfig; required?: boolean };
 export type DemoLink = { from: { objectTypeId: string; recordId: string }; to: { objectTypeId: string; recordId: string }; relation: 'primary' | 'contact_person' | 'general' | 'identity' | 'support' | 'equipment' | 'distribution_member' };
+// COS/itextreme.de approximation through the existing editable appearance controls.
+// Fixed, locally served fonts and paired primary colors remain editable per workspace.
+export const itextremeDemoAppearance:WorkspaceAppearance={...defaultWorkspaceAppearance,baseColor:'gray',theme:'rose',chartColor:'rose',primaryColor:'#C81E3A',primaryColorDark:'#F26074',logoIcon:'network',font:'inter',fontHeading:'orbitron',radius:'large'};
+type DemoAccount={id:string;name:string;email:string;role:'designer'|'user';password?:string};
+type DemoOptions={name?:string;appearance?:WorkspaceAppearance;members?:{id:string;role:'designer'|'user'}[]};
+/** Current fictional examples: one direct parent, with ancestors derived normally. */
+export function demoCustomPrimaryLinks(objects:Record<string,{id:string}>,records:Record<string,{id:string}[]>):DemoLink[]{
+ const assignments:[string,number,string,number][]=[
+  ['cases',0,'mobile_workshops',0],['projects',1,'mobile_workshops',1],['contacts',2,'mobile_workshops',2],
+  ['cases',0,'support_packages',0],['projects',1,'support_packages',1],['contacts',2,'support_packages',2],
+  ['cases',1,'workshop_tools',0],['cases',3,'workshop_tools',1],['projects',3,'workshop_tools',2],
+  ...Array.from({length:12},(_,index):[string,number,string,number]=>[index%3===0?'projects':'cases',index%3===0?3:index%3===1?6:7,'access_checks',index]),
+ ];
+ return assignments.map(([parent,parentIndex,child,childIndex])=>{
+  const from=records[parent]?.[parentIndex],to=records[child]?.[childIndex];
+  if(!objects[parent]||!objects[child]||!from||!to)throw Error('Incomplete fictional Primary-association fixture');
+  return {from:{objectTypeId:objects[parent].id,recordId:from.id},to:{objectTypeId:objects[child].id,recordId:to.id},relation:'primary'};
+ });
+}
 const labels = (de: string, en: string): Labels => ({ de, en });
 const field = (name: string, de: string, en: string, kind: CustomFieldKind = 'text', config?: FieldConfig): SeedField => ({ name, labels: labels(de, en), kind, config:kind==='multiline'?{formatted:true,...config}:config });
 
@@ -74,18 +94,33 @@ function customDemoGroups(name:string,groups:import('@xobject/contracts').FormLa
 }
 
 /** Entirely fictional fixtures, created through the same rules as API/MCP. Never resets data. */
-export async function seedDemoData(db: Database, actorId: string, code = 'itx') {
+export async function seedDemoData(db: Database, actorId: string, code = 'itx', options:DemoOptions = {}) {
   const app = new Application(db);
   const workspaces = await app.execute('list_workspaces', {}, actorId) as { code: string }[];
   if (workspaces.some(workspace => workspace.code === code)) throw new Error('Demo workspace already exists; no data was changed');
-  const workspace = await app.execute('create_workspace', { name: 'ITextreme', code, defaultLanguage: 'en', timeZone: 'Europe/Berlin' }, actorId) as Workspace;
-  const accounts = [];
+  const sharedMembers=new Map<string,Pick<ManagedUser,'id'|'name'|'email'>>();
+  if(options.members){
+    if(options.members.length!==2||new Set(options.members.map(member=>member.id)).size!==2||new Set(options.members.map(member=>member.role)).size!==2)throw Error('Demo requires one distinct Designer and User');
+    for(const member of options.members){const existing=(await sql<{id:string;name:string;email:string}>`SELECT id,name,email FROM sys_users WHERE id=${member.id} AND active`.execute(db)).rows[0];if(!existing)throw Error('Demo member is unavailable');sharedMembers.set(member.id,existing);}
+  }
+  const workspace = await app.execute('create_workspace', { name: options.name??'ITextreme', code, defaultLanguage: 'en', timeZone: 'Europe/Berlin' }, actorId) as Workspace;
+  const initialWorkspace=(await app.execute('list_workspaces',{},actorId) as Workspace[]).find(current=>current.id===workspace.id)!;
+  await app.execute('set_workspace_appearance',{workspaceId:workspace.id,version:initialWorkspace.appearance_version,appearance:options.appearance??itextremeDemoAppearance},actorId);
+  const accounts:DemoAccount[] = [];
   for (const [name, local, role] of [['Jane Doe', 'jane.doe', 'designer'], ['James Doe', 'james.doe', 'user']] as const) {
-    const email = `${local}${code === 'itx' ? '' : `+${code}`}@example.test`;
-    const password = randomBytes(24).toString('base64url');
-    const user = await app.execute('create_user', { name, email, initialPassword: password }, actorId) as ManagedUser;
+    let user:Pick<ManagedUser,'id'|'name'|'email'>,password:string|undefined;
+    if(options.members){
+      const member=options.members.find(member=>member.role===role);
+      const existing=member?sharedMembers.get(member.id):undefined;
+      if(!existing)throw Error('Demo member is unavailable');
+      user=existing;
+    }else{
+      const email = `${local}${code === 'itx' ? '' : `+${code}`}@example.test`;
+      password = randomBytes(24).toString('base64url');
+      user = await app.execute('create_user', { name, email, initialPassword: password }, actorId) as ManagedUser;
+    }
     await app.execute('set_workspace_member', { workspaceId: workspace.id, userId: user.id, role, expectedRole: null }, actorId);
-    accounts.push({ id: user.id, name, email, role, password });
+    accounts.push({ id: user.id, name:user.name, email:user.email, role, ...(password?{password}:{}) });
   }
   const [designer, member] = accounts;
   const availableModules=await app.execute('list_workspace_modules',{workspaceId:workspace.id},actorId) as import('@xobject/contracts').WorkspaceModule[];
@@ -302,6 +337,9 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
   const exception=await record('access_checks','Direct ownership – field exception',{expected_result:'James owns this record with Full but cannot read Sample amount. Direct ownership takes precedence over the foreign rule.',sample_amount:'98765.43'});
   await security('access_checks',exception,{...own('user',member.id),fields:[{kind:'user',id:member.id,fields:{[objects.access_checks.fields.find(item=>item.technicalName==='sample_amount')!.id]:'none'}}]});
 
+  links.push(...demoCustomPrimaryLinks(objects,records));
+  await connectDemoRelationships(db,actorId,workspace.id,links);
+
   // Real lifecycle samples retain values/history and expose inactive definitions.
   const retired=objects.workshop_tools.fields.find(item=>item.technicalName==='retired_tag')!;
   await app.execute('set_definition_state',{kind:'field',id:retired.id,expectedState:'active',state:'inactive'},actorId);
@@ -320,7 +358,14 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx') 
     // Return current versions after relationship/security changes, not stale creation snapshots.
     for(let i=0;i<records[name].length;i++)records[name][i]=await app.execute('get_record',{objectTypeId:model.id,recordId:records[name][i].id},actorId) as DataRecord;
   }
-  return { workspaceId: workspace.id, objects, records, links, accounts, groups: {team: group.id, management: management.id} };
+  return { workspaceId: workspace.id, workspaceCode:code,workspaceName:options.name??'ITextreme', objects, records, links, accounts, groups: {team: group.id, management: management.id} };
+}
+
+/** Two comparable workspaces, one installation account for each role. */
+export async function seedDemoWorkspaces(db:Database,actorId:string){
+ const branded=await seedDemoData(db,actorId);
+ const standard=await seedDemoData(db,actorId,'demo',{name:'Demo',appearance:defaultWorkspaceAppearance,members:branded.accounts.map(({id,role})=>({id,role}))});
+ return {...branded,workspaces:[branded,standard]};
 }
 
 /** Apply the fictional fixture plan through normal operations; retain existing links and no-op on repeats. */

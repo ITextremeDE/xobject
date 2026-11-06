@@ -3,8 +3,9 @@ import { colorForeground, defaultWorkspaceAppearance, type WorkspaceAppearance }
 import { workspaceThemes, workspaceChartPalettes } from './workspace-theme-palettes';
 import { workspacePalettes } from './workspace-palettes';
 
-// Font names, families and packages come from @shadcn/font-* registry items (4.23.0).
+// shadcn 4.23.0 fixed font catalog plus the approved locally served Orbitron display font.
 export const workspaceFontOptions = [
+  {value:'orbitron',label:'Orbitron',family:"'Orbitron Variable', sans-serif"},
   {
     "value": "inter",
     "label": "Inter",
@@ -137,6 +138,7 @@ export const workspaceFontOptions = [
   }
 ] as const;
 const fontImports = {
+  'orbitron': () => import('@fontsource-variable/orbitron'),
   'inter': () => import('@fontsource-variable/inter'),
   'noto-sans': () => import('@fontsource-variable/noto-sans'),
   'nunito-sans': () => import('@fontsource-variable/nunito-sans'),
@@ -179,10 +181,11 @@ export function workspaceAppearanceTokens(appearance: WorkspaceAppearance, dark:
   tokens['--radius'] = radii[appearance.radius];
   tokens['--workspace-font'] = workspaceFontOptions.find(item => item.value === appearance.font)!.family;
   tokens['--workspace-heading-font'] = appearance.fontHeading === 'inherit' ? tokens['--workspace-font'] : workspaceFontOptions.find(item => item.value === appearance.fontHeading)!.family;
-  for (const [key, color] of [['primary', appearance.primaryColor], ['secondary', appearance.secondaryColor]] as const) {
+  const primaryColor=dark?appearance.primaryColorDark:appearance.primaryColor;
+  for (const [key, color] of [['primary', primaryColor], ['secondary', dark ? appearance.secondaryColorDark : appearance.secondaryColor]] as const) {
     if (color) { tokens[`--${key}`] = color; tokens[`--${key}-foreground`] = colorForeground(color); }
   }
-  if (appearance.primaryColor) { tokens['--sidebar-primary'] = tokens['--primary']; tokens['--sidebar-primary-foreground'] = tokens['--primary-foreground']; }
+  if (primaryColor) { tokens['--ring']=primaryColor;tokens['--sidebar-ring']=primaryColor; tokens['--sidebar-primary'] = tokens['--primary']; tokens['--sidebar-primary-foreground'] = tokens['--primary-foreground']; }
   return tokens;
 }
 
@@ -191,7 +194,7 @@ export function workspaceMenuTokens(appearance: WorkspaceAppearance, dark: boole
   // shadcn's inverted preset adds a dark surface, including when the page itself is light.
   const menuDark = appearance.menuColor.startsWith('inverted') || dark;
   const tokens = workspaceAppearanceTokens(appearance, menuDark);
-  const style = { ...tokens };
+  const style: Record<string,string> = { ...tokens, fontFamily: tokens['--workspace-font'], colorScheme: menuDark ? 'dark' : 'light' };
   if (appearance.menuAccent === 'bold') { style['--accent'] = tokens['--primary']; style['--accent-foreground'] = tokens['--primary-foreground']; }
   const translucent = appearance.menuColor.endsWith('-translucent');
   if (translucent) style['--popover'] = `color-mix(in oklch, ${tokens['--popover']} 70%, transparent)`;
