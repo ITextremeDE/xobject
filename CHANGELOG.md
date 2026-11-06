@@ -72,7 +72,8 @@ The project is in early development. These entries describe source changes, incl
 
 ### Changed
 
-- Supply comparable Demo/Standard and ITextreme/brand-inspired workspaces using the same three accounts, independent example contents and editable workspace appearance settings.
+- Show Contacts, Projects, Cases, Tasks and Distribution lists as the default Dashboard filters in that order; add custom object filters through Add filter.
+- Supply three distinct demo stories: an explicit feature laboratory, a managed IT company and a small family/household. Eight installation accounts have scenario-specific memberships, graded group/foreign rights, field restrictions and genuine assignment. Use workspace-prefixed business numbers (`ITx-…-1001`, `JS-…-1`), contextual custom objects, Markdown briefs, timestamped Notes, relationship-attribute history and reversible recycle-bin examples. The three editable standard/brand/personal designs remain available.
 - Expand custom-object demo Primary associations across Contacts, Projects and Cases, including inherited customer chains, internal contexts and an intentionally unassigned tool.
 - Present the Primary tree as compact Explorer rows with permission-filtered status captions, compact ancestor context, keyboard help and cancellable sequential Expand all / Collapse all controls, including remaining pages. Align tree loading placeholders.
 - Use one standard Base UI Toaster for short save/copy/revocation results; retain inline validation, security guidance and unsaved-change state without layout-shifting success callouts.

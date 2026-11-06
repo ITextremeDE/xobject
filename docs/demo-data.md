@@ -1,90 +1,119 @@
-# Local demo data
+# Local demo scenarios
 
-The optional development seed creates two fictional workspaces: **Demo** (`demo`) with the unchanged xObject default appearance and **ITextreme** (`itx`) with a brand-inspired appearance. English is the default; English/German interface and definition labels are available. Business contents are English. The workspace uses `Europe/Berlin` and the normal `en-US` regional format. Startup and `db:init` create no demo accounts or contents.
+The optional seed creates three distinct fictional workspaces. English is the default interface/content language; every translatable definition, input aid and form group has English/German labels. Each workspace uses `Europe/Berlin` and the normal `en-US` display format. All available modules are enabled; unavailable Documents & Communication remains disabled. Installation and `db:init` create no demo accounts or business contents.
 
-## Accounts and groups
+| Workspace | Code | Purpose | Active records | Number example |
+| --- | --- | --- | --- | --- |
+| Demo | `demo` | Explicit feature/permission laboratory | 74 | `CHK-00001` |
+| ITextreme | `itx` | Managed IT services, customer delivery and commercial separation | 74 | `ITx-CHK-1001` |
+| Jürgen Schadek | `js` | A small fictional family and household | 47 | `JS-CHK-1` |
 
-Provision John Doe (`john.doe@example.test`) as installation Administrator before seeding. The seed uses this account and creates Jane Doe as workspace Designer and James Doe as workspace User. The same three installation accounts serve both workspaces; membership roles, groups, objects, values, relationships and journals are workspace-specific. Jane and James receive random initial passwords and must change them at first sign-in. The CLI writes private receipts to ignored `.local/demo-accounts.json` and `.local/demo-accounts.md`, with directory mode `0700` and file mode `0600`; no passwords enter source or journals.
+Each workspace also has one recycled Task and one retained record in an inactive lifecycle object. A development installation may contain manually created examples in addition to these canonical counts.
 
-Project team contains James with Full membership. Management contains Jane with Full and Project team with Read membership. Nested membership never elevates a weaker path or independently opens coworkers' records. Designer controls definitions/forms; content access still needs explicit rights. John retains installation-wide Administrator access.
+## Accounts and workspace boundaries
 
-## Modules, navigation and forms
+Provision John Doe (`john.doe@example.test`) as installation Administrator before seeding. The seed adds seven fictional users, for **eight installation accounts in total**. There is one Administrator, not an Administrator per workspace. Membership and content rights are independent for each workspace.
 
-Every available module is enabled. Contacts & Relations and Projects & Tasks supply five distinct shared objects; Contacts appears in both module sections. Planned unavailable Documents & Communication remains disabled. Workspace/personal navigation inherits catalog defaults, including the Contact-kind child lists and visible Resources block.
+| Account | Demo | ITextreme | Jürgen Schadek |
+| --- | --- | --- | --- |
+| John Doe | Installation Administrator | Installation Administrator | Installation Administrator |
+| Jane Doe | Designer / reviewer | Designer / Management | Designer / parent |
+| James Doe | User / test operator | User / Service Desk | No membership |
+| Alex Doe | No membership | User / service lead, Management | User / parent |
+| Casey Doe | No membership | User / Field Service and Service Desk | No membership |
+| Morgan Doe | No membership | User / Sales | No membership |
+| Taylor Doe | No membership | User / read-only Audit | No membership |
+| Jamie Doe | No membership | No membership | User / child |
 
-Supplied objects use the common starter forms. Contacts have a fixed kind-specific core and editable extensions. Projects, Cases and Tasks show General, a Details group (Number, Responsible, Access principals) beside Schedule, then Primary association, Classification, relationship lists and final Notes as applicable. Project/Case Schedule has optional Start date and Target date. Task Schedule & progress has Start, Due, Priority directly before Progress, and Completed at. Administrators/Designers can edit these common layouts. Distribution lists keep Keyword/plain-text Description and final Notes, with no business number.
+Jane’s Designer role permits model/form changes, not arbitrary access to contents. Alex’s service-lead rights come from groups and content policies, not an additional application role. Administrators retain installation-wide content access. Ordinary users cannot use another workspace merely because the same object types exist there.
 
-Custom objects demonstrate additional authored groups, group/field widths, input aids, all 15 custom field kinds, unique identifiers and reference cardinalities. Their identities are separate from planned module objects such as Contracts. They are examples rather than previews of future module templates.
+New users receive random initial passwords and must change them at first sign-in. Private ignored `.local/demo-accounts.json` and `.local/demo-accounts.md` contain the account receipts, with directory mode `0700` and file mode `0600`. Passwords never enter source or journals. A local fixture refresh may retain existing test-account credentials; the ordinary installation seed does not bypass the first-password-change rule.
 
-## Appearance comparison
+## Demo — feature laboratory
 
-Demo uses `defaultWorkspaceAppearance`: Neutral surfaces/theme/charts, Geist, inherited headings and the standard radius. ITextreme uses Gray surfaces, the Rose theme/chart palette, Inter interface text, Orbitron headings, large corners and the Network workspace icon. Primary colors are `#C81E3A` in Light and `#F26074` in Dark; secondary overrides are empty independently in both modes and use their paired theme defaults.
+Test Organizations Alpha–Zeta and explicitly named Projects cover complete Contact → Project → Case → Task chains, direct Project/Contact assignments and internal contexts. Custom Mobile workshops, Support packages, Workshop tools and Access checks retain deliberately recognizable test data, including zero/negative/precise values, optional dates and an unassigned diagnostic kit.
 
-The ITextreme example follows its Corporate Design/Tokens and the `itextreme.de` source: neutral surfaces, Inter UI text, Orbitron display headings and restrained red actions. Canonical brand red is `#E53145`; the separate action tones above preserve text contrast in each mode. The fixed font catalog includes locally served Orbitron. The selectable Lucide icon is a workspace identifier, not the official vector logo. The own-logo upload is a disabled preparation matching the existing photo/profile placeholders. All choices remain editable in Workspace → Appearance. Hover/active state formulas and general component spacing retain the standard shadcn behavior; mono-font selection, dedicated image upload/storage and a complete corporate-token editor are separate work.
+Test operators contains James with Full membership. Reviewers contains Jane with Full and Test operators with Read membership. The twelve Access checks explain the effective outcome for James: foreign maxima from None through Full, Personal/Confidential exclusions, explicit workspace-public Read and a direct-owner field exception. Calendar-only meanings remain reserved rather than producing implemented calendar behavior.
 
-## Objects and contents
+James inherits Create through the test group, cannot see Support-package Internal notes and can only read Tool Purchase price. Jane can design fields but must have content grants. These are intentional acceptance fixtures rather than realistic customer records.
 
-Each workspace contains **9 active objects with 74 records**, plus one inactive lifecycle object with one retained record. Table names below show the `itx_` prefix; the standard workspace uses `demo_`. All translatable metadata has English/German labels; account/group names and business contents have one language.
+## ITextreme — managed IT services
 
-| Object / table | Records | Scenarios |
-| --- | --- | --- |
-| Contacts / `itx_contacts` | 9 | Six Organizations, two Contact persons, one Individual contact; structured names/contact details/addresses, partial personal dates, Identities and professional details |
-| Distribution lists / `itx_distribution_lists` | 1 | Three explicit members, plain three-line Description and independent Notes |
-| Projects / `itx_projects` | 4 | Objectives, dates, responsibility and Access principals; one internal Project without Contact |
-| Cases / `itx_cases` | 8 | Discovery/implementation context, dates, responsibility and Access principals |
-| Tasks / `itx_tasks` | 30 | Date/instant/zoned scheduling, completion/progress, user/group assignees through Access principals and privacy examples |
-| Mobile workshops / `itx_mobile_workshops` | 3 | Workshop profile, mileage/defaults, license plates, dates, money, booleans and equipment |
-| Support packages / `itx_support_packages` | 3 | Package codes, duration, precise EUR fees, multiple services, renewal, public Notes and restricted internal history |
-| Workshop tools / `itx_workshop_tools` | 4 | Inventory, USD prices, integers/decimals, support channels, group references, inspection timestamp/result/inspector, rich instructions and an inactive retained field |
-| Access checks / `itx_access_checks` | 12 | Explained ownership, foreign-access, privacy and field-exception scenarios |
-| Retired equipment / `itx_retired_fixture_tools` | 1 (inactive) | Read-only lifecycle fixture with a retained record |
+Six customer/supplier/partner Organizations include Northlight Architecture, Blue Harbour Logistics and Cedar Health. Contact persons and an Individual contact demonstrate one Organization per Contact person and direct Identities. Four Projects have distinct working stories:
 
-Descriptions demonstrate supported Markdown: headings, emphasis, ordered/unordered lists, quotes, links, inline/fenced code and separators. Notes are separate chronological work entries with timestamps and no headings. Operating instructions have their own content. These authored sample entries are business contents; the Journal records actual application writes independently. Distribution-list Description remains plain text according to its standard field definition.
+- Northlight: workstation inventory, MFA pilot and firewall cutover for a 24-seat architecture office.
+- Blue Harbour: mailbox/calendar discovery, pilot migration and dispatch-team handover.
+- Cedar Health: isolated backup restoration, measured recovery time and acceptance evidence.
+- Internal: service-laptop preparation, rights review and a supervised first support shift.
 
-Active objects have required Keyword, configurable optional Type/Status, per-Type/no-Type statuses and multiple Categories. Contact kind is separate, selected before creation and immutable in normal updates. Derived Contact names are virtual and respect source-field rights. Communication languages, example Messenger URIs, time zones and optional-year dates exercise Contact controls; Photo/Logo remains preparation without uploads.
+Eight Cases and thirty Tasks carry concrete results instead of repeated placeholder checklists. Custom Field-service vehicles, Managed service plans, Service assets and Access reviews connect service vans, a technician laptop, a network diagnostic kit, a dispatch spare and customer service cover. Commercial Internal notes differ from the customer-facing description and Notes.
 
-All active objects except Distribution lists have protected automatic business numbers with five minimum digits and no restart: `CON-`, `PRJ-`, `CAS-`, `TSK-`, `MWK-`, `SUP-`, `TOOL-` and `CHK-`. Physical columns begin with system metadata; standards/custom fields and later business numbering append independently of form order. A genuine Task Progress change from 0 to 25, relationship/security writes and definition deactivations populate actual journals.
+The five groups are Service Desk, Field Service, Management, Sales and Audit. Management contains the service groups at lower membership grades as well as Jane/Alex directly; transitive paths remain bounded by their weakest edge.
 
-## Relationships
-
-There are **75 persisted edges per workspace**:
-
-- 61 Primary links across Contact → Project → Case, Tasks and the custom objects. All Mobile workshops, Support packages and Access checks plus three of four Workshop tools have a direct parent; ancestors are inherited normally. Contact-only, Project-only, complete customer chains and internal Projects/Cases without a Contact are represented. The Unassigned diagnostic kit and standalone Task deliberately remain without a Primary association.
-- Two Organization/Contact-person links, with one main Organization per Contact person.
-- Three Distribution memberships and one symmetric Contact Identities link.
-- Three Tool/Support-package links: each Tool has at most one package; packages support multiple Tools.
-- One optional 1:1 Mobile-workshop/Tool equipment assignment.
-- Four General links connecting Cases to Mobile workshops and a Project to a Support package.
-
-Mobile workshops and Support packages each demonstrate Case, Project and Contact parents. Workshop tools belong to customer Cases or the internal Project; Access checks belong to the internal Project or its Cases. These relationships never grant access to otherwise restricted records.
-
-Single/multiple controls, endpoint conditions, derived context, the Projects-owned tree, Dossier and journals use real application relationships. The UUID plans are saved privately to `.local/demo-relationships.json` (ITextreme) and `.local/demo-relationships-demo.json` (Demo). `.local/demo-workspaces.json` identifies both workspaces. Reapplying that exact plan adds no duplicate edges. Standard module forms have no demo-only relationship definitions.
-
-## Assignment and permission checks
-
-Projects, Cases and Tasks are always sensitive. Support packages and Access checks are additional sensitive custom examples. Access principals is the protected virtual ownership field; in activities it also identifies the users/groups carrying out the work. **Task assignees are exactly these participants.** There is no separate Task assignment field or storage. Responsible coordinates the activity and grants no rights. Foreign access grants permissions without adding participants, assigning work or subscribing people to future notifications.
-
-Demo Tasks are assigned to James through Access principals, with selected records demonstrating Project-team assignment, Jane's Personal/Confidential ownership and the normal foreign-access rules. New ordinary records retain creator ownership until explicitly delegated. Layout changes never alter security.
-
-Explicit object ceilings give Jane/James the rights needed for the examples. James inherits Create through Project team. On Support packages, Internal notes is hidden from James; on Workshop tools, Purchase price is read-only. The inactive object has no implicit ordinary-user grant. James has foreign Full to Jane without Confidential permission; Jane has foreign Read to Project team with Confidential permission and may manage her own delegated rules.
-
-| Access-check Keyword | Expected result for James |
+| Persona | Examples to verify |
 | --- | --- |
-| Foreign access – none / availability | No contents; calendar-only projection remains future work |
-| Foreign access – read | Read |
-| Foreign access – duplicate | Read/Duplicate, bounded by Create and required fields |
-| Foreign access – schedule | Read/Duplicate; calendar scheduling remains future work |
-| Foreign access – edit / delete / full | Corresponding capabilities, bounded by the record's foreign maximum |
-| Privacy – personal / confidential | No access through the configured foreign rule |
-| Workspace-public – read | Read without named owners, within object ceilings |
-| Direct ownership – field exception | Full direct ownership; Sample amount remains hidden |
+| James / Service Desk | Work from the shared queue; commercial Internal notes stay hidden and purchase prices read-only |
+| Casey / technician | Edit eligible service contents and assigned work; prices/internal commercial notes are hidden; no Delete/Full |
+| Alex / service lead | Full foreign access to Service Desk/Field Service ownership within object ceilings; review internal Cases |
+| Morgan / Sales | Create/edit Contacts, Projects and service plans; read permitted delivery context; Access reviews and restricted financial fields stay hidden |
+| Taylor / Audit | Read permitted normal Management/Service Desk context; no Create/Edit; Confidential/Personal records remain restricted |
+| Jane / Designer | Maintain model/forms and own delegated policies; Personal review records remain private |
 
-Jane owns the foreign/privacy samples. The integration test completes the real initial-password change before assessing user rights, verifies field restrictions and rejects definition edits for James.
+Group foreign access grants rights without assigning Tasks. Task Access principals identify the actual individual/group doing the work. Responsible coordinates and grants no rights. Access-review records describe their actual policy, including deliberately restricted examples; they are operational audit material, not a second copy of the test laboratory.
 
-## Run and rebuild
+## Jürgen Schadek — family and household
 
-Run `ADMIN_EMAIL=john.doe@example.test npm run dev:seed` after Administrator provisioning. The CLI requires local-demo confirmation, loopback PostgreSQL port `5410`, database `xobject_dev` and no existing workspaces. The seed refuses overwriting/repeated seeding. Tests use isolated disposable PostgreSQL instances.
+This workspace contains fictional family data, not information about the real person’s family. Jane and Alex are the parents; Jamie is the child. Six Organizations represent a school, dentist, insurer, cycling club, energy service and campsite. Eleven Contacts include the parents’ separate Organization-linked/private identities and Jamie’s Individual contact.
 
-For an authorized clean rebuild: stop writers, preserve a verified backup/private receipts, run guarded `npm run db:reset`, provision the first Administrator and apply the current seed. There is one current unreleased model; old schemas/rights are never adopted. Private recovery artifacts remain outside application state and are never imported automatically. An interrupted seed requires an explicit disposable-instance rebuild rather than resuming a partial fixture. See [development](development.md#current-database-installation-and-sql-inspection) and [ADR 0028](adr/0028-current-installation-baseline.md).
+Two Projects keep the workspace small: lowering household heating costs and planning a summer cycling holiday. Four Cases and sixteen Tasks cover quotes, installation, campsite booking, route planning, bicycle checks and packing. Family vehicles include an electric car, cargo bicycle and trailer. Household cover and Household items connect insurance/care plans, a navigation tablet, drill, tent and unassigned camera.
 
-Uploads, attachments, email/notification delivery, SSO and calendar actions remain later work. Contact-person/Individual professional details are direct Contact fields; Organization membership has no supplied attributes. The same Contact identity and common form serve both contributing modules.
+Family, Parents and Children are the only groups. Family membership gives Jamie Read on common ownership; a direct assignment or Children assignment allows editing eligible Tasks within the child’s Edit ceiling. Create is explicitly disabled for Jamie, so duplication cannot create a new record. Purchase prices, commercial/internal notes and the Amount of private working records are hidden from Jamie.
+
+Parents can review ordinary child-owned work. Children can read normal parent-owned context, bounded by object/field ceilings, but have no Confidential exception. Three Private records make the distinction tangible:
+
+- Shared household costs: Family-owned; Jamie sees the context but not Amount.
+- Heating reserve: Parents-owned and Confidential; Jamie cannot read it.
+- Birthday surprise: Jane-owned and Personal; neither Alex’s foreign access nor Jamie’s group rights open it.
+
+## Object names and business numbers
+
+The five supplied objects remain Contacts, Distribution lists, Projects, Cases and Tasks. Their supplied forms remain canonical. Only custom objects demonstrate authored groups, widths, scalar/reference fields and explicit custom relationships.
+
+| Logical custom example | Demo technical name / code | ITextreme technical name / code | Family technical name / code |
+| --- | --- | --- | --- |
+| Vehicle | `mobile_workshops` / `MWK` | `field_service_vehicles` / `VEH` | `family_vehicles` / `VEH` |
+| Cover/service plan | `support_packages` / `SUP` | `managed_service_plans` / `MSP` | `household_cover` / `COV` |
+| Equipment | `workshop_tools` / `TOOL` | `service_assets` / `AST` | `household_items` / `ITEM` |
+| Rights/private working records | `access_checks` / `CHK` | `access_reviews` / `CHK` | `private_records` / `CHK` |
+
+Standard numbered objects use `CON`, `PRJ`, `CAS` and `TSK`. Distribution lists intentionally have no business number. Demo starts each sequence at 1 with five minimum digits; ITextreme starts at 1001 with four minimum digits and the case-sensitive `ITx-` workspace prefix; Family starts at 1 with one minimum digit and `JS-`. All use increment 1 and no restart. Examples: `ITx-AST-1001`, `JS-ITEM-1`. The prefixes use ordinary object-numbering configuration, not special application logic. Technical UUID generation is unchanged; business numbers are human-readable identifiers.
+
+## Shared feature coverage
+
+| Capability | Fixture / manual acceptance |
+| --- | --- |
+| All 15 custom field kinds | Every scenario’s four custom examples; exact decimal/money, booleans, date/time, choices, User/Group references and structured emails |
+| CRM cores | Organization, Contact person and Individual; structured channels/addresses, languages, messenger URI, time zone and personal dates; deceased Contact example stays in the laboratory |
+| Main assignment | Complete and partial chains, internal contexts, direct Contact/Project parents and an intentionally unassigned equipment record; links grant no permissions |
+| Custom relationship cardinalities | One plan per item, multiple covered items; one dedicated device per vehicle and vice versa |
+| Relationship attributes | Coverage notes on the actual cover edge, changed once to produce real per-field relationship history |
+| Journals | A genuine Task Progress edit, edge-attribute edits, ownership/field policies and definition lifecycle writes; editorial Notes are separate |
+| Classification/input aids | Configurable Type-dependent Status, multi-Categories, unique codes, translated descriptions/hints and defaults |
+| Scheduling | Date-only, instant and zoned Task values, completion/progress and assignment through Access principals |
+| Lifecycle | One recycled Task per workspace for restoration; one inactive field and one inactive object with retained contents |
+| User isolation | Laboratory rights matrix, larger IT role/group matrix and small family matrix; same account can have different rights in different workspaces |
+| Presentation | Three editable designs, catalog navigation, Contact-kind child lists, Resources enabled, English/German labels and region-aware controls |
+
+Descriptions use varied scenario-specific Markdown with headings, emphasis, lists, quotes, code and links. Notes use distinct timestamped work-history entries without Markdown headings. Distribution-list Description remains a short three-line plain text. The application Journal records actual writes separately. All metadata translations are bilingual; account/group names and business contents have one language, English.
+
+## Appearance
+
+Demo uses unchanged Neutral/Geist defaults. ITextreme uses Gray/Rose, Inter/Orbitron, `#C81E3A` Light and `#F26074` Dark primary colors and the Network icon. Jürgen Schadek uses the existing cool Gray base, Sky/Cyan, Inter/Space Grotesk, primary `#0369A1` / `#7DD3FC`, neutral secondary `#F1F5F9` / `#1E293B`, and the Globe icon. These are editable standard settings, not new component presets. Exact corporate surface effects, arbitrary font/CSS uploads and real logo storage are separate work; own-logo upload remains a disabled placeholder.
+
+## Seed and recovery
+
+Run `ADMIN_EMAIL=john.doe@example.test npm run dev:seed` after provisioning the first Administrator. The CLI requires confirmation, loopback PostgreSQL port `5410`, database `xobject_dev` and no existing workspaces. Each scenario is created through the application’s ordinary validation, permission, version and journal operations. The seed refuses repeat/overwrite; an interrupted seed requires an explicit disposable-instance rebuild, not runtime compatibility or partial-seed adoption.
+
+Private relationship plans are `.local/demo-relationships.json` (ITextreme), `.local/demo-relationships-demo.json` and `.local/demo-relationships-js.json`. `.local/demo-workspaces.json` identifies the workspaces. Reapplying a current relationship plan adds no duplicate edges. Preserve a verified backup and credential receipts before an authorized development rebuild. See [development](development.md#current-database-installation-and-sql-inspection) and [ADR 0028](adr/0028-current-installation-baseline.md).
+
+Uploads, attachments, import/export, synchronization, email/notification delivery, SSO and calendar actions remain later work. Demo content does not turn planned capabilities into implemented features.

@@ -10,6 +10,8 @@ Choose a workspace in the sidebar. Search combines permitted navigation and reco
 
 Lists show the object's icon and standard fields. Search, filters, sorting, column visibility, row counts and paging are shared across views. Selection applies to the current page; it does not authorize a bulk operation. Open a row to inspect its record, or use its action menu to duplicate/recycle when permitted.
 
+The Dashboard starts with **All records**, **Contacts**, **Projects**, **Cases**, **Tasks** and **Distribution lists** filters for the available object types. Use **Add filter** to add a custom object type; selecting it filters the shared record table.
+
 ## Create or edit a record
 
 Choose **Create record**, fill the available fields and save. The object definition determines types, choices, requiredness and initial values. An optional business number is assigned transactionally; record IDs identify records independently of display names/numbers.

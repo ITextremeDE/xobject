@@ -64,11 +64,11 @@ switch (process.argv[2]) {
       const accounts = [{...administrator, role:'administrator', ...(installationAdmin?.email===administrator.email?{password:installationAdmin.password}:{}), mustChangePassword:false}, ...result.accounts.map(account=>({...account,mustChangePassword:true}))];
       for (const [path, body] of [
         ['.local/demo-accounts.json',JSON.stringify(accounts,null,2)],
-        ['.local/demo-accounts.md', '# Local fictional demo accounts\n\nWorkspaces: Demo (`demo`, standard design), ITextreme (`itx`, brand-inspired design). Default language: English.\n\n'+accounts.map(account=>`- ${account.name} — ${account.role}\n  - Email: ${account.email}\n  - ${account.mustChangePassword?'Initial password (change at first sign-in)':'Password'}: ${account.password??'Use the existing Administrator password.'}`).join('\n')+'\n'],
+        ['.local/demo-accounts.md', '# Local fictional demo accounts\n\nWorkspaces: Demo (`demo`, standard design), ITextreme (`itx`, brand-inspired design), Jürgen Schadek (`js`, personal design). Default language: English.\n\n'+accounts.map(account=>`- ${account.name} — ${account.role}\n  - Email: ${account.email}\n  - ${account.mustChangePassword?'Initial password (change at first sign-in)':'Password'}: ${account.password??'Use the existing Administrator password.'}`).join('\n')+'\n'],
       ]) { await writeFile(path,body,{mode:0o600}); await chmod(path,0o600); }
       for(const dataset of result.workspaces)await writeFile(dataset.workspaceCode==='itx'?'.local/demo-relationships.json':`.local/demo-relationships-${dataset.workspaceCode}.json`,JSON.stringify({version:1,workspaceId:dataset.workspaceId,objects:Object.fromEntries(Object.entries(dataset.objects).map(([name,model])=>[name,model.id])),links:dataset.links},null,2),{mode:0o600});
       await writeFile('.local/demo-workspaces.json',JSON.stringify(result.workspaces.map(({workspaceId,workspaceCode,workspaceName})=>({workspaceId,workspaceCode,workspaceName})),null,2),{mode:0o600});
-      console.log('Two fictional demo workspaces created, sharing the same accounts. Each has',Object.keys(result.objects).length,'active objects and',Object.values(result.records).flat().length,'records. Relationships use the application layer.');
+      console.log('Three fictional scenarios created with',accounts.length,'installation accounts. Active record counts:',result.workspaces.map(w=>`${w.workspaceCode}=${Object.values(w.records).flat().length}`).join(', '),'. Relationships use the application layer.');
     } finally { await db.destroy(); }
     break;
   }
