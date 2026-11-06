@@ -28,7 +28,7 @@ The Primary right side uses the configured level chain under ADR 0024. The objec
 
 ## Validation
 
-Disposable PostgreSQL integration tests cover directed/undirected links, symmetric no-ops, endpoint/workspace checks, minima, both sides of 1:1, Primary uniqueness/cycles, concurrent versions, definition conflicts, atomic replacement/creation, late-journal rollback, shared endpoint history, activation preflight and current initialization. The fictional seed applies the versioned plan documented in [Demo data](../demo-data.md#relationships) through common operations; repeated connection-plan application retains existing links and adds no duplicates.
+Disposable PostgreSQL integration tests cover directed/undirected links, symmetric no-ops, endpoint/workspace checks, minima, both sides of 1:1, Primary uniqueness/cycles, concurrent versions, definition conflicts, atomic replacement/creation, late-journal rollback, shared endpoint history, activation preflight and current initialization. The fictional seed applies the versioned plan documented in [Demo data](../demo-data.md#seed-and-recovery) through common operations; repeated connection-plan application retains existing links and adds no duplicates.
 
 ## Record header actions and linked creation
 
