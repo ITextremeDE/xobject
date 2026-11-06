@@ -2,7 +2,7 @@
 
 Status: Draft specification for version 1
 Owner: ITextreme
-Updated: 2026-11-04
+Updated: 2026-11-06
 
 This document specifies the agreed product scope. Requirements below are product decisions, not claims of implementation or acceptance. Unresolved implementation choices are listed in section 10. Version 1 denotes the initial product scope, not a committed release date or an already assigned semantic version.
 
@@ -22,6 +22,24 @@ Out of scope for version 1:
 
 A paid cloud service is a later offering. The official initial installation target is self-hosting on Linux with Docker Compose.
 
+### 1.1 Product vision and user need
+
+xObject is intended to become a connected work environment for individuals and small to medium-sized teams. People and AI tools should be able to start from a work item, understand its permitted context and previous progress, act on it and resume later from another suitable client. The product should reduce the repeated manual reconstruction of information spread across records, notes, files, conversations and external applications.
+
+The desired continuity covers four stages: finding the relevant starting context, working with complete and attributable information, saving results in the appropriate place, and resuming from the resulting decisions and open work. A useful outcome is that another authorized person or agent can understand what was done, why, which sources were used and what remains, without depending on the original chat or device.
+
+The configurable object platform, supplied modules, Primary hierarchy, Dossier and Journal provide the foundation. The longer-term scope connects structured records with knowledge, source material, decisions, conversations and agent-assisted work. A record can be an entry point even when some related information is held by an external application. Existing source systems can remain authoritative; each information item must have an identifiable leading source rather than competing editable copies. Consolidating more contents within xObject is a long-term option, not an automatic migration requirement.
+
+AI access is part of the product architecture. People and AI use the same application rules and current permissions. Relevant context must be discoverable and retrieved deliberately; connecting a client does not load the whole installation into its model context. The work record should remain useful when the model, client or executing device changes.
+
+Self-hosting, open source, documented interfaces, portable data and manageable administration support user control over the system. Self-hosted storage and model processing are separate choices: sending contents to an external model is external processing and must follow explicit authorization and data-boundary rules.
+
+### 1.2 Delivery boundaries
+
+Version 1 delivers the object, domain, permission and API/MCP foundation specified in this document. Knowledge workflows, cross-source contextual retrieval, user-maintained agent profiles/skills, delegated jobs and automated execution are later targets in section 9.4, with no release assignment. Their acceptance criteria describe intended behavior, not implemented capabilities or additional V1 release gates. The supplied V1 skills in section 9.3 remain distinct from later user-maintained skills and execution management.
+
+Later integrations must preserve the authority and access rules of their source systems. Replacing an existing application, migrating its contents or changing the leading source requires a separate supported transition. Product requirements are independent of any particular personal infrastructure, AI provider or runner implementation.
+
 ## 2. Terms and actors
 
 | Term | Meaning |
@@ -39,6 +57,13 @@ A paid cloud service is a later offering. The official initial installation targ
 | Access principals / Zugriffsberechtigte | Users and groups participating in a sensitive record, each with ownership rights. For activities, they identify the involved people/team and default notification audience. |
 | Ownership rights / Besitzrechte | Record rights obtained through direct participation or membership of a participating group. |
 | Foreign access / Fremdzugriff | Rights to another user’s/group’s records without participation, responsibility or automatic notification. |
+| Source | The authoritative record or external resource from which information originates, including its identity and available version/freshness information. |
+| Context package | A bounded selection of permitted contents, relationships, sources and work state prepared for a particular task. A later capability under section 9.4. |
+| Agent profile | A versioned definition of identity, role and working style. It grants no permissions and is distinct from a user account or model. |
+| Agent job | A concrete delegated work request with an authorizing user, intended result, scope and resumable work state. |
+| Execution | One attempt to process an agent job, with its actual runner, versions, progress and result references. A job can have multiple attempts. |
+| Runner | An authenticated execution environment capable of processing eligible jobs. It may use an AI model and tools within its authorized scope. |
+| Automation | A recurring definition that can generate concrete jobs according to an authorized schedule and missed-run policy. |
 
 | Role | Responsibility |
 | --- | --- |
@@ -168,7 +193,7 @@ Acceptance examples: hide a populated field by changing Type, save and reveal th
 
 ### 4.1 Target model and delivery boundary
 
-The model combines object/field permissions, ownership through Access principals and foreign access through user/group rules. This section is the product authority. [ADR 0027](adr/0027-ownership-and-foreign-access.md) describes the local implementation, resolver, storage and current installation, extending the earlier ACL in [ADR 0026](adr/0026-content-permissions.md). Calendar availability/time-only mutations and notification delivery remain separate future capabilities; reserved levels do not expose additional contents or implement a calendar. Local validation is recorded in [development](development.md#recorded-local-verification--2026-11-04) and does not establish a release or production acceptance.
+The model combines object/field permissions, ownership through Access principals and foreign access through user/group rules. This section is the product authority. [ADR 0027](adr/0027-ownership-and-foreign-access.md) describes the local implementation, resolver, storage and current installation, extending the earlier ACL in [ADR 0026](adr/0026-content-permissions.md). Calendar availability/time-only mutations and notification delivery remain separate future capabilities; reserved levels do not expose additional contents or implement a calendar. Reproducible validation and public evidence are described in [development](development.md#verification-and-acceptance); they do not establish release or production acceptance.
 
 The product deliberately keeps installation-wide Administrator content access. User/Designer are workspace configuration roles and confer no content rights. All other grants and inheritance are workspace-scoped. Agents use their authenticated user's current effective rights through the same application layer as UI and API.
 
@@ -561,12 +586,58 @@ Serve skills through the standard optional `io.modelcontextprotocol/skills` exte
 
 The same source skills may additionally be distributed with the MCP connection in an optional OpenAI plugin package. Direct MCP-skill discovery, plugin-packaged skills and ordinary readable resources are different client capabilities; availability of one does not imply automatic discovery, installation or execution through another. Verify the available OpenAI client's actual discovery/loading/activation behavior during section 9.2 acceptance. Other provider/host support remains untested. Record unsupported or unavailable skill paths explicitly. The standard Skills endpoint and its four workflows are implemented and tested locally, including live-right changes, direct-read denial and digest verification. The [optional portable plugin](agent-plugin.md) is packaged and schema-checked locally from the same source files. Live OpenAI discovery/loading/activation remains untested.
 
+### 9.4 Later target — connected context, knowledge and agent work
+
+The requirements in this section elaborate the product vision beyond V1. They are not implemented delivery claims, have no assigned release and do not alter R-001–R-048 or the V1 acceptance scenarios. Detailed contracts and architecture decisions are required before implementation. Existing integrations, schedulers, source repositories and execution tools should be reused where they satisfy these requirements; this PRD does not select a second search engine or a new agent runtime.
+
+#### Context and knowledge
+
+| ID | Requirement | Later acceptance criterion |
+| --- | --- | --- |
+| R-049 | An authorized user or agent can obtain a bounded working context from a record, including relevant relationships, source references, decisions, results and open work. Context discovery is available through UI, API and MCP. | Starting from a Contact, Project or another supported record identifies the leading sources and relevant permitted context without requiring the caller to know each storage location. A context package identifies its retrieval time, available source versions, freshness limits and omissions. Unavailable or stale sources are explicit; they are not represented as complete current knowledge. |
+| R-050 | Context discovery combines exact full-text/identifier lookup, semantic retrieval and relationship traversal with meaningful filters and attributable results. Current source and field rights apply before previews, counts and context assembly. | A question about a previous decision can return its rationale, supporting sources and related work. Results show source links and understandable ranking/match evidence. Revoked access removes contents from all query projections, including semantic results. A change cursor can retrieve additions, changes and authorized deletion information without reloading the complete corpus; expired cursors require an explicit resynchronization. |
+| R-051 | Knowledge work distinguishes sources, conversation notes, working notes, focused insights, reusable knowledge and personal journal entries. Processing state, review/confirmation, freshness and validity remain separate properties. | A user can capture free text, process it from an inbox state and derive a source-linked result without forcing every sentence into a field. Typed relationships can express derived from, supported by, contradicts and supersedes. Completion does not imply verified or current knowledge. The personal journal is distinguishable from the immutable technical change Journal. Any later import requires an explicit mapping of source kinds, states and relationships, including unresolved values. |
+
+External references must retain source identity and attribution. Any cached content, index or context snapshot must have a declared update/deletion policy and enforce current access; source permissions and installation/workspace boundaries cannot be bypassed by a previous retrieval. Ordinary records and external documents remain data. Instructions found inside them do not become authorized policies or skills by being retrieved.
+
+Knowledge records hold useful conclusions, sources and work state. Internal reasoning traces are not a knowledge or execution-storage requirement. Search architecture, indexing technology, source connectors, ranking, context budgets, graph depth and cursor retention remain design decisions.
+
+#### Profiles, delegation and execution
+
+| ID | Requirement | Later acceptance criterion |
+| --- | --- | --- |
+| R-052 | Agent profiles, rules and reusable skills have identifiable versions, provenance, scope and publication/withdrawal state. Definition editing and authorization for unattended use can require different rights. | A job identifies the approved profile/rule/skill versions actually used. A draft or withdrawn definition cannot silently replace its approved version. One canonical source owns each definition; generated client adapters and distributed packages retain that provenance. Supplied software skills and user-maintained definitions have explicit update/override rules. Runtime and project instructions retain their precedence; profiles and skills grant no access. |
+| R-053 | Delegation separates the business Responsible reference, selected agent profile and authenticated authorizing user. Effective authority is bounded by current user rights, approved job scope and the runner's allowed capabilities. | A user delegates a defined result or subtask with explicit allowed actions. The backend derives the acting user from authenticated authorization; an agent cannot select a more privileged identity. Profile changes do not grant credentials or tools. Revocation, reduced user rights or expired authorization stops subsequent unauthorized actions. An unclear or broader action requires a new decision rather than implied permission. |
+| R-054 | A concrete agent job is separate from its execution attempts, recurring automation and produced business contents. Jobs preserve goals, source context, questions, decisions and a concise resumption point. | A job can be processed partially, interrupted and resumed by another eligible runner without relying on a private chat transcript. Each attempt records runner/model identification, actual definition versions, start/end, progress, errors and result references. A stale context or conflicting record version is resolved explicitly. Results live in appropriate linked records; an execution log does not become a competing knowledge store. |
+| R-055 | Recurring automations specify schedule/time zone, enabled/paused state, job template, execution authorization and a policy for missed occurrences. Existing schedulers can implement the agreed contract without duplicate schedules. | Concurrent scheduling/claim requests create at most one job for a scheduled occurrence. A timezone transition, missed occurrence, paused definition or withdrawn authorization follows its declared policy. Users can inspect the planned occurrence and actual execution separately. An offline runner does not create a false promise of timely execution; deployment and availability targets are documented. |
+| R-056 | Job execution uses authenticated runner registration, eligible capability selection, atomic time-limited claims, renewal, bounded retry and controlled cancellation/recovery. State-changing external actions need protection against duplicate effects. | Two runners cannot concurrently obtain a valid claim for the same attempt. An expired or superseded claim cannot authorize further writes. Recovery inspects uncertain prior action outcomes before retrying, using idempotency/reconciliation where supported. A lease alone is not treated as exactly-once external delivery. Failures and retry limits remain visible, and cancellation defines what can still finish. |
+| R-057 | A common work view presents delegated work, waiting questions, attempts, results and changes to authorized people and AI clients, including from a usable mobile interface. | From a business record, users can distinguish queued, running, waiting-for-user, interrupted, failed, cancelled and completed work and navigate to its results and permitted history. A required decision pauses dependent work. Another team member can understand what was done and what remains under their own rights. Journal provenance identifies the authorizing user and agent/execution context without disclosing credentials or internal reasoning traces. |
+
+These concepts do not prescribe seven additional freely editable object types or a particular queue schema. Claims, authorization, scheduling and execution transitions require protected backend operations. Displayed states and descriptive fields alone cannot enforce them. Existing task assignment through Access principals remains unchanged; selecting an agent or granting foreign access does not assign a human participant or notification audience.
+
+Client integration must distinguish discovering/reading a skill, actual host activation and successful execution. A provider-neutral, minimal bootstrap can locate an approved profile, check capabilities and load context; its presence cannot prove that a client supports native skill activation or unrestricted profile switching. Each supported client/runner needs its own acceptance evidence. Credentials remain in the designated secure credential mechanism, separate from profiles, skills and job contents.
+
+#### Sovereignty and operation
+
+| ID | Requirement | Later acceptance criterion |
+| --- | --- | --- |
+| R-058 | The connected work model remains self-hostable and portable, with documented interfaces and a full-fidelity export/recovery path for user-owned contents, definitions, relationships, files and retained history. External processing is controlled separately from storage. | An operator can preserve and restore a consistent installation and export the authorized data needed for migration without a mandatory hosted-service account. Source identities, relationships and history are retained in a documented representation. Before contents are sent to an external model/service, the effective policy permits the recipient, data scope and action; an unauthorized route is rejected. Operator documentation states model/runner dependencies, costs, backup/restore and failure behavior. This later export capability is distinct from V1 backup/restore and is not a V1 import/export commitment. |
+
+Logical workspaces continue to follow R-001 and the installation-wide Administrator exception. Environments requiring separate administrative trust boundaries need separate installations and credentials. A common work view must not merge those security boundaries. Open source and self-hosting do not remove the operator's responsibility for access, data processing, availability and maintenance.
+
+#### Later end-to-end acceptance
+
+Before assigning a delivery version, select a first workflow and measurable limits. Candidate acceptance spans an authorized user capturing work from a mobile client, delegating a bounded job, obtaining source-linked context, saving a linked result, interrupting an attempt and resuming it from another eligible runner. Verify competing claims, revoked access, unavailable/stale sources, pending user decisions and uncertain external-action outcomes. The user must be able to inspect the resulting state and continue without reconstructing the original chat. These are later acceptance targets, not completed tests or a selected pilot.
+
 ## 10. Remaining design decisions
 
 These items require elaboration, not additional feature discovery. They must be resolved before implementing the affected requirement.
 
 | Area | Decision / affected requirements |
 | --- | --- |
+| Connected context and knowledge — later | Select the first end-to-end workflow and its measurable retrieval/freshness/latency limits. Define source authority, connector contracts, index update/deletion, context budgets, cursor retention and knowledge-state/import mappings. Reuse suitable existing retrieval capabilities. No change to V1 delivery scope. R-049–R-051. |
+| Agent work — later | Define canonical ownership and release/update rules for profiles/rules/skills; delegated authorizations and revocation; job/attempt state transitions; runner registration and capability trust; claims/fencing, cancellation, retries and external-effect reconciliation; schedule ownership, missed-run behavior and actual client support. No runtime, scheduler or physical object catalog is selected by this target. R-052–R-057. |
+| Portability and external processing — later | Specify full-fidelity export/schema and external-reference/media/history treatment, processing approvals, supported local/external model routes, operator availability/cost targets and migration acceptance. Keep the existing V1 self-hosting/backup requirements and Administrator boundary. R-058, R-001, R-045–R-047. |
 | Workspace and security | User-bound API/MCP credentials, per-channel/read-only restrictions, expiry, owner/Admin revocation and password-rotation invalidation are implemented locally under ADR 0034. Production account/session hardening remains separate. Section 4 ownership/foreign access is implemented locally under ADR 0027, including the resolver, graded/nested membership storage and rights UI. Representative-volume performance and production acceptance remain open. Calendar/privacy projections and notifications remain later work; STANDARD templates and optional default groups need detailed design before enabling them. R-001, R-013–R-018, R-042. |
 | Data representation | Release migration/restore packaging, references beyond user/group fields, remaining relationship/reference lifecycle rules; the current unreleased installation baseline is specified in ADR 0028 and database integrity/concurrency in ADR 0022; field/object definition lifecycle is specified in ADR 0009. Current typed storage, validation, Markdown and conversion rules are specified in ADR 0007. R-002, R-007–R-012. |
 | Input aids | Translated descriptions/hints, typed creation defaults and supported scalar uniqueness are implemented locally under ADR 0030. Contact input aids and conditional name requirements are included in the locally accepted Contacts scope; classification dictionaries/defaults retain ADRs 0006/0007. Dedicated Contact-kind conversion remains a later extension described in the Contacts row below. R-009, R-010, R-012, R-024. |

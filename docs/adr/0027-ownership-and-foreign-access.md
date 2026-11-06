@@ -18,7 +18,7 @@ The current installation creates the model directly under [ADR 0028](0028-curren
 
 ## Scope and verification
 
-Calendar views, busy-time projection/time-only writes, mail delivery, creation templates and per-member task completion remain separate capabilities. Their reserved rights never authorize ordinary content reads below Read. The dated [local verification](../development.md#recorded-local-verification--2026-11-04) records PostgreSQL integration/web tests, shared API/MCP enforcement, current-session revocation, policy-journal rollback, browser checks and fresh-installation readback. This is not release or production acceptance.
+Calendar views, busy-time projection/time-only writes, mail delivery, creation templates and per-member task completion remain separate capabilities. Their reserved rights never authorize ordinary content reads below Read. The [verification guide](../development.md#verification-and-acceptance) identifies integration/web tests for shared API/MCP enforcement, current-session revocation, policy-journal rollback and current initialization, together with browser acceptance procedures and public CI evidence. This is not release or production acceptance.
 
 ## Administration and limits
 

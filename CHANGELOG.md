@@ -8,6 +8,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Added
 
+- Specify the long-term connected-work vision and later requirements for source-linked context, knowledge quality, versioned agent definitions, bounded delegation, resumable jobs, automation/runner coordination and data portability. These are unassigned future targets, not implemented features or additions to V1.
 - Independent Light/Dark workspace primary/secondary colors and primary focus rings, locally served Orbitron headings, selectable workspace icons and a disabled own-logo upload preparation. Version, validate and journal the new appearance properties through the common API/MCP path.
 - Transaction-local reuse of equivalent permission explanations and indexed incident-relationship loading meet the specified 10,250-record/20-nested-group performance profile; retain per-record field restrictions and verify all 163 backend regressions.
 - Local checksummed source/installer/documentation candidate preparation and an installation-specific portable OpenAI plugin built from canonical skills; define release gates without publishing or changing client configuration.
@@ -72,6 +73,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Changed
 
+- Replace the public development work diary with current setup, reproducible verification and public CI evidence; reconcile demo guidance and references to removed chronological sections.
 - Show Contacts, Projects, Cases, Tasks and Distribution lists as the default Dashboard filters in that order; add custom object filters through Add filter.
 - Supply three distinct demo stories: an explicit feature laboratory, a managed IT company and a small family/household. Eight installation accounts have scenario-specific memberships, graded group/foreign rights, field restrictions and genuine assignment. Use workspace-prefixed business numbers (`ITx-…-1001`, `JS-…-1`), contextual custom objects, Markdown briefs, timestamped Notes, relationship-attribute history and reversible recycle-bin examples. The three editable standard/brand/personal designs remain available.
 - Expand custom-object demo Primary associations across Contacts, Projects and Cases, including inherited customer chains, internal contexts and an intentionally unassigned tool.

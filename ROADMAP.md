@@ -52,6 +52,9 @@ Every capability must use the same backend authorization, validation and journal
 
 ## Planned — Version not assigned
 
+- [Connected context and knowledge](docs/PRD.md#94-later-target--connected-context-knowledge-and-agent-work): source-linked working context, exact/semantic/relationship discovery, freshness and permission-aware change retrieval, and distinct knowledge/review states. Later target under R-049–R-051; first workflow and architecture remain to be selected.
+- Versioned agent profiles/rules/user-maintained skills, bounded delegation, resumable jobs/attempts, authorized recurring automations and authenticated runner coordination, with current rights and protection against duplicate effects. Later target under R-052–R-057; supplied V1 MCP skills remain a separate delivered foundation.
+- Full-fidelity portability/export and controlled external model processing for the connected work model under R-058. V1 self-hosting and backup/restore remain the current foundation; import/export and agent execution are not added to V1.
 - Additional explanations of module-related required-field dependencies, only when a concrete module combination needs them. Deferred beyond V1; existing required-field validation remains unchanged.
 - [Conditional field visibility](docs/PRD.md#34-planned-conditional-field-visibility) driven by Type/Status with simple AND/OR conditions, retained hidden values and conditional requiredness. Display conditions remain separate from semantic applicability and permissions; implementation is pending.
 
