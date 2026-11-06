@@ -3,6 +3,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 const en = {
+  filterWithoutType:'Without Type',classificationFilters:'Classification filters',filterByClassification:'Filter by {{name}}',filterWithoutValue:'Without value',clearClassificationFilters:'Clear filters',
   openURLInNewTab:'Open {{name}} in a new tab',
   applyChoiceSelection:'Apply selection',choiceTreeSelectionCount:'{{count}} / {{max}} selected (including ancestors)',fieldKind_tree_choice:'Selection tree',selectionTree:'Selection tree',choiceParent:'Parent item',choiceRoot:'Top level',choiceExpand:'Expand {{name}}',choiceCollapse:'Collapse {{name}}',chooseFieldValues:'Choose values for {{name}}',searchChoices:'Search choices',choiceTreeHelp:'Select one or more items. Selecting a child includes its ancestors. Clearing a parent also clears its descendants. Apply changes to the form, then save normally.',choiceListHelp:'Select one or more items. Apply changes to the form, then save normally.',choiceSelectionCount:'{{count}} / {{max}} selected',choiceHierarchyHelp:'Choose the parent of each item in its details. Active children require active ancestors. Changing a hierarchy adds missing ancestors to existing selections and journals the changes.',
 
@@ -906,6 +907,7 @@ const en = {
   workspaceHelp: 'The code prefixes the database tables and is fixed after creation.',
 };
 const de: Record<keyof typeof en, string> = {
+  filterWithoutType:'Ohne Typ',classificationFilters:'Klassifizierungsfilter',filterByClassification:'Nach {{name}} filtern',filterWithoutValue:'Ohne Wert',clearClassificationFilters:'Filter zurücksetzen',
   openURLInNewTab:'{{name}} in neuem Tab öffnen',
   applyChoiceSelection:'Auswahl übernehmen',choiceTreeSelectionCount:'{{count}} / {{max}} ausgewählt (einschließlich Vorfahren)',fieldKind_tree_choice:'Auswahlbaum',selectionTree:'Auswahlbaum',choiceParent:'Übergeordneter Eintrag',choiceRoot:'Oberste Ebene',choiceExpand:'{{name}} aufklappen',choiceCollapse:'{{name}} zuklappen',chooseFieldValues:'Werte für {{name}} auswählen',searchChoices:'Auswahlwerte suchen',choiceTreeHelp:'Wähle einen oder mehrere Einträge. Untergeordnete Einträge wählen ihre Vorfahren mit aus. Abwählen eines übergeordneten Eintrags entfernt auch seine Nachfahren. Übernimm die Auswahl ins Formular und speichere anschließend wie gewohnt.',choiceListHelp:'Wähle einen oder mehrere Einträge. Übernimm die Auswahl ins Formular und speichere anschließend wie gewohnt.',choiceSelectionCount:'{{count}} / {{max}} ausgewählt',choiceHierarchyHelp:'Wähle in den Details jedes Eintrags seine übergeordnete Ebene. Aktive Kinder benötigen aktive Vorfahren. Änderungen am Baum ergänzen fehlende Vorfahren in bestehenden Auswahlen und werden im Journal protokolliert.',
 

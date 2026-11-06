@@ -6,6 +6,7 @@
 .env
 .env.*
 **/*.env
+**/*.env.*
 **/.env
 **/.env.*
 **/backups
@@ -15,3 +16,6 @@
 apps/site
 
 apps/docs
+
+!.env.example
+!deploy/selfhost.env.example

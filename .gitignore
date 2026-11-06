@@ -10,6 +10,9 @@ coverage/
 .local/
 
 # Private self-hosting configuration.
-deploy/selfhost.env
+*.env
+*.env.*
+!.env.example
+!deploy/selfhost.env.example
 
 /apps/site/src/content/project/generated/

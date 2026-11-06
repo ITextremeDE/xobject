@@ -10,6 +10,8 @@ Choose a workspace in the sidebar. Search combines permitted navigation and reco
 
 Lists show the object's icon and standard fields. Search, filters, sorting, column visibility, row counts and paging are shared across views. Selection applies to the current page; it does not authorize a bulk operation. Open a row to inspect its record, or use its action menu to duplicate/recycle when permitted.
 
+Use **Type**, **Status** and **Category** above an object list to select one or more filter values. Values within one filter match any selection; different filters apply together. **Without value** finds unset entries. A Category parent also finds records assigned through its descendants. Type selection scopes the offered Status values. **Clear filters** removes classification filters while retaining the keyword search. Filters, order and page are retained when opening a record and returning to the list.
+
 The Dashboard starts with **All records**, **Contacts**, **Projects**, **Cases**, **Tasks** and **Distribution lists** filters for the available object types. Use **Add filter** to add a custom object type; selecting it filters the shared record table.
 
 ## Create or edit a record

@@ -35,7 +35,7 @@ import { workspaceAppearanceSchema, type WorkspaceAppearance } from './workspace
 export * from './workspace-appearance.js';
 import { customFieldKindSchema, fieldConfigSchema, fieldValueSchema, type CustomFieldKind, type FieldConfig, type FieldValue, type FieldPrincipal } from './field-types.js';
 export * from './field-types.js';
-import { classificationRulesSchema, classificationValuesSchema, type ClassificationConfig } from './classification.js';
+import { classificationRulesSchema, classificationValuesSchema, classificationFiltersSchema, type ClassificationConfig } from './classification.js';
 export * from './classification.js';
 
 const uuid = uuidSchema;
@@ -120,7 +120,7 @@ export const schemas = {
   list_object_types: z.object({ workspaceId: uuid, includeInactive: z.boolean().default(false), includeDeleted: z.boolean().default(false) }).strict(),
   get_workspace_dashboard: z.object({ workspaceId: uuid, days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(90) }).strict(),
   list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['record_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
-  list_records: z.object({ objectTypeId: uuid, contactKindId:uuid.optional(), query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
+  list_records: z.object({ objectTypeId: uuid, classificationFilters:classificationFiltersSchema.default({}), contactKindId:uuid.optional(), query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(3).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
   add_standard_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => args.field === 'keyword' ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
   create_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid.optional(),relationshipTypeId:uuid.optional(), applicability: fieldApplicabilitySchema.optional(), technicalName, labels, kind: customFieldKindSchema.default('text'), config: fieldConfigSchema.optional(), required: z.boolean().default(false) }).strict().refine(v=>Boolean(v.objectTypeId)!==Boolean(v.relationshipTypeId),'Exactly one field owner is required'),

@@ -1,8 +1,10 @@
+import {classificationFilterPredicate} from './record-filters.js';
 import {closeChoiceSelection} from '@xobject/contracts';
 import {withChangeNotifications} from './change-notifications.js';
-import {validateOAuthContext,manageOAuth} from './oauth.js';
+import {manageOAuth} from './oauth.js';
+import {validateRequestContext} from './request-context.js';
 import {permanentlyDeleteRecord,deletedRecordIdentity,listDeletedRecords} from './record-deletion.js';
-import {ApiCredentials,credentialOperation,validateCredentialContext,type RequestContext} from './api-credentials.js';
+import {ApiCredentials,credentialOperation,type RequestContext} from './api-credentials.js';
 import {activityObjectKeys,isActivityObject} from './activity.js';
 import {recordIconExpression,objectRecordIcon} from './record-icons.js';
 import {getNavigation,configureNavigation} from './navigation.js';
@@ -77,8 +79,7 @@ export class Application {
     try {
       return await this.db.transaction().execute(async (tx) => withChangeNotifications(tx,()=>withContentAccess(tx,userId,async()=>{
         await lockOperation(tx, operation, parsed as Record<string, unknown>);
-        await validateCredentialContext(tx,userId,operation,context);
-        await validateOAuthContext(tx,userId,operation,context);
+        await validateRequestContext(tx,userId,operation,context);
         await sql`SELECT set_config('xobject.actor_id',${userId},true),set_config('xobject.channel',${context?.channel??'internal'},true),set_config('xobject.credential_id',${context?.credentialId??context?.oauthTokenId??''},true),set_config('xobject.agent_name',${context?.agentName??''},true)`.execute(tx);
         const access = await this.authorize(tx, operation, parsed as Record<string, unknown>, userId);
         if(operation==='list_oauth_authorizations'||operation==='revoke_oauth_authorization'){const args=parsed as {clientId?:string};return manageOAuth(tx,operation,userId,context,args.clientId,before=>this.journal(tx,userId,null,null,'account_security',userId,v7(),'oauth_revoked',before,true));}
@@ -268,7 +269,8 @@ export class Application {
             const permittedSearch=await contentAccess().keywordValue(type.id),numberSearch=await contentAccess().fieldValueByName(type.id,'record_number');
             let contactFilter=sql`true`;
             if(args.contactKindId){const profile=await contactProfile(tx,type.id),kind=sortableFields.find(f=>f.id===profile?.fields.contact_kind);if(!profile||!kind||!Object.values(profile.kinds).includes(args.contactKindId))throw new AppError(400,'Unknown Contact kind');if(!policy.field(kind.id).read)throw new AppError(403,'Cannot filter an unreadable field');contactFilter=sql`${await contentAccess().fieldValueByName(type.id,kind.technical_name)}=${args.contactKindId}::uuid`;}
-            const predicate = sql`${policy.predicate()} AND ${contactFilter} AND (position(lower(${args.query}) in lower(${permittedSearch})) > 0 OR position(lower(${args.query}) in lower(${numberSearch})) > 0)`;
+            const classificationFilter=classificationFilterPredicate(type.classification,sortableFields,args.classificationFilters,policy);
+            const predicate = sql`${policy.predicate()} AND ${contactFilter} AND ${classificationFilter} AND (position(lower(${args.query}) in lower(${permittedSearch})) > 0 OR position(lower(${args.query}) in lower(${numberSearch})) > 0)`;
             const total = (await sql<{ total: number }>`SELECT count(*)::integer AS total FROM ${sql.table(tableName(type))} WHERE ${predicate}`.execute(tx)).rows[0].total;
             const records = (await sql`SELECT *, ${await recordIconExpression(tx,type.id)} AS "iconKey" FROM ${sql.table(tableName(type))} WHERE ${predicate}
               ORDER BY ${sortExpression} ${direction} NULLS LAST, id LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;

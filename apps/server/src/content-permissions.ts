@@ -15,6 +15,14 @@ export const withContentAccess=<T>(tx:Executor,actor:string,run:()=>Promise<T>)=
 export function contentAccess(){const access=scope.getStore();if(!access)throw new Error('Content access requires an application transaction');return access;}
 const rank=(level:ContentLevel|null|undefined)=>accessRank(level??'none');
 export const contentCapabilities=(level:number,create=false):ContentCapabilities=>({read:level>=2,edit:level>=5,delete:level>=6,full:level>=7,duplicate:level>=3,schedule:level>=4,create});
+// Eligibility depends on the administrative object ceiling, not ownership of existing records.
+// Both full record-policy loading and principal selection use this exact finite resolver.
+function objectCeiling(actor:string,user:{active:boolean;is_admin:boolean}|undefined,member:boolean,grants:ContentGrant[],members:Awaited<ReturnType<typeof securityGraph>>['members']){
+ const groups=[...membershipRights(actor,members).keys()];
+ const admin=Boolean(user?.active&&user.is_admin),level=!user?.active?0:admin?7:!member?0:rank(resolveContentRule(grants,actor,groups).level);
+ const own=grants.find(g=>g.kind==='user'&&g.id===actor),canCreate=admin||Boolean(member&&user?.active&&(own?.create??grants.some(g=>g.kind==='group'&&groups.includes(g.id)&&g.create===true)));
+ return {groups,admin,level,canCreate};
+}
 export class ObjectAccess {
  constructor(readonly id:string,readonly workspace:string,readonly sensitive:boolean,readonly admin:boolean,readonly level:number,readonly grants:ContentGrant[],readonly groups:string[],readonly actor:string,readonly create:boolean,readonly records:Map<string,{policy:RecordSecurity;access:AccessExplanation;deleted?:boolean}>){ }
  get capabilities(){return contentCapabilities(this.level,this.create);}
@@ -60,10 +68,9 @@ export class ContentAccess {
   const model=(await sql<{workspace_id:string;is_sensitive:boolean;name:string;state:string}>`SELECT o.workspace_id,o.is_sensitive,o.state,w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid`.execute(this.tx)).rows[0];if(!model)throw new AppError(404,'Object type not found');
   const user=(await sql<{is_admin:boolean;active:boolean}>`SELECT is_admin,active FROM sys_users WHERE id=${this.actor}`.execute(this.tx)).rows[0];
   const member=(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${model.workspace_id}::uuid AND user_id=${this.actor}`.execute(this.tx)).rows.length>0;
-  const graph=await securityGraph(this.tx,model.workspace_id),membership=membershipRights(this.actor,graph.members),groups=[...membership.keys()];
+  const graph=await securityGraph(this.tx,model.workspace_id);
   const grants=(await sql<{principal_kind:'user'|'group';principal_id:string;level:ContentLevel|null;can_create:boolean|null;fields:ContentGrant['fields']}>`SELECT principal_kind,principal_id,level,can_create,fields FROM sys_content_grants WHERE object_type_id=${id}::uuid`.execute(this.tx)).rows.map(g=>({kind:g.principal_kind,id:g.principal_id,level:g.level,create:g.can_create,fields:g.fields}));
-  const admin=Boolean(user?.active&&user.is_admin),level=!user?.active?0:admin?7:!member?0:rank(resolveContentRule(grants,this.actor,groups).level);
-  const own=grants.find(g=>g.kind==='user'&&g.id===this.actor),canCreate=admin||Boolean(member&&user?.active&&(own?.create??grants.some(g=>g.kind==='group'&&groups.includes(g.id)&&g.create===true)));
+  const {admin,level,groups,canCreate}=objectCeiling(this.actor,user,member,grants,graph.members);
   const records=new Map<string,{policy:RecordSecurity;access:AccessExplanation;deleted?:boolean}>();
   if(model.is_sensitive&&model.state!=='deleted'){
    const rows=(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT r.id,s.policy FROM ${sql.table(model.name)} r LEFT JOIN sys_record_security s ON s.object_type_id=${id}::uuid AND s.record_id=r.id`.execute(this.tx)).rows;
@@ -122,9 +129,10 @@ export class ContentAccess {
  }
  async checkWrites(id:string,data:Record<string,unknown>,previous?:Record<string,unknown>){const p=await this.policy(id),recordId=typeof previous?.id==='string'?previous.id:undefined;for(const f of await this.fields(id)){if(!Object.hasOwn(data,f.technical_name))continue;if(f.value_mode==='derived')throw new AppError(403,'Derived field cannot be assigned');if(!(recordId?p.field(f.id,recordId).edit:p.creationField(f.id)))throw new AppError(403,'Field edit denied');}}
  async eligiblePrincipals(id:string){
-  const p=await this.policy(id);const users=(await sql<{id:string;name:string}>`SELECT u.id,u.name FROM sys_users u WHERE u.active AND (u.is_admin OR EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.user_id=u.id AND m.workspace_id=${p.workspace}::uuid)) ORDER BY u.name,u.id`.execute(this.tx)).rows;
+  const p=await this.policy(id),graph=await securityGraph(this.tx,p.workspace);
+  const users=(await sql<{id:string;name:string;active:boolean;is_admin:boolean;member:boolean}>`SELECT u.id,u.name,u.active,u.is_admin,EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.user_id=u.id AND m.workspace_id=${p.workspace}::uuid) AS member FROM sys_users u WHERE u.active AND (u.is_admin OR EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.user_id=u.id AND m.workspace_id=${p.workspace}::uuid)) ORDER BY u.name,u.id`.execute(this.tx)).rows;
   const result:{kind:'user'|'group';id:string;name:string}[]=[];
-  for(const u of users){const cap=(await new ContentAccess(this.tx,u.id).policy(id)).capabilities;if(cap.read||cap.create)result.push({kind:'user',...u});}
+  for(const u of users){const ceiling=objectCeiling(u.id,u,u.member,p.grants,graph.members),cap=contentCapabilities(ceiling.level,ceiling.canCreate);if(cap.read||cap.create)result.push({kind:'user',id:u.id,name:u.name});}
   for(const group of (await sql<{id:string;name:string}>`SELECT id,name FROM sys_groups WHERE workspace_id=${p.workspace}::uuid AND active ORDER BY name,id`.execute(this.tx)).rows)if(p.grants.some(g=>g.kind==='group'&&g.id===group.id&&(rank(g.level)>=2||g.create===true)))result.push({kind:'group',...group});return result;
  }
 

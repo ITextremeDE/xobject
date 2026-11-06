@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 trap 'printf "xObject operator failed at line %s. Check the private diagnostic; preserve the stopped state.\n" "$LINENO" >&2' ERR
 umask 077
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd "$(dirname "$0")/.." && pwd -P)
 ENV_FILE=${XOBJECT_ENV_FILE:-$ROOT/deploy/selfhost.env}
 PROJECT=${XOBJECT_PROJECT_NAME:-xobject}
 [[ $PROJECT =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo 'Invalid Compose project name.' >&2; exit 1; }
@@ -19,6 +19,17 @@ checksum() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasu
 checksum_check() { if command -v sha256sum >/dev/null; then sha256sum -c SHA256SUMS; else shasum -a 256 -c SHA256SUMS; fi; }
 image_id() { docker image inspect "$(setting XOBJECT_IMAGE)" --format '{{.Id}}'; }
 operator() { compose run --rm -T operator "$@"; }
+private_recovery_file() {
+  local directory=${XOBJECT_RECOVERY_DIR:-${XDG_STATE_HOME:-${HOME:?HOME or XOBJECT_RECOVERY_DIR is required}/.local/state}/xobject/$PROJECT/recovery} resolved
+  mkdir -p "$directory"
+  resolved=$(cd "$directory" && pwd -P)
+  # .local is explicitly excluded from both the source archive and Docker context.
+  if [[ $resolved == "$ROOT" || $resolved == "$ROOT/"* && $resolved != "$ROOT/.local/"* ]]; then
+    echo 'Recovery directory must be outside the installation source, or under its private .local directory.' >&2; return 1
+  fi
+  chmod 700 "$resolved"
+  mktemp "$resolved/$1.env.XXXXXX"
+}
 backup() {
   local directory=$1 was_running=0 running
   [[ ! -e $directory ]] || { echo 'Backup target already exists; choose a new directory.' >&2; return 1; }
@@ -97,8 +108,11 @@ CONFIG
     compose stop app proxy
     existing=$(compose exec -T db psql -X -v ON_ERROR_STOP=1 -At -U xobject -d xobject -c "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
     if [[ $existing != 0 ]]; then backup "${bundle}-before-restore-$(date -u +%Y%m%dT%H%M%SZ)"; fi
-    cp "$ENV_FILE" "${ENV_FILE}.before-restore-$(date -u +%Y%m%dT%H%M%SZ)"
+    preserved_env=$(private_recovery_file before-restore)
+    cp "$ENV_FILE" "$preserved_env"
+    printf 'Previous installation configuration retained: %s\n' "$preserved_env"
     cp "$bundle/install.env" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
     # A restore remains stopped until target verification succeeds and the operator starts it.
     compose exec -T db psql -X -v ON_ERROR_STOP=1 -U xobject -d postgres -c 'DROP DATABASE xobject WITH (FORCE)' -c 'CREATE DATABASE xobject OWNER xobject'
     compose exec -T db pg_restore --no-owner --no-acl --exit-on-error --single-transaction -U xobject -d xobject < "$bundle/database.dump"
@@ -112,7 +126,9 @@ CONFIG
     docker image inspect "$2" >/dev/null 2>&1 || docker pull "$2"
     compose stop app proxy
     backup "$3"
-    replacement=$(mktemp "${ENV_FILE}.upgrade.XXXXXX")
+    # Keep replacement on the same filesystem for atomic mv, with an explicitly
+    # private name excluded from Git, source packaging and Docker context.
+    replacement=$(mktemp "$(dirname "$ENV_FILE")/.env.xobject-upgrade.XXXXXX")
     while IFS= read -r line; do case "$line" in XOBJECT_IMAGE=*) printf 'XOBJECT_IMAGE=%s\n' "$2";; *) printf '%s\n' "$line";; esac; done < "$ENV_FILE" > "$replacement"
     mv "$replacement" "$ENV_FILE"
     # No released predecessor exists yet. Unknown source schemas fail closed.
@@ -130,6 +146,7 @@ xObject installation operator
   restore BACKUP_DIRECTORY --confirm-restore
   upgrade IMMUTABLE_IMAGE NEW_BACKUP_DIRECTORY
 
+XOBJECT_RECOVERY_DIR selects private pre-restore configuration recovery storage.
 XOBJECT_ENV_FILE, XOBJECT_PROJECT_NAME and XOBJECT_COMPOSE_OVERRIDE select an
 explicit installation. Failed restore/upgrade operations leave the app stopped.
 HELP

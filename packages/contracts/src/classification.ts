@@ -11,6 +11,10 @@ export const classificationRulesSchema = z.object({
   category: z.object({ required: z.boolean(), multiple: z.boolean(), tree:z.boolean().optional(), defaultIds: ids }).strict(),
   options: z.array(z.object({ id, kind: z.enum(['type', 'status', 'category']), parentId:id.nullable().optional(), labels, active: z.boolean(), meaning:z.enum(['open','in_progress','done','canceled']).optional(), typeId: id.nullable() }).strict()).max(300),
 }).strict();
+/** List filters use OR within one field and AND across fields; null selects an empty value. */
+const filterChoices = z.array(id.nullable()).max(100).refine(value => new Set(value).size === value.length, 'Duplicate filter choices');
+export const classificationFiltersSchema = z.object({type:filterChoices.optional(),status:filterChoices.optional(),category:filterChoices.optional()}).strict();
+export type ClassificationFilters = z.infer<typeof classificationFiltersSchema>;
 export const classificationValuesSchema = z.object({ type: id.nullable().optional(), status: id.nullable().optional(), category: ids.optional() }).strict();
 export type ClassificationRules = z.infer<typeof classificationRulesSchema>;
 export type ClassificationOption = ClassificationRules['options'][number] & { label?: string; canDelete?: boolean };

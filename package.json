@@ -26,9 +26,13 @@
     "api:check": "node scripts/generate-api-contract.mjs --check",
     "measure:permissions": "npm run build --workspace @xobject/contracts && node --import tsx scripts/measure-permissions.ts",
     "plugin:prepare": "node scripts/prepare-openai-plugin.mjs",
-    "test:packaging": "node --test scripts/test-packaging.mjs"
+    "test:packaging": "node --test scripts/test-packaging.mjs",
+    "test:browser": "node --import tsx --test scripts/test-browser.mjs",
+    "measure:v1-paths": "npm run build --workspace @xobject/contracts && node --import tsx scripts/measure-v1-paths.ts",
+    "test:benchmark-cleanup": "node --import tsx --test scripts/test-benchmark-cleanup.ts"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "typescript-json-schema": "0.68.0"
   },
   "overrides": {

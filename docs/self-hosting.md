@@ -45,7 +45,7 @@ A backup contains application contents, account hashes, encrypted/hashed credent
 
 ## Restore
 
-Use the backup's matching image and installation configuration. On a new host, put `install.env` at the configured private path **before** starting the dedicated empty database so credentials match. On the original installation, the operator preserves the current database/configuration as additional recovery artifacts before replacement.
+Use the backup's matching image and installation configuration. On a new host, put `install.env` at the configured private path **before** starting the dedicated empty database so credentials match. On the original installation, the operator preserves the current database/configuration as additional recovery artifacts before replacement. The previous configuration is retained with mode `0600` in `${XDG_STATE_HOME:-$HOME/.local/state}/xobject/<project>/recovery`, inside a mode `0700` directory. Set `XOBJECT_RECOVERY_DIR` to select another private recovery directory outside the installation source; its ignored `.local` directory is also accepted for isolated tests. Existing recovery copies are never pruned. Upgrade replacement files use a private `.env.xobject-upgrade.*` name beside the configuration so replacement stays atomic on the same filesystem; Git, Docker context and source packaging exclude that name.
 
 ```sh
 ./scripts/xobject restore /private/backups/xobject-YYYYMMDD-HHMMSS --confirm-restore
@@ -79,7 +79,7 @@ This uses a random Compose project, loopback port, isolated fictional account/da
 
 `/healthz` checks database availability after startup fingerprint validation. Operator output reports aggregate verification results. Request logs exclude cookies, authorization, query strings and bodies. Authentication diagnostics retain only severity and a bounded SQLSTATE/code, excluding vendor messages/arguments; never paste private configuration, archives or diagnostic payloads into a public issue.
 
-`XOBJECT_ENV_FILE`, `XOBJECT_PROJECT_NAME` and an optional `XOBJECT_COMPOSE_OVERRIDE` explicitly select an installation. `XOBJECT_START_SERVICES=app` supports isolated loopback acceptance without Caddy. Stop/start/restore/upgrade always act on that selected Compose project. Backups and existing volumes are retained unless an operator deliberately removes them.
+`XOBJECT_ENV_FILE`, `XOBJECT_PROJECT_NAME` and an optional `XOBJECT_COMPOSE_OVERRIDE` explicitly select an installation. `XOBJECT_RECOVERY_DIR` overrides the private pre-restore configuration recovery location. `XOBJECT_START_SERVICES=app` supports isolated loopback acceptance without Caddy. Stop/start/restore/upgrade always act on that selected Compose project. Backups and existing volumes are retained unless an operator deliberately removes them.
 
 The separate proxy acceptance binds only loopback, uses Caddy’s local certificate authority and trusts that CA only inside the test client. It verifies the supplied proxy/backend topology, secure cookies, trusted client-IP replacement, same-origin API checks and HTTPS OAuth discovery. It neither changes the Mac trust store nor uses public DNS or ACME. Run these isolated Compose tests sequentially because the documented default subnet is shared.
 

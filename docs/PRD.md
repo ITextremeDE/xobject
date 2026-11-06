@@ -447,6 +447,14 @@ Project Target date cannot precede Start date; equal dates are valid. Task Start
 
 Task Status options can carry an explicit meaning: Open, In progress, Done or Canceled, independently of translated labels and Type scopes. No status/default is forced. Done requires Progress 100 and Completed at; another or empty Status permits neither 100 nor Completed at. Progress otherwise remains optional, an integer 0–99. Selecting Done visibly proposes 100 and the current completion instant; the instant remains editable. Leaving Done clears Completed at and clears Progress only when it is 100. These proposals affect the local draft and persist together through ordinary Save with the same field rights, source version and per-field journal transaction. API/MCP supply the consistent final values explicitly. Configuration changes preflight current and recycled Tasks. Series, attendees, organizer, invitations and notification delivery remain later work.
 
+#### Potential later nesting of Projects, Cases and Tasks
+
+Outside V1, with no release assignment: evaluate same-type nesting as Subprojects, Subcases and Subtasks (Unterprojekte, Untervorgänge and Unteraufgaben). These remain records of the existing object types, rather than additional supplied object types.
+
+| ID | Requirement | Acceptance criterion |
+| --- | --- | --- |
+| R-062 | A potential later extension allows Projects within Projects, Cases within Cases and Tasks within Tasks. | Before implementation, specify how same-type parents coexist with Primary association and its tree, prevent cycles and define reparenting and lifecycle behavior. Any aggregation of dates, progress or completion needs an explicit rule; nesting does not itself grant access. This is an exploration, not part of V1 or an implementation commitment. |
+
 ### 6.3 Domain profile completion and functional boundaries
 
 For the object types outside the five standards-aligned profiles in section 6.4, supply lean, usable starting templates: shared platform fields, only the essential additional fields and a small set of meaningful relationships. Preserve already agreed domain fields/rules; do not expand templates into comprehensive industry models. Start optional unless a field or relationship is necessary for the agreed domain meaning or integrity. Use configurable input aids and editable form proposals rather than hard-coded specialist workflows or speculative automation.
@@ -491,8 +499,8 @@ Acceptance for domain delivery checks preservation of structured/repeated contac
 
 | ID | Requirement | Acceptance criterion |
 | --- | --- | --- |
-| R-030 | Every type provides a searchable, sortable table with Type/Status/Category filters and personal column settings. V1 persists column visibility; personal column order and widths are deferred to V2. | Column visibility persists for the respective user in V1. V2 additionally persists order and widths. Filtering and sorting do not expose restricted records or values. |
-| R-031 | Record details provide a form, Journal and Dossier. The active Projects module additionally provides Primary association and its expandable hierarchy tree. Module forms select relevant fields. | A user opens the same record from two modules without changing its identity; required missing fields follow R-006. Dossier includes accessible incoming/outgoing links and Primary association. |
+| R-030 | Every type provides a searchable, sortable table with Type/Status/Category filters and personal column settings. V1 persists column visibility; personal column order and widths are deferred to V2. | Column visibility persists for the respective user in V1. V2 additionally persists order and widths. Type/Status/Category filters combine multiple selected values with OR within each field and AND between fields; an explicit empty-value choice is available. Category matches at least one selected value, using stored ancestor closure for trees. Type filters scope Status choices; incompatible retained Status filters are cleared in the UI. Search/filter/order/page state is URL-based. Filtering and sorting do not expose restricted records or values; field visibility is applied before counts and pagination. |
+| R-031 | Record details provide a form, Journal and Dossier. The active Projects module additionally provides Primary association and its expandable hierarchy tree. Module contributions use one common object form; supplied Contact cores depend on Contact kind. | A user opens the same record from two modules without changing its identity; required missing fields follow R-006. Dossier includes accessible incoming/outgoing links and Primary association. |
 | R-032 | The Projects tree starts at the currently opened record and is generated exclusively from real Primary associations, descending from parent to child. | A direct Contact Task appears directly under the Contact. A Project view begins at that Project, a Case view at that Case. Missing levels are not invented. Compact rows show only authorized status captions. Expand all loads remaining pages/branches sequentially within the same limits, supports cancellation and ignores late responses after cancellation; Collapse all closes the branches and restores root focus. |
 | R-033 | The tree is available only with the active Projects module. General/custom links do not generate tree branches; defensive traversal limits and per-record permissions apply. | With Projects disabled there is no Tree tab and the shared tree API/MCP operation is unavailable. Parallel General/custom links do not duplicate Primary children; these links remain available in the Dossier. |
 | R-048 | Workspace navigation has configurable module sections, object entries and filtered child lists. Administrators/Designers manage workspace defaults; users manage their personal arrangement. Resources is initially visible and can be hidden as a whole block. | Order and visibility persist through UI/API/MCP with optimistic versions and atomic journals. Shared Contacts appear in both modules with the same records and separate navigation identities; Organization/Contact-person/Individual lists apply authorized filters before counts/paging. Sort with pointer or keyboard controls; restore inherited defaults without data loss. |
@@ -510,6 +518,14 @@ Navigation structure, permissions, persistence, filtered Contact lists and shadc
 | R-061 | Later, explicitly configured public viewing may expose selected workspace/record content and appropriate public previews. | Define anonymous principals, object/field permissions, lifecycle/revocation, indexing and preview-cache policy before enabling it. Existing private sharing remains authorized-only. This is beyond V1. |
 
 [ADR 0036](adr/0036-browser-presence-and-live-updates.md) defines the implemented private browser shell, bounded live transport and draft behavior. Public reading, public workspaces and record-specific public previews remain later scope. Browser/OS installation and native sharing support follow the client platform; V1 adds no offline business-data cache.
+
+### 7.2 Planned record browsing within a list
+
+Later, outside V1 and without a release assignment, record details will offer Previous/Next navigation within the list from which the record was opened.
+
+| ID | Requirement | Acceptance criterion |
+| --- | --- | --- |
+| R-063 | Browse between records in the detail view using the originating list's filters and sort order. | Previous/Next follows the complete filtered, ordered result, including across table pages, and respects current record/field rights. Preserve the list context when returning, guard unsaved changes before switching records and disable navigation at the respective result boundary. Directly opened records without a list context must not silently use an unrelated list. |
 
 ## 8. Journal and lifecycle
 
