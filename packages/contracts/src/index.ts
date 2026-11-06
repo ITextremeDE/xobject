@@ -50,6 +50,8 @@ const definitionState = z.enum(['active', 'inactive', 'deleted']);
 const workspaceRole = z.enum(['user', 'designer']);
 const recordSecurityWrite = z.object({policy:recordSecuritySchema,confirmPublic:z.boolean().default(false)}).strict();
 export const schemas = {
+  list_oauth_authorizations:z.object({}).strict(),
+  revoke_oauth_authorization:z.object({clientId:z.string().min(1).max(2048)}).strict(),
   list_api_credentials:z.object({userId:z.string().min(1).max(100).optional()}).strict(),
   create_api_credential:z.object({name:z.string().trim().min(1).max(100),expiresAt:z.iso.datetime({offset:true}),channels:z.array(z.enum(['api','mcp'])).min(1).max(2).refine(items=>new Set(items).size===items.length),readOnly:z.boolean().default(false),currentPassword:z.string().min(1).max(128)}).strict(),
   revoke_all_api_credentials:z.object({userId:z.string().min(1).max(100).optional()}).strict(),
@@ -162,6 +164,8 @@ export interface SystemJournalEntry extends JournalEntry { entity_kind: string; 
 export interface RecycledRecord extends WorkspaceRecord {recycled_at:string;recycled_by:string;recycledByName:string;canRestore:boolean}
 export interface WorkspaceRecord { iconKey?:import('./record-icons.js').RecordIconKey; business_number?:string|null; id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
+  list_oauth_authorizations:{clientId:string;name:string;scopes:string[];createdAt:string}[];
+  revoke_oauth_authorization:{revoked:boolean};
   list_api_credentials:ApiCredential[];
   create_api_credential:{credential:ApiCredential;token:string};
   revoke_all_api_credentials:{revokedCredentials:number};

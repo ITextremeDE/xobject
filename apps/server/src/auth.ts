@@ -1,3 +1,4 @@
+import { oauthPlugins } from './oauth.js';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import type { Pool } from 'pg';
 import { v7 } from 'uuid';
@@ -8,10 +9,18 @@ export const passwordCrypto = { hash: hashPassword, verify: verifyPassword };
 export function authOptions(pool: Pool, secret: string, baseURL: string, allowLocalProvisioning = false) {
   return {
     appName: 'xObject',
+    // Vendor diagnostics may carry database statements or authentication bodies.
+    // Keep operational severity/SQLSTATE, never serialize vendor messages/args.
+    logger: {level:'warn',log:(level,_message,...args)=>{
+      const sqlState=args.map(value=>value&&typeof value==='object'?'code' in value?value.code:undefined:undefined).find(code=>typeof code==='string'&&/^[0-9A-Z]{5}$/.test(code));
+      console.error(JSON.stringify({component:'authentication',level,code:sqlState??'AUTH_DIAGNOSTIC'}));
+    }},
+    plugins: oauthPlugins(baseURL),
     database: pool,
     secret,
     baseURL,
     trustedOrigins: [new URL(baseURL).origin],
+    rateLimit: {enabled:!allowLocalProvisioning,storage:'database',modelName:'sys_auth_rate_limits',fields:{lastRequest:'last_request'},window:60,max:100,customRules:{'/sign-in/email':{window:60,max:10}}},
     emailAndPassword: { enabled: true, autoSignIn: !allowLocalProvisioning, disableSignUp: !allowLocalProvisioning, minPasswordLength: 12, maxPasswordLength: 128, password: passwordCrypto },
     user: {
       modelName: 'sys_users',
@@ -26,7 +35,7 @@ export function authOptions(pool: Pool, secret: string, baseURL: string, allowLo
     },
     databaseHooks: { session: { create: { before: async session => { const result = await pool.query('SELECT active FROM sys_users WHERE id = $1', [session.userId]); if (result.rows[0]?.active === false) return false; return { data: session }; } } } },
     session: {
-      modelName: 'sys_sessions', cookieCache: { enabled: false },
+      modelName: 'sys_sessions', expiresIn:86400,updateAge:3600,freshAge:900,cookieCache: { enabled: false },
       fields: {
         userId: 'user_id', expiresAt: 'expires_at', createdAt: 'created_at',
         updatedAt: 'updated_at', ipAddress: 'ip_address', userAgent: 'user_agent',
@@ -45,7 +54,7 @@ export function authOptions(pool: Pool, secret: string, baseURL: string, allowLo
       modelName: 'sys_verifications',
       fields: { expiresAt: 'expires_at', createdAt: 'created_at', updatedAt: 'updated_at' },
     },
-    advanced: { database: { generateId: () => v7() } },
+    advanced: { ipAddress:{ipAddressHeaders:['x-xobject-client-ip']},defaultCookieAttributes:{httpOnly:true,sameSite:'lax',secure:new URL(baseURL).protocol==='https:'},database: { generateId: () => v7() } },
   } satisfies BetterAuthOptions;
 }
 

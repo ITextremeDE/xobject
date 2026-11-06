@@ -1,3 +1,4 @@
+import {revokeUserOAuth} from './oauth.js';
 import { sql } from 'kysely';
 import { v7 } from 'uuid';
 import type { Executor } from './database.js';
@@ -27,6 +28,7 @@ export async function configureUser(tx: Executor, args: Inputs['configure_user']
     await sql`UPDATE sys_users SET name = ${args.name}, active = ${args.active}, is_admin = ${args.isAdmin}, management_version = management_version + 1, updated_at = now() WHERE id = ${args.userId}`.execute(tx);
     for (const item of changes) await journal('user', args.userId, change, item.key, item.before, item.after);
     if (!args.active) {
+      await revokeUserOAuth(tx,args.userId);
       const tokens=(await sql<{id:string}>`UPDATE sys_api_credentials SET revoked_at=clock_timestamp() WHERE user_id=${args.userId} AND revoked_at IS NULL RETURNING id`.execute(tx)).rows;for(const token of tokens)await journal('api_credential',token.id,change,'revoked',false,true);
       const sessions = (await sql<{ id: string }>`DELETE FROM sys_sessions WHERE user_id = ${args.userId} RETURNING id`.execute(tx)).rows;
       for (const session of sessions) await journal('session', session.id, change, 'revoked', false, true);

@@ -1,3 +1,4 @@
+import {OAuthAuthorization} from '@/components/oauth-authorization';
 import {toast} from '@/components/ui/toast';
 import {WorkspaceLoading} from '@/components/loading';
 import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react';
@@ -28,5 +29,6 @@ export default function App() {
   if (session.isError) return <main className="mx-auto max-w-xl p-8"><ErrorNotice error={session.error} retry={() => { void session.refetch(); }} /></main>;
   if (!session.data) return <Login onSuccess={() => { void client.invalidateQueries({ queryKey: ['session'] }); }} />;
   if (session.data.user.mustChangePassword) return <InitialPassword user={session.data.user} onSignOut={forgetSession} />;
+  if(['/oauth/login','/oauth/consent'].includes(window.location.pathname))return <OAuthAuthorization/>;
   return <WorkspaceBoundary><Suspense fallback={<WorkspaceLoading />}><WorkspaceApp key={session.data.user.id} user={session.data.user} onSignOut={forgetSession} /></Suspense></WorkspaceBoundary>;
 }

@@ -1,0 +1,78 @@
+services:
+  db:
+    image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    environment:
+      POSTGRES_DB: xobject
+      POSTGRES_USER: xobject
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U xobject -d xobject"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  app:
+    image: ${XOBJECT_IMAGE:?Set an immutable release image or a local acceptance image}
+    environment: &application
+      DATABASE_URL: postgres://xobject_app:${RUNTIME_DATABASE_PASSWORD:?Set RUNTIME_DATABASE_PASSWORD}@db:5432/xobject
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
+      BASE_URL: ${BASE_URL:?Set BASE_URL}
+      LISTEN_HOST: 0.0.0.0
+      PORT: "4100"
+      TRUSTED_PROXIES: ${PROXY_ADDRESS:-172.30.61.2}/32
+    depends_on:
+      db: {condition: service_healthy}
+    networks:
+      backend:
+        aliases: [xobject-backend]
+      edge: {}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  operator:
+    image: ${XOBJECT_IMAGE:?Set XOBJECT_IMAGE}
+    profiles: [tools]
+    environment:
+      <<: *application
+      OPERATOR_DATABASE_URL: postgres://xobject:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/xobject
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [backend]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: [node, apps/server/dist/cli.js]
+    command: [verify-installation]
+  proxy:
+    image: caddy:2-alpine@sha256:8652f54d3ef21e120f78f3c6b396bcf7d3fc8f999cece30cd35490430da89430
+    environment:
+      XOBJECT_HOST: ${XOBJECT_HOST:?Set XOBJECT_HOST}
+      TLS_EMAIL: ${TLS_EMAIL:?Set TLS_EMAIL}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - proxy_data:/data
+      - proxy_config:/config
+    networks:
+      backend:
+        ipv4_address: ${PROXY_ADDRESS:-172.30.61.2}
+      edge: {}
+    depends_on:
+      app: {condition: service_healthy}
+    restart: unless-stopped
+networks:
+  backend:
+    internal: true
+    ipam:
+      config: [{subnet: "${BACKEND_SUBNET:-172.30.61.0/24}", ip_range: "${BACKEND_IP_RANGE:-172.30.61.128/25}"}]
+  edge: {}
+volumes:
+  database:
+  proxy_data:
+  proxy_config:

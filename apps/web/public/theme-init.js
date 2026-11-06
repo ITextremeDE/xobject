@@ -1,0 +1,1 @@
+try{const theme=localStorage.getItem('xobject:theme:v1');document.documentElement.classList.toggle('dark',theme==='dark'||((!theme||theme==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))}catch{}

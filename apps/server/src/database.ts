@@ -4,6 +4,7 @@ import {getMigrations} from 'better-auth/db/migration';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {v7} from 'uuid';
+import {authSchemaRevision} from './oauth.js';
 import {authOptions} from './auth.js';
 import {seedModuleCatalog,moduleCatalogFile} from './module-catalog.js';
 
@@ -18,7 +19,7 @@ export function connect(connectionString: string) {
 }
 
 const schemaFile=new URL('./schema.sql',import.meta.url);
-async function schemaDefinition(){const [source,catalog]=await Promise.all([readFile(schemaFile,'utf8'),readFile(moduleCatalogFile,'utf8')]);return {source,hash:createHash('sha256').update(source).update(catalog).digest('hex')};}
+async function schemaDefinition(){const [source,catalog]=await Promise.all([readFile(schemaFile,'utf8'),readFile(moduleCatalogFile,'utf8')]);return {source,hash:createHash('sha256').update(source).update(catalog).update(authSchemaRevision).digest('hex')};}
 export async function assertCurrentSchema(pool:Pool){
  const {hash}=await schemaDefinition();
  const exists=(await pool.query("SELECT to_regclass('public.sys_schema_version') AS name")).rows[0]?.name;
@@ -34,9 +35,9 @@ export async function initializeDatabase(connectionString:string,secret:string,b
   const tables=(await pool.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows;
   if(tables.length){await assertCurrentSchema(pool);return;}
   const {source,hash}=await schemaDefinition();
-  const auth=await getMigrations(authOptions(pool,secret,baseURL));await auth.runMigrations();
+  const auth=await getMigrations(authOptions(pool,secret,baseURL));const authSchema=await auth.compileMigrations();
   await db.transaction().execute(async tx=>{
-   await sql.raw(source).execute(tx);await seedModuleCatalog(tx);
+   await sql.raw(authSchema).execute(tx);await sql.raw(source).execute(tx);await seedModuleCatalog(tx);
    await sql`INSERT INTO sys_schema_version(singleton,version,definition_hash) VALUES(true,1,${hash})`.execute(tx);
   });
  }finally{try{await lock.query("SELECT pg_advisory_unlock(hashtext('xobject:installation'))");}finally{lock.release();await db.destroy();if(!pool.ended)await pool.end();}}

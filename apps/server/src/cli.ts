@@ -3,10 +3,20 @@ import { sql } from 'kysely';
 import { mkdir, writeFile, readFile, chmod } from 'node:fs/promises';
 import { configFromEnvironment } from './config.js';
 import { connect, initializeDatabase } from './database.js';
-import { createAuth } from './auth.js';
 
 const config = configFromEnvironment();
 switch (process.argv[2]) {
+  case 'verify-installation': {
+    const {verifyInstallation}=await import('./installation.js');
+    console.log(JSON.stringify(await verifyInstallation(process.env.OPERATOR_DATABASE_URL??config.databaseURL)));
+    break;
+  }
+  case 'upgrade': {
+    if(!process.env.OPERATOR_DATABASE_URL)throw new Error('OPERATOR_DATABASE_URL is required');
+    const {upgradeInstallation}=await import('./installation.js');
+    console.log(JSON.stringify(await upgradeInstallation(process.env.OPERATOR_DATABASE_URL,config.databaseURL,process.argv.includes('--backup-verified'),process.argv.includes('--writers-stopped'))));
+    break;
+  }
   case 'initialize':
     await initializeDatabase(process.env.OPERATOR_DATABASE_URL ?? config.databaseURL, config.authSecret, config.baseURL);
     if (process.env.OPERATOR_DATABASE_URL) await provisionRuntimeRole(process.env.OPERATOR_DATABASE_URL,config.databaseURL);
@@ -27,17 +37,12 @@ switch (process.argv[2]) {
     await provisionRuntimeRole(process.env.OPERATOR_DATABASE_URL,config.databaseURL);
     console.log('Runtime database role ready.');
     break;
+  case 'setup':
   case 'create-admin': {
-    // This isolated provisioning instance is never exposed through HTTP.
-    const { pool, db } = connect(config.databaseURL);
-    try {
-      const { ADMIN_EMAIL: email, ADMIN_PASSWORD: password, ADMIN_NAME: name } = process.env;
-      if (!email || !password || !name) throw new Error('ADMIN_EMAIL, ADMIN_PASSWORD and ADMIN_NAME are required');
-      const auth = createAuth(pool, config.authSecret, config.baseURL, true);
-      const result = await auth.api.signUpEmail({ body: { email, password, name } });
-      await sql`UPDATE sys_users SET is_admin = true WHERE id = ${result.user.id}`.execute(db);
-      console.log('Administrator created.');
-    } finally { await db.destroy(); }
+    const {administratorInput,createFirstAdministrator,assertSetupAvailable}=await import('./setup.js');
+    await assertSetupAvailable(config.databaseURL);
+    await createFirstAdministrator(config.databaseURL,await administratorInput());
+    console.log('Initial Administrator created. Sign in with the credentials you selected.');
     break;
   }
   case 'seed-demo': {
@@ -66,5 +71,5 @@ switch (process.argv[2]) {
     } finally { await db.destroy(); }
     break;
   }
-  default: throw new Error('Expected initialize, reset-development, provision-runtime, create-admin or seed-demo');
+  default: throw new Error('Expected initialize, reset-development, provision-runtime, setup/create-admin or seed-demo');
 }

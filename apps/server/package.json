@@ -5,7 +5,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp src/schema.sql src/module-catalog.json dist/",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp src/schema.sql src/module-catalog.json dist/ && cp -R src/skills dist/skills",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "dev": "tsx src/main.ts",
@@ -13,10 +13,14 @@
     "db:init": "tsx src/cli.ts initialize"
   },
   "dependencies": {
+    "@better-auth/cimd": "1.7.18",
+    "@better-auth/mcp": "1.7.18",
+    "@better-auth/oauth-provider": "1.7.18",
     "@fastify/static": "10.1.10",
-    "@modelcontextprotocol/sdk": "1.32.2",
+    "@inquirer/prompts": "8.7.5",
+    "@modelcontextprotocol/server": "2.4.0",
     "@xobject/contracts": "0.0.0",
-    "better-auth": "1.7.14",
+    "better-auth": "1.7.18",
     "fastify": "5.12.7",
     "kysely": "0.29.7",
     "libphonenumber-js": "1.13.15",
@@ -25,6 +29,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/node": "26.6.6",
     "@types/pg": "8.23.1",
     "ajv": "8.20.0",

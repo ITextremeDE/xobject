@@ -15,7 +15,7 @@ import { ThemeSelect } from './preferences';
 
 export function Login({ onSuccess }: { onSuccess: () => void }) {
   const { t, i18n } = useTranslation();
-  const mutation = useMutation({ mutationFn: ({ email, password }: { email: string; password: string }) => signIn(email, password), onSuccess });
+  const mutation = useMutation({ mutationFn: ({ email, password }: { email: string; password: string }) => signIn(email, password), onSuccess:result=>{if(window.location.pathname==='/oauth/login'&&result.url){window.location.assign(result.url);return;}onSuccess();} });
   return <main className="flex min-h-svh flex-col items-center justify-center gap-8 px-4 py-10">
     <div className="text-3xl font-semibold tracking-tight">xObject</div>
     <Card className="w-full max-w-sm">

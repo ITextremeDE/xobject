@@ -6,7 +6,7 @@ import type {Executor} from './database.js';
 import {AppError} from './errors.js';
 import {passwordCrypto} from './auth.js';
 import {isReadOperation} from './operation-locks.js';
-export type RequestContext={sessionId?:string;credentialId?:string;channel?:'web'|'api'|'mcp';agentName?:string};
+export type RequestContext={oauthTokenId?:string;oauthResource?:string;sessionId?:string;credentialId?:string;channel?:'web'|'api'|'mcp';agentName?:string};
 type Row={id:string;user_id:string;name:string;channels:('api'|'mcp')[];read_only:boolean;created_at:Date;expires_at:Date;last_used_at:Date|null;revoked_at:Date|null;secret_hash:string};
 const hash=(token:string)=>createHash('sha256').update(token).digest('hex');
 const project=(r:Row):ApiCredential=>({id:r.id,userId:r.user_id,name:r.name,channels:r.channels,readOnly:r.read_only,createdAt:r.created_at.toISOString(),expiresAt:r.expires_at.toISOString(),lastUsedAt:r.last_used_at?.toISOString()??null,revokedAt:r.revoked_at?.toISOString()??null});
