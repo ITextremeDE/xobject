@@ -51,6 +51,8 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0033](adr/0033-configurable-workspace-navigation.md) | Configurable navigation | Module sections, repeated object entries, Contact filters, shared defaults/personal layouts and optional Resources; versioned API/MCP persistence. |
 | [0034](adr/0034-user-bound-api-mcp-access.md) | User-bound API/MCP access | One-time tokens, current-rights enforcement, scopes/expiry/revocation, audit provenance and generated OpenAPI/typed client. |
 | [0035](adr/0035-container-delivery-and-maintenance.md) | Container delivery and maintenance | Local Linux container candidate, atomic first setup, verified backup/restore and fail-closed upgrade direction. |
+| [0036](adr/0036-browser-presence-and-live-updates.md) | Browser identity/PWA/live updates | Private previews, authorized commit signals, reconnect and draft reconciliation; public reading later. |
+| [0037](adr/0037-selection-trees-and-choice-dialogs.md) | Selection trees and choice dialogs | General hierarchical fields, Category modes, ancestor closure, atomic history and shared picker UI. |
 
 ## Ownership of repeated information
 
