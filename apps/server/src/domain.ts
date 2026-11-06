@@ -12,7 +12,7 @@ import {validateContact,contactProfile} from './contact-domain.js';
 import {structuredChanges,structuredSchemaKeys,structuredSchemaLabels} from '@xobject/contracts';
 import {applyFieldDefaults} from '@xobject/contracts';
 import {normalizeInputRules,configureUniqueIndex,writeInputRules,uniqueIndexName,validateUniqueLength} from './field-input-rules.js';
-import {configureNumbering,allocateBusinessNumber} from './business-numbering.js';
+import {configureNumbering,allocateRecordNumber} from './record-numbering.js';
 import {emptyFieldInputRules,type FieldInputRules,type Numbering} from '@xobject/contracts';
 import {recordSecurity,saveRecordSecurity,writeRecordSecurity,initializeRecordSecurity} from './record-security.js';
 import {getForeignAccess,foreignAccessView,configureForeignAccess,configureGroupInheritance} from './ownership-settings.js';
@@ -48,7 +48,7 @@ type Labels = Record<string, string>;
 type ObjectType = { primary_requirements:import('@xobject/contracts').PrimaryRequirements; numbering:Numbering; time_zone:string; permissions_version:number; form_layouts?:FormLayouts; version: number; id: string; workspace_id: string; technical_name: string; code: string; labels: Labels; default_language: string; available_languages: Language[]; classification: ClassificationConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type Field = { value_mode:'stored'|'derived';input_rules:FieldInputRules; applicability?: import('@xobject/contracts').FieldApplicability; version: number; id: string; technical_name: string; labels: Labels; kind: string; required: boolean; config: FieldConfig; state: 'active' | 'inactive' | 'deleted'; is_protected: boolean };
 type DataRecord = Record<string, unknown> & { id: string; version: number; keyword: string };
-const reserved = new Set(['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category', 'business_number', 'access_principals', 'tableoid', 'xmin', 'xmax', 'cmin', 'cmax', 'ctid']);
+const reserved = new Set(['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'keyword', 'type', 'status', 'category', 'record_number', 'access_principals', 'tableoid', 'xmin', 'xmax', 'cmin', 'cmax', 'ctid']);
 // Keep initial user-defined SQL names clear of PostgreSQL reserved words as well.
 async function checkName(db: Executor, name: string) {
   if (reserved.has(name)) throw new AppError(400, 'Reserved technical name');
@@ -93,7 +93,7 @@ export class Application {
         if(['configure_field','set_labels','set_definition_state'].includes(operation)){
           const input=parsed as {fieldId?:string;id?:string;kind?:string};
           if(input.fieldId||input.kind==='field'){
-            const special=(await sql`SELECT 1 FROM sys_fields WHERE id=${input.fieldId??input.id}::uuid AND technical_name IN ('access_principals','business_number')`.execute(tx)).rows.length;
+            const special=(await sql`SELECT 1 FROM sys_fields WHERE id=${input.fieldId??input.id}::uuid AND technical_name IN ('access_principals','record_number')`.execute(tx)).rows.length;
             if(special)throw new AppError(403,'System field definition is protected');
           }
         }
@@ -260,7 +260,7 @@ export class Application {
             if(sortedField?.value_mode==='derived')sortExpression=await contentAccess().fieldValueByName(type.id,sortedField.technical_name);
             if(sortedField?.kind==='structured')throw new AppError(400,'Structured fields cannot be sorted');
             if(sortedField&&!policy.fieldReadableEverywhere(sortedField.id))throw new AppError(403,'Cannot sort a restricted field');
-            const permittedSearch=await contentAccess().keywordValue(type.id),numberSearch=await contentAccess().fieldValueByName(type.id,'business_number');
+            const permittedSearch=await contentAccess().keywordValue(type.id),numberSearch=await contentAccess().fieldValueByName(type.id,'record_number');
             let contactFilter=sql`true`;
             if(args.contactKindId){const profile=await contactProfile(tx,type.id),kind=sortableFields.find(f=>f.id===profile?.fields.contact_kind);if(!profile||!kind||!Object.values(profile.kinds).includes(args.contactKindId))throw new AppError(400,'Unknown Contact kind');if(!policy.field(kind.id).read)throw new AppError(403,'Cannot filter an unreadable field');contactFilter=sql`${await contentAccess().fieldValueByName(type.id,kind.technical_name)}=${args.contactKindId}::uuid`;}
             const predicate = sql`${policy.predicate()} AND ${contactFilter} AND (position(lower(${args.query}) in lower(${permittedSearch})) > 0 OR position(lower(${args.query}) in lower(${numberSearch})) > 0)`;
@@ -321,7 +321,7 @@ export class Application {
     } catch (error) {
       if ((error as { code?: string }).code === '23505') {const name=String((error as {constraint?:string}).constraint??'');
         if(/^xobject_unique_[a-f0-9]{32}$/.test(name)){const id=name.slice('xobject_unique_'.length);throw new AppError(409,'A unique field value already exists',{code:'unique_value',fieldId:`${id.slice(0,8)}-${id.slice(8,12)}-${id.slice(12,16)}-${id.slice(16,20)}-${id.slice(20)}`,context:['create_record','update_record','duplicate_record'].includes(operation)?'record':'definition'});}
-        throw new AppError(409,name.includes('number_allocations')||name.startsWith('xobject_number_')?'Business number is already assigned':'Name already exists');}
+        throw new AppError(409,name.includes('number_allocations')||name.startsWith('xobject_number_')?'Record number is already assigned':'Name already exists');}
       throw error;
     }
   }
@@ -505,14 +505,14 @@ export class Application {
     const matches = summaries.filter(type => type.label.toLowerCase().includes(needle) || type.technicalName.includes(needle));
     // Search only this workspace's metadata-derived tables; user text is always a SQL value.
     const queries=[];
-    for(const type of visibleTypes){const policy=await contentAccess().policy(type.id),hasKeyword=type.has_keyword&&await contentAccess().canField(type.id,'keyword'),keyword=await contentAccess().keywordValue(type.id),number=await contentAccess().fieldValueByName(type.id,'business_number');
-      queries.push(sql`(SELECT id,${await recordIconExpression(tx,type.id)} AS "iconKey",${keyword} AS keyword,${number} AS business_number,updated_at,${type.id}::uuid AS object_type_id FROM ${sql.table(`${workspace.code}_${type.technical_name}`)} WHERE ${policy.predicate()} AND (position(lower(${args.query}) in lower(${keyword}))>0 OR position(lower(${args.query}) in lower(${number}))>0) ORDER BY updated_at DESC,id LIMIT ${args.limit+1})`);
+    for(const type of visibleTypes){const policy=await contentAccess().policy(type.id),hasKeyword=type.has_keyword&&await contentAccess().canField(type.id,'keyword'),keyword=await contentAccess().keywordValue(type.id),number=await contentAccess().fieldValueByName(type.id,'record_number');
+      queries.push(sql`(SELECT id,${await recordIconExpression(tx,type.id)} AS "iconKey",${keyword} AS keyword,${number} AS record_number,updated_at,${type.id}::uuid AS object_type_id FROM ${sql.table(`${workspace.code}_${type.technical_name}`)} WHERE ${policy.predicate()} AND (position(lower(${args.query}) in lower(${keyword}))>0 OR position(lower(${args.query}) in lower(${number}))>0) ORDER BY updated_at DESC,id LIMIT ${args.limit+1})`);
     }
-    const rows = queries.length ? (await sql<{ id: string; keyword: string; business_number:string|null; iconKey:import('@xobject/contracts').RecordIconKey; object_type_id: string }>`SELECT * FROM (${sql.join(queries, sql` UNION ALL `)}) AS matches
+    const rows = queries.length ? (await sql<{ id: string; keyword: string; record_number:string|null; iconKey:import('@xobject/contracts').RecordIconKey; object_type_id: string }>`SELECT * FROM (${sql.join(queries, sql` UNION ALL `)}) AS matches
       ORDER BY updated_at DESC, id LIMIT ${args.limit + 1}`.execute(tx)).rows : [];
     const labels = new Map(summaries.map(type => [type.id, type.label]));
     return { objectTypes: matches.slice(0, args.limit),
-      records: rows.slice(0, args.limit).map(row => ({ id: row.id, iconKey:row.iconKey, keyword: row.keyword,businessNumber:row.business_number, objectTypeId: row.object_type_id, objectLabel: labels.get(row.object_type_id)! })),
+      records: rows.slice(0, args.limit).map(row => ({ id: row.id, iconKey:row.iconKey, keyword: row.keyword,recordNumber:row.record_number, objectTypeId: row.object_type_id, objectLabel: labels.get(row.object_type_id)! })),
       hasMoreObjects: matches.length > args.limit, hasMoreRecords: rows.length > args.limit };
   }
 
@@ -568,7 +568,7 @@ export class Application {
 
   private outputRecord(record: DataRecord, fields: Field[]): DataRecord {
     for (const [key, value] of Object.entries(record)) if (value instanceof Date) record[key] = value.toISOString();
-    for (const field of fields.filter(field => field.value_mode!=='derived'&&isCustomFieldKind(field.kind)&&!['access_principals','business_number'].includes(field.technical_name))) record[field.technical_name] = normalizeFieldValue({ ...field, required: false }, record[field.technical_name], record[field.technical_name]);
+    for (const field of fields.filter(field => field.value_mode!=='derived'&&isCustomFieldKind(field.kind)&&!['access_principals','record_number'].includes(field.technical_name))) record[field.technical_name] = normalizeFieldValue({ ...field, required: false }, record[field.technical_name], record[field.technical_name]);
     return record;
   }
 
@@ -774,7 +774,7 @@ export class Application {
       WHERE table_schema = current_schema() AND table_name = ${tableName(type)} AND ${type.state !== 'deleted'} ORDER BY ordinal_position`.execute(tx)).rows;
     const used = type.state !== 'deleted' && type.classification.options.some(option => option.kind !== 'category') ? await this.usedClassificationIds(tx, type, fields) : new Set<string>();
     return {
-      relationshipFields:(await incidentFields(tx,type.id)).filter(f=>f.state!=='deleted').map(f=>({id:f.id,relationshipTypeId:f.relationship_type_id,technicalName:f.technical_name,label:localizedLabel(f.labels,user.language,type.default_language),labels:f.labels,kind:f.kind,config:f.config,required:f.required,version:f.version,state:f.state,isProtected:f.is_protected})),moduleFieldIds:Object.fromEntries((await sql<{module_key:string;fields:string[]}>`SELECT module_key,array_agg(field_id::text) AS fields FROM sys_module_field_contributions WHERE object_type_id=${type.id}::uuid GROUP BY module_key`.execute(tx)).rows.map(m=>[m.module_key,m.fields])),moduleKeys:(await sql<{module_key:string}>`SELECT c.module_key FROM sys_module_contributions c JOIN sys_workspace_modules m ON m.workspace_id=c.workspace_id AND m.module_key=c.module_key WHERE c.object_type_id=${type.id}::uuid AND m.enabled`.execute(tx)).rows.map(m=>m.module_key),workProfile:await workProfile(tx,type.id),contactProfile:await contactProfile(tx,type.id),numbering:type.numbering,permissionsVersion:type.permissions_version,sensitive:(await contentAccess().policy(type.id)).sensitive,permissions:(await contentAccess().policy(type.id)).capabilities,formRelationships:formRelationshipFields(await relationshipTypes(tx,type.workspace_id),type.id,await primaryChain(tx,type.workspace_id),type.primary_requirements), formLayouts:type.form_layouts??{}, version: type.version, id: type.id, state: type.state, isProtected: type.is_protected || fields.some(field => field.state !== 'deleted' && field.is_protected&&!['access_principals','business_number'].includes(field.technical_name)), canDelete: type.state !== 'deleted' && !type.is_protected && !fields.some(field => field.state !== 'deleted' && field.is_protected&&!['access_principals','business_number'].includes(field.technical_name)) && !(await this.objectUsed(tx, type)) && !(await sql`SELECT 1 FROM sys_relationship_type_pairs WHERE left_object_type_id=${type.id}::uuid OR right_object_type_id=${type.id}::uuid LIMIT 1`.execute(tx)).rows.length, workspaceId: type.workspace_id, technicalName: type.technical_name,
+      relationshipFields:(await incidentFields(tx,type.id)).filter(f=>f.state!=='deleted').map(f=>({id:f.id,relationshipTypeId:f.relationship_type_id,technicalName:f.technical_name,label:localizedLabel(f.labels,user.language,type.default_language),labels:f.labels,kind:f.kind,config:f.config,required:f.required,version:f.version,state:f.state,isProtected:f.is_protected})),moduleFieldIds:Object.fromEntries((await sql<{module_key:string;fields:string[]}>`SELECT module_key,array_agg(field_id::text) AS fields FROM sys_module_field_contributions WHERE object_type_id=${type.id}::uuid GROUP BY module_key`.execute(tx)).rows.map(m=>[m.module_key,m.fields])),moduleKeys:(await sql<{module_key:string}>`SELECT c.module_key FROM sys_module_contributions c JOIN sys_workspace_modules m ON m.workspace_id=c.workspace_id AND m.module_key=c.module_key WHERE c.object_type_id=${type.id}::uuid AND m.enabled`.execute(tx)).rows.map(m=>m.module_key),workProfile:await workProfile(tx,type.id),contactProfile:await contactProfile(tx,type.id),numbering:type.numbering,permissionsVersion:type.permissions_version,sensitive:(await contentAccess().policy(type.id)).sensitive,permissions:(await contentAccess().policy(type.id)).capabilities,formRelationships:formRelationshipFields(await relationshipTypes(tx,type.workspace_id),type.id,await primaryChain(tx,type.workspace_id),type.primary_requirements), formLayouts:type.form_layouts??{}, version: type.version, id: type.id, state: type.state, isProtected: type.is_protected || fields.some(field => field.state !== 'deleted' && field.is_protected&&!['access_principals','record_number'].includes(field.technical_name)), canDelete: type.state !== 'deleted' && !type.is_protected && !fields.some(field => field.state !== 'deleted' && field.is_protected&&!['access_principals','record_number'].includes(field.technical_name)) && !(await this.objectUsed(tx, type)) && !(await sql`SELECT 1 FROM sys_relationship_type_pairs WHERE left_object_type_id=${type.id}::uuid OR right_object_type_id=${type.id}::uuid LIMIT 1`.execute(tx)).rows.length, workspaceId: type.workspace_id, technicalName: type.technical_name,
       primaryRequirements:type.primary_requirements,primaryChain:await primaryChain(tx,type.workspace_id),
       activity:await isActivityObject(tx,type.id),
       classification: { ...type.classification, options: type.classification.options.map(option => ({ ...option, label: localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language), canDelete: option.kind !== 'category' && !used.has(option.id) })) },
@@ -1018,7 +1018,7 @@ export class Application {
   private async fields(tx: Executor, type: ObjectType, args: Record<string, FieldValue>) {
     const fields = (await sql<Field>`SELECT value_mode,applicability, id, technical_name, kind, required, config,input_rules, state, is_protected FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted'`.execute(tx)).rows;
     for (const name of Object.keys(args)) {
-      if (['keyword','business_number'].includes(name)||fields.some(f=>f.technical_name===name&&f.value_mode==='derived') || !fields.some(f => f.state === 'active' && f.technical_name === name && isCustomFieldKind(f.kind))) throw new AppError(400, 'Unknown or reserved record field');
+      if (['keyword','record_number'].includes(name)||fields.some(f=>f.technical_name===name&&f.value_mode==='derived') || !fields.some(f => f.state === 'active' && f.technical_name === name && isCustomFieldKind(f.kind))) throw new AppError(400, 'Unknown or reserved record field');
     }
     this.requireActive(type);
     return fields;
@@ -1040,7 +1040,7 @@ export class Application {
   }
 
   private async duplicateDraft(tx:Executor,type:ObjectType,source:DataRecord,recordId:string) {
-            const policy=await contentAccess().policy(type.id),fields=await this.fields(tx,type,{});const values:Record<string,FieldValue>={};for(const f of fields)if(f.state==='active'&&f.value_mode!=='derived'&&isCustomFieldKind(f.kind)&&!['keyword','access_principals','business_number'].includes(f.technical_name)&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))values[f.technical_name]=source[f.technical_name] as FieldValue;
+            const policy=await contentAccess().policy(type.id),fields=await this.fields(tx,type,{});const values:Record<string,FieldValue>={};for(const f of fields)if(f.state==='active'&&f.value_mode!=='derived'&&isCustomFieldKind(f.kind)&&!['keyword','access_principals','record_number'].includes(f.technical_name)&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))values[f.technical_name]=source[f.technical_name] as FieldValue;
             const classification=Object.fromEntries(['type','status','category'].filter(key=>fields.some(f=>f.technical_name===key&&policy.field(f.id,recordId).read&&policy.creationField(f.id))).map(key=>[key,source[key]]));
     return {sourceVersion:source.version,values,classification,...(fields.some(f=>f.technical_name==='keyword'&&f.value_mode!=='derived'&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))?{keyword:source.keyword}:{})};
   }
@@ -1062,8 +1062,8 @@ export class Application {
     Object.assign(data,applyFieldDefaults(defaultFields,data));
     for(const field of fields)if(!suppliedNames.has(field.technical_name)&&Object.hasOwn(data,field.technical_name)&&field.input_rules?.defaultValue!==null&&field.input_rules?.defaultValue!==undefined)await normalizeInputRules(tx,field,field.input_rules,type.workspace_id);
     if(fields.some(field=>field.state==='active'&&field.technical_name==='keyword')&&!Object.hasOwn(data,'keyword'))data.keyword='';
-    const businessNumber=await allocateBusinessNumber(tx,type.id,id,type.numbering,type.time_zone);
-    if(businessNumber!==undefined)data.business_number=businessNumber;
+    const recordNumber=await allocateRecordNumber(tx,type.id,id,type.numbering,type.time_zone);
+    if(recordNumber!==undefined)data.record_number=recordNumber;
     for(const f of fields)if(f.value_mode==='derived')delete data[f.technical_name];
     await this.checkRequiredPermissions(type,fields,data);
     await this.normalizeRecordFields(tx, type, fields, data);

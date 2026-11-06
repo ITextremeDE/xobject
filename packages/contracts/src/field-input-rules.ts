@@ -14,7 +14,7 @@ export function numberingPeriod(config:Numbering,date:Date,timeZone:string){
  const parts=new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit'}).formatToParts(date),get=(type:string)=>parts.find(part=>part.type===type)!.value;
  return config.restart==='yearly'?get('year'):`${get('year')}-${get('month')}`;
 }
-export function formatBusinessNumber(config:Numbering,value:string,period:string){return `${config.prefix}${period?`${period}-`:''}${value.padStart(config.padding,'0')}${config.suffix}`;}
+export function formatRecordNumber(config:Numbering,value:string,period:string){return `${config.prefix}${period?`${period}-`:''}${value.padStart(config.padding,'0')}${config.suffix}`;}
 
 import {fieldApplies,type FieldApplicability} from './field-applicability.js';
 /** Omission triggers a default; explicit null/false/zero/empty values never do. */

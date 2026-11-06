@@ -35,11 +35,11 @@ test('task status configuration journals use translated meanings without interpr
 
 test('Project starter groups pair responsibility and numbering with Schedule without losing editable fields',async()=>{
  const {workFormLayout,formLayoutSchema,resolveFormLayout}=await import('@xobject/contracts');
- const fields=['keyword','business_number','description','responsible','start_date','target_date','notes','access_principals'].map((technicalName,index)=>({id:`00000000-0000-4000-8000-${String(index+1).padStart(12,'0')}`,technicalName,kind:['description','notes'].includes(technicalName)?'multiline':'text',config:{}}));
+ const fields=['keyword','record_number','description','responsible','start_date','target_date','notes','access_principals'].map((technicalName,index)=>({id:`00000000-0000-4000-8000-${String(index+1).padStart(12,'0')}`,technicalName,kind:['description','notes'].includes(technicalName)?'multiline':'text',config:{}}));
  const profile={kind:'project' as const,fields:Object.fromEntries(fields.map(field=>[field.technicalName,field.id]))};
  const layout=workFormLayout(profile,fields,[]),details=layout.groups.find(group=>group.id==='project_details')!,schedule=layout.groups.find(group=>group.id==='schedule')!;
  assert.equal(details.width,'half');assert.equal(schedule.width,'half');
- assert.deepEqual(details.fields.map(entry=>'fieldId'in entry?entry.fieldId:null),[profile.fields.business_number,profile.fields.responsible,profile.fields.access_principals]);
+ assert.deepEqual(details.fields.map(entry=>'fieldId'in entry?entry.fieldId:null),[profile.fields.record_number,profile.fields.responsible,profile.fields.access_principals]);
  assert.equal(layout.groups.indexOf(schedule),layout.groups.indexOf(details)+1);
  const parsed=formLayoutSchema.parse(layout);assert.deepEqual(resolveFormLayout(parsed,fields,true,[]),parsed);
  assert.equal(layout.groups.flatMap(group=>group.fields).filter(entry=>'fieldId'in entry).length,fields.length);

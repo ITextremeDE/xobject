@@ -159,8 +159,8 @@
             ]
           },
           {
-            "key": "name_prefix",
-            "technicalName": "name_prefix",
+            "key": "academic_title",
+            "technicalName": "academic_title",
             "labels": {
               "en": "Academic title",
               "de": "Titel"
@@ -666,8 +666,8 @@
             }
           },
           {
-            "key": "anniversary",
-            "technicalName": "anniversary",
+            "key": "wedding_anniversary",
+            "technicalName": "wedding_anniversary",
             "labels": {
               "en": "Wedding anniversary",
               "de": "Hochzeitstag"

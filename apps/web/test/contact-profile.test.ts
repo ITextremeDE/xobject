@@ -20,8 +20,8 @@ test('contact creation validates exclusive contact kinds, organization name and 
 
 
 test('fixed core uses binding IDs, omits derived/controller inputs and preserves configurable extensions',()=>{
- const bound={...profile,fields:{...profile.fields,gender:'gender-id',salutation:'salutation-id',name_prefix:'title-id',additional_names:'additional-id',name_suffix:'suffix-id',first_name:'first-id',keyword:'keyword-id',formatted_name:'formatted-id'}};
- const all=[...fields.map(f=>({...f,kind:'text'})),{id:'first-id',technicalName:'anything',kind:'structured'},{id:'keyword-id',technicalName:'keyword',kind:'text'},{id:'formatted-id',technicalName:'renamed_projection',kind:'text'},{id:'number-id',technicalName:'business_number',kind:'text'},{id:'custom-id',technicalName:'custom',kind:'text'}];
+ const bound={...profile,fields:{...profile.fields,gender:'gender-id',salutation:'salutation-id',academic_title:'title-id',additional_names:'additional-id',name_suffix:'suffix-id',first_name:'first-id',keyword:'keyword-id',formatted_name:'formatted-id'}};
+ const all=[...fields.map(f=>({...f,kind:'text'})),{id:'first-id',technicalName:'anything',kind:'structured'},{id:'keyword-id',technicalName:'keyword',kind:'text'},{id:'formatted-id',technicalName:'renamed_projection',kind:'text'},{id:'number-id',technicalName:'record_number',kind:'text'},{id:'custom-id',technicalName:'custom',kind:'text'}];
  all.push(...['salutation-id','title-id','additional-id','suffix-id','gender-id'].map(id=>({id,technicalName:id,kind:'text'})));
  const core=contactCoreLayout(bound,all,[]),ids=core.groups.flatMap(g=>g.fields).flatMap(e=>'fieldId'in e?[e.fieldId]:[]);
  assert.deepEqual(core.groups[0].fields.flatMap(e=>'fieldId'in e?[e.fieldId]:[]),['company-id','salutation-id','title-id','first-id','additional-id','last-id','suffix-id']);assert.ok(!core.groups.some(g=>g.id==='contact-name-details'));
@@ -36,14 +36,14 @@ test('fixed core uses binding IDs, omits derived/controller inputs and preserves
 });
 
 test('additional Contact fields use semantic identities in the fixed name, details and communication groups',()=>{
- const purposes=['nickname','birthday','death_date','anniversary','languages','messenger_addresses','contact_time_zone'];
+ const purposes=['nickname','birthday','death_date','wedding_anniversary','languages','messenger_addresses','contact_time_zone'];
  const bindings=Object.fromEntries(purposes.map((purpose,index)=>[purpose,`new-${index}`]));
  const bound={...profile,fields:{...profile.fields,...bindings}};
  const all=purposes.map(purpose=>({id:bindings[purpose],technicalName:`renamed_${purpose}`,kind:purpose==='nickname'?'text':'structured'}));
  const layout=contactCoreLayout(bound,all,[]);
  const ids=(group:string)=>layout.groups.find(g=>g.id===group)?.fields.flatMap(e=>'fieldId'in e?[e.fieldId]:[]);
  assert.deepEqual(ids('contact-name'),[bindings.nickname]);
- assert.deepEqual(ids('contact-details'),[bindings.birthday,bindings.death_date,bindings.anniversary]);
+ assert.deepEqual(ids('contact-details'),[bindings.birthday,bindings.death_date,bindings.wedding_anniversary]);
  assert.deepEqual(ids('contact-locale'),[bindings.contact_time_zone,bindings.languages]);
  assert.deepEqual(ids('contact-communication'),[bindings.messenger_addresses]);
  assert.ok(purposes.every(purpose=>contactCoreFieldIds(bound,all).has(bindings[purpose])));

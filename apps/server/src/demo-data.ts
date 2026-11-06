@@ -49,15 +49,15 @@ function demoDescription(_objectName:string,keyword:string,context:string):strin
 }
 
 function demoGuide(keyword:string):string{
- return `## Operating guide\n\nBefore using **${keyword}**, check its condition and identify the responsible team.\n\n### Preparation\n1. Inspect the equipment.\n2. Check the power supply and accessories.\n3. Confirm the current support package.\n\n### During use\n- Follow the agreed procedure.\n- Stop if the condition changes.\n\n> Report defects before the next handover.\n\nUse the identifier printed on the tool, as shown in the business-number field.\n\n\`\`\`text\nInspect → Use → Clean → Return\n\`\`\`\n\n[Reference instructions](https://example.org/support)`;
+ return `## Operating guide\n\nBefore using **${keyword}**, check its condition and identify the responsible team.\n\n### Preparation\n1. Inspect the equipment.\n2. Check the power supply and accessories.\n3. Confirm the current support package.\n\n### During use\n- Follow the agreed procedure.\n- Stop if the condition changes.\n\n> Report defects before the next handover.\n\nUse the identifier printed on the tool, as shown in the record-number field.\n\n\`\`\`text\nInspect → Use → Clean → Return\n\`\`\`\n\n[Reference instructions](https://example.org/support)`;
 }
 
 /** Demo-only authored layouts exhibit the designer; module starter forms remain canonical. */
 function customDemoGroups(name:string,groups:import('@xobject/contracts').FormLayout['groups'],fields:ObjectDefinition['fields']):import('@xobject/contracts').FormLayout['groups']{
  const plans:Record<string,{id:string;labels:Labels;names:string[];width:'half'|'full'}[]>={
-  mobile_workshops:[{id:'workshop_identity',labels:labels('Werkstattprofil','Workshop profile'),names:['keyword','business_number','registration_number','manufacturer','model'],width:'half'},{id:'operation',labels:labels('Betrieb & Kosten','Operation & costs'),names:['first_registration','mileage','electric','purchase_price'],width:'half'}],
-  support_packages:[{id:'package_identity',labels:labels('Paketübersicht','Package overview'),names:['keyword','business_number','package_code','valid_from','valid_until'],width:'half'},{id:'service_terms',labels:labels('Leistungen & Konditionen','Services & terms'),names:['services','annual_fee','renewal','access_principals'],width:'half'},{id:'restricted_notes',labels:labels('Interner Verlauf','Internal history'),names:['internal_notes'],width:'full'}],
-  workshop_tools:[{id:'tool_identity',labels:labels('Geräteprofil','Tool profile'),names:['keyword','business_number','serial_number','model'],width:'half'},{id:'inventory',labels:labels('Bestand & Bewertung','Inventory & valuation'),names:['quantity','weight','purchase_price'],width:'half'},{id:'support',labels:labels('Team & Support','Team & support'),names:['custodians','supplier_email','support_phone','support_portal','support_emails'],width:'full'},{id:'inspection',labels:labels('Prüfung & Freigabe','Inspection & release'),names:['last_inspection','inspection_result','inspected_by'],width:'full'},{id:'guide',labels:labels('Bedienung','Operating guide'),names:['instructions'],width:'full'}]
+  mobile_workshops:[{id:'workshop_identity',labels:labels('Werkstattprofil','Workshop profile'),names:['keyword','record_number','registration_number','manufacturer','model'],width:'half'},{id:'operation',labels:labels('Betrieb & Kosten','Operation & costs'),names:['first_registration','mileage','electric','purchase_price'],width:'half'}],
+  support_packages:[{id:'package_identity',labels:labels('Paketübersicht','Package overview'),names:['keyword','record_number','package_code','valid_from','valid_until'],width:'half'},{id:'service_terms',labels:labels('Leistungen & Konditionen','Services & terms'),names:['services','annual_fee','renewal','access_principals'],width:'half'},{id:'restricted_notes',labels:labels('Interner Verlauf','Internal history'),names:['internal_notes'],width:'full'}],
+  workshop_tools:[{id:'tool_identity',labels:labels('Geräteprofil','Tool profile'),names:['keyword','record_number','serial_number','model'],width:'half'},{id:'inventory',labels:labels('Bestand & Bewertung','Inventory & valuation'),names:['quantity','weight','purchase_price'],width:'half'},{id:'support',labels:labels('Team & Support','Team & support'),names:['custodians','supplier_email','support_phone','support_portal','support_emails'],width:'full'},{id:'inspection',labels:labels('Prüfung & Freigabe','Inspection & release'),names:['last_inspection','inspection_result','inspected_by'],width:'full'},{id:'guide',labels:labels('Bedienung','Operating guide'),names:['instructions'],width:'full'}]
  };
  const plan=[{id:'overview',labels:labels('Überblick','Overview'),names:['description'],width:'full' as const},...plans[name]];
  const entries=groups.flatMap(group=>group.fields),assigned=new Set(plan.flatMap(plan=>plan.names).map(name=>fields.find(field=>field.technicalName===name)?.id).filter(Boolean));
@@ -70,6 +70,8 @@ function customDemoGroups(name:string,groups:import('@xobject/contracts').FormLa
 /** Entirely fictional fixtures, created through the same rules as API/MCP. Never resets data. */
 export async function seedDemoData(db: Database, actorId: string, code = 'itx', options:DemoOptions = {}) {
   const scenario=options.scenario??(code==='itx'?'business':code==='js'?'family':'test');
+  const reviewField=scenario==='test'?'expected_result':scenario==='family'?'context':'review_findings';
+  const amountField=scenario==='test'?'sample_amount':'amount';
   const settings=scenarioSettings[scenario];
   const app = new Application(db);
   const workspaces = await app.execute('list_workspaces', {}, actorId) as { code: string }[];
@@ -187,7 +189,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
   for (const [i, person] of (scenario==='family'?[['Jane','Doe'],['Alex','Doe'],['Jane','Doe']]:scenario==='business'?[['Emily','Brooks'],['Oliver','Reed'],['Emily','Brooks']]:[['Emily','Example'],['Oliver','Sample'],['Emily','Example']]).entries()) {
     const individual = i === 2;
     const organizationIndex=scenario==='family'&&i===1?3:i;
-    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[organizationIndex]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, salutation:contactChoice('salutation',i===1?'Mr':'Ms'), name_prefix:i===0?contactChoice('name_prefix','Dr.'):null, nickname: i===0?(scenario==='family'?'Janey':'Em'):null, languages:[{id:v7(),value:'en-GB',contexts:[],preference:1},{id:v7(),value:'de-DE',contexts:[],preference:2}], messenger_addresses:[{id:v7(),value:`xmpp:person${i+1}@example.test`,contexts:[contactChoice('messenger_addresses','Work'),contactChoice('messenger_addresses','XMPP')],preference:1}], contact_time_zone:{timeZone:i===1?'America/New_York':'Europe/Berlin'}, anniversary:i===2?{year:null,month:9,day:12}:null, death_date:scenario==='test'&&i===1?{year:2024,month:11,day:3}:null, first_name: name(person[0]), last_name: name(person[1]), emails: email(`person${i+1}@example.test`), phones: email(`+4989201000${30+i}`,'phones','Mobile'), birthday: {year:i===2?null:1990+i,month:6,day:15}, addresses: address('Example Lane','10'), notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[organizationIndex]}. The relationship is stored as a real link.` });
+    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[organizationIndex]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, salutation:contactChoice('salutation',i===1?'Mr':'Ms'), academic_title:i===0?contactChoice('academic_title','Dr.'):null, nickname: i===0?(scenario==='family'?'Janey':'Em'):null, languages:[{id:v7(),value:'en-GB',contexts:[],preference:1},{id:v7(),value:'de-DE',contexts:[],preference:2}], messenger_addresses:[{id:v7(),value:`xmpp:person${i+1}@example.test`,contexts:[contactChoice('messenger_addresses','Work'),contactChoice('messenger_addresses','XMPP')],preference:1}], contact_time_zone:{timeZone:i===1?'America/New_York':'Europe/Berlin'}, wedding_anniversary:i===2?{year:null,month:9,day:12}:null, death_date:scenario==='test'&&i===1?{year:2024,month:11,day:3}:null, first_name: name(person[0]), last_name: name(person[1]), emails: email(`person${i+1}@example.test`), phones: email(`+4989201000${30+i}`,'phones','Mobile'), birthday: {year:i===2?null:1990+i,month:6,day:15}, addresses: address('Example Lane','10'), notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[organizationIndex]}. The relationship is stored as a real link.` });
     if (!individual) link('contacts', organizations[organizationIndex], 'contacts', row, 'contact_person');
   }
   if(scenario==='family'){
@@ -335,27 +337,27 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
   await security('support_packages',records.support_packages[1],own('user',designer.id));
 
   await object('access_checks', 'Berechtigungstests', 'Access checks', [
-    {...field('expected_result', scenario==='test'?'Erwartetes Ergebnis':scenario==='family'?'Zusammenhang':'Prüffeststellung', scenario==='test'?'Expected result':scenario==='family'?'Context':'Review findings', 'multiline'), required:true},
-    field('sample_amount', scenario==='test'?'Beispielbetrag':'Betrag', scenario==='test'?'Sample amount':'Amount', 'decimal', {scale:2}),
+    {...field(reviewField, scenario==='test'?'Erwartetes Ergebnis':scenario==='family'?'Zusammenhang':'Prüffeststellung', scenario==='test'?'Expected result':scenario==='family'?'Context':'Review findings', 'multiline'), required:true},
+    field(amountField, scenario==='test'?'Beispielbetrag':'Betrag', scenario==='test'?'Sample amount':'Amount', 'decimal', {scale:2}),
   ], scenario==='family'?['Haushalt','Privat']:scenario==='business'?['Prüfung']:['Berechtigungstest'], ['Aktiv']);
   const accessBefore = await app.execute('get_content_permissions', {objectTypeId:objects.access_checks.id}, actorId) as ContentPermissions;
   await app.execute('configure_content_permissions', {...accessBefore,sensitive:true,grants:[...[designer,member].map(user=>({kind:'user' as const,id:user.id,level:'full' as const,create:true,fields:{}})),...(scenario==='family'?[group.id,management.id].map(id=>({kind:'group' as const,id,level:'full' as const,create:true,fields:{}})):[])]}, actorId);
   if(scenario!=='family'){
   for (const level of ['none','availability','read','duplicate','schedule','edit','delete','full'] as AccessLevel[]) {
-    const row = await record('access_checks', scenario==='business'?`Service Desk entitlement – ${level}`:`Foreign access – ${level}`, {expected_result:`James has ${level} access through foreign access to Jane, bounded by this record's foreign maximum. Availability has no content projection yet. Jane owns this record with Full; John is Administrator.`,sample_amount:'1234567.89'});
+    const row = await record('access_checks', scenario==='business'?`Service Desk entitlement – ${level}`:`Foreign access – ${level}`, {[reviewField]:`James has ${level} access through foreign access to Jane, bounded by this record's foreign maximum. Availability has no content projection yet. Jane owns this record with Full; John is Administrator.`,[amountField]:'1234567.89'});
     await security('access_checks',row,{...own('user',designer.id),foreignMax:level});
   }
   for (const privacy of ['personal','confidential'] as const) {
-    const row=await record('access_checks',scenario==='business'?`Management review – ${privacy}`:`Privacy – ${privacy}`,{expected_result:`Jane owns this ${privacy} record. James's foreign rule does not grant access. John retains Administrator access.`,sample_amount:'0.00'});
+    const row=await record('access_checks',scenario==='business'?`Management review – ${privacy}`:`Privacy – ${privacy}`,{[reviewField]:`Jane owns this ${privacy} record. James's foreign rule does not grant access. John retains Administrator access.`,[amountField]:'0.00'});
     await security('access_checks',row,{...own('user',designer.id),privacy});
   }
-  const publicRow=await record('access_checks',scenario==='business'?'Published support review':'Workspace-public – read',{expected_result:'No named owners; James and Jane can read. John has Administrator access. Other object ceilings still apply.',sample_amount:'-1234.56'});
+  const publicRow=await record('access_checks',scenario==='business'?'Published support review':'Workspace-public – read',{[reviewField]:'No named owners; James and Jane can read. John has Administrator access. Other object ceilings still apply.',[amountField]:'-1234.56'});
   await security('access_checks',publicRow,{owners:[],publicLevel:'read',privacy:'normal',foreignMax:'full',fields:[]});
-  const exception=await record('access_checks',scenario==='business'?'Technician approval – redacted amount':'Direct ownership – field exception',{expected_result:'James owns this record with Full but cannot read Sample amount. Direct ownership takes precedence over the foreign rule.',sample_amount:'98765.43'});
-  await security('access_checks',exception,{...own('user',member.id),fields:[{kind:'user',id:member.id,fields:{[objects.access_checks.fields.find(item=>item.technicalName==='sample_amount')!.id]:'none'}}]});
+  const exception=await record('access_checks',scenario==='business'?'Technician approval – redacted amount':'Direct ownership – field exception',{[reviewField]:'James owns this record with Full but cannot read Sample amount. Direct ownership takes precedence over the foreign rule.',[amountField]:'98765.43'});
+  await security('access_checks',exception,{...own('user',member.id),fields:[{kind:'user',id:member.id,fields:{[objects.access_checks.fields.find(item=>item.technicalName===amountField)!.id]:'none'}}]});
 
   }else{
-    for(const [index,title,context,amount] of [[0,'Shared household costs','Visible to the Family group; Jamie can read but cannot see the Amount field.','246.80'],[1,'Parents – Heating reserve','Confidential Parents record. Jamie is not a member of Parents and cannot read it.','4500.00'],[2,'Personal – Birthday surprise','Jane’s Personal record. Alex and Jamie have no foreign access to Personal contents.','65.00']] as const){const row=await record('access_checks',title,{expected_result:context,sample_amount:amount});await security('access_checks',row,index===0?own('group',group.id):index===1?{...own('group',management.id),privacy:'confidential'}:{...own('user',designer.id),privacy:'personal'});}
+    for(const [index,title,context,amount] of [[0,'Shared household costs','Visible to the Family group; Jamie can read but cannot see the Amount field.','246.80'],[1,'Parents – Heating reserve','Confidential Parents record. Jamie is not a member of Parents and cannot read it.','4500.00'],[2,'Personal – Birthday surprise','Jane’s Personal record. Alex and Jamie have no foreign access to Personal contents.','65.00']] as const){const row=await record('access_checks',title,{[reviewField]:context,[amountField]:amount});await security('access_checks',row,index===0?own('group',group.id):index===1?{...own('group',management.id),privacy:'confidential'}:{...own('user',designer.id),privacy:'personal'});}
   }
   await configureScenarioRights();
   links.push(...demoCustomPrimaryLinks(objects,records,scenario));
@@ -394,7 +396,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
         {kind:'group',id:scenarioGroups.children.id,level:'read',create:false,fields:restricted},
         {kind:'user',id:designer.id,level:'full',create:true,fields:{}},
         {kind:'user',id:member.id,level:'full',create:true,fields:{}},
-        {kind:'user',id:extras.child.id,level:name==='tasks'?'edit':'read',create:false,fields:{...restricted,...(name==='access_checks'?{[model.fields.find(f=>f.technicalName==='sample_amount')!.id]:'none' as const}:{})}},
+        {kind:'user',id:extras.child.id,level:name==='tasks'?'edit':'read',create:false,fields:{...restricted,...(name==='access_checks'?{[model.fields.find(f=>f.technicalName===amountField)!.id]:'none' as const}:{})}},
       ];
       await app.execute('configure_content_permissions',{...before,grants},actorId);
     }

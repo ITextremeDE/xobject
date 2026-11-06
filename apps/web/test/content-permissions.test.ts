@@ -4,7 +4,7 @@ import {resolveContentRule,type ContentGrant} from '@xobject/contracts';
 import {displayedFieldLevel,systemManagedField} from '../src/lib/field-permission-display.js';
 
 test('permission previews retain denials and never promise editing generated fields',()=>{
- const number={technicalName:'business_number'},derived={technicalName:'keyword',isDerived:true},custom={technicalName:'notes'};
+ const number={technicalName:'record_number'},derived={technicalName:'keyword',isDerived:true},custom={technicalName:'notes'};
  for(const field of [number,derived]){
   assert.equal(systemManagedField(field),true);
   assert.equal(displayedFieldLevel('none',field),'none');
