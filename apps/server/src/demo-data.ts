@@ -57,7 +57,7 @@ function customDemoGroups(name:string,groups:import('@xobject/contracts').FormLa
  const plans:Record<string,{id:string;labels:Labels;names:string[];width:'half'|'full'}[]>={
   mobile_workshops:[{id:'workshop_identity',labels:labels('Werkstattprofil','Workshop profile'),names:['keyword','record_number','registration_number','manufacturer','model'],width:'half'},{id:'operation',labels:labels('Betrieb & Kosten','Operation & costs'),names:['first_registration','mileage','electric','purchase_price'],width:'half'}],
   support_packages:[{id:'package_identity',labels:labels('Paketübersicht','Package overview'),names:['keyword','record_number','package_code','valid_from','valid_until'],width:'half'},{id:'service_terms',labels:labels('Leistungen & Konditionen','Services & terms'),names:['services','annual_fee','renewal','access_principals'],width:'half'},{id:'restricted_notes',labels:labels('Interner Verlauf','Internal history'),names:['internal_notes'],width:'full'}],
-  workshop_tools:[{id:'tool_identity',labels:labels('Geräteprofil','Tool profile'),names:['keyword','record_number','serial_number','model'],width:'half'},{id:'inventory',labels:labels('Bestand & Bewertung','Inventory & valuation'),names:['quantity','weight','purchase_price'],width:'half'},{id:'support',labels:labels('Team & Support','Team & support'),names:['custodians','supplier_email','support_phone','support_portal','support_emails'],width:'full'},{id:'inspection',labels:labels('Prüfung & Freigabe','Inspection & release'),names:['last_inspection','inspection_result','inspected_by'],width:'full'},{id:'guide',labels:labels('Bedienung','Operating guide'),names:['instructions'],width:'full'}]
+  workshop_tools:[{id:'tool_identity',labels:labels('Geräteprofil','Tool profile'),names:['keyword','record_number','serial_number','model'],width:'half'},{id:'inventory',labels:labels('Bestand & Bewertung','Inventory & valuation'),names:['expertise_areas','quantity','weight','purchase_price'],width:'half'},{id:'support',labels:labels('Team & Support','Team & support'),names:['custodians','supplier_email','support_phone','support_portal','support_emails'],width:'full'},{id:'inspection',labels:labels('Prüfung & Freigabe','Inspection & release'),names:['last_inspection','inspection_result','inspected_by'],width:'full'},{id:'guide',labels:labels('Bedienung','Operating guide'),names:['instructions'],width:'full'}]
  };
  const plan=[{id:'overview',labels:labels('Überblick','Overview'),names:['description'],width:'full' as const},...plans[name]];
  const entries=groups.flatMap(group=>group.fields),assigned=new Set(plan.flatMap(plan=>plan.names).map(name=>fields.find(field=>field.technicalName===name)?.id).filter(Boolean));
@@ -138,7 +138,12 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
     if(name!=='distribution_lists')await app.execute('configure_object_settings',{objectTypeId:model.id,version:model.version,labels:model.labels,numbering:{...defaultNumbering(),enabled:true,prefix:(scenario==='business'?'ITx-':scenario==='family'?'JS-':'')+((settings.objects as Record<string,readonly string[]>)[name]?.[3]??({contacts:'CON',projects:'PRJ',cases:'CAS',tasks:'TSK',mobile_workshops:'MWK',support_packages:'SUP',workshop_tools:'TOOL',access_checks:'CHK',distribution_lists:'DST'} as Record<string,string>)[name])+'-',start:scenario==='business'?'1001':'1',padding:scenario==='family'?1:scenario==='business'?4:5}},actorId);
     const typeOptions = types.map(name => ({ id: v7(), kind: 'type' as const, labels: choiceLabels(name), typeId: null, active: true }));
     const statusOptions = [null, ...typeOptions.map(item => item.id)].flatMap(typeId => statuses.map(name => ({ id: v7(), kind: 'status' as const, labels: choiceLabels(name), typeId, active: true,...(model.workProfile?.kind==='task'?{meaning:(['open','in_progress','done'] as const)[statuses.indexOf(name)]}:{}) })));
-    const config: ClassificationRules = { type: { required: false, defaultId: typeOptions[0]?.id ?? null }, status: { required: false, defaults: [null, ...typeOptions.map(item => item.id)].map(typeId => ({ typeId, statusId: statusOptions.find(item => item.typeId === typeId)!.id })) }, category: { required: false, multiple: true, defaultIds: [] }, options: [...typeOptions, ...statusOptions, ...settings.categories.map(([de,en]) => ({ id: v7(), kind: 'category' as const, labels: labels(de,en), typeId: null, active: true }))] };
+    const treeCategory=['projects','mobile_workshops','workshop_tools'].includes(name);
+    const singleCategory=['cases','distribution_lists'].includes(name);
+    const root={id:v7(),kind:'category' as const,labels:scenario==='family'?labels('Lebensbereiche','Life areas'):scenario==='business'?labels('IT-Leistungen','IT services'):labels('Testabdeckung','Test coverage'),typeId:null,active:true};
+    const branch={id:v7(),kind:'category' as const,labels:scenario==='family'?labels('Alltag','Everyday life'):scenario==='business'?labels('Servicebetrieb','Service operations'):labels('Funktionsprüfung','Functional checks'),typeId:null,parentId:root.id,active:true};
+    const categoryOptions=settings.categories.map(([de,en])=>({id:v7(),kind:'category' as const,labels:labels(de,en),typeId:null,active:true,...(treeCategory?{parentId:branch.id}:{})}));
+    const config: ClassificationRules = { type: { required: false, defaultId: typeOptions[0]?.id ?? null }, status: { required: false, defaults: [null, ...typeOptions.map(item => item.id)].map(typeId => ({ typeId, statusId: statusOptions.find(item => item.typeId === typeId)!.id })) }, category: { required: false, multiple: !singleCategory,tree:treeCategory, defaultIds: [] }, options: [...typeOptions, ...statusOptions,...(treeCategory?[root,branch]:[]), ...categoryOptions] };
     await app.execute('configure_classification', { objectTypeId: created.id, version: model.classification.version, config }, actorId);
     model = await app.execute('get_object_type', { objectTypeId: created.id }, actorId) as ObjectDefinition;
     objects[name] = model; records[name] = []; return model;
@@ -169,9 +174,11 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
     const typeIndex=objectName==='projects'&&scenario==='business'?(index===3?1:0):index%types.length;
     const typeId = types[typeIndex].id;
     const statuses = model.classification.options.filter(option => option.kind === 'status' && option.typeId === typeId);
-    const category = model.classification.options.filter(option => option.kind === 'category')[objectName === 'contacts' ? 1 : 0];
+    const categoryOptions=model.classification.options.filter(option=>option.kind==='category');
+    const category=categoryOptions.filter(option=>!categoryOptions.some(child=>child.parentId===option.id))[index%categoryOptions.filter(option=>!categoryOptions.some(child=>child.parentId===option.id)).length];
+    const selectedCategories=model.classification.category.multiple&&!model.classification.category.tree&&index%2===0?categoryOptions.slice(0,2).map(option=>option.id):[category.id];
     if(model.workProfile?.kind==='task'&&statuses[statusIndex % statuses.length].meaning==='done'){values.progress='100';values.completed_at='2026-11-03T14:35:00.000Z';}
-    const row = await app.execute('create_record', { objectTypeId: model.id, ...(!model.fields.some(field=>field.technicalName==='keyword'&&field.isDerived)?{keyword}:{}), values, classification: { type: typeId, status: statuses[statusIndex % statuses.length].id, category: [category.id] } }, actorId) as DataRecord;
+    const row = await app.execute('create_record', { objectTypeId: model.id, ...(!model.fields.some(field=>field.technicalName==='keyword'&&field.isDerived)?{keyword}:{}), values, classification: { type: typeId, status: statuses[statusIndex % statuses.length].id, category: selectedCategories } }, actorId) as DataRecord;
     records[objectName].push(row); return row;
   }
   function link(fromObject: string, from: DataRecord, toObject: string, to: DataRecord, relation: DemoLink['relation'] = 'primary') {
@@ -242,10 +249,14 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
     field('renewal', 'Automatische Verlängerung', 'Automatic renewal', 'boolean'),
     field('internal_notes', 'Interne Notizen', 'Internal notes', 'multiline'),
   ], scenario==='family'?['Versicherung','Wartung']:['Fernbetreuung', 'Vor-Ort-Betreuung'], ['Entwurf', 'Aktiv', 'Ausgelaufen']);
+  const knowledgeRoot={id:v7(),labels:scenario==='family'?labels('Haushalt & Freizeit','Home & leisure'):scenario==='business'?labels('Technologie','Technology'):labels('Funktionsbereiche','Feature areas'),active:true};
+  const knowledgeBranch={id:v7(),labels:scenario==='family'?labels('Ausstattung','Equipment'):scenario==='business'?labels('Infrastruktur','Infrastructure'):labels('Auswahlfelder','Choice fields'),parentId:knowledgeRoot.id,active:true};
+  const knowledgeOptions=[knowledgeRoot,knowledgeBranch,...(scenario==='family'?[labels('Fahrräder','Bicycles'),labels('Camping','Camping')]:scenario==='business'?[labels('Netzwerk','Networking'),labels('Arbeitsplatz','Workplace')]:[labels('Baumregeln','Tree rules'),labels('Mehrfachwerte','Multiple values')]).map(value=>({id:v7(),labels:value,parentId:knowledgeBranch.id,active:true}))];
   const inspectionOptions=[{id:v7(),labels:labels('Geprüft','Checked'),active:true},{id:v7(),labels:labels('Nacharbeit nötig','Needs attention'),active:true}];
   await object('workshop_tools', 'Werkstattgeräte', 'Workshop tools', [field('description','Beschreibung','Description','multiline'),field('notes','Notizen','Notes','multiline'),
     field('last_inspection','Letzte Prüfung','Last inspection','datetime'),field('inspection_result','Prüfergebnis','Inspection result','single_choice',{options:inspectionOptions}),field('inspected_by','Geprüft von','Inspected by','reference',{referenceTarget:'user',multiple:false}),field('serial_number', 'Seriennummer', 'Serial number'), field('model', 'Modell', 'Model'),
     field('purchase_price', 'Kaufpreis', 'Purchase price', 'money', {scale: 2, currency: 'USD'}),
+    field('expertise_areas','Themenbereiche','Areas','tree_choice',{options:knowledgeOptions}),
     field('quantity', 'Anzahl', 'Quantity', 'integer'), field('weight', 'Gewicht (kg)', 'Weight (kg)', 'decimal', {scale: 3}),
     field('custodians', 'Verantwortliche', 'Custodians', 'reference', {referenceTarget: 'group', multiple: true}),
     field('instructions', 'Anleitung', 'Instructions', 'multiline', {formatted: true}),
@@ -265,6 +276,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
     serial_number: `DEMO-SN-${1000+i}`, model: i % 2 ? 'Diagnostic Kit D2' : 'Notebook L14',
     purchase_price: {amount: i === 2 ? '0.00' : '12345.67', currency: 'USD'}, quantity: String(i === 2 ? 0 : 1),
     weight: ['1.250', '12.345', '0.000', '2.500'][i], custodians: [{kind:'group',id:group.id}, {kind:'group',id:management.id}],
+    expertise_areas:[knowledgeOptions[2+i%2].id],
     instructions: '## Getting started\n\n- Check the serial number.\n- Review the selected support package.\n\n**Fictional equipment; no attachments.**', retired_tag: i === 0 ? 'OLD-100' : null,
   }, i);
   const coverage = await app.execute('create_relationship_type', {workspaceId: workspace.id, technicalName: 'tool_support', configuration: {

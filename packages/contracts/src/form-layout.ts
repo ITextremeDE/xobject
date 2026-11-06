@@ -34,7 +34,7 @@ export function relationshipSidesForObject(type:RelationshipType,objectId:string
 export function formRelationshipFields(types:RelationshipType[],objectId:string,chain?:PrimaryChain|null,requirements?:PrimaryRequirements):FormRelationship[]{
   return types.filter(type=>type.kind!=='general'&&type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side,...(definition.kind==='primary'?{required:Boolean(requirements?.associationRequired||requirements?.requiredLevels.length)}:{})})));
 }
-export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||(['multiline','multiple_choice'].includes(field.kind)||field.kind==='structured'&&field.config?.schema!=='name_components')?'full':'half';}
+export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||(['multiline','multiple_choice','tree_choice'].includes(field.kind)||field.kind==='structured'&&field.config?.schema!=='name_components')?'full':'half';}
 export function formLayoutElements(fields:LayoutField[],relationships:FormRelationship[]=[]):FormElement[]{
   return [...fields.map(field=>({key:field.id,entry:{fieldId:field.id,width:defaultFormWidth(field)} as FormEntry,field,single:true,required:Boolean(field.required)})),...relationships.map(relationship=>{
     const {definition,side}=relationship,single=(side==='left'?definition.leftMax:definition.rightMax)===1,required=relationship.required||definition.active&&(side==='left'?definition.leftMin:definition.rightMin)>0;

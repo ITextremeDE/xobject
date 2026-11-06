@@ -24,3 +24,8 @@ export function api<K extends Operation>(operation: K, input: Inputs[K]): Promis
 export const getSession = () => request<{ user: AuthUser } | null>('/api/auth/get-session');
 export const signIn = (email: string, password: string) => request<{url?:string}>('/api/auth/sign-in/email', { email, password, ...(window.location.pathname==='/oauth/login'?{oauth_query:window.location.search.slice(1)}:{}) });
 export const signOut = () => request('/api/auth/sign-out', {});
+
+/** A transient background failure must not unmount a cached editor and lose its draft. */
+export function blocksCachedView(query:{isError:boolean;data:unknown;error:unknown}){
+ return query.isError&&(query.data===undefined||query.error instanceof ApiError&&[401,403,404,410].includes(query.error.status));
+}

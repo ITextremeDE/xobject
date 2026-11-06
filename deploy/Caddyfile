@@ -2,6 +2,7 @@
 	email {$TLS_EMAIL}
 }
 {$XOBJECT_HOST} {
-	encode zstd gzip
+	@compress not path /api/events
+	encode @compress zstd gzip
 	reverse_proxy xobject-backend:4100
 }

@@ -34,11 +34,21 @@ export async function saveRelationshipField(tx:Executor,input:Inputs['create_fie
  const rules=await normalizeInputRules(tx,{id,technical_name:name,kind,config,required},fieldInputRulesSchema.parse({...emptyFieldInputRules(),...(input.inputRules??old?.input_rules)}),owner.workspace_id);
  if(rules.unique)throw new AppError(400,'Relationship field uniqueness is not supported');
  const next={technical_name:name,labels,kind,config,required,input_rules:rules},change=v7();
- const existing=(await sql<{id:string;value:FieldValue}>`SELECT r.id,r.values->${id} AS value FROM sys_relationships r WHERE r.relationship_type_id=${relationship}::uuid`.execute(tx)).rows;
+ const existing=(await sql<AttributeEdge&{value:FieldValue}>`SELECT r.*,r.values->${id} AS value FROM sys_relationships r WHERE r.relationship_type_id=${relationship}::uuid`.execute(tx)).rows;
+ const touched=new Map<string,{objectTypeId:string;recordId:string}>();
  for(const row of existing){
   const value=old?convertFieldValue(old,{id,...next},row.value??null):normalizeFieldValue({id,...next},null);
   await validateReferences(tx,{id,...next},value,owner.workspace_id,row.value);
-  if(old&&!isDeepStrictEqual(row.value??null,value))throw new AppError(409,'Relationship field conversion would rewrite existing values');
+  if(old&&!isDeepStrictEqual(row.value??null,value)){
+   if(kind!=='tree_choice')throw new AppError(409,'Relationship field conversion would rewrite existing values');
+   await persistAttributeValue(tx,row,{id,...next},row.value??null,value,actor,change);
+   await sql`UPDATE sys_relationships SET version=version+1 WHERE id=${row.id}::uuid`.execute(tx);
+   for(const ref of endpoints(row))touched.set(`${ref.objectTypeId}:${ref.recordId}`,ref);
+  }
+ }
+ for(const ref of touched.values()){
+  const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${ref.objectTypeId}::uuid`.execute(tx)).rows[0];
+  await sql`UPDATE ${sql.table(model.name)} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${ref.recordId}::uuid`.execute(tx);
  }
  if(old)await sql`UPDATE sys_fields SET labels=${JSON.stringify(labels)}::jsonb,kind=${kind},config=${JSON.stringify(config)}::jsonb,required=${required},input_rules=${JSON.stringify(rules)}::jsonb,version=version+${isDeepStrictEqual({technical_name:old.technical_name,labels:old.labels,kind:old.kind,config:old.config,required:old.required,input_rules:old.input_rules},next)?0:1} WHERE id=${id}::uuid`.execute(tx);
  else await sql`INSERT INTO sys_fields(id,relationship_type_id,technical_name,labels,kind,config,required,input_rules) VALUES(${id}::uuid,${relationship}::uuid,${name},${JSON.stringify(labels)}::jsonb,${kind},${JSON.stringify(config)}::jsonb,${required},${JSON.stringify(rules)}::jsonb)`.execute(tx);
@@ -88,10 +98,7 @@ export async function writeEdgeAttributes(tx:Executor,focus:{objectTypeId:string
    if(isDeepStrictEqual(previous,value))continue;
    for(const ref of endpoints(edge))if(!newRecord||ref.objectTypeId!==focus.objectTypeId||ref.recordId!==focus.recordId)await contentAccess().require(ref.objectTypeId,ref.recordId,'edit');
    await validateReferences(tx,field,value,edge.workspace_id,previous);
-   await sql`UPDATE sys_relationships SET values=jsonb_set(values,ARRAY[${field.id}],${JSON.stringify(value)}::jsonb),updated_at=now(),updated_by=${actor} WHERE id=${edge.id}::uuid`.execute(tx);
-   const detail=field.kind==='structured'?{schema:field.config.schema,changes:structuredChanges(previous,value)}:null;
-   const journal=v7();await sql`INSERT INTO sys_journal(id,change_id,workspace_id,entity_kind,entity_id,field_id,field_key,old_value,new_value,detail_context,actor_id) VALUES(${journal}::uuid,${change}::uuid,${edge.workspace_id}::uuid,'relationship',${edge.id}::uuid,${field.id}::uuid,${field.technical_name},${JSON.stringify(previous)}::jsonb,${JSON.stringify(value)}::jsonb,${JSON.stringify(detail)}::jsonb,${actor})`.execute(tx);
-   for(const ref of endpoints(edge))await sql`INSERT INTO sys_relationship_journal_endpoints VALUES(${journal}::uuid,${edge.workspace_id}::uuid,${ref.objectTypeId}::uuid,${ref.recordId}::uuid)`.execute(tx);
+   await persistAttributeValue(tx,edge,field,previous,value,actor,change);
    changed=true;
   }
   if(changed){if(!fresh)await sql`UPDATE sys_relationships SET version=version+1 WHERE id=${edge.id}::uuid`.execute(tx);for(const ref of endpoints(edge))touched.set(`${ref.objectTypeId}:${ref.recordId}`,ref);}
@@ -114,4 +121,11 @@ export async function candidateAttributes(tx:Executor,relationship:string,source
  const fields=(await sql<RelationshipFieldRow>`SELECT * FROM sys_fields WHERE relationship_type_id=${relationship}::uuid AND state='active'`.execute(tx)).rows,values:Record<string,FieldValue>={},access:Record<string,{read:boolean;edit:boolean}>={};
  for(const field of fields){const sourcePolicy=await contentAccess().policy(source.objectTypeId),targetPolicy=await contentAccess().policy(target.objectTypeId),a=source.recordId?sourcePolicy.field(field.id,source.recordId):{read:sourcePolicy.creationField(field.id),edit:sourcePolicy.creationField(field.id)},b=targetPolicy.field(field.id,target.recordId);const rights={read:a.read&&b.read,edit:a.edit&&b.edit};access[field.id]=rights;if(rights.read)values[field.id]=rights.edit?field.input_rules.defaultValue:null;}
  return {attributeValues:values,attributeAccess:access};
+}
+
+async function persistAttributeValue(tx:Executor,edge:AttributeEdge,field:TypedField,previous:unknown,value:FieldValue,actor:string,change:string){
+   await sql`UPDATE sys_relationships SET values=jsonb_set(values,ARRAY[${field.id}],${JSON.stringify(value)}::jsonb),updated_at=now(),updated_by=${actor} WHERE id=${edge.id}::uuid`.execute(tx);
+   const detail=field.kind==='structured'?{schema:field.config.schema,changes:structuredChanges(previous,value)}:null;
+   const journal=v7();await sql`INSERT INTO sys_journal(id,change_id,workspace_id,entity_kind,entity_id,field_id,field_key,old_value,new_value,detail_context,actor_id) VALUES(${journal}::uuid,${change}::uuid,${edge.workspace_id}::uuid,'relationship',${edge.id}::uuid,${field.id}::uuid,${field.technical_name},${JSON.stringify(previous)}::jsonb,${JSON.stringify(value)}::jsonb,${JSON.stringify(detail)}::jsonb,${actor})`.execute(tx);
+   for(const ref of endpoints(edge))await sql`INSERT INTO sys_relationship_journal_endpoints VALUES(${journal}::uuid,${edge.workspace_id}::uuid,${ref.objectTypeId}::uuid,${ref.recordId}::uuid)`.execute(tx);
 }

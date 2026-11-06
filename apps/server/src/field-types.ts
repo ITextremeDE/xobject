@@ -1,3 +1,4 @@
+import {choiceTreeError,closeChoiceSelection} from '@xobject/contracts';
 import {parseStructuredValue,structuredOptionGroups} from '@xobject/contracts';
 import { z } from 'zod';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
@@ -8,7 +9,7 @@ import { AppError } from './errors.js';
 import type { Executor } from './database.js';
 
 export type TypedField = { id: string; technical_name: string; kind: string; required: boolean; config: FieldConfig };
-const choiceKinds = new Set(['single_choice', 'multiple_choice']);
+const choiceKinds = new Set(['single_choice', 'multiple_choice','tree_choice']);
 const currencies = new Set(Intl.supportedValuesOf('currency'));
 const fail = (message: string): never => { throw new AppError(400, message); };
 export const isEmptyFieldValue = (value: unknown) => value === null || value === undefined || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length);
@@ -22,6 +23,7 @@ export function fieldConfig(kind: CustomFieldKind, input?: FieldConfig, previous
   if(previous?.fixedOptions&&JSON.stringify(previous.options?.map(o=>[o.id,o.active]))!==JSON.stringify(config.options?.map(o=>[o.id,o.active])))fail('Supplied choice identities and availability are fixed');
   if (config.options) {
     if (new Set(config.options.map(option => option.id)).size !== config.options.length) fail('Duplicate field option identities');
+    if(kind==='tree_choice'){const error=choiceTreeError(config.options);if(error)fail(error);}else if(config.options.some(option=>option.parentId))fail('Only a selection tree supports parent choices');
     const groups=kind==='structured'?structuredOptionGroups(config.schema):[];
     for(const option of config.options){
       if(groups.length&&(!option.group||!groups.includes(option.group)))fail('Options require a valid group for this collection');
@@ -41,14 +43,14 @@ export function fieldStorage(kind: string, config: FieldConfig) {
     case 'date': return sql`date`;
     case 'datetime': return sql`timestamptz`;
     case 'single_choice': return sql`uuid`;
-    case 'multiple_choice': return sql`uuid[]`;
+    case 'multiple_choice': case 'tree_choice': return sql`uuid[]`;
     case 'structured': case 'money': case 'reference': return sql`jsonb`;
     default: return sql`text`;
   }
 }
 export function storedParameter(field: Pick<TypedField, 'kind'>, value: unknown) {
   if (field.kind === 'structured' || field.kind === 'money' || field.kind === 'reference') return sql`${value === null ? null : JSON.stringify(value)}::jsonb`;
-  if (field.kind === 'multiple_choice' || field.kind === 'category') return sql`${value}::uuid[]`;
+  if (field.kind === 'multiple_choice' || field.kind==='tree_choice' || field.kind === 'category') return sql`${value}::uuid[]`;
   return sql`${value}`;
 }
 function decimal(value: unknown, scale: number): string {
@@ -93,17 +95,18 @@ export function normalizeFieldValue(field: TypedField, input: unknown, previous?
     case 'boolean': if (typeof value !== 'boolean') return fail('Invalid Boolean value'); return value;
     case 'date': if (typeof value !== 'string' || !z.iso.date().safeParse(value).success) return fail('Invalid date value'); return value;
     case 'datetime': if (typeof value !== 'string' || !z.iso.datetime({ offset: true }).safeParse(value).success || !Number.isFinite(Date.parse(value)) || (value.match(/\.(\d+)/)?.[1].length ?? 0) > 3) return fail('Invalid timestamp value'); return new Date(value).toISOString();
-    case 'single_choice': case 'multiple_choice': {
-      const selected = field.kind === 'multiple_choice' ? value : [value];
+    case 'single_choice': case 'multiple_choice': case 'tree_choice': {
+      const selected = field.kind !== 'single_choice' ? value : [value];
       if (!Array.isArray(selected) || selected.some(id => typeof id !== 'string' || !z.uuid().safeParse(id).success)) return fail('Invalid choice value');
-      const ids = selected.map(id => String(id).toLowerCase());
+      let ids = selected.map(id => String(id).toLowerCase());
       if (new Set(ids).size !== ids.length || ids.length > 100) return fail('Duplicate or excessive choice values');
+      if(field.kind==='tree_choice'){try{ids=closeChoiceSelection(field.config.options??[],ids);}catch(error){return fail((error as Error).message);}if(ids.length>100)return fail('At most 100 choices including ancestors');}
       for (const id of ids) {
         const option = field.config.options?.find(option => option.id === id);
         const retained = Array.isArray(previous) ? previous.includes(id) : previous === id;
         if (!option || (!option.active && !retained)) return fail('Unknown or inactive field option');
       }
-      return field.kind === 'multiple_choice' ? ids.sort() : ids[0];
+      return field.kind !== 'single_choice' ? ids.sort() : ids[0];
     }
     case 'reference': {
       const selected = field.config.multiple ? value : [value];
@@ -142,7 +145,7 @@ export async function validateReferences(tx: Executor, field: TypedField, value:
 }
 export function convertFieldValue(previous: TypedField, next: TypedField, input: unknown): FieldValue {
   if (input === null || input === undefined) return normalizeFieldValue(next, null, input);
-  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'structured' && !['partial_date','time_zone'].includes(next.config.schema!) || next.kind === 'multiple_choice' || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
+  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'structured' && !['partial_date','time_zone'].includes(next.config.schema!) || ['multiple_choice','tree_choice'].includes(next.kind) || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
   if (input === '') return normalizeFieldValue(next, ['text', 'multiline'].includes(next.kind) ? '' : null, input);
   let value = normalizeFieldValue({ ...previous, required: false }, input, input);
   if(previous.kind==='structured'||next.kind==='structured'){if(previous.kind!==next.kind||previous.config.schema!==next.config.schema)return fail('Unsafe field conversion');return normalizeFieldValue(next,value,input);}
@@ -152,8 +155,8 @@ export function convertFieldValue(previous: TypedField, next: TypedField, input:
     else if (!previous.config.multiple && next.config.multiple) value = [value as ReferenceValue];
   } else if (choiceKinds.has(previous.kind) || choiceKinds.has(next.kind)) {
     if (!choiceKinds.has(previous.kind) || !choiceKinds.has(next.kind)) return fail('Unsafe field conversion');
-    if (previous.kind === 'multiple_choice' && next.kind === 'single_choice') { if (!Array.isArray(value) || value.length !== 1) return fail('Unsafe field conversion'); value = value[0] as FieldValue; }
-    else if (previous.kind === 'single_choice' && next.kind === 'multiple_choice') value = [value as string];
+    if (previous.kind !== 'single_choice' && next.kind === 'single_choice') { if (!Array.isArray(value) || value.length !== 1) return fail('Unsafe field conversion'); value = value[0] as FieldValue; }
+    else if (previous.kind === 'single_choice' && next.kind !== 'single_choice') value = [value as string];
   } else if (previous.kind !== next.kind) {
     if (previous.kind === 'money' || next.kind === 'money') return fail('Unsafe field conversion');
     if (next.kind === 'boolean' && (value === 'true' || value === 'false')) value = value === 'true';

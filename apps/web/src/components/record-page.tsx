@@ -1,3 +1,7 @@
+import {useTransientDraftPending} from '@/lib/transient-draft';
+import {DraftConflicts} from './draft-conflicts';
+import {displayFieldValue} from '@/lib/field-display';
+import {RecordShareItems} from './record-share-items';
 import {notifySuccess} from '@/lib/notifications';
 import {CopyRecordIdItem} from './record-row-actions';
 import {isReadableRecord} from '@xobject/contracts';
@@ -39,7 +43,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeftIcon, RotateCcwIcon, SaveIcon, ChevronDownIcon, CopyIcon, MoreHorizontalIcon, Trash2Icon } from 'lucide-react';
 import { fieldApplies, isCustomFieldKind, type FieldValue, type AuthUser, type DataRecord, type ObjectDefinition, type RecordRelationships } from '@xobject/contracts';
 import {Journal} from './record-journal';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError,blocksCachedView } from '@/lib/api';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Field, FieldLabel, FieldGroup, FieldSet, FieldLegend,FieldError, FieldDescription } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -74,28 +78,30 @@ export function RecordPage(props: Props) {
   const kindField=props.definition.fields.find(field=>field.id===props.definition.contactProfile?.fields.contact_kind);
   const loadingApplicable=record.data?.applicableFieldIds;
   const loadingValues=record.data??draft.data?.values??(kindField&&contactKind?{[kindField.technicalName]:contactKind}:undefined);
-  if(duplicateSource&&draft.isError)return <ErrorNotice error={draft.error} retry={()=>{void draft.refetch();}}/>;
+  if(duplicateSource&&blocksCachedView(draft))return <ErrorNotice error={draft.error} retry={()=>{void draft.refetch();}}/>;
   if(duplicateSource&&draft.isPending)return <RecordPageLoading definition={props.definition} isNew/>;
   if (relationships.isPending) return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} isNew={props.recordId==='new'}/>;
-  if (relationships.isError) return <ErrorNotice error={relationships.error} retry={()=>{void relationships.refetch();}}/>;
-  if (props.recordId !== 'new' && record.isPending) return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} treeAvailable={Boolean(relationships.data.primaryChain)}/>;
-  if (record.isError) return <FieldGroup><Button type="button" variant="outline" className="w-fit" onClick={props.onClose}><ArrowLeftIcon data-icon="inline-start" />{t(props.returnToSource?'backToSource':'backToOverview')}</Button><ErrorNotice error={record.error} retry={() => { void record.refetch(); }} /></FieldGroup>;
+  if (blocksCachedView(relationships)) return <ErrorNotice error={relationships.error} retry={()=>{void relationships.refetch();}}/>;
+  if (props.recordId !== 'new' && record.isPending) return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} treeAvailable={Boolean(relationships.data!.primaryChain)}/>;
+  if (blocksCachedView(record)) return <FieldGroup><Button type="button" variant="outline" className="w-fit" onClick={props.onClose}><ArrowLeftIcon data-icon="inline-start" />{t(props.returnToSource?'backToSource':'backToOverview')}</Button><ErrorNotice error={record.error} retry={() => { void record.refetch(); }} /></FieldGroup>;
   const sensitive=props.definition.sensitive===true,isNew=props.recordId==='new';
-  if(sensitive&&(!isNew?security.isPending:props.definition.permissions?.full&&newOwners.isPending))return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} isNew={isNew} treeAvailable={Boolean(relationships.data.primaryChain)}/>;
-  if(sensitive&&(security.isError||newOwners.isError))return <ErrorNotice error={security.error??newOwners.error}/>;
+  if(sensitive&&(!isNew?security.isPending:props.definition.permissions?.full&&newOwners.isPending))return <RecordPageLoading values={loadingValues as Record<string,FieldValue>|undefined} applicableFieldIds={loadingApplicable} definition={props.definition} isNew={isNew} treeAvailable={Boolean(relationships.data!.primaryChain)}/>;
+  if(sensitive&&(blocksCachedView(security)||blocksCachedView(newOwners)))return <ErrorNotice error={security.error??newOwners.error}/>;
   const newPolicy:import('@xobject/contracts').RecordSecurity={owners:[{kind:'user',id:props.user.id,level:'full'}],publicLevel:null,privacy:'normal',foreignMax:'full',fields:[]};
   const accessSnapshot:SecuritySnapshot|undefined=sensitive?(isNew?{policy:newPolicy,version:1,canManage:props.definition.permissions?.full===true,effective:{level:props.definition.permissions?.full?'full':props.definition.permissions?.delete?'delete':props.definition.permissions?.edit?'edit':props.definition.permissions?.schedule?'schedule':props.definition.permissions?.duplicate?'duplicate':props.definition.permissions?.read?'read':'none',source:props.user.isAdmin?'administrator':'ownership',path:[`user:${props.user.id}`]},principals:[...(newOwners.data??[]).filter(person=>person.id!==props.user.id).map(person=>({...person,active:true,assignable:true})),{kind:'user',id:props.user.id,name:props.user.name,active:true,assignable:true}],fieldAccess:Object.fromEntries(props.definition.fields.map(field=>[field.id,{read:field.fieldPermissions?.create===true,edit:field.fieldPermissions?.create===true}]))}:security.data):undefined;
-  const seededLink=props.linkedCreation?seedLinkedFields(relationships.data.fields,props.linkedCreation).find(field=>field.definition.id===props.linkedCreation!.linkFrom.relationshipTypeId&&field.targets.some(target=>target.recordId===props.linkedCreation!.source.recordId)):undefined;
+  const seededLink=props.linkedCreation?seedLinkedFields(relationships.data!.fields,props.linkedCreation).find(field=>field.definition.id===props.linkedCreation!.linkFrom.relationshipTypeId&&field.targets.some(target=>target.recordId===props.linkedCreation!.source.recordId)):undefined;
   const kindRule=seededLink?(seededLink.side==='left'?seededLink.definition.leftApplicability:seededLink.definition.rightApplicability):undefined;
   const availableKinds=contactKindOrder.filter(key=>!kindRule||kindRule.fieldId!==props.definition.contactProfile?.fields.contact_kind||kindRule.optionIds.includes(props.definition.contactProfile!.kinds[key]));
   if(isNew&&props.definition.contactProfile&&!availableKinds.some(key=>props.definition.contactProfile!.kinds[key]===contactKind))return <SettingsSection><h1 className="text-2xl font-semibold">{t('contactChooseKind')}</h1><FieldDescription>{t('contactChooseKindHelp')}</FieldDescription><div className="flex flex-wrap gap-3">{availableKinds.map(kind=><Button key={kind} type="button" variant="outline" onClick={()=>{const next=new URLSearchParams(params);next.set('contactKind',props.definition.contactProfile!.kinds[kind]);setParams(next,{replace:true});}}>{contactKindLabel(props.definition,kind,i18n.language,t(`contactKind_${kind}`))}</Button>)}</div><Button type="button" variant="ghost" className="self-start" onClick={props.onClose}>{t('cancel')}</Button></SettingsSection>;
-  return <RecordForm duplicateDraft={draft.data} accessSnapshot={accessSnapshot} key={`${props.recordId}:${isNew?contactKind??'':''}:${duplicateSource??''}`} {...props} definition={{...props.definition,fields:props.definition.fields.map(f=>({...f,fieldPermissions:props.recordId==='new'?{read:f.isDerived?props.definition.permissions?.create===true:f.fieldPermissions?.create===true,edit:!f.isDerived&&f.fieldPermissions?.create===true}:record.data?.fieldAccess?.[f.id]}))}} record={record.data} relationships={relationships.data} />;
+  const refreshFailed=[record,relationships,security].some(query=>query.isError)&&navigator.onLine;
+  return <>{refreshFailed?<Alert role="status"><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{t('liveRefreshFailed')}</span><Button type="button" size="sm" variant="outline" onClick={()=>{void record.refetch();void relationships.refetch();if(props.definition.sensitive)void security.refetch();}}>{t('retry')}</Button></AlertDescription></Alert>:null}<RecordForm duplicateDraft={draft.data} accessSnapshot={accessSnapshot} key={`${props.recordId}:${isNew?contactKind??'':''}:${duplicateSource??''}`} {...props} definition={{...props.definition,fields:props.definition.fields.map(f=>({...f,fieldPermissions:props.recordId==='new'?{read:f.isDerived?props.definition.permissions?.create===true:f.fieldPermissions?.create===true,edit:!f.isDerived&&f.fieldPermissions?.create===true}:record.data?.fieldAccess?.[f.id]}))}} record={record.data} relationships={relationships.data!} /></>;
 }
 
 function RecordForm({ duplicateDraft,accessSnapshot,returnToSource,linkedCreation,definition, record, recordId, user, workspaceName, workspaceCode, relationships, onClose, onAccessLost, onDirtyChange, onBusyChange, onSaved }: Props & { accessSnapshot?:SecuritySnapshot;record?: DataRecord; relationships:RecordRelationships }) {
   const { t, i18n } = useTranslation();
   const [params]=useSearchParams();
   const queryClient = useQueryClient(),navigate=useNavigate();
+  const pickerDirty=useTransientDraftPending();
   const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
   const userName = (id: string) => id === user.id ? user.name : principals.data?.find(principal => principal.kind === 'user' && principal.id === id)?.name ?? id;
   const requestedRegional=useRegional(),requestedTimeZone=useTimeZone();
@@ -271,6 +277,50 @@ function RecordForm({ duplicateDraft,accessSnapshot,returnToSource,linkedCreatio
     setRelationFields(nextRelations);setRelationBaseline(previousRelations);
     setValues(next);setBaseline(previous);setDraftFormat({regional:requestedRegional,timeZone:requestedTimeZone});
   },[formatChangePending,requestedRegional,requestedTimeZone,regional,activeFields,values,baseline,timestampInvalid,attributeInvalid,relationFields,relationBaseline,mutation.isPending]);
+  const [reviewOpen,setReviewOpen]=useState(false);
+  const externalChange=Boolean(record&&version&&record.version>version);
+  const remoteReady=!accessSnapshot||accessSnapshot.version===record?.version;
+  const remoteValues=initial();
+  const remoteChoices:ClassificationValues={type:record?.type??null,status:record?.status??null,category:record?.category??[]};
+  const remoteRelations=localizedRelationshipFields(relationships.fields,regional);
+  const snapshot=(fields:Record<string,FieldValue>,classification:ClassificationValues,links:typeof relationFields,security:typeof securityDraft)=>({
+    ...Object.fromEntries(Object.entries(fields).map(([key,value])=>[`field:${key}`,value])),
+    ...Object.fromEntries(Object.entries(classification).filter(([key])=>activeFields.some(field=>field.technicalName===key)).map(([key,value])=>[`classification:${key}`,value])),
+    ...Object.fromEntries(links.map(field=>[`relationship:${field.definition.id}:${field.side}`,field])),
+    ...(security?{security}:{}),
+  });
+  function adoptRemote(merged?:Record<string,unknown>){
+    if(!record||!remoteReady)return;
+    const nextValues=merged?Object.fromEntries(Object.entries(merged).filter(([key])=>key.startsWith('field:')).map(([key,value])=>[key.slice(6),value as FieldValue])):remoteValues;
+    const nextChoices=merged?{...remoteChoices,...Object.fromEntries(Object.entries(merged).filter(([key])=>key.startsWith('classification:')).map(([key,value])=>[key.slice(15),value]))} as ClassificationValues:remoteChoices;
+    const nextRelations=merged?remoteRelations.map(remote=>{
+      const local=merged[`relationship:${remote.definition.id}:${remote.side}`] as typeof remote|undefined;
+      if(!local)return remote;
+      return {...remote,targets:local.targets.map(target=>{const saved=remote.targets.find(item=>item.recordId===target.recordId&&item.objectTypeId===target.objectTypeId);return saved?{...saved,attributeValues:target.attributeValues}:target;})};
+    }):remoteRelations;
+    setValues(nextValues);setBaseline(remoteValues);setChoices(nextChoices);setChoiceBaseline(remoteChoices);
+    setRelationFields(nextRelations);setRelationBaseline(remoteRelations);
+    setSecurityBaseline(accessSnapshot?.policy);setSecurityDraft(merged?.security as typeof securityDraft??accessSnapshot?.policy);setSecurityConfirmed(false);setAccessDetailDirty(false);
+    setVersion(record.version);setDependencyContext({applicableFieldIds:record.applicableFieldIds,allowedStatusIds:record.allowedStatusIds});
+    setValidatedFields(new Set());setSubmitAttempted(false);setApplicabilityError('');mutation.reset();
+  }
+  useEffect(()=>{if(externalChange&&remoteReady&&!dirty&&!pickerDirty&&!accessDetailDirty&&!mutation.isPending)adoptRemote();},[record,accessSnapshot,externalChange,remoteReady,dirty,pickerDirty,accessDetailDirty,mutation.isPending]);
+  const conflictLabel=(key:string)=>{
+    if(key==='security')return t('accessPrincipals');
+    if(key.startsWith('relationship:')){const field=relationFields.find(field=>key===`relationship:${field.definition.id}:${field.side}`);const labels=field?(field.side==='left'?field.definition.leftLabels:field.definition.rightLabels):undefined;return labels?.[i18n.language as 'en'|'de']??labels?.en??t('relationships');}
+    const name=key.split(':')[1];return activeFields.find(field=>field.technicalName===name)?.label??t(name);
+  };
+  const conflictDisplay=(key:string,value:unknown)=>{
+    if(value===null||value===undefined||value==='')return t('emptyValue');
+    if(key==='security'){
+      const policy=value as NonNullable<typeof securityDraft>,name=(owner:{kind:string;id:string})=>accessSnapshot?.principals.find(principal=>principal.kind===owner.kind&&principal.id===owner.id)?.name??t(`reference_${owner.kind}`);
+      return [...policy.owners.map(owner=>`${name(owner)}: ${t(`permission_${owner.level}`)}`),`${t('publicLevel')}: ${t(`permission_${policy.publicLevel??'none'}`)}`,`${t('recordPrivacy')}: ${t(`privacy_${policy.privacy}`)}`,`${t('foreignLimit')}: ${t(`permission_${policy.foreignMax}`)}`,...policy.fields.flatMap(rule=>Object.entries(rule.fields).map(([id,level])=>`${name(rule)} · ${definition.fields.find(field=>field.id===id)?.label??t('field')}: ${t(`permission_${level}`)}`))].join('\n');
+    }
+    if(key.startsWith('relationship:')){const relation=value as typeof relationFields[number];return relation.targets.map(target=>[target.keyword||target.recordId,...Object.entries(target.attributeValues??{}).map(([id,entry])=>{const field=relation.definition.fields?.find(field=>field.id===id);try{return field?`${field.label}: ${displayFieldValue(field,entry,i18n.language,t,principals.data??[],timeZone,regional)}`:'';}catch{return field?`${field.label}: ${t('valueChanged')}`:'';}})].filter(Boolean).join('\n')).join('\n\n')||t('emptyValue');}
+    if(key.startsWith('classification:'))return (Array.isArray(value)?value:[value]).map(id=>{const option=definition.classification.options.find(option=>option.id===id);return option?.label??option?.labels[i18n.language as 'en'|'de']??option?.labels.en??t('valueChanged');}).join(', ')||t('emptyValue');
+    const field=activeFields.find(field=>field.technicalName===key.split(':')[1]);
+    try{return field?displayFieldValue(field,value,i18n.language,t,principals.data??[],timeZone,regional):String(value);}catch{return typeof value==='string'?value:t('valueChanged');}
+  };
   function reset() {setValidatedFields(new Set());setSubmitAttempted(false);setTouchedDefaults(new Set());setSecurityDraft(securityBaseline);setSecurityConfirmed(false);setAccessDetailDirty(false);setApplicabilityError('');setRelationFields(relationBaseline); setValues({ ...baseline }); setChoices(choiceBaseline);  mutation.reset(); onDirtyChange(false); }
   const linkSourceValues=Object.fromEntries(relationFields.flatMap(field=>{const rule=field.side==='left'?field.definition.leftApplicability:field.definition.rightApplicability;const controller=activeFields.find(item=>item.id===rule?.fieldId);return controller?[[controller.technicalName,values[controller.technicalName]??null]]:[];}));
   const updateRelationships = (candidate: typeof relationFields) => {
@@ -287,13 +337,15 @@ function RecordForm({ duplicateDraft,accessSnapshot,returnToSource,linkedCreatio
     });
   }
   if(lostAccess)return <ErrorNotice error={new Error(t('contentAccessDenied'))}/>;
-  return <RegionalProvider value={regional}><TimeZoneProvider value={timeZone}><form id="record-form" onInvalidCapture={event=>{setSubmitAttempted(true);focusInvalidField(event.currentTarget);}} data-shortcut-submit className={recordPageClassName} onSubmit={event => { event.preventDefault(); setSubmitAttempted(true); if(invalid){focusInvalidField(event.currentTarget);return;} if (tab === 'details' && !readOnly && !formatChangePending && !invalid && (!record || dirty) && !mutation.isPending) mutation.mutate(); }}>
+  return <RegionalProvider value={regional}><TimeZoneProvider value={timeZone}><form id="record-form" onInvalidCapture={event=>{setSubmitAttempted(true);focusInvalidField(event.currentTarget);}} data-shortcut-submit className={recordPageClassName} onSubmit={event => { event.preventDefault(); setSubmitAttempted(true); if(invalid){focusInvalidField(event.currentTarget);return;} if (!pickerDirty && !externalChange && tab === 'details' && !readOnly && !formatChangePending && !invalid && (!record || dirty) && !mutation.isPending) mutation.mutate(); }}>
+    {externalChange?<Alert role="status"><AlertDescription className="flex flex-wrap items-center justify-between gap-3"><span>{t('externalRecordChange')} {t('externalChangeHelp')}</span><Button type="button" size="sm" variant="outline" disabled={!remoteReady||mutation.isPending} onClick={()=>setReviewOpen(true)}>{t('reviewChanges')}</Button></AlertDescription></Alert>:null}
+    {externalChange&&reviewOpen?<DraftConflicts key={record!.version} open={reviewOpen} onOpenChange={setReviewOpen} base={snapshot(baseline,choiceBaseline,relationBaseline,securityBaseline)} local={snapshot(values,choices,relationFields,securityDraft)} remote={snapshot(remoteValues,remoteChoices,remoteRelations,accessSnapshot?.policy)} label={conflictLabel} display={conflictDisplay} onApply={adoptRemote}/>:null}
     <RecordPageHeader navigation={<><Button type="button" variant="ghost" className="w-fit -ml-2" disabled={mutation.isPending} onClick={onClose}><ArrowLeftIcon data-icon="inline-start" />{t(returnToSource?'backToSource':'backToOverview')}</Button>
-      {record?<DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" className="sm:hidden" aria-label={t('recordActions')}/> }><MoreHorizontalIcon/></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-56 max-w-[calc(100vw-2rem)]"><DropdownMenuGroup>{record.permissions?.duplicate&&definition.permissions?.create?<DropdownMenuItem disabled={inactiveObject||dirty||mutation.isPending} onClick={()=>duplicate()}><CopyIcon/>{t('duplicateRecord')}</DropdownMenuItem>:null}{record.permissions?.delete?<DropdownMenuItem disabled={inactiveObject||dirty||mutation.isPending} onClick={()=>setRecycleOpen(true)}><Trash2Icon/>{t('recycleRecord')}</DropdownMenuItem>:null}</DropdownMenuGroup><DropdownMenuGroup><CopyRecordIdItem id={record.id}/></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>:null}
+      {record?<DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" className="sm:hidden" aria-label={t('recordActions')}/> }><MoreHorizontalIcon/></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-56 max-w-[calc(100vw-2rem)]"><DropdownMenuGroup>{record.permissions?.duplicate&&definition.permissions?.create?<DropdownMenuItem disabled={inactiveObject||dirty||mutation.isPending} onClick={()=>duplicate()}><CopyIcon/>{t('duplicateRecord')}</DropdownMenuItem>:null}{record.permissions?.delete?<DropdownMenuItem disabled={inactiveObject||dirty||mutation.isPending} onClick={()=>setRecycleOpen(true)}><Trash2Icon/>{t('recycleRecord')}</DropdownMenuItem>:null}</DropdownMenuGroup><DropdownMenuGroup><RecordShareItems workspaceCode={workspaceCode} technicalName={definition.technicalName} recordId={record.id}/><CopyRecordIdItem id={record.id}/></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>:null}
       <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{kindKey?contactKindLabel(definition,kindKey,i18n.language,t(`contactKind_${kindKey}`)):definition.label}</Badge>{record&&!readOnly?<RecordLinkActions excludedRelationshipIds={definition.contactProfile?[definition.contactProfile.relationships.contact_person]:[]} source={{iconKey:record.iconKey,objectTypeId:definition.id,recordId:record.id,keyword:record.keyword,objectTechnicalName:definition.technicalName,objectLabels:definition.labels,state:'active'}} version={version!} fields={relationFields} sourceValues={linkSourceValues} workspaceCode={workspaceCode} disabled={mutation.isPending} dirty={dirty||formatChangePending} onPickerDirtyChange={value=>onDirtyChange(value||dirty)} onApply={(field,targets)=>{updateRelationships(relationFields.map(item=>item===field?{...item,targets}:item));setTab('details');}}/>:null}{readOnly?<Badge variant="outline">{t(inactiveObject?'definition_inactive':'readOnly')}</Badge>:null}</div></>} title={<h1 data-record-page-title tabIndex={-1} className="wrap-anywhere text-2xl font-semibold outline-none">{title}</h1>} description={t(inactiveObject?'inactiveObjectHelp':readOnly?'recordReadOnlyHelp':record?'recordDetails':duplicateDraft?'duplicateDraftHelp':'newRecordDescription')} actions={record?<>
       {record.permissions?.duplicate&&definition.permissions?.create?<Button type="button" variant="outline" disabled={inactiveObject||dirty||mutation.isPending} onClick={()=>duplicate()}><CopyIcon data-icon="inline-start"/>{t('duplicateRecord')}</Button>:null}
       {record.permissions?.delete?<RecordLifecycleAction open={recycleOpen} onOpenChange={setRecycleOpen} objectTypeId={definition.id} recordId={record.id} version={version!} name={record.keyword||record.id} disabled={inactiveObject||dirty||mutation.isPending} onBusyChange={onBusyChange} onDone={()=>{onBusyChange(false);onAccessLost?.();}}/>:null}
-      <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" disabled={mutation.isPending} aria-label={t('recordActions')}/> }><MoreHorizontalIcon/></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-56"><DropdownMenuGroup><CopyRecordIdItem id={record.id}/></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
+      <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon" disabled={mutation.isPending} aria-label={t('recordActions')}/> }><MoreHorizontalIcon/></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-56"><DropdownMenuGroup><RecordShareItems workspaceCode={workspaceCode} technicalName={definition.technicalName} recordId={record.id}/><CopyRecordIdItem id={record.id}/></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
 </>:undefined}/>
     {linkedCreation&&!record?<Alert><AlertDescription>{t('linkedRecordContext',{relationship:groupLabel(linkedCreation.labels),source:linkedCreation.source.keyword})}{linkedConditionInvalid?<p>{t('linkedRecordConditionHelp',{field:activeFields.find(field=>field.id===linkedRule?.fieldId)?.label??t('fieldName')})}</p>:null}</AlertDescription></Alert>:null}
     {formatChangePending?<Alert><AlertDescription>{t('regionalFormatChangePending')}</AlertDescription></Alert>:null}
@@ -321,7 +373,7 @@ function RecordForm({ duplicateDraft,accessSnapshot,returnToSource,linkedCreatio
     </> : null}</TabsContent></Tabs>
     {!readOnly&&(tab==='details'||dirty)?<RecordPageFooter>
       <FieldDescription className="w-full min-w-0 wrap-anywhere sm:w-auto sm:flex-1">{missingFields.length&&submitAttempted?t('recordMissingFields',{fields:missingFields.slice(0,3).join(', '),remaining:missingFields.length>3?t('recordMoreFields',{count:missingFields.length-3}):''}):timestampInvalid?t('recordIncomplete'):dirty?t('recordUnsaved'):t(record?'recordUpToDate':'recordCreateActionHelp')}</FieldDescription>
-      <div className="ml-auto flex flex-wrap items-center gap-2">{tab!=='details'?<Button type="button" variant="outline" onClick={()=>setTab('details')}>{t('keepEditing')}</Button>:null}{record ? <Button type="button" variant="outline" disabled={(!dirty&&!applicabilityError&&!mutation.isError) || mutation.isPending} onClick={reset}><RotateCcwIcon data-icon="inline-start" />{t('resetPreferences')}</Button> : null}<Button type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={tab!=='details'||mutation.isPending || formatChangePending || Boolean(record && !dirty)}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}{mutation.isPending ? t('saving') : t(record ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></div>
+      <div className="ml-auto flex flex-wrap items-center gap-2">{tab!=='details'?<Button type="button" variant="outline" onClick={()=>setTab('details')}>{t('keepEditing')}</Button>:null}{record ? <Button type="button" variant="outline" disabled={(!dirty&&!applicabilityError&&!mutation.isError) || mutation.isPending} onClick={reset}><RotateCcwIcon data-icon="inline-start" />{t('resetPreferences')}</Button> : null}<Button type="submit" aria-keyshortcuts={keyboardCommands.save.aria} disabled={pickerDirty||externalChange||tab!=='details'||mutation.isPending || formatChangePending || Boolean(record && !dirty)}>{mutation.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}{mutation.isPending ? t('saving') : t(record ? 'save' : 'create')}<Kbd>{saveShortcutLabel}</Kbd></Button></div>
     </RecordPageFooter>:null}
   </form></TimeZoneProvider></RegionalProvider>;
 

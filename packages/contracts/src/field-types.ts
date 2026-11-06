@@ -2,7 +2,7 @@ import {structuredSchemaKey,structuredValueSchema} from './structured-fields.js'
 import {uuidSchema} from './identity.js';
 import { z } from 'zod';
 
-export const customFieldKinds = ['text', 'multiline', 'integer', 'decimal', 'money', 'boolean', 'date', 'datetime', 'single_choice', 'multiple_choice', 'email', 'phone', 'url', 'reference', 'structured'] as const;
+export const customFieldKinds = ['text', 'multiline', 'integer', 'decimal', 'money', 'boolean', 'date', 'datetime', 'single_choice', 'multiple_choice', 'tree_choice', 'email', 'phone', 'url', 'reference', 'structured'] as const;
 export const customFieldKindSchema = z.enum(customFieldKinds);
 export type CustomFieldKind = z.infer<typeof customFieldKindSchema>;
 const translated = z.object({ de: z.string().trim().min(1).max(200).optional(), en: z.string().trim().min(1).max(200).optional() }).strict().refine(value => Object.keys(value).length > 0, 'A label is required');
@@ -12,7 +12,7 @@ export const fieldConfigSchema = z.object({
   scale: z.number().int().min(0).max(12).optional(),
   currency: z.string().regex(/^[A-Z]{3}$/).optional(),
   formatted: z.boolean().optional(),
-  options: z.array(z.object({ id: uuidSchema, labels: translated, active: z.boolean(), group:z.enum(['usage','phone_type','messenger_type']).optional() }).strict()).max(300).optional(),
+  options: z.array(z.object({ id: uuidSchema, labels: translated, parentId:uuidSchema.nullable().optional(), active: z.boolean(), group:z.enum(['usage','phone_type','messenger_type']).optional() }).strict()).max(300).optional(),
   referenceTarget: z.enum(['user', 'group', 'both']).optional(),
   multiple: z.boolean().optional(),
 }).strict();
@@ -31,7 +31,7 @@ export function defaultFieldConfig(kind: CustomFieldKind): FieldConfig {
     case 'decimal': return { scale: 2 };
     case 'money': return { scale: 2, currency: 'EUR' };
     case 'multiline': return { formatted: false };
-    case 'single_choice': case 'multiple_choice': return { options: [],fixedOptions:false };
+    case 'single_choice': case 'multiple_choice': case 'tree_choice': return { options: [],fixedOptions:false };
     case 'reference': return { referenceTarget: 'both', multiple: false };
     default: return {};
   }

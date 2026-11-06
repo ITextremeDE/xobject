@@ -1,3 +1,5 @@
+import {liveUpdates} from './live-updates.js';
+import {browserDefaults,browserShell,webManifest} from './browser-shell.js';
 import {Pool} from 'pg';
 import {authenticateOAuth} from './oauth.js';
 import {verifyOAuthQueryParams} from '@better-auth/oauth-provider';
@@ -19,7 +21,7 @@ import { connect,assertCurrentSchema } from './database.js';
 import { createAuth } from './auth.js';
 import { AppError, Application, schemas, type Operation } from './domain.js';
 
-export type Config = { databaseURL: string; authSecret: string; baseURL: string; listenHost?:string; listenPort?:number; trustedProxies?:string[] };
+export type Config = { databaseURL: string; authSecret: string; baseURL: string; listenHost?:string; listenPort?:number; trustedProxies?:string[]; appName?:string; appDescription?:string; browserTitleMode?:'context'|'neutral' };
 
 export function buildServer(config: Config) {
   const { db, pool } = connect(config.databaseURL);
@@ -37,9 +39,16 @@ export function buildServer(config: Config) {
   app.addHook('onReady',()=>assertCurrentSchema(pool));
   const application = new Application(db);
   const base = new URL(config.baseURL);
+  const webRoot = fileURLToPath(new URL('../../web/dist/', import.meta.url));
+  const htmlSource=existsSync(`${webRoot}/index.html`)?readFileSync(`${webRoot}/index.html`,'utf8'):'';
+  const buildId=htmlSource.match(/name="xobject-build" content="([^"]+)"/)?.[1]??'development';
+  const appName=config.appName??browserDefaults.name,description=config.appDescription??browserDefaults.description;
+  const shell=()=>browserShell(htmlSource,base.origin,appName,description);
+  const updates=liveUpdates(config.databaseURL,application,buildId,db);
+  app.addHook('preClose',()=>updates.close());
   app.addHook('onClose', async () => { await db.destroy(); if(!pool.ended)await pool.end(); await oauthGate.end(); });
   app.addHook('onRequest', async (request, reply) => {
-    reply.header('X-Content-Type-Options','nosniff').header('X-Frame-Options','DENY').header('Referrer-Policy','no-referrer').header('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+    reply.header('X-Robots-Tag','noindex, nofollow').header('X-Content-Type-Options','nosniff').header('X-Frame-Options','DENY').header('Referrer-Policy','no-referrer').header('Permissions-Policy','camera=(), microphone=(), geolocation=()');
     if(base.protocol==='https:')reply.header('Strict-Transport-Security','max-age=31536000');
     reply.header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     if (request.url.startsWith('/api/') || request.url.startsWith('/mcp')) reply.header('Cache-Control', 'no-store');
@@ -112,6 +121,20 @@ export function buildServer(config: Config) {
     return {clientId,name:client.name??clientId,scopes:(params.get('scope')??'').split(' ').filter(Boolean),redirectUri:params.get('redirect_uri')};
   });
 
+  app.get('/api/client-info',async()=>({name:appName,description,titleMode:config.browserTitleMode??'context',buildId}));
+  app.get('/manifest.webmanifest',async(_request,reply)=>reply.header('Cache-Control','no-cache').type('application/manifest+json').send({...webManifest(appName),description}));
+  app.get('/robots.txt',async(_request,reply)=>reply.type('text/plain').send('User-agent: *\nDisallow: /\n'));
+  app.post('/api/events',async(request,reply)=>{
+    if(request.headers.authorization)throw new AppError(403,'Interactive session required');
+    const context=await authenticate(request.headers);
+    const input=z.object({workspaceId:z.uuid(),watched:z.array(z.object({objectTypeId:z.uuid(),recordId:z.uuid()}).strict()).max(200).default([])}).strict().parse(request.body);
+    const validate=async()=>{await authenticate(request.headers);if((await pool.query('SELECT must_change_password FROM sys_users WHERE id=$1',[context.userId])).rows[0]?.must_change_password)throw new AppError(401,'Change password first');};
+    const disconnect=new AbortController();reply.raw.once('close',()=>disconnect.abort());request.raw.once('aborted',()=>disconnect.abort());
+    const stream=await updates.subscribe(context.userId,input.workspaceId,input.watched,validate,disconnect.signal);
+    request.raw.once('aborted',()=>stream.destroy());reply.raw.once('close',()=>stream.destroy());
+    return reply.header('Content-Type','text/event-stream').header('Cache-Control','no-store').header('X-Accel-Buffering','no').send(stream);
+  });
+
   app.get('/healthz',async(_request,reply)=>{reply.header('Cache-Control','no-store');await pool.query('SELECT 1');return {status:'ok'};});
   app.get('/api/v1/openapi.json',async(request)=>{await authenticate(request.headers,'api',false);return apiDocument;});
   app.get('/api/v1/contract',async(request)=>{await authenticate(request.headers,'api',false);return {apiVersion:API_VERSION,majorVersion:1,openapi:'/api/v1/openapi.json',components:apiDocument.components,operations:Object.fromEntries(Object.entries(schemas).map(([name,schema])=>[name,{method:'POST',path:`/api/v1/${name}`,inputSchema:z.toJSONSchema(schema,{target:'draft-7',io:'input'}),outputSchema:apiDocument.paths[`/api/v1/${name}`].post.responses['200'].content['application/json'].schema}])),errors:{shape:{error:'string',details:'optional structured code/fieldId/context',issues:'optional input-validation issues'},statuses:[400,401,403,404,409,429,500]}};});
@@ -160,15 +183,15 @@ export function buildServer(config: Config) {
     return reply.header('allow', 'POST').code(405).send({ error: 'Only stateless POST requests are supported',code:'method_not_allowed' });
   } });
   // One origin for web and auth: no cross-origin proxy or exposed credentials.
-  const webRoot = fileURLToPath(new URL('../../web/dist/', import.meta.url));
   if (existsSync(webRoot)) {
+    for(const path of ['/','/index.html'])app.get(path,async(_request,reply)=>reply.header('Cache-Control','no-store').type('text/html').send(shell()));
     app.register(fastifyStatic, { root: webRoot, prefix: '/', index: ['index.html'] });
     app.setNotFoundHandler((request, reply) => {
       const pathname = new URL(request.url, base).pathname;
       // Only application document routes fall back to the shell. Missing API/MCP/assets stay 404.
       const documentRoute = !/^\/(?:api|mcp|assets)(?:\/|$)/i.test(pathname) && !pathname.includes('.');
       if (request.method === 'GET' && request.headers.accept?.includes('text/html') && documentRoute) {
-        return reply.header('Cache-Control', 'no-store').sendFile('index.html', { cacheControl: false });
+        return reply.header('Cache-Control', 'no-store').type('text/html').send(shell());
       }
       return reply.code(404).send({ error: 'Not found',code:'not_found' });
     });

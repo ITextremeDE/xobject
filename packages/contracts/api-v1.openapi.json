@@ -11949,10 +11949,10 @@
         ],
         "type": "string"
       },
-      "Omit_type_required_boolean_defaultId_string_null_status_required_boolean_defaults_typeId_string_null_statusId_string_category_required_boolean_multiple_boolean_defaultIds_string_options_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_meaning_open_in_progress_done_canceled_undefined_options_": {
+      "Omit_type_required_boolean_defaultId_string_null_status_required_boolean_defaults_typeId_string_null_statusId_string_category_required_boolean_multiple_boolean_defaultIds_string_tree_boolean_undefined_options_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_parentId_string_null_undefined_meaning_open_in_progress_done_canceled_undefined_options_": {
         "properties": {
           "category": {
-            "$ref": "#/components/schemas/_required_boolean_multiple_boolean_defaultIds_string_"
+            "$ref": "#/components/schemas/_required_boolean_multiple_boolean_defaultIds_string_tree_boolean_undefined_"
           },
           "status": {
             "$ref": "#/components/schemas/_required_boolean_defaults_typeId_string_null_statusId_string_"
@@ -12014,7 +12014,7 @@
       "classification.ClassificationConfig": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Omit_type_required_boolean_defaultId_string_null_status_required_boolean_defaults_typeId_string_null_statusId_string_category_required_boolean_multiple_boolean_defaultIds_string_options_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_meaning_open_in_progress_done_canceled_undefined_options_"
+            "$ref": "#/components/schemas/Omit_type_required_boolean_defaultId_string_null_status_required_boolean_defaults_typeId_string_null_statusId_string_category_required_boolean_multiple_boolean_defaultIds_string_tree_boolean_undefined_options_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_parentId_string_null_undefined_meaning_open_in_progress_done_canceled_undefined_options_"
           },
           {
             "properties": {
@@ -12039,7 +12039,7 @@
       "classification.ClassificationOption": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_meaning_open_in_progress_done_canceled_undefined_"
+            "$ref": "#/components/schemas/_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_parentId_string_null_undefined_meaning_open_in_progress_done_canceled_undefined_"
           },
           {
             "properties": {
@@ -12561,7 +12561,7 @@
             "type": "boolean"
           },
           "config": {
-            "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+            "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
           },
           "description": {
             "type": "string"
@@ -12616,6 +12616,7 @@
               "status",
               "structured",
               "text",
+              "tree_choice",
               "type",
               "url"
             ],
@@ -12861,7 +12862,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -12883,7 +12884,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -13522,7 +13523,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -13544,7 +13545,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -15410,7 +15411,7 @@
         ],
         "type": "object"
       },
-      "_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_": {
+      "_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_": {
         "properties": {
           "currency": {
             "type": "string"
@@ -15426,7 +15427,7 @@
           },
           "options": {
             "items": {
-              "$ref": "#/components/schemas/_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_"
+              "$ref": "#/components/schemas/_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_"
             },
             "type": "array"
           },
@@ -15489,7 +15490,7 @@
         ],
         "type": "object"
       },
-      "_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_meaning_open_in_progress_done_canceled_undefined_": {
+      "_id_string_kind_type_status_category_labels_Partial_Record_de_en_string_active_boolean_typeId_string_null_parentId_string_null_undefined_meaning_open_in_progress_done_canceled_undefined_": {
         "properties": {
           "active": {
             "type": "boolean"
@@ -15516,6 +15517,12 @@
               "open"
             ],
             "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "typeId": {
             "type": [
@@ -15572,7 +15579,7 @@
         ],
         "type": "object"
       },
-      "_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_group_usage_phone_type_messenger_type_undefined_": {
+      "_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_": {
         "properties": {
           "active": {
             "type": "boolean"
@@ -15590,6 +15597,12 @@
           },
           "labels": {
             "$ref": "#/components/schemas/_de_string_undefined_en_string_undefined_"
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "required": [
@@ -16315,7 +16328,7 @@
         ],
         "type": "object"
       },
-      "_required_boolean_multiple_boolean_defaultIds_string_": {
+      "_required_boolean_multiple_boolean_defaultIds_string_tree_boolean_undefined_": {
         "properties": {
           "defaultIds": {
             "items": {
@@ -16327,6 +16340,9 @@
             "type": "boolean"
           },
           "required": {
+            "type": "boolean"
+          },
+          "tree": {
             "type": "boolean"
           }
         },
@@ -21746,6 +21762,9 @@
                       "multiple": {
                         "type": "boolean"
                       },
+                      "tree": {
+                        "type": "boolean"
+                      },
                       "defaultIds": {
                         "maxItems": 100,
                         "type": "array",
@@ -21780,6 +21799,18 @@
                             "type",
                             "status",
                             "category"
+                          ]
+                        },
+                        "parentId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "labels": {
@@ -22554,6 +22585,7 @@
               "datetime",
               "single_choice",
               "multiple_choice",
+              "tree_choice",
               "email",
               "phone",
               "url",
@@ -22620,6 +22652,18 @@
                         }
                       },
                       "additionalProperties": false
+                    },
+                    "parentId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "active": {
                       "type": "boolean"
@@ -23373,6 +23417,7 @@
               "datetime",
               "single_choice",
               "multiple_choice",
+              "tree_choice",
               "email",
               "phone",
               "url",
@@ -23439,6 +23484,18 @@
                         }
                       },
                       "additionalProperties": false
+                    },
+                    "parentId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "active": {
                       "type": "boolean"
@@ -24569,6 +24626,9 @@
                   "multiple": {
                     "type": "boolean"
                   },
+                  "tree": {
+                    "type": "boolean"
+                  },
                   "defaultIds": {
                     "maxItems": 100,
                     "type": "array",
@@ -24603,6 +24663,18 @@
                         "type",
                         "status",
                         "category"
+                      ]
+                    },
+                    "parentId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "labels": {
@@ -25286,7 +25358,8 @@
                   "type": "null"
                 }
               ]
-            }
+            },
+            "description": "Field values keyed by each field technicalName from get_object_type, never by field UUID. Choice/reference values still use their discovered option/user/group IDs. Keyword, record_number, access_principals and derived fields are not writable through this map."
           },
           "classification": {
             "default": {},
@@ -26983,7 +27056,8 @@
                   "type": "null"
                 }
               ]
-            }
+            },
+            "description": "Field values keyed by each field technicalName from get_object_type, never by field UUID. Choice/reference values still use their discovered option/user/group IDs. Keyword, record_number, access_principals and derived fields are not writable through this map."
           },
           "classification": {
             "default": {},

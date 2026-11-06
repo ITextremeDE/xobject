@@ -1,3 +1,4 @@
+import {InstallAppItem} from './browser-presence';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon, KeyboardIcon,PanelLeftIcon } from 'lucide-react';
@@ -26,7 +27,7 @@ export function UserMenu({ user, placement, busy, signingOut, onSettings, onSign
       <DropdownMenuSeparator />
       <DropdownMenuGroup>{onNavigation?<DropdownMenuItem className="gap-2 py-1.5" disabled={busy||navigationDisabled} onClick={()=>{afterClose.current=()=>onNavigation(triggerRef.current);}}><PanelLeftIcon/>{t('customizeNavigation')}</DropdownMenuItem>:null}<DropdownMenuItem className="gap-2 py-1.5" disabled={busy} onClick={onSettings}><SettingsIcon />{t('settings')}</DropdownMenuItem><DropdownMenuItem className="gap-2 py-1.5" disabled={busy} onClick={() => onKeyboardHelp(triggerRef.current)}><KeyboardIcon />{t('keyboardHelp')}</DropdownMenuItem></DropdownMenuGroup>
       <DropdownMenuSeparator />
-      <DropdownMenuGroup><DropdownMenuItem className="gap-2 py-1.5" disabled={busy || signingOut} onClick={onSignOut}><LogOutIcon />{t('signOut')}</DropdownMenuItem></DropdownMenuGroup>
+      <DropdownMenuGroup><InstallAppItem/><DropdownMenuItem className="gap-2 py-1.5" disabled={busy || signingOut} onClick={onSignOut}><LogOutIcon />{t('signOut')}</DropdownMenuItem></DropdownMenuGroup>
     </DropdownMenuContent>
   </DropdownMenu>;
 }

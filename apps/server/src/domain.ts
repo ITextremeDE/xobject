@@ -1,3 +1,5 @@
+import {closeChoiceSelection} from '@xobject/contracts';
+import {withChangeNotifications} from './change-notifications.js';
 import {validateOAuthContext,manageOAuth} from './oauth.js';
 import {permanentlyDeleteRecord,deletedRecordIdentity,listDeletedRecords} from './record-deletion.js';
 import {ApiCredentials,credentialOperation,validateCredentialContext,type RequestContext} from './api-credentials.js';
@@ -73,7 +75,7 @@ export class Application {
   async execute(operation: Operation, input: unknown, userId: string, context?:RequestContext): Promise<unknown> {
     const parsed = schemas[operation].parse(input);
     try {
-      return await this.db.transaction().execute(async (tx) => withContentAccess(tx,userId,async()=>{
+      return await this.db.transaction().execute(async (tx) => withChangeNotifications(tx,()=>withContentAccess(tx,userId,async()=>{
         await lockOperation(tx, operation, parsed as Record<string, unknown>);
         await validateCredentialContext(tx,userId,operation,context);
         await validateOAuthContext(tx,userId,operation,context);
@@ -250,10 +252,10 @@ export class Application {
             const sortedField = sortableFields.find(field => field.technical_name === args.sortBy);
             if(sortedField?.technical_name==='access_principals')throw new AppError(400,'Record security is not a sortable business column');
             if (sortedField?.kind === 'money') sortExpression = sql`CASE WHEN ${sql.ref(args.sortBy)} IS NULL THEN NULL ELSE ROW(${sql.ref(args.sortBy)}->>'currency', (${sql.ref(args.sortBy)}->>'amount')::numeric) END`;
-            if (sortedField && ['single_choice', 'multiple_choice'].includes(sortedField.kind)) {
+            if (sortedField && ['single_choice', 'multiple_choice','tree_choice'].includes(sortedField.kind)) {
               const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
               const cases = (sortedField.config.options ?? []).map(option => sql`WHEN ${option.id}::uuid THEN ${localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language)}`);
-              sortExpression = !cases.length ? sql`NULL::text` : sortedField.kind === 'multiple_choice'
+              sortExpression = !cases.length ? sql`NULL::text` : ['multiple_choice','tree_choice'].includes(sortedField.kind)
                 ? sql`(SELECT string_agg(label, ', ' ORDER BY label) FROM (SELECT CASE selection.id ${sql.join(cases, sql` `)} ELSE NULL END AS label FROM unnest(${sql.ref(args.sortBy)}) AS selection(id)) AS names)`
                 : sql`CASE ${sql.ref(args.sortBy)} ${sql.join(cases, sql` `)} ELSE NULL END`;
             }
@@ -320,7 +322,7 @@ export class Application {
           }
 
         }
-      }));
+      })));
     } catch (error) {
       if ((error as { code?: string }).code === '23505') {const name=String((error as {constraint?:string}).constraint??'');
         if(/^xobject_unique_[a-f0-9]{32}$/.test(name)){const id=name.slice('xobject_unique_'.length);throw new AppError(409,'A unique field value already exists',{code:'unique_value',fieldId:`${id.slice(0,8)}-${id.slice(8,12)}-${id.slice(12,16)}-${id.slice(16,20)}-${id.slice(20)}`,context:['create_record','update_record','duplicate_record'].includes(operation)?'record':'definition'});}
@@ -742,7 +744,7 @@ export class Application {
       if(existing.some(row=>applies({id:'new',technical_name:args.technicalName,applicability:args.applicability},fields,row)))throw new AppError(400,'Existing records have empty required fields');
     }
     const config = fieldConfig(args.kind, args.config);
-    if (args.required && ['single_choice','multiple_choice'].includes(args.kind) && config.options && !config.options.some(option => option.active)) throw new AppError(400, 'Required choice needs active options');
+    if (args.required && ['single_choice','multiple_choice','tree_choice'].includes(args.kind) && config.options && !config.options.some(option => option.active)) throw new AppError(400, 'Required choice needs active options');
     const id = v7();
     const inputRules=await normalizeInputRules(tx,{id,technical_name:args.technicalName,kind:args.kind,required:args.required,config},args.inputRules??emptyFieldInputRules(),type.workspace_id);
     await this.checkOptionIdentities(tx, id, config);
@@ -870,6 +872,8 @@ export class Application {
     }
     this.requireActive(type);
     if (type.classification.version !== args.version) throw new AppError(409, 'Classification version conflict');
+    if(args.config.category.tree){try{args.config.category.defaultIds=closeChoiceSelection(args.config.options.filter(option=>option.kind==='category'),args.config.category.defaultIds);}catch(error){throw new AppError(400,(error as Error).message);}}
+    if(args.config.category.defaultIds.length>100)throw new AppError(400,'At most 100 default choices including ancestors');
     args.config.category.defaultIds.sort();
     args.config.status.defaults.sort((left, right) => (left.typeId ?? '').localeCompare(right.typeId ?? ''));
     const available = (await sql<Field>`SELECT value_mode,applicability, id, technical_name, kind, required, config,input_rules, state, is_protected FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted'`.execute(tx)).rows;
@@ -884,8 +888,14 @@ export class Application {
     if (newIds.length && (await sql`SELECT 1 FROM sys_object_types, jsonb_array_elements(classification->'options') AS existing
       WHERE sys_object_types.id <> ${type.id}::uuid AND existing->>'id' = ANY(${newIds}::text[]) LIMIT 1`.execute(tx)).rows.length) throw new AppError(400, 'Option identity already belongs to another object type');
     if (newIds.length && (await sql`SELECT 1 FROM sys_journal WHERE entity_kind = 'classification_option' AND entity_id = ANY(${newIds}::uuid[]) LIMIT 1`.execute(tx)).rows.length) throw new AppError(400, 'Option identity was already used');
-    const records = (await sql<Choices>`SELECT ${available.some(field => field.technical_name === 'type') ? sql`type` : sql`NULL::uuid`} AS type, ${available.some(field => field.technical_name === 'status') ? sql`status` : sql`NULL::uuid`} AS status, ${available.some(field => field.technical_name === 'category') ? sql`category` : sql`'{}'::uuid[]`} AS category FROM ${sql.table(tableName(type))}`.execute(tx)).rows;
-    for (const record of records) validateChoices(this.effectiveClassification(args.config, available), record, record);
+    const records = (await sql<Choices&{id:string}>`SELECT id, ${available.some(field => field.technical_name === 'type') ? sql`type` : sql`NULL::uuid`} AS type, ${available.some(field => field.technical_name === 'status') ? sql`status` : sql`NULL::uuid`} AS status, ${available.some(field => field.technical_name === 'category') ? sql`category` : sql`'{}'::uuid[]`} AS category FROM ${sql.table(tableName(type))}`.execute(tx)).rows;
+    for (const record of records){
+      const next=resolveChoices(this.effectiveClassification(args.config,available),record,record);
+      if(!isDeepStrictEqual(next.category,record.category)){
+        await sql`UPDATE ${sql.table(tableName(type))} SET category=${next.category}::uuid[],version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${record.id}::uuid`.execute(tx);
+        await this.journal(tx,actor,type.workspace_id,type.id,'record',record.id,changeId,'category',record.category,next.category,available.find(field=>field.technical_name==='category')!.id);
+      }
+    }
     if(await workProfile(tx,type.id)){const rows=(await sql<Record<string,unknown>>`SELECT * FROM ${sql.table(tableName(type))}`.execute(tx)).rows;for(const row of rows)await validateWork(tx,type.id,row,args.config);}
     const { version, ...previous } = type.classification;
     if (!isDeepStrictEqual(previous, args.config)) {
@@ -910,7 +920,7 @@ export class Application {
       for (const option of args.config.options) {
         const old = previous.options.find(item => item.id === option.id);
         const fieldId = fields.find(field => field.technical_name === option.kind)!.id;
-        for (const key of ['kind', 'labels', 'active', 'typeId','meaning'] as const) {
+        for (const key of ['kind', 'labels', 'active', 'typeId','meaning','parentId'] as const) {
           if (!isDeepStrictEqual(old?.[key], option[key])) await this.journal(tx, actor, type.workspace_id, type.id, 'classification_option', option.id, change, key, old?.[key] ?? null, option[key], fieldId);
         }
       }
@@ -957,10 +967,10 @@ export class Application {
     }
     const kind = args.kind ?? field.kind;
     if (!isCustomFieldKind(kind)) throw new AppError(400, 'Unsupported field type');
-    const config = fieldConfig(kind, args.config ?? (kind === field.kind ? field.config : undefined), (['single_choice', 'multiple_choice'].includes(kind) && ['single_choice', 'multiple_choice'].includes(field.kind))||(kind==='structured'&&field.kind==='structured'&&(args.config?.schema??field.config.schema)===field.config.schema) ? field.config : undefined);
+    const config = fieldConfig(kind, args.config ?? (kind === field.kind ? field.config : undefined), (['single_choice', 'multiple_choice','tree_choice'].includes(kind) && ['single_choice', 'multiple_choice','tree_choice'].includes(field.kind))||(kind==='structured'&&field.kind==='structured'&&(args.config?.schema??field.config.schema)===field.config.schema) ? field.config : undefined);
     if(field.is_protected&&((kind!==field.kind)||!isDeepStrictEqual({...config,options:undefined},{...field.config,options:undefined})))throw new AppError(403,'Module definition is protected');
     if(field.is_protected&&field.config.fixedOptions&&field.required&&!args.required)throw new AppError(403,'Contact kind is required');
-    if (args.required && ['single_choice','multiple_choice'].includes(kind) && config.options && !config.options.some(option => option.active)) throw new AppError(400, 'Required choice needs active options');
+    if (args.required && ['single_choice','multiple_choice','tree_choice'].includes(kind) && config.options && !config.options.some(option => option.active)) throw new AppError(400, 'Required choice needs active options');
     await this.checkOptionIdentities(tx, field.id, config);
     const applicability=args.applicability===undefined?field.applicability??null:args.applicability;
     if(field.is_protected&&!isDeepStrictEqual(field.applicability??null,applicability))throw new AppError(403,'Module definition is protected');
@@ -997,7 +1007,7 @@ export class Application {
       // Preflight completed above. Convert via a temporary text representation in the same transaction.
       await sql`ALTER TABLE ${sql.table(tableName(type))} ALTER COLUMN ${sql.ref(field.technical_name)} TYPE text USING ${sql.ref(field.technical_name)}::text`.execute(tx);
       for (const { row, value } of converted) await sql`UPDATE ${sql.table(tableName(type))} SET ${sql.ref(field.technical_name)} = ${value === null ? null : typeof value === 'object' ? JSON.stringify(value) : String(value)} WHERE id = ${row.id}::uuid`.execute(tx);
-      if (kind === 'multiple_choice') {
+      if (kind === 'multiple_choice'||kind==='tree_choice') {
         for (const { row, value } of converted) await sql`UPDATE ${sql.table(tableName(type))} SET ${sql.ref(field.technical_name)} = ${value === null ? null : `{${(value as string[]).join(',')}}`} WHERE id = ${row.id}::uuid`.execute(tx);
       }
       await sql`ALTER TABLE ${sql.table(tableName(type))} ALTER COLUMN ${sql.ref(field.technical_name)} TYPE ${fieldStorage(kind, config)} USING ${sql.ref(field.technical_name)}::${fieldStorage(kind, config)}`.execute(tx);

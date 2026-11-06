@@ -20,6 +20,9 @@ services:
       DATABASE_URL: postgres://xobject_app:${RUNTIME_DATABASE_PASSWORD:?Set RUNTIME_DATABASE_PASSWORD}@db:5432/xobject
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
       BASE_URL: ${BASE_URL:?Set BASE_URL}
+      APP_NAME: ${APP_NAME:-xObject}
+      APP_DESCRIPTION: ${APP_DESCRIPTION:-Connected data, contacts and projects in one workspace.}
+      BROWSER_TITLE_MODE: ${BROWSER_TITLE_MODE:-context}
       LISTEN_HOST: 0.0.0.0
       PORT: "4100"
       TRUSTED_PROXIES: ${PROXY_ADDRESS:-172.30.61.2}/32
