@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+trap 'printf "xObject operator failed at line %s. Check the private diagnostic; preserve the stopped state.\n" "$LINENO" >&2' ERR
 umask 077
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ENV_FILE=${XOBJECT_ENV_FILE:-$ROOT/deploy/selfhost.env}
