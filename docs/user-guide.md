@@ -14,7 +14,7 @@ The Dashboard starts with **All records**, **Contacts**, **Projects**, **Cases**
 
 ## Create or edit a record
 
-Choose **Create record**, fill the available fields and save. The object definition determines types, choices, requiredness and initial values. An optional business number is assigned transactionally; record IDs identify records independently of display names/numbers.
+Choose **Create record**, fill the available fields and save. The object definition determines types, choices, requiredness and initial values. The optional **Number** (German: **Nummer**) is a configurable record number stored as `record_number` and assigned transactionally; record IDs identify records independently of display names/numbers.
 
 Record groups are arranged in the Form designer where the supplied module permits customization. Required fields remain reachable. Markdown-enabled fields provide a preview; timestamp insertion uses your current display zone/region and name, then starts the next line. Unsaved changes remain a draft until Save.
 
