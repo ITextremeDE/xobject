@@ -1844,12 +1844,22 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   }
   assert.ok(result.records.tasks.some(row => !primaryChildren.has(row.id)), 'Standalone task is retained');
   assert.ok(result.records.projects.some(row => !primaryChildren.has(row.id)), 'Project without a contact is retained');
+  for(const name of ['mobile_workshops','support_packages','access_checks'])assert.ok(result.records[name].every(row=>primaryChildren.has(row.id)),`${name} demonstrates Primary associations`);
+  assert.equal(result.records.workshop_tools.filter(row=>primaryChildren.has(row.id)).length,3);
+  assert.ok(!primaryChildren.has(result.records.workshop_tools.find(row=>row.keyword==='Unassigned diagnostic kit')!.id));
+  const primary=await ok('get_primary_chain_context',{objectTypeId:result.objects.mobile_workshops.id,recordId:result.records.mobile_workshops[0].id});
+  assert.equal(primary.direct.recordId,result.records.cases[0].id);
+  assert.deepEqual(primary.levels.map((level:any)=>[level.role,level.record?.recordId,level.inherited]),[['contact',result.records.contacts[0].id,true],['project',result.records.projects[0].id,true],['case',result.records.cases[0].id,false]]);
+  const internal=await ok('get_primary_chain_context',{objectTypeId:result.objects.workshop_tools.id,recordId:result.records.workshop_tools[2].id});
+  assert.equal(internal.direct.recordId,result.records.projects[3].id);
+  assert.equal(internal.levels.find((level:any)=>level.role==='contact').record,null);
+
   assert.ok((await journalEntries({ objectTypeId: result.objects.tasks.id, recordId: result.records.tasks[0].id })).some((entry: { old_value: unknown; new_value: unknown }) => entry.old_value === '0' && entry.new_value === '25'));
   const edgeCount=(await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count;
-  assert.equal(edgeCount,54);
+  assert.equal(edgeCount,75);
   const {connectDemoRelationships}=await import('../src/demo-data.js');
   await connectDemoRelationships(runtime.db,adminId,result.workspaceId,result.links);
-  assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count,54);
+  assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_relationships WHERE workspace_id=${result.workspaceId}::uuid`.execute(runtime.db)).rows[0].count,75);
   const workspace=(await ok('list_workspaces',{})).find((item:any)=>item.id===result.workspaceId);
   assert.equal(workspace.default_language,'en');
   const modules=await ok('list_workspace_modules',{workspaceId:result.workspaceId});assert.ok(modules.filter((m:any)=>m.available).every((m:any)=>m.enabled));assert.ok(modules.filter((m:any)=>!m.available).every((m:any)=>!m.enabled));
@@ -1870,6 +1880,7 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   // Exercise the real initial-password change gate before assessing role/content differences.
   for(const account of result.accounts) {
     assert.equal((await sql<{must_change_password:boolean}>`SELECT must_change_password FROM sys_users WHERE id=${account.id}`.execute(runtime.db)).rows[0].must_change_password,true);
+    assert.ok(account.password);
     const cookie=await login(account.email,account.password);
     const session=(await sql<{id:string}>`SELECT id FROM sys_sessions WHERE user_id=${account.id}`.execute(runtime.db)).rows[0];
     await app.execute('change_password',{currentPassword:account.password,newPassword:randomBytes(24).toString('base64url')},account.id,{sessionId:session.id});
@@ -1887,6 +1898,16 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   await assert.rejects(app.execute('create_field',{objectTypeId:result.objects.workshop_tools.id,technicalName:'forbidden',labels:{en:'Forbidden'}},member.id));
   const designerField=await app.execute('create_field',{objectTypeId:result.objects.workshop_tools.id,technicalName:'designer_test',labels:{en:'Designer test',de:'Gestaltertest'}},designer.id) as any;assert.ok(designerField.id);
   await app.execute('set_definition_state',{kind:'field',id:designerField.id,expectedState:'active',state:'deleted',confirm:true},designer.id);
+  const {defaultWorkspaceAppearance}=await import('@xobject/contracts');
+  const {itextremeDemoAppearance}=await import('../src/demo-data.js');
+  assert.deepEqual((await ok('list_workspaces',{})).find((w:any)=>w.id===result.workspaceId).appearance,itextremeDemoAppearance);
+  const usersBefore=Number((await sql<{count:string}>`SELECT count(*) FROM sys_users`.execute(runtime.db)).rows[0].count);
+  const standard=await seedDemoData(runtime.db,adminId,'standardfixture',{name:'Demo',appearance:defaultWorkspaceAppearance,members:result.accounts.map(({id,role})=>({id,role}))});
+  assert.equal(Number((await sql<{count:string}>`SELECT count(*) FROM sys_users`.execute(runtime.db)).rows[0].count),usersBefore);
+  assert.deepEqual(standard.accounts.map(a=>a.id),result.accounts.map(a=>a.id));
+  assert.ok(standard.accounts.every(a=>a.password===undefined));
+  assert.deepEqual((await ok('list_workspaces',{})).find((w:any)=>w.id===standard.workspaceId).appearance,defaultWorkspaceAppearance);
+  assert.notEqual(standard.objects.contacts.id,result.objects.contacts.id);
   await assert.rejects(seedDemoData(runtime.db, adminId, 'demofixture'), /already exists/);
   assert.equal((await api('list_records', { objectTypeId: result.objects.contacts.id }, userCookie)).statusCode, 403);
 });

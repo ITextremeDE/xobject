@@ -54,8 +54,8 @@ switch (process.argv[2]) {
       if (count) throw new Error('Demo seeding requires an empty business database; no data was changed');
       const actor = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = ${process.env.ADMIN_EMAIL ?? ''} AND is_admin AND active`.execute(db)).rows[0];
       if (!actor) throw new Error('ADMIN_EMAIL must identify an existing active Administrator');
-      const { seedDemoData } = await import('./demo-data.js');
-      const result = await seedDemoData(db, actor.id);
+      const { seedDemoWorkspaces } = await import('./demo-data.js');
+      const result = await seedDemoWorkspaces(db, actor.id);
       await mkdir('.local', { recursive: true, mode: 0o700 });
       await chmod('.local', 0o700);
       const administrator = (await sql<{name:string;email:string}>`SELECT name,email FROM sys_users WHERE id=${actor.id}`.execute(db)).rows[0];
@@ -64,10 +64,11 @@ switch (process.argv[2]) {
       const accounts = [{...administrator, role:'administrator', ...(installationAdmin?.email===administrator.email?{password:installationAdmin.password}:{}), mustChangePassword:false}, ...result.accounts.map(account=>({...account,mustChangePassword:true}))];
       for (const [path, body] of [
         ['.local/demo-accounts.json',JSON.stringify(accounts,null,2)],
-        ['.local/demo-accounts.md', '# Local fictional demo accounts\n\nWorkspace: ITextreme (`itx`). Default language: English.\n\n'+accounts.map(account=>`- ${account.name} — ${account.role}\n  - Email: ${account.email}\n  - ${account.mustChangePassword?'Initial password (change at first sign-in)':'Password'}: ${account.password??'Use the existing Administrator password.'}`).join('\n')+'\n'],
+        ['.local/demo-accounts.md', '# Local fictional demo accounts\n\nWorkspaces: Demo (`demo`, standard design), ITextreme (`itx`, brand-inspired design). Default language: English.\n\n'+accounts.map(account=>`- ${account.name} — ${account.role}\n  - Email: ${account.email}\n  - ${account.mustChangePassword?'Initial password (change at first sign-in)':'Password'}: ${account.password??'Use the existing Administrator password.'}`).join('\n')+'\n'],
       ]) { await writeFile(path,body,{mode:0o600}); await chmod(path,0o600); }
-      await writeFile('.local/demo-relationships.json', JSON.stringify({ version: 1, workspaceId: result.workspaceId, objects: Object.fromEntries(Object.entries(result.objects).map(([name, model]) => [name, model.id])), links: result.links }, null, 2), { mode: 0o600 });
-      console.log('Fictional demo workspace created:', Object.keys(result.objects).length, 'objects,', Object.values(result.records).flat().length, 'records. Demo relationships were created through the application layer.');
+      for(const dataset of result.workspaces)await writeFile(dataset.workspaceCode==='itx'?'.local/demo-relationships.json':`.local/demo-relationships-${dataset.workspaceCode}.json`,JSON.stringify({version:1,workspaceId:dataset.workspaceId,objects:Object.fromEntries(Object.entries(dataset.objects).map(([name,model])=>[name,model.id])),links:dataset.links},null,2),{mode:0o600});
+      await writeFile('.local/demo-workspaces.json',JSON.stringify(result.workspaces.map(({workspaceId,workspaceCode,workspaceName})=>({workspaceId,workspaceCode,workspaceName})),null,2),{mode:0o600});
+      console.log('Two fictional demo workspaces created, sharing the same accounts. Each has',Object.keys(result.objects).length,'active objects and',Object.values(result.records).flat().length,'records. Relationships use the application layer.');
     } finally { await db.destroy(); }
     break;
   }
