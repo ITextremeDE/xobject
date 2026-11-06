@@ -1,6 +1,6 @@
 # Documentation and architecture
 
-The [PRD](PRD.md) is the product authority: requirements, terminology, agreed behavior and remaining design decisions. It distinguishes target behavior from implemented slices. [Local development](development.md) owns setup, current commands/contracts, safe database operations and the dated validation snapshot. [Demo data](demo-data.md) describes the versioned fictional seed, not the contents of every development database. [Website](website.md) describes the independent Astro site.
+The [PRD](PRD.md) is the product authority: requirements, terminology, agreed behavior and remaining design decisions. It distinguishes target behavior from implemented slices. [Local development](development.md) owns setup, current commands/contracts, safe database operations, reproducible verification and public CI evidence. [Demo data](demo-data.md) describes the versioned fictional seed, not the contents of every development database. [Website](website.md) describes the independent Astro site.
 
 The [domain-profile appendix](domain-profiles.md) owns detailed proposed starting fields, relationship pairs and per-profile acceptance for the PRD catalog. It distinguishes agreed product rules, new starter proposals and unresolved implementation contracts; it is not a second roadmap or a claim of delivered templates.
 
