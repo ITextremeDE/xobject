@@ -63,3 +63,21 @@ A permitted Delete action moves a record to the workspace recycle bin. Its conte
 Personal settings contain Profile, Account & security, Appearance and Language & region. Language, time zone and regional formats can inherit workspace defaults. Light/dark/system selection is personal. Account security manages password/sessions, personal API/MCP tokens and OAuth-authorized applications.
 
 Workspace settings contain shared appearance, language/region, modules, object/field definitions, relationships, forms, members and groups according to your role. A module can contribute to the same object identity as another module; it does not create a duplicate Contacts table. The [API guide](api.md) describes the same application capabilities for integrations and agents.
+
+## Browser installation, links and live changes
+
+Install xObject using the browser's installation action when available. An eligible browser also offers **Install app** in the user menu. On iPhone/iPad, use Safari's Share → Add to Home Screen action. Each installation origin has one app identity; workspaces remain available inside it. Installation requires HTTPS except on loopback and an internet/server connection to load and save business data.
+
+Use **Copy link** or **Share link** in record actions or a record table's action menu. The recipient still needs an account and permission to read that record. Link previews show the application identity, never private record content. Public anonymous reading is planned for later.
+
+Changes made by another user or an agent update open views automatically. Connection loss displays a status message; reconnect or returning to the window refreshes the view. An open record with unsaved edits keeps its draft. **Review changes** combines independent changes and asks which value to retain for each conflict. Apply the review, check the form and Save normally. Settings drafts keep their values; deferred source refresh resumes after Save or Discard. An available application update offers **Reload app** after pending edits have been saved or discarded.
+
+## Multiple choices and selection trees
+
+Multiple-choice and selection-tree fields show selected labels in a summary field. Use the adjacent selection button to open a searchable list or tree. Check one or more items and Apply to the form; Save the record normally. Cancel closes the picker without changing the form. The normal save shortcut applies the picker selection first. A concurrent change keeps your pending selection and offers the usual record conflict review after Apply. Selecting a tree child also selects its ancestors. Clearing a parent clears its descendants; selecting a parent alone does not select every child. Trees support arrow keys, Home/End and Space/Enter. The selected count includes ancestors; the limit is 100.
+
+Designers/Administrators configure a general **Selection tree** field or choose tree mode for **Category**. Expand a choice's details to set its parent. Choices retain their UUIDs when moved or renamed. Inactive parents cannot have active children. Configuration deactivation follows the branch; retained inactive record selections remain readable. Changing the tree adds missing ancestors to stored selections in one journaled transaction. Conversion to a single-choice field is rejected if it would drop selected values.
+
+## Opening URL fields
+
+Use the arrow button beside a URL field to open the current HTTP(S) address in a new browser tab. The same action is available for Contact website entries and when you can read a value without editing it. Empty/invalid values have no active link. Opening a link keeps the current form and its unsaved changes in place.

@@ -1,3 +1,6 @@
+import {ChoicePicker} from './choice-picker';
+import {ChoiceTreeParent} from './choice-tree-parent';
+import {setChoiceActive,closeChoiceSelection,choiceAncestors} from '@xobject/contracts';
 import {notifySuccess} from '@/lib/notifications';
 import {FieldInputRulesSettings} from './field-input-rules-settings';
 import {emptyFieldInputRules,type FieldInputRules} from '@xobject/contracts';
@@ -91,10 +94,11 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
   function patchOption(id: string, patch: Partial<ClassificationRules['options'][number]>) {
 
     setDraft(old => {
-      const options = old.options.map(option => option.id === id ? { ...option, ...patch } : option);
+      let options = old.options.map(option => option.id === id ? { ...option, ...patch } : option);
+      if(patch.active!==undefined&&old.category.tree&&options.find(option=>option.id===id)?.kind==='category'){const active=new Map(setChoiceActive(options.filter(option=>option.kind==='category'),id,patch.active,true).map(option=>[option.id,option]));options=options.map(option=>active.get(option.id)??option);}
       const enabled = (id: string) => options.some(option => option.id === id && option.active);
       return { ...old, options, type: { ...old.type, defaultId: old.type.defaultId && enabled(old.type.defaultId) ? old.type.defaultId : null },
-        category: { ...old.category, defaultIds: old.category.defaultIds.filter(enabled) },
+        category: { ...old.category, defaultIds: old.category.tree?closeChoiceSelection(options.filter(option=>option.kind==='category'),old.category.defaultIds.filter(enabled)):old.category.defaultIds.filter(enabled) },
         status: { ...old.status, defaults: old.status.defaults.filter(initial => enabled(initial.statusId) && (!initial.typeId || enabled(initial.typeId)) && options.find(option => option.id === initial.statusId)?.typeId === initial.typeId) } };
     });
   }
@@ -109,27 +113,28 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
     setDraft(old => ({ ...old, options: moveClassificationOption(old.options, id, targetId) }));
      setFocusId(id);
     const option = next.find(option => option.id === id)!;
-    const siblings = next.filter(item => item.kind === option.kind && item.typeId === option.typeId);
+    const siblings = next.filter(item => item.kind === option.kind && item.typeId === option.typeId&&(item.parentId??null)===(option.parentId??null));
     setAnnouncement(t('choiceMoved', { name: name(option), position: siblings.findIndex(item => item.id === id) + 1, count: siblings.length }));
   }
   function removeOption(id: string) {
     const option = draft.options.find(option => option.id === id)!;
-    const next = draft.options.find(item => item.id !== id && item.kind === option.kind && item.typeId === option.typeId);
+    const next = draft.options.find(item => item.id !== id && item.kind === option.kind && item.typeId === option.typeId&&(item.parentId??null)===(option.parentId??null));
     setFocusId(next?.id ?? `new-choice-${option.kind}-${option.typeId ?? 'none'}`);
     setDraft(old => ({ ...old, options: old.options.filter(option => option.id !== id), type: { ...old.type, defaultId: old.type.defaultId === id ? null : old.type.defaultId }, status: { ...old.status, defaults: old.status.defaults.filter(initial => initial.typeId !== id && initial.statusId !== id) } }));
     setAdditions(old => { const next = { ...old }; delete next[`status-${id}`]; return next; });
      setAnnouncement('');
   }
   function optionEditor(option: ClassificationRules['options'][number]) {
-    const siblings = draft.options.filter(item => item.kind === option.kind && item.typeId === option.typeId);
+    const siblings = draft.options.filter(item => item.kind === option.kind && item.typeId === option.typeId&&(item.parentId??null)===(option.parentId??null));
     const blocked = usedIds.has(option.id) || (option.kind === 'type' && draft.options.some(item => item.kind === 'status' && item.typeId === option.id));
     const index = siblings.findIndex(item => item.id === option.id);
-    return <ChoiceValueEditor key={option.id} id={option.id} labels={option.labels} active={option.active} readOnly={readOnly} disabled={mutation.isPending||lifeBusy} onLabels={labels=>patchOption(option.id,{labels})} onActive={active=>patchOption(option.id,{active})}
+    return <div key={option.id}>{option.kind==='category'&&draft.category.tree&&option.parentId?<FieldDescription>{choiceAncestors(draft.options.filter(item=>item.kind==='category'),option.id).reverse().map(id=>name(draft.options.find(item=>item.id===id)!)).join(' / ')}</FieldDescription>:null}<ChoiceValueEditor id={option.id} labels={option.labels} active={option.active} readOnly={readOnly} disabled={mutation.isPending||lifeBusy} onLabels={labels=>patchOption(option.id,{labels})} onActive={active=>patchOption(option.id,{active})}
       onUp={index>0?()=>move(option.id,siblings[index-1].id):undefined} onDown={index<siblings.length-1?()=>move(option.id,siblings[index+1].id):undefined} onMoveTo={option.kind!=='type'?target=>move(option.id,target):undefined}
       onDelete={option.kind!=='category'?()=>removeOption(option.id):undefined} deleteBlocked={option.kind!=='category'&&blocked?t(usedIds.has(option.id)?'choiceInUse':'typeHasStatuses'):undefined}>
+      {option.kind==='category'&&draft.category.tree?<ChoiceTreeParent id={option.id} disabled={controlsDisabled} options={draft.options.filter(item=>item.kind==='category').map(item=>({...item,label:name(item)}))} onChange={parentId=>patchOption(option.id,{parentId})}/>:null}
       {option.kind==='status'?<Field><FieldLabel htmlFor={`choice-type-${option.id}`}>{t('statusScope')}</FieldLabel><ClassificationSelect id={`choice-type-${option.id}`} value={option.typeId??''} disabled={controlsDisabled} options={[{value:'',label:t('withoutType')},...draft.options.filter(item=>item.kind==='type').map(item=>({value:item.id,label:name(item)}))]} onValueChange={value=>patchOption(option.id,{typeId:value||null})}/></Field>:null}
       {option.kind==='status'&&definition.workProfile?.kind==='task'?<Field><FieldLabel htmlFor={`status-meaning-${option.id}`}>{t('taskStatusMeaning')}</FieldLabel><ClassificationSelect id={`status-meaning-${option.id}`} value={option.meaning??''} disabled={controlsDisabled} options={['','open','in_progress','done','canceled'].map(value=>({value,label:t(value?'taskState_'+value:'noSelection')}))} onValueChange={value=>patchOption(option.id,{meaning:value?value as 'open'|'in_progress'|'done'|'canceled':undefined})}/><FieldDescription>{t('taskStatusMeaningHelp')}</FieldDescription></Field>:null}
-    </ChoiceValueEditor>;
+    </ChoiceValueEditor></div>;
   }
 
   function addOption(kind: Kind, typeId: string | null = null) {
@@ -155,10 +160,10 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
         {readOnly ? <FieldDescription>{t('classificationReadOnlyHelp')}</FieldDescription> : null}<SettingsHelp title={t('configurationDetails')}>{!readOnly ? t('classificationExistingHelp') : null} {t('choiceEditorHelp')} {t('translationHelp')}</SettingsHelp>
         {category ? <>
           <SettingsSection>{required('category')}
-          <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="category-mode">{t('selectionMode')}</FieldLabel><ClassificationSelect id="category-mode" value={draft.category.multiple?'multiple':'single'} disabled={controlsDisabled} options={[{value:'single',label:t('singleChoice')},{value:'multiple',label:t('multipleChoice')}]} onValueChange={value=>setDraft(old=>({...old,category:{...old.category,multiple:value==='multiple',defaultIds:value==='single'&&old.category.defaultIds.length>1?[]:old.category.defaultIds}}))}/></Field>
+          <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="category-mode">{t('selectionMode')}</FieldLabel><ClassificationSelect id="category-mode" value={draft.category.tree?'tree':draft.category.multiple?'multiple':'single'} disabled={controlsDisabled} options={[{value:'single',label:t('singleChoice')},{value:'multiple',label:t('multipleChoice')},{value:'tree',label:t('selectionTree')}]} onValueChange={value=>setDraft(old=>({...old,category:{...old.category,tree:value==='tree',multiple:value!=='single',defaultIds:value==='single'&&old.category.defaultIds.length>1?[]:old.category.defaultIds},options:old.options.map(option=>option.kind==='category'&&value!=='tree'?{...option,parentId:null}:option)}))}/></Field>
           </SettingsSection><SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('choiceValues')}</FieldLegend><FieldGroup>{draft.options.filter(option => option.kind === 'category').map(optionEditor)}</FieldGroup></FieldSet>
           {addOption('category')}</SettingsSection>
-          <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('defaultValue')}</FieldLegend>{draft.category.multiple ? active('category').map(option => <Field data-disabled={controlsDisabled || undefined} orientation="horizontal" key={option.id}><Checkbox id={`default-category-${option.id}`} checked={draft.category.defaultIds.includes(option.id)} disabled={controlsDisabled} onCheckedChange={checked => setDraft(old => ({ ...old, category: { ...old.category, defaultIds: (checked ? [...old.category.defaultIds, option.id] : old.category.defaultIds.filter(id => id !== option.id)).sort() } }))} /><FieldLabel htmlFor={`default-category-${option.id}`}>{name(option)}</FieldLabel></Field>) : <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="default-category">{t('classificationCategory')}</FieldLabel><ClassificationSelect id="default-category" value={draft.category.defaultIds[0]??''} disabled={controlsDisabled} options={[{value:'',label:t('noDefault')},...active('category').map(option=>({value:option.id,label:name(option)}))]} onValueChange={value=>setDraft(old=>({...old,category:{...old.category,defaultIds:value?[value]:[]}}))}/></Field>}</FieldSet></SettingsSection>
+          {draft.category.tree?<FieldDescription>{t('choiceHierarchyHelp')}</FieldDescription>:null}<SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('defaultValue')}</FieldLegend>{draft.category.multiple ? <ChoicePicker id="default-category" label={t('defaultValue')} options={draft.options.filter(option=>option.kind==='category').map(option=>({...option,label:name(option)}))} value={draft.category.defaultIds} tree={Boolean(draft.category.tree)} disabled={controlsDisabled} onChange={defaultIds=>setDraft(old=>({...old,category:{...old.category,defaultIds}}))}/> : <Field data-disabled={controlsDisabled || undefined}><FieldLabel htmlFor="default-category">{t('classificationCategory')}</FieldLabel><ClassificationSelect id="default-category" value={draft.category.defaultIds[0]??''} disabled={controlsDisabled} options={[{value:'',label:t('noDefault')},...active('category').map(option=>({value:option.id,label:name(option)}))]} onValueChange={value=>setDraft(old=>({...old,category:{...old.category,defaultIds:value?[value]:[]}}))}/></Field>}</FieldSet></SettingsSection>
         </> : <>
           <FieldGroup className="grid items-start gap-6 sm:grid-cols-2">
             <SettingsSection><FieldSet className="min-w-0"><FieldLegend>{t('classificationType')}</FieldLegend>{required('type')}

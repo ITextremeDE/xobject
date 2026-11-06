@@ -1,3 +1,4 @@
+import {choiceTreeError,closeChoiceSelection} from '@xobject/contracts';
 import type { ClassificationRules, ClassificationConfig } from '@xobject/contracts';
 import { AppError } from './errors.js';
 
@@ -8,7 +9,10 @@ export function validateRules(config: ClassificationRules, previous: Classificat
   for (const old of previous.options) {
     if ((options.has(old.id) && options.get(old.id)?.kind !== old.kind) || (!options.has(old.id) && old.kind === 'category' && !removable.has(old.id))) throw new AppError(400, 'Options must be retained with their kind; deactivate instead of deleting');
   }
+  if(config.category.tree&&!config.category.multiple)throw new AppError(400,'Selection trees require multiple Category values');
+  if(config.category.tree){const error=choiceTreeError(config.options.filter(option=>option.kind==='category'));if(error)throw new AppError(400,error);}
   for (const option of config.options) {
+    if(option.parentId&&(option.kind!=='category'||!config.category.tree))throw new AppError(400,'Only tree Categories support parent choices');
     if(option.meaning&&option.kind!=='status')throw new AppError(400,'Only Status options have a meaning');
     if (option.kind !== 'status' && option.typeId !== null) throw new AppError(400, 'Only Status options have a Type');
     if (option.kind === 'status' && option.typeId && options.get(option.typeId)?.kind !== 'type') throw new AppError(400, 'Unknown Status Type');
@@ -37,6 +41,7 @@ export function validateChoices(config: ClassificationRules, input: Partial<Choi
   const options = new Map(config.options.map(option => [option.id, option]));
   if ((config.type.required && !value.type) || (config.status.required && !value.status) || (config.category.required && !value.category.length)) throw new AppError(400, 'Required classification value missing');
   if ((!config.category.multiple && value.category.length > 1) || new Set(value.category).size !== value.category.length) throw new AppError(400, 'Invalid Category cardinality');
+  if(config.category.tree&&JSON.stringify([...value.category].sort())!==JSON.stringify(closeChoiceSelection(config.options.filter(option=>option.kind==='category'),value.category)))throw new AppError(400,'Category selection must include its ancestors');
   for (const kind of ['type', 'status', 'category'] as const) {
     const values = kind === 'category' ? value.category : value[kind] ? [value[kind]!] : [];
     for (const id of values) {
@@ -48,10 +53,11 @@ export function validateChoices(config: ClassificationRules, input: Partial<Choi
   }
 }
 
-export function resolveChoices(config: ClassificationConfig, input: Partial<Choices>, previous?: Partial<Choices>): Choices {
+export function resolveChoices(config: ClassificationRules, input: Partial<Choices>, previous?: Partial<Choices>): Choices {
   const type = input.type !== undefined ? input.type : previous ? previous.type??null : config.type.defaultId;
   const status = input.status !== undefined ? input.status : previous ? previous.status??null : config.status.defaults.find(initial => initial.typeId === type)?.statusId ?? null;
-  const category = [...(input.category ?? (previous ? previous.category??[] : config.category.defaultIds))].sort();
+  let category = [...(input.category ?? (previous ? previous.category??[] : config.category.defaultIds))].sort();
+  if(config.category.tree){try{category=closeChoiceSelection(config.options.filter(option=>option.kind==='category'),category);}catch(error){throw new AppError(400,(error as Error).message);}if(category.length>100)throw new AppError(400,'At most 100 choices including ancestors');}
   const result = { type, status, category };
   validateChoices(config, result, previous);
   return result;

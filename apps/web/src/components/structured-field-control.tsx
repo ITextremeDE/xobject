@@ -1,3 +1,4 @@
+import {URLInput} from './url-input';
 import {DomainTemporalControl} from './domain-temporal-control';
 import {PostalAddressEntryControl} from './postal-address-entry-control';
 import {ContactTimeZoneControl} from './contact-time-zone-control';
@@ -21,6 +22,7 @@ import {FieldExplanation,fieldDescriptionIds} from './record-field-hints';
 export function StructuredFieldControl({field,value,disabled,onChange,error,legendVariant='label'}:{legendVariant?:'legend'|'label';field:FieldDefinition;value:FieldValue;disabled:boolean;onChange:(value:FieldValue)=>void;error?:string}){
  const {t,i18n}=useTranslation(),schema=field.config.schema!,base=`field-${field.id}`,optionGroups=structuredOptionGroups(schema);
  const grouped=optionGroups.length>0;
+ const EntryValueInput=schema==='url_entries'?URLInput:Input;
  let invalid=false;try{if(value!==null)parseStructuredValue(schema,value);}catch{invalid=true;}
  const entries=(Array.isArray(value)?value:[]) as StructuredEntry[];
  const label=(labels:Record<string,string>)=>labels[i18n.language]??labels.en??labels.de??Object.values(labels)[0];
@@ -72,7 +74,7 @@ export function StructuredFieldControl({field,value,disabled,onChange,error,lege
       {actions(entry,index)}
      </FieldGroup>:<FieldGroup className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 @lg/contact-entry:grid-cols-[minmax(0,1fr)_minmax(0,2.5fr)_auto]">
       {field.config.options?.length?<div className="col-span-2 min-w-0 @lg/contact-entry:col-span-1">{contexts(entry,index)}</div>:null}
-      <Field className={!field.config.options?.length?'@lg/contact-entry:col-span-2':undefined}><FieldLabel htmlFor={`${base}-${entry.id}`}>{t(schema==='email_entries'?'contactEmailAddress':schema==='language_entries'?'contactLanguageTag':'contactWebsite')}</FieldLabel><Input id={`${base}-${entry.id}`} aria-label={`${field.label} · ${t('structuredEntry',{number:index+1})}`} value={'value'in entry?entry.value:''} disabled={disabled} required maxLength={2000} placeholder={schema==='language_entries'?'en-GB':undefined} type={schema==='email_entries'?'email':schema==='url_entries'?'url':'text'} aria-invalid={structuredEntryInvalid(schema,entry)} aria-describedby={describedBy} onChange={event=>update(entry.id,{value:event.target.value})}/></Field>
+      <Field className={!field.config.options?.length?'@lg/contact-entry:col-span-2':undefined}><FieldLabel htmlFor={`${base}-${entry.id}`}>{t(schema==='email_entries'?'contactEmailAddress':schema==='language_entries'?'contactLanguageTag':'contactWebsite')}</FieldLabel><EntryValueInput id={`${base}-${entry.id}`} aria-label={`${field.label} · ${t('structuredEntry',{number:index+1})}`} value={'value'in entry?entry.value:''} disabled={disabled} required maxLength={2000} placeholder={schema==='language_entries'?'en-GB':undefined} type={schema==='email_entries'?'email':schema==='url_entries'?'url':'text'} aria-invalid={structuredEntryInvalid(schema,entry)} aria-describedby={describedBy} onChange={event=>update(entry.id,{value:event.target.value})}/></Field>
       {actions(entry,index)}
      </FieldGroup>}
      {schema==='language_entries'&&'value'in entry&&!structuredEntryInvalid(schema,entry)?<FieldDescription>{new Intl.DisplayNames([i18n.language],{type:'language'}).of(Intl.getCanonicalLocales(entry.value)[0]!)??entry.value}</FieldDescription>:null}

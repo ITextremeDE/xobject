@@ -8,8 +8,8 @@ const ids = z.array(id).max(100).refine(value => new Set(value).size === value.l
 export const classificationRulesSchema = z.object({
   type: z.object({ required: z.boolean(), defaultId: id.nullable() }).strict(),
   status: z.object({ required: z.boolean(), defaults: z.array(z.object({ typeId: id.nullable(), statusId: id }).strict()).max(100) }).strict(),
-  category: z.object({ required: z.boolean(), multiple: z.boolean(), defaultIds: ids }).strict(),
-  options: z.array(z.object({ id, kind: z.enum(['type', 'status', 'category']), labels, active: z.boolean(), meaning:z.enum(['open','in_progress','done','canceled']).optional(), typeId: id.nullable() }).strict()).max(300),
+  category: z.object({ required: z.boolean(), multiple: z.boolean(), tree:z.boolean().optional(), defaultIds: ids }).strict(),
+  options: z.array(z.object({ id, kind: z.enum(['type', 'status', 'category']), parentId:id.nullable().optional(), labels, active: z.boolean(), meaning:z.enum(['open','in_progress','done','canceled']).optional(), typeId: id.nullable() }).strict()).max(300),
 }).strict();
 export const classificationValuesSchema = z.object({ type: id.nullable().optional(), status: id.nullable().optional(), category: ids.optional() }).strict();
 export type ClassificationRules = z.infer<typeof classificationRulesSchema>;
@@ -21,11 +21,11 @@ export const emptyClassification = (): ClassificationConfig => ({ version: 1, ty
 export function moveClassificationOption(options: ClassificationRules['options'], id: string, targetId: string): ClassificationRules['options'] {
   const source = options.find(option => option.id === id);
   const target = options.find(option => option.id === targetId);
-  if (!source || !target || source.kind !== target.kind || source.typeId !== target.typeId || id === targetId) return options;
-  const siblings = options.filter(option => option.kind === source.kind && option.typeId === source.typeId);
+  if (!source || !target || source.kind !== target.kind || source.typeId !== target.typeId || (source.parentId??null)!==(target.parentId??null) || id === targetId) return options;
+  const siblings = options.filter(option => option.kind === source.kind && option.typeId === source.typeId&&(option.parentId??null)===(source.parentId??null));
   const from = siblings.findIndex(option => option.id === id);
   const to = siblings.findIndex(option => option.id === targetId);
   siblings.splice(to, 0, siblings.splice(from, 1)[0]!);
   let index = 0;
-  return options.map(option => option.kind === source.kind && option.typeId === source.typeId ? siblings[index++]! : option);
+  return options.map(option => option.kind === source.kind && option.typeId === source.typeId&&(option.parentId??null)===(source.parentId??null) ? siblings[index++]! : option);
 }

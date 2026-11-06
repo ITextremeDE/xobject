@@ -1,3 +1,4 @@
+import {choiceDisplayOrder} from '@xobject/contracts';
 import {temporalSchema,temporalInstant,postalAddressLines,type StructuredEntry,structuredSummary,defaultRegionalSettings,type RegionalSettings,type FieldDefinition,type FieldPrincipal,type MoneyValue,type ReferenceValue} from '@xobject/contracts';
 import type {TFunction} from 'i18next';
 import {formatRegionalDate,formatRegionalNumber,formatRegionalMoney} from './regional';
@@ -16,7 +17,7 @@ export function displayFieldValue(field: Pick<FieldDefinition,'kind'|'config'>, 
   }
   if (field.kind === 'boolean') return t(value === true ? 'yes' : 'no');
   if (field.kind === 'money') { const money = value as MoneyValue; return formatRegionalMoney(money.amount,money.currency,regional,field.config.scale??2); }
-  if (field.kind === 'single_choice' || field.kind === 'multiple_choice') return (Array.isArray(value) ? value : [value]).map(id => { const option = field.config.options?.find(item => item.id === id); return option ? optionName(option.labels, language) : String(id); }).join(', ') || '—';
+  if (field.kind === 'single_choice' || (field.kind === 'multiple_choice'||field.kind==='tree_choice')) return (field.kind==='single_choice'?[value]:choiceDisplayOrder(field.config.options??[],field.kind==='tree_choice').filter(option=>(value as string[]).includes(option.id)).map(option=>option.id)).map(id => { const option = field.config.options?.find(item => item.id === id); return option ? optionName(option.labels, language) : String(id); }).join(', ') || '—';
   if (field.kind === 'reference') return (Array.isArray(value) ? value : [value]).map(reference => { const ref = reference as ReferenceValue; return principals.find(item => item.kind === ref.kind && item.id === ref.id)?.name ?? `${t(`reference_${ref.kind}`)} · ${ref.id}`; }).join(', ') || '—';
   if (field.kind === 'date') return formatRegionalDate(String(value), regional, timeZone, false, true);
   if (field.kind === 'datetime') return formatRegionalDate(String(value), regional, timeZone, true);

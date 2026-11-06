@@ -84,7 +84,7 @@ CREATE TABLE public.sys_fields (
     is_protected boolean DEFAULT false NOT NULL,
     state text DEFAULT 'active'::text NOT NULL,
     version integer DEFAULT 1 NOT NULL,
-    CONSTRAINT sys_fields_kind_check CHECK ((kind = ANY (ARRAY['structured'::text, 'text'::text, 'multiline'::text, 'integer'::text, 'decimal'::text, 'money'::text, 'boolean'::text, 'date'::text, 'datetime'::text, 'single_choice'::text, 'multiple_choice'::text, 'email'::text, 'phone'::text, 'url'::text, 'reference'::text, 'type'::text, 'status'::text, 'category'::text]))),
+    CONSTRAINT sys_fields_kind_check CHECK ((kind = ANY (ARRAY['structured'::text, 'text'::text, 'multiline'::text, 'integer'::text, 'decimal'::text, 'money'::text, 'boolean'::text, 'date'::text, 'datetime'::text, 'single_choice'::text, 'multiple_choice'::text, 'tree_choice'::text, 'email'::text, 'phone'::text, 'url'::text, 'reference'::text, 'type'::text, 'status'::text, 'category'::text]))),
     CONSTRAINT sys_fields_state_check CHECK ((state = ANY (ARRAY['active'::text, 'inactive'::text, 'deleted'::text]))),
     CONSTRAINT sys_fields_version_check CHECK ((version > 0))
 );

@@ -16,7 +16,7 @@ External clients use user-bound, expiring and revocable API/MCP tokens under the
 
 Before the first release, development instances are rebuilt from the current installation definition; older development schemas and APIs are not supported. See [ADR 0028](docs/adr/0028-current-installation-baseline.md).
 
-There is no installable application release. The [PRD](docs/PRD.md) defines 48 requirements and acceptance scenarios; it describes intended behavior, not a declaration that all requirements are delivered. Local verification, Git publication, CI and deployment are separate states.
+There is no installable application release. The [PRD](docs/PRD.md) defines stable requirements, later product targets and acceptance scenarios; it describes intended behavior, not a declaration that all requirements are delivered. Local verification, Git publication, CI and deployment are separate states.
 
 ## The idea
 
@@ -32,8 +32,8 @@ Workspaces keep data and configuration separate. The Projects module supplies a 
 | --- | --- |
 | **Contacts & Relations** | Contacts with separate Organization/Individual-contact/Contact-person kinds and Distribution lists. Eleven additional object memberships are next-version scope. |
 | **Projects & Tasks** | Shared Contacts, Projects, Cases and Tasks; a coordinating Responsible reference and task assignment through Access principals, editable starter forms and shared temporal values. The six other Projects objects are later scope. |
-| **Custom data models** | User-defined object types, fields and relationship types alongside protected module definitions. |
-| **Classification** | Configurable types, type-dependent statuses and single- or multiple-choice categories. |
+| **Custom data models** | User-defined object types, typed fields including general selection trees, and relationship types alongside protected module definitions. |
+| **Classification** | Configurable types, type-dependent statuses and single-, multiple- or tree-choice categories. |
 | **Access control** | Object/field ceilings, graded ownership, foreign access and group inheritance on sensitive records. Administrators have installation-wide access. Implemented in the local prototype; calendar and notifications remain separate. |
 | **Views** | Searchable tables, configurable object forms and record details with a relationship tree, dossier and journal. |
 | **History and lifecycle** | One journal entry per field change, relationship history and a recycle bin with controlled permanent deletion. |
@@ -88,4 +88,4 @@ ITextreme design tokens and selective shadcn/ui Base UI components. See the
 [website guide](docs/website.md) for design provenance, development and release checks. The project website is
 separate from the planned xObject application and does not provide an installation.
 
-Local delivery and acceptance: [self-hosting](docs/self-hosting.md), [quality evidence](docs/quality-acceptance.md), [release preparation](docs/releasing.md), [public documentation](docs/public-documentation.md) and the [optional agent plugin](docs/agent-plugin.md). Current source is unreleased; publication and actual OpenAI client/model acceptance remain separate gates.
+Local delivery and acceptance: [self-hosting](docs/self-hosting.md), [quality evidence](docs/quality-acceptance.md), [release preparation](docs/releasing.md), [public documentation](docs/public-documentation.md) and the [optional agent plugin](docs/agent-plugin.md). Current source is unreleased. The quality report records the accepted local OpenAI Codex path and its limits; final release, accessibility and external-platform acceptance remain separate gates.

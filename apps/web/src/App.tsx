@@ -4,7 +4,7 @@ import {WorkspaceLoading} from '@/components/loading';
 import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { installKeyboardShortcuts } from '@/lib/keyboard';
-import { getSession } from '@/lib/api';
+import { getSession, blocksCachedView } from '@/lib/api';
 import { InitialPassword } from '@/components/initial-password';
 import { Login } from '@/components/login';
 import { Loading, ErrorNotice } from '@/components/feedback';
@@ -26,7 +26,7 @@ export default function App() {
     return () => window.removeEventListener('xobject:session-expired', forgetSession);
   }, [client]);
   if (session.isPending) return <main className="flex min-h-svh items-center justify-center"><Loading /></main>;
-  if (session.isError) return <main className="mx-auto max-w-xl p-8"><ErrorNotice error={session.error} retry={() => { void session.refetch(); }} /></main>;
+  if (blocksCachedView(session)) return <main className="mx-auto max-w-xl p-8"><ErrorNotice error={session.error} retry={() => { void session.refetch(); }} /></main>;
   if (!session.data) return <Login onSuccess={() => { void client.invalidateQueries({ queryKey: ['session'] }); }} />;
   if (session.data.user.mustChangePassword) return <InitialPassword user={session.data.user} onSignOut={forgetSession} />;
   if(['/oauth/login','/oauth/consent'].includes(window.location.pathname))return <OAuthAuthorization/>;

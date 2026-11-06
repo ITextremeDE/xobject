@@ -3,6 +3,17 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 const en = {
+  openURLInNewTab:'Open {{name}} in a new tab',
+  applyChoiceSelection:'Apply selection',choiceTreeSelectionCount:'{{count}} / {{max}} selected (including ancestors)',fieldKind_tree_choice:'Selection tree',selectionTree:'Selection tree',choiceParent:'Parent item',choiceRoot:'Top level',choiceExpand:'Expand {{name}}',choiceCollapse:'Collapse {{name}}',chooseFieldValues:'Choose values for {{name}}',searchChoices:'Search choices',choiceTreeHelp:'Select one or more items. Selecting a child includes its ancestors. Clearing a parent also clears its descendants. Apply changes to the form, then save normally.',choiceListHelp:'Select one or more items. Apply changes to the form, then save normally.',choiceSelectionCount:'{{count}} / {{max}} selected',choiceHierarchyHelp:'Choose the parent of each item in its details. Active children require active ancestors. Changing a hierarchy adds missing ancestors to existing selections and journals the changes.',
+
+  liveRefreshFailed:'Could not refresh the saved data. Your draft is preserved. Retry when the connection is available.',
+  chooseConflictValue:'Choose a value to keep',
+  reconcileNoConflicts:'Your edits and the saved changes affect different fields. They can be combined.',
+  installApp:'Install app',appUpdateAvailable:'An app update is available.',appUpdateDraft:'An app update is available. Save or discard your changes before reloading.',reloadApp:'Reload app',
+  liveOffline:'You are offline. Displayed data may be out of date; changes cannot be saved until the connection returns.',liveConnecting:'Connecting to live updates. Displayed data may be out of date.',liveDeferred:'Updates are available. Your unsaved changes are preserved; other views refresh after you save or discard them.',
+  copyRecordLink:'Copy link',shareRecordLink:'Share link',recordLinkCopied:'Record link copied.',shareFailed:'Could not share the link.',
+  externalRecordChange:'This record has changed since you started editing.',reviewChanges:'Review changes',reconcileChanges:'Review external changes',reconcileHelp:'Unchanged fields use the latest saved value. Choose which value to keep for each conflicting field.',yourDraft:'Your draft',savedValue:'Latest saved value',applyReview:'Apply reviewed values',externalChangeHelp:'Your draft is preserved. Review the latest version before saving.',valueChanged:'Changed value',emptyValue:'Empty',
+
   oauthAuthorize:"Authorize application",
   oauthConsentHelp:"This application will act as you, within your current xObject permissions.",
   oauthApplication:"Application",
@@ -895,6 +906,17 @@ const en = {
   workspaceHelp: 'The code prefixes the database tables and is fixed after creation.',
 };
 const de: Record<keyof typeof en, string> = {
+  openURLInNewTab:'{{name}} in neuem Tab öffnen',
+  applyChoiceSelection:'Auswahl übernehmen',choiceTreeSelectionCount:'{{count}} / {{max}} ausgewählt (einschließlich Vorfahren)',fieldKind_tree_choice:'Auswahlbaum',selectionTree:'Auswahlbaum',choiceParent:'Übergeordneter Eintrag',choiceRoot:'Oberste Ebene',choiceExpand:'{{name}} aufklappen',choiceCollapse:'{{name}} zuklappen',chooseFieldValues:'Werte für {{name}} auswählen',searchChoices:'Auswahlwerte suchen',choiceTreeHelp:'Wähle einen oder mehrere Einträge. Untergeordnete Einträge wählen ihre Vorfahren mit aus. Abwählen eines übergeordneten Eintrags entfernt auch seine Nachfahren. Übernimm die Auswahl ins Formular und speichere anschließend wie gewohnt.',choiceListHelp:'Wähle einen oder mehrere Einträge. Übernimm die Auswahl ins Formular und speichere anschließend wie gewohnt.',choiceSelectionCount:'{{count}} / {{max}} ausgewählt',choiceHierarchyHelp:'Wähle in den Details jedes Eintrags seine übergeordnete Ebene. Aktive Kinder benötigen aktive Vorfahren. Änderungen am Baum ergänzen fehlende Vorfahren in bestehenden Auswahlen und werden im Journal protokolliert.',
+
+  liveRefreshFailed:'Die gespeicherten Daten konnten nicht aktualisiert werden. Dein Entwurf bleibt erhalten. Versuche es mit Verbindung erneut.',
+  chooseConflictValue:'Zu übernehmenden Wert auswählen',
+  reconcileNoConflicts:'Deine Änderungen und die gespeicherten Änderungen betreffen verschiedene Felder. Sie können zusammengeführt werden.',
+  installApp:'App installieren',appUpdateAvailable:'Ein App-Update ist verfügbar.',appUpdateDraft:'Ein App-Update ist verfügbar. Speichere oder verwirf Deine Änderungen vor dem Neuladen.',reloadApp:'App neu laden',
+  liveOffline:'Du bist offline. Die angezeigten Daten können veraltet sein; Speichern ist erst mit Verbindung wieder möglich.',liveConnecting:'Verbindung zur Live-Aktualisierung wird hergestellt. Die angezeigten Daten können veraltet sein.',liveDeferred:'Aktualisierungen sind verfügbar. Deine ungespeicherten Änderungen bleiben erhalten; andere Ansichten werden nach dem Speichern oder Verwerfen aktualisiert.',
+  copyRecordLink:'Link kopieren',shareRecordLink:'Link teilen',recordLinkCopied:'Datensatzlink kopiert.',shareFailed:'Der Link konnte nicht geteilt werden.',
+  externalRecordChange:'Dieser Datensatz wurde zwischenzeitlich geändert.',reviewChanges:'Änderungen abgleichen',reconcileChanges:'Externe Änderungen abgleichen',reconcileHelp:'Unveränderte Felder übernehmen den zuletzt gespeicherten Wert. Wähle bei jedem Konflikt, welcher Wert erhalten bleibt.',yourDraft:'Dein Entwurf',savedValue:'Zuletzt gespeichert',applyReview:'Abgleich übernehmen',externalChangeHelp:'Dein Entwurf bleibt erhalten. Gleiche vor dem Speichern die aktuelle Version ab.',valueChanged:'Geänderter Wert',emptyValue:'Leer',
+
   oauthAuthorize:"Anwendung autorisieren",
   oauthConsentHelp:"Diese Anwendung handelt mit Deinen aktuellen xObject-Rechten in Deinem Namen.",
   oauthApplication:"Anwendung",

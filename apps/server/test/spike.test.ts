@@ -1,3 +1,6 @@
+import {withChangeNotifications} from '../src/change-notifications.js';
+import {liveUpdates} from '../src/live-updates.js';
+import {Application} from '../src/domain.js';
 import type {DataRecord} from '@xobject/contracts';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -204,6 +207,11 @@ test('API and real MCP share definitions, data, UUIDv7 identities and per-field 
   assert.equal(stale.statusCode, 409);
   const invalid = await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 2, values: { unknown: 'invalid' } });
   assert.equal(invalid.statusCode, 400);
+  assert.match(invalid.json().error, /technical field names, not field IDs/);
+  const fieldIdKey = await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 2, values: { [field.id]: 'invalid' } });
+  assert.equal(fieldIdKey.statusCode, 400);
+  assert.match(fieldIdKey.json().error, /technical field names, not field IDs/);
+  assert.equal((await tool('get_record', { objectTypeId: type.id, recordId: record.id })).registration, 'ITX 2');
   assert.equal((await journalEntries({ objectTypeId: type.id, recordId: record.id })).length, 4);
 });
 
@@ -894,7 +902,7 @@ test('administrator flags cannot be set by profile input and authorization reads
     assert.equal(response.statusCode, 400, response.body);
     assert.equal((await sql<{ is_admin: boolean }>`SELECT is_admin FROM sys_users WHERE id = ${ordinary.id}`.execute(runtime.db)).rows[0].is_admin, false);
     assert.deepEqual((await api('list_workspaces', {}, userCookie)).json(), []);
-    assert.deepEqual((await api('get_access_context', {}, userCookie)).json(), { isAdmin: false });
+    assert.deepEqual((await api('get_access_context', {}, userCookie)).json(), { user: { id: ordinary.id, name: 'Test User' }, isAdmin: false });
   }
   const session = await runtime.app.inject({ method: 'GET', url: '/api/auth/get-session', headers: { host: '127.0.0.1:4100', cookie: adminCookie } });
   assert.equal(session.statusCode, 200);
@@ -904,7 +912,7 @@ test('administrator flags cannot be set by profile input and authorization reads
   try {
     assert.deepEqual((await api('list_workspaces', {})).json(), []);
     assert.equal((await api('create_workspace', { name: 'Revoked', code: 'revoked' })).statusCode, 403);
-    assert.deepEqual(await tool('get_access_context', {}), { isAdmin: false });
+    assert.deepEqual(await tool('get_access_context', {}), { user: { id: adminId, name: 'Test Administrator' }, isAdmin: false });
   } finally { await sql`UPDATE sys_users SET is_admin = true WHERE id = ${adminId}`.execute(runtime.db); }
   const before = (await sql`SELECT id, is_admin FROM sys_users ORDER BY id`.execute(runtime.db)).rows;
   await initializeDatabase(databaseURL, secret, baseURL);
@@ -4089,6 +4097,7 @@ test('user-bound API credentials have one-time secrets, scoped channels, expiry,
  const stored=(await sql<{secret_hash:string}>`SELECT secret_hash FROM sys_api_credentials WHERE id=${issued.credential.id}::uuid`.execute(runtime.db)).rows[0];assert.equal(stored.secret_hash.length,64);assert.ok(!JSON.stringify(stored).includes(issued.token));
  const listed=await api('list_api_credentials',{},userCookie);assert.ok(!listed.body.includes(issued.token));assert.ok(!listed.body.includes('secret_hash'));
  assert.equal((await bearer('list_api_credentials',{})).statusCode,403);
+ assert.deepEqual((await bearer('get_access_context',{})).json(),{user:{id:user.id,name:user.name},isAdmin:false});
  const written=await bearer('create_record',{objectTypeId:object.id,keyword:'Agent content'});assert.equal(written.statusCode,200,written.body);assert.equal(written.headers['x-xobject-api-version'],'1.0.0');
  const entries=await journalEntries({objectTypeId:object.id,recordId:written.json().id});assert.ok(entries.every((e:any)=>e.actor_id===user.id&&e.access_channel==='api'&&e.credential_id===issued.credential.id&&e.agent_name==='Test agent'));
  const manifest=await runtime.app.inject({method:'GET',url:'/api/v1/contract',headers:{host:'127.0.0.1:4100',authorization:`Bearer ${issued.token}`}});assert.equal(manifest.statusCode,200);assert.equal(manifest.json().apiVersion,'1.0.0');assert.ok(manifest.json().operations.permanently_delete_record.inputSchema);
@@ -4231,4 +4240,103 @@ test('tree status captions use current object and per-record field rights for ro
  const allowed=await api('get_relationship_tree_branch',input,userCookie);assert.deepEqual(allowed.json().children[0].record.statusLabels,taskStatus.labels);
  const security=await ok('get_record_security',{objectTypeId:task.id,recordId:child.id});await ok('configure_record_security',{objectTypeId:task.id,recordId:child.id,version:security.version,policy:{...security.policy,fields:[{kind:'user',id:user.id,fields:{[task.fields.find((f:any)=>f.kind==='status').id]:'none'}}]},confirmPublic:true});
  const ceiling=await api('get_relationship_tree_branch',input,userCookie);assert.equal(ceiling.json().children[0].record.statusLabels,null,'record-level field ceilings also apply');
+});
+
+test('live changes are commit-only, deduplicated and omit journal values',async()=>{
+ const listener=new PgClient({connectionString:databaseURL});await listener.connect();await listener.query('LISTEN xobject_changes');
+ const notices:any[]=[];listener.on('notification',event=>notices.push(JSON.parse(event.payload!)));
+ try{
+  const workspace=await ok('create_workspace',{name:'Live updates test',code:'liveupdates'});
+  await setTimeout(100);assert.ok(notices.some(event=>event.workspaceId===workspace.id&&event.metadata));
+  const type=await ok('create_object_type',{workspaceId:workspace.id,technicalName:'items',labels:{en:'Items',de:'Einträge'},standardFields:['keyword']});
+  const record=await ok('create_record',{objectTypeId:type.id,keyword:'Do not broadcast this name'});
+  await setTimeout(100);const changed=notices.flatMap(event=>event.records).filter(ref=>ref.recordId===record.id);assert.equal(changed.length,1);
+  assert.ok(!JSON.stringify(notices).includes('Do not broadcast'));const previous=notices.length;
+  const failed=await api('update_record',{objectTypeId:type.id,recordId:record.id,version:record.version+1,keyword:'Rollback'});assert.equal(failed.statusCode,409);
+  await ok('get_record',{objectTypeId:type.id,recordId:record.id});
+  await assert.rejects(runtime.db.transaction().execute(async tx=>{await withChangeNotifications(tx,async()=>{
+    await sql`INSERT INTO sys_journal(id,change_id,workspace_id,object_type_id,entity_kind,entity_id,field_key,actor_id) VALUES(${randomUUID()}::uuid,${randomUUID()}::uuid,${workspace.id}::uuid,${type.id}::uuid,'record',${record.id}::uuid,'rollback',${adminId})`.execute(tx);
+  });throw new Error('Rollback after NOTIFY');}),/Rollback after NOTIFY/);
+  await setTimeout(100);assert.equal(notices.length,previous,'rolled-back NOTIFY and read requests emit no changes');
+ }finally{await listener.end();}
+});
+
+
+test('live subscribers filter hidden records, invalidate retained access loss and close on session revocation',async()=>{
+ const ws=await ok('create_workspace',{name:'Stream authorization',code:'streamauth'}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const cfg=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...cfg,grants:[{kind:'user',id:user.id,level:'read',fields:{}}]});
+ const record=await ok('create_record',{objectTypeId:type.id,keyword:'Visible'}),service=liveUpdates(databaseURL,new Application(runtime.db),'test-build',runtime.db);
+ let valid=true;const controller=new AbortController(),stream=await service.subscribe(user.id,ws.id,[{objectTypeId:type.id,recordId:record.id}],async()=>{if(!valid)throw new (await import('../src/errors.js')).AppError(401,'Revoked');},controller.signal);let frames='';stream.on('data',chunk=>{frames+=chunk.toString();});
+ try{
+  await setTimeout(30);assert.ok(frames.includes('event: ready'));assert.ok(!frames.includes(record.id));frames='';
+  let current=await ok('get_record',{objectTypeId:type.id,recordId:record.id});await ok('update_record',{objectTypeId:type.id,recordId:record.id,version:current.version,keyword:'Visible change'});await setTimeout(180);assert.ok(frames.includes('event: refresh'));assert.ok(!frames.includes('Visible change'));frames='';
+  const permissions=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'none',fields:{}}]});await setTimeout(180);frames='';
+  current=await ok('get_record',{objectTypeId:type.id,recordId:record.id});await ok('update_record',{objectTypeId:type.id,recordId:record.id,version:current.version,keyword:'Access lost'});await setTimeout(180);assert.ok(frames.includes('event: refresh'),'previously visible references invalidate once on access loss');frames='';
+  current=await ok('get_record',{objectTypeId:type.id,recordId:record.id});await ok('update_record',{objectTypeId:type.id,recordId:record.id,version:current.version,keyword:'Hidden change'});await setTimeout(180);assert.equal(frames,'','hidden activity has no browser event');
+  valid=false;await ok('create_field',{objectTypeId:type.id,technicalName:'stream_check',labels:{en:'Stream check'}});await setTimeout(180);assert.ok(frames.includes('event: session'));assert.ok(stream.readableEnded);
+ }finally{controller.abort();stream.destroy();await service.close();}
+});
+
+test('browser identity stays generic and live routes require interactive same-origin sessions',async()=>{
+ const headers={host:'127.0.0.1:4100','x-xobject-request':'1'},payload={workspaceId:randomUUID(),watched:[]};
+ const info=await runtime.app.inject({method:'GET',url:'/api/client-info',headers});assert.equal(info.statusCode,200);assert.deepEqual(Object.keys(info.json()).sort(),['buildId','description','name','titleMode']);
+ const manifest=await runtime.app.inject({method:'GET',url:'/manifest.webmanifest',headers});assert.equal(manifest.statusCode,200);assert.equal(manifest.json().start_url,'/');assert.match(String(manifest.headers['x-robots-tag']),/noindex/);
+ const html=await runtime.app.inject({method:'GET',url:'/settings',headers:{...headers,accept:'text/html'}});assert.equal(html.statusCode,200);assert.match(html.body,/property="og:title" content="xObject"/);assert.ok(!html.body.includes('__APP_'));
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/events',headers,payload})).statusCode,401);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/events',headers:{...headers,cookie:adminCookie,origin:'https://foreign.example.test'},payload})).statusCode,403);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/events',headers:{...headers,authorization:'Bearer xo1_fake'},payload})).statusCode,403);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/events',headers:{...headers,cookie:adminCookie},payload:{...payload,watched:Array.from({length:201},()=>({objectTypeId:randomUUID(),recordId:randomUUID()}))}})).statusCode,400);
+ assert.equal((await runtime.app.inject({method:'POST',url:'/api/events',headers:{...headers,cookie:userCookie},payload})).statusCode,403);
+});
+
+test('generic selection trees share closure, configuration, history and safe conversions across API and MCP',async()=>{
+ const ws=await ok('create_workspace',{name:'Tree choices',code:'treechoices'}),type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
+ const [root,branch,leaf,other]=Array.from({length:4},()=>randomUUID()),options=[{id:root,labels:{en:'Technology',de:'Technologie'},active:true},{id:branch,parentId:root,labels:{en:'Infrastructure',de:'Infrastruktur'},active:true},{id:leaf,parentId:branch,labels:{en:'Network',de:'Netzwerk'},active:true},{id:other,parentId:root,labels:{en:'Cloud',de:'Cloud'},active:true}];
+ let field=await ok('create_field',{objectTypeId:type.id,technicalName:'areas',labels:{en:'Areas'},kind:'tree_choice',config:{options}});
+ const record=await tool('create_record',{objectTypeId:type.id,keyword:'Tree sample',values:{areas:[leaf]}});assert.deepEqual(record.areas,[root,branch,leaf].sort());
+ let definition=await ok('get_object_type',{objectTypeId:type.id});field=definition.fields.find((f:any)=>f.id===field.id);
+ const cycle=await api('configure_field',{fieldId:field.id,version:field.version,kind:'tree_choice',required:false,config:{options:options.map(option=>option.id===root?{...option,parentId:leaf}:option)}});assert.equal(cycle.statusCode,400);
+ const unknown=await api('update_record',{objectTypeId:type.id,recordId:record.id,version:record.version,values:{areas:[randomUUID()]}});assert.equal(unknown.statusCode,400);
+ const single=await api('configure_field',{fieldId:field.id,version:field.version,kind:'single_choice',required:false,config:{options:options.map(option=>({...option,parentId:null}))}});assert.equal(single.statusCode,400,'tree ancestors cannot be silently discarded');
+ const flat=await ok('configure_field',{fieldId:field.id,version:field.version,kind:'multiple_choice',required:false,config:{options:options.map(option=>({...option,parentId:null}))}});assert.equal(flat.fields.find((item:any)=>item.id===field.id).kind,'multiple_choice');
+ const reread=await ok('get_record',{objectTypeId:type.id,recordId:record.id});assert.deepEqual(reread.areas,record.areas);
+ definition=await ok('get_object_type',{objectTypeId:type.id});field=definition.fields.find((f:any)=>f.id===field.id);
+ await ok('configure_field',{fieldId:field.id,version:field.version,kind:'tree_choice',required:false,config:{options}});
+ const history=await journalEntries({objectTypeId:type.id,recordId:record.id});assert.ok(history.some(entry=>entry.field_id===field.id&&entry.field_key==='areas'));
+ const sorted=await ok('list_records',{objectTypeId:type.id,sortBy:'areas',sortDirection:'asc'});assert.ok(sorted.records.some((row:any)=>row.id===record.id));
+});
+
+test('Category selection trees close records and defaults atomically, reject cycles and retain rollback guarantees',async()=>{
+ const ws=await ok('create_workspace',{name:'Tree categories',code:'treecategories'}),type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword','category']});
+ const [root,leaf]=[randomUUID(),randomUUID()];let cfg={type:{required:false,defaultId:null},status:{required:false,defaults:[]},category:{required:false,multiple:true,defaultIds:[]},options:[{id:root,kind:'category',labels:{en:'Root'},typeId:null,active:true},{id:leaf,kind:'category',labels:{en:'Leaf'},typeId:null,active:true}]};
+ let definition=await ok('configure_classification',{objectTypeId:type.id,version:1,config:cfg});const record=await ok('create_record',{objectTypeId:type.id,keyword:'Leaf only',classification:{category:[leaf]}});
+ const tree={...cfg,category:{...cfg.category,tree:true,defaultIds:[leaf]},options:cfg.options.map(option=>option.id===leaf?{...option,parentId:root}:option)};
+ await sql`CREATE TRIGGER reject_tree_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{const failed=await api('configure_classification',{objectTypeId:type.id,version:definition.classification.version,config:tree});assert.equal(failed.statusCode,500);}
+ finally{await sql`DROP TRIGGER reject_tree_journal ON sys_journal`.execute(runtime.db);}
+ assert.deepEqual((await ok('get_record',{objectTypeId:type.id,recordId:record.id})).category,[leaf],'failed journal rolls back ancestor propagation');
+ definition=await ok('configure_classification',{objectTypeId:type.id,version:definition.classification.version,config:tree});assert.deepEqual(definition.classification.category.defaultIds,[root,leaf].sort());
+ const reread=await ok('get_record',{objectTypeId:type.id,recordId:record.id});assert.deepEqual(reread.category,[root,leaf].sort());assert.equal(reread.version,record.version+1);
+ const next=await tool('create_record',{objectTypeId:type.id,keyword:'Defaults'});assert.deepEqual(next.category,[root,leaf].sort());
+ const history=await journalEntries({objectTypeId:type.id,recordId:record.id});assert.ok(history.some(entry=>entry.field_key==='category'&&Array.isArray(entry.old_value)&&entry.old_value.length===1&&Array.isArray(entry.new_value)&&entry.new_value.length===2));
+ const bad=await api('configure_classification',{objectTypeId:type.id,version:definition.classification.version,config:{...tree,options:tree.options.map(option=>option.id===root?{...option,parentId:leaf}:option)}});assert.equal(bad.statusCode,400);
+ const invalid=await api('update_record',{objectTypeId:type.id,recordId:record.id,version:reread.version,classification:{category:[randomUUID()]}});assert.equal(invalid.statusCode,400);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ assert.equal((await api('configure_classification',{objectTypeId:type.id,version:definition.classification.version,config:tree},userCookie)).statusCode,403);
+});
+
+test('relationship-owned selection trees update edges, both endpoint versions and their shared journals',async()=>{
+ const ws=await ok('create_workspace',{name:'Edge tree',code:'edgetree'});await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((t:any)=>t.technicalName==='contacts'),model=await ok('get_object_type',{objectTypeId:object.id}),profile=model.contactProfile;
+ let rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===profile.relationships.contact_person);
+ const root=randomUUID(),leaf=randomUUID(),options=[{id:root,labels:{en:'Responsibilities'},active:true},{id:leaf,labels:{en:'Purchasing'},active:true}];
+ const field=await ok('create_field',{relationshipTypeId:rel.id,technicalName:'areas',labels:{en:'Areas'},kind:'tree_choice',config:{options}});rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===rel.id);
+ const org=await createOrganization(object.id),person=await ok('create_record',{objectTypeId:object.id,values:{contact_kind:profile.kinds.person,last_name:[{id:randomUUID(),text:'Doe'}]},relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'right',targets:[{objectTypeId:object.id,recordId:org.id}]}],relationshipAttributes:[{relationshipTypeId:rel.id,definitionVersion:rel.version,target:{objectTypeId:object.id,recordId:org.id},values:{[field.id]:[leaf]}}]});
+ const before=await ok('get_record',{objectTypeId:object.id,recordId:org.id});
+ await ok('configure_field',{fieldId:field.id,version:field.version,kind:'tree_choice',required:false,config:{options:options.map(option=>option.id===leaf?{...option,parentId:root}:option)}});
+ const edges=await ok('get_record_relationships',{objectTypeId:object.id,recordId:person.id}),target=edges.fields.find((f:any)=>f.definition.id===rel.id&&f.side==='right').targets[0];assert.deepEqual(target.attributeValues[field.id],[root,leaf].sort());
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:person.id})).version,person.version+1);assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:org.id})).version,before.version+1);
+ for(const id of [person.id,org.id])assert.ok((await journalEntries({objectTypeId:object.id,recordId:id})).some(entry=>entry.field_id===field.id&&Array.isArray(entry.old_value)&&entry.old_value.length===1&&Array.isArray(entry.new_value)&&entry.new_value.length===2));
 });

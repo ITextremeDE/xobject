@@ -1,3 +1,7 @@
+import {TransientDraftProvider,useTransientDraftPending} from '@/lib/transient-draft';
+import {BrowserPresence} from './browser-presence';
+import {useLiveUpdates} from '@/lib/use-live-updates';
+import {Alert,AlertDescription} from './ui/alert';
 import {defaultNavigationLayout} from '@xobject/contracts';
 import {WorkspaceNavigation} from './workspace-navigation';
 import {NavigationDialog} from './navigation-dialog';
@@ -21,7 +25,7 @@ import { Link, useBlocker, useLocation, matchPath, useNavigate } from 'react-rou
 import {WorkspaceLogo} from './workspace-logo';
 import { Trash2Icon, PlusIcon, ChevronsUpDownIcon, LayoutDashboardIcon, BellIcon } from 'lucide-react';
 import { type AuthUser } from '@xobject/contracts';
-import { api, signOut } from '@/lib/api';
+import { api, signOut,blocksCachedView } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
@@ -46,8 +50,8 @@ const SettingsPage = lazy(() => import('./settings-page').then(module => ({ defa
 export function WorkspaceApp({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const access = useQuery({ queryKey: ['access-context', user.id], queryFn: () => api('get_access_context', {}) });
   if (access.isPending) return <WorkspaceLoading/>;
-  if (access.isError) return <ErrorNotice error={access.error} retry={() => { void access.refetch(); }} />;
-  return <TablePreferencesProvider userId={user.id}><SidebarProvider><WorkspaceScreen user={{ ...user, isAdmin: access.data.isAdmin }} onSignOut={onSignOut} /></SidebarProvider></TablePreferencesProvider>;
+  if (blocksCachedView(access)) return <ErrorNotice error={access.error} retry={() => { void access.refetch(); }} />;
+  return <TransientDraftProvider><TablePreferencesProvider userId={user.id}><SidebarProvider><WorkspaceScreen user={{ ...user, isAdmin: access.data!.isAdmin }} onSignOut={onSignOut} /></SidebarProvider></TablePreferencesProvider></TransientDraftProvider>;
 }
 
 function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
@@ -77,11 +81,14 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const navigationOrigin=useRef<HTMLElement|null>(null);
   const [dialog, setDialog] = useState<'workspace' | 'object' | null>(null);
   const [dirty, setDirty] = useState(false);
+  const transientDirty=useTransientDraftPending();
+  const guardedDirty=dirty||transientDirty;
   const [busy, setBusy] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const workspaces = useQuery({ queryKey: ['workspaces', user.id], queryFn: () => api('list_workspaces', {}) });
   const workspace = workspaceCode ? workspaces.data?.find(w => w.code === workspaceCode) : workspaces.data?.[0];
   useWorkspaceAppearance(workspace?.appearance);
+  const live=useLiveUpdates(workspace?.id,guardedDirty,busy);
   const canManage = Boolean(user.isAdmin || workspace?.role === 'designer');
   const language = effectiveWorkspaceLanguage(user.language, workspace?.available_languages ?? languageCodes, workspace?.default_language ?? 'en');
   useEffect(() => { if(workspaces.isSuccess)void i18n.changeLanguage(language); }, [i18n, language,workspaces.isSuccess]);
@@ -94,7 +101,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const objectPath = selectedType ? `${dashboardPath}/objects/${selectedType.technicalName}` : dashboardPath;
   const definition = useQuery({ queryKey: ['definition', selectedType?.id, user.id, language], queryFn: () => api('get_object_type', { objectTypeId: selectedType!.id }), enabled: Boolean(selectedType) });
   const logout = useMutation({ mutationFn: signOut, onSuccess: onSignOut });
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => (busy || dirty) && (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search));
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => (busy || guardedDirty) && (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search));
   useEffect(() => { if (busy && blocker.state === 'blocked') blocker.reset(); }, [busy, blocker]);
   useEffect(() => { if (location.pathname === '/' && workspace) void routeNavigate(dashboardPath, { replace: true }); }, [location.pathname, workspace, dashboardPath, routeNavigate]);
   useEffect(() => { setOpenMobile(false); setDialog(null);setNavigationOpen(false); }, [location.pathname, setOpenMobile]);
@@ -107,14 +114,14 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
 
 
   useEffect(() => {
-    if (!dirty) return;
+    if (!guardedDirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [guardedDirty]);
   function navigate(action: () => void) {
     if (busy) return;
-    if (dirty) setPendingNavigation(() => action);
+    if (guardedDirty) setPendingNavigation(() => action);
     else action();
   }
   function showKeyboardHelp(origin: HTMLButtonElement | null) {
@@ -226,15 +233,18 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
         </div>
       </header>
       <main className="flex min-w-0 flex-1 flex-col gap-4 p-4 pt-0">
+        <BrowserPresence dirty={guardedDirty} busy={busy}/>
+        {workspace&&live.notice?<Alert role="status"><AlertDescription>{t(live.notice==='offline'?'liveOffline':'liveConnecting')}</AlertDescription></Alert>:null}
+        {live.pending&&(!recordId||recordId==='new')?<Alert role="status"><AlertDescription>{t('liveDeferred')}</AlertDescription></Alert>:null}
         {logout.isError ? <ErrorNotice error={logout.error} /> : null}
         {!validRoute || (!workspaces.isPending && !workspaces.isError && workspaceCode && !workspace) ? <RouteNotFound onBack={() => { if (workspaces.data?.[0]) void routeNavigate(`/w/${workspaces.data[0].code}`); else void routeNavigate('/'); }} />
-          : workspaces.isPending ? pageLoading : workspaces.isError ? <ErrorNotice error={workspaces.error} retry={() => { void workspaces.refetch(); }} />
+          : workspaces.isPending ? pageLoading : blocksCachedView(workspaces) ? <ErrorNotice error={workspaces.error} retry={() => { void workspaces.refetch(); }} />
           : !workspace ? user.isAdmin ? <Welcome title={t('noWorkspace')} description={t('noWorkspaceDescription')} action={t('newWorkspace')} onAction={() => setDialog('workspace')} /> : <Empty><EmptyHeader><EmptyTitle>{t('noWorkspace')}</EmptyTitle><EmptyDescription>{t('noWorkspaceAssigned')}</EmptyDescription></EmptyHeader></Empty>
-          : types.isError ? <ErrorNotice error={types.error} /> : types.isPending ? pageLoading
-          : view === 'recycle-bin'?<Suspense fallback={<RecycleBinLoading/>}><RecycleBin key={workspace.id} workspace={workspace} user={user} onBusyChange={setBusy} types={types.data.filter(type=>type.permissions?.read===true)}/></Suspense>
-          : view === 'dashboard' ? <Suspense fallback={<DashboardLoading/>}><Dashboard canReadContent={true} canManage={canManage} workspace={workspace} types={types.data.filter(type => (type.permissions?.read===true||type.permissions?.create===true)&&(!type.state || type.state === 'active'))} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`, { state: recordId ? { recordOrigin: `${location.pathname}${location.search}` } : null }); }); }} onCreate={() => setDialog('object')} /></Suspense>
+          : blocksCachedView(types) ? <ErrorNotice error={types.error} /> : types.isPending ? pageLoading
+          : view === 'recycle-bin'?<Suspense fallback={<RecycleBinLoading/>}><RecycleBin key={workspace.id} workspace={workspace} user={user} onBusyChange={setBusy} types={types.data!.filter(type=>type.permissions?.read===true)}/></Suspense>
+          : view === 'dashboard' ? <Suspense fallback={<DashboardLoading/>}><Dashboard canReadContent={true} canManage={canManage} workspace={workspace} types={types.data!.filter(type => (type.permissions?.read===true||type.permissions?.create===true)&&(!type.state || type.state === 'active'))} onOpen={(id, recordId) => { const type = types.data?.find(type => type.id === id); if (type) navigate(() => { void routeNavigate(`${dashboardPath}/objects/${type.technicalName}${recordId ? `/${recordId}` : ''}`, { state: recordId ? { recordOrigin: `${location.pathname}${location.search}` } : null }); }); }} onCreate={() => setDialog('object')} /></Suspense>
           : !selectedType ? <RouteNotFound onBack={() => showPage('dashboard')} />
-          : definition.isPending ? pageLoading : definition.isError ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
+          : definition.isPending ? pageLoading : blocksCachedView(definition) ? <ErrorNotice error={definition.error} retry={() => { void definition.refetch(); }} />
           : selectedType.permissions?.read===false&&recordId!=='new' ? <Empty><EmptyHeader><EmptyTitle>{selectedType.label}</EmptyTitle><EmptyDescription>{t('contentAccessDenied')}</EmptyDescription></EmptyHeader>{selectedType.permissions?.create?<Button type="button" onClick={()=>{void routeNavigate(`${dashboardPath}/objects/${selectedType.technicalName}/new`);}}>{t('newRecord')}</Button>:null}</Empty>
           : recordId && panelDefinition ? recordId === 'new' && (panelDefinition.permissions?.create!==true||Boolean(panelDefinition.state&&panelDefinition.state!=='active')) ? <RouteNotFound onBack={closeRecord} /> : <Suspense fallback={<RecordPageLoading definition={panelDefinition} contactKind={new URLSearchParams(location.search).get('contactKind')??undefined} isNew={recordId==='new'}/>}><RecordPage returnToSource={/\/[0-9a-f-]{36}$/i.test(recordReturnPath(location.state?.recordOrigin,dashboardPath,objectPath,location.search).split('?')[0])} linkedCreation={recordId==='new'&&linkedDraft.success&&linkedDraft.data.targetObjectTypeId===panelDefinition.id?linkedDraft.data:undefined} key={`${panelDefinition.id}:${recordId}:${editorRevision}`} definition={panelDefinition} recordId={recordId} user={user} workspaceName={workspace.name} workspaceCode={workspace.code} onClose={closeRecord} onAccessLost={()=>{setBusy(false);setDirty(false);setReturnAfterAccessLoss(true);}} onDirtyChange={setDirty} onBusyChange={setBusy} onSaved={record => { setSavedRecordId(record.id); setDirty(false); }} /></Suspense>
           : panelDefinition ? <RecordList key={panelDefinition.id} definition={panelDefinition} selectedRecord={recordId}
