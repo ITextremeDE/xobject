@@ -8,6 +8,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Added
 
+- Independent Light/Dark workspace primary/secondary colors and primary focus rings, locally served Orbitron headings, selectable workspace icons and a disabled own-logo upload preparation. Version, validate and journal the new appearance properties through the common API/MCP path.
 - Transaction-local reuse of equivalent permission explanations and indexed incident-relationship loading meet the specified 10,250-record/20-nested-group performance profile; retain per-record field restrictions and verify all 163 backend regressions.
 - Local checksummed source/installer/documentation candidate preparation and an installation-specific portable OpenAI plugin built from canonical skills; define release gates without publishing or changing client configuration.
 - Independent Astro/Starlight documentation and canonical product-site Changelog/Roadmap routes with generated pages, user/operator guidance, Pagefind search, changelog/roadmap routes, source-edit links, versioned-base builds and HTML link/anchor validation. Verify responsive navigation/search and address the standard Search button’s visible-label accessibility mismatch through component composition; no documentation deployment.
@@ -71,6 +72,8 @@ The project is in early development. These entries describe source changes, incl
 
 ### Changed
 
+- Supply comparable Demo/Standard and ITextreme/brand-inspired workspaces using the same three accounts, independent example contents and editable workspace appearance settings.
+- Expand custom-object demo Primary associations across Contacts, Projects and Cases, including inherited customer chains, internal contexts and an intentionally unassigned tool.
 - Present the Primary tree as compact Explorer rows with permission-filtered status captions, compact ancestor context, keyboard help and cancellable sequential Expand all / Collapse all controls, including remaining pages. Align tree loading placeholders.
 - Use one standard Base UI Toaster for short save/copy/revocation results; retain inline validation, security guidance and unsaved-change state without layout-shifting success callouts.
 - Open duplication as an editable unsaved creation draft, rechecking source rights/version on Save without allocating rows/numbers/history beforehand. Add permission-aware Duplicate/Recycle actions to record-list, Dashboard and Dossier menus and Copy ID to record-header actions.
@@ -116,6 +119,9 @@ The project is in early development. These entries describe source changes, incl
 
 ### Fixed
 
+- Apply draft interface fonts and color schemes to portalled preview menus. Expand the design preview with real sidebar/card/table primitives, local active/selection states, mode-correct labels and advisory custom-primary contrast checks for links and focus borders. Align English/German explanations.
+- Complete the Gray base palette’s sidebar roles using its own semantic colors, preventing a cool near-black content surface from inheriting Neutral sidebar colors or retaining another workspace’s tokens.
+- Apply complete CSS color expressions for HSL-based workspace palettes, preventing invalid surface, border and text colors when switching themes.
 - Resume the unchanged application container after backup with Compose v2-compatible `up --wait --no-recreate`; report bounded operator diagnostics without private payloads.
 - Reserve Caddy’s fixed backend address outside Docker’s dynamic pool so database-first installation cannot consume the proxy address. Exercise loopback HTTPS without public DNS or ACME.
 - Resume OAuth authorization through signed sign-in context, serve the early theme initializer as a CSP-compatible external script, and improve settings scroll focus/profile-initial contrast.

@@ -1,10 +1,10 @@
 # Local demo data
 
-The optional development seed creates the fictional **ITextreme** workspace (`itx`). English is the default; English/German interface and definition labels are available. Business contents are English. The workspace uses `Europe/Berlin` and the normal `en-US` regional format. Startup and `db:init` create no demo accounts or contents.
+The optional development seed creates two fictional workspaces: **Demo** (`demo`) with the unchanged xObject default appearance and **ITextreme** (`itx`) with a brand-inspired appearance. English is the default; English/German interface and definition labels are available. Business contents are English. The workspace uses `Europe/Berlin` and the normal `en-US` regional format. Startup and `db:init` create no demo accounts or contents.
 
 ## Accounts and groups
 
-Provision John Doe (`john.doe@example.test`) as installation Administrator before seeding. The seed uses this account and creates Jane Doe as workspace Designer and James Doe as workspace User. Jane and James receive random initial passwords and must change them at first sign-in. The CLI writes private receipts to ignored `.local/demo-accounts.json` and `.local/demo-accounts.md`, with directory mode `0700` and file mode `0600`; no passwords enter source or journals.
+Provision John Doe (`john.doe@example.test`) as installation Administrator before seeding. The seed uses this account and creates Jane Doe as workspace Designer and James Doe as workspace User. The same three installation accounts serve both workspaces; membership roles, groups, objects, values, relationships and journals are workspace-specific. Jane and James receive random initial passwords and must change them at first sign-in. The CLI writes private receipts to ignored `.local/demo-accounts.json` and `.local/demo-accounts.md`, with directory mode `0700` and file mode `0600`; no passwords enter source or journals.
 
 Project team contains James with Full membership. Management contains Jane with Full and Project team with Read membership. Nested membership never elevates a weaker path or independently opens coworkers' records. Designer controls definitions/forms; content access still needs explicit rights. John retains installation-wide Administrator access.
 
@@ -12,13 +12,19 @@ Project team contains James with Full membership. Management contains Jane with 
 
 Every available module is enabled. Contacts & Relations and Projects & Tasks supply five distinct shared objects; Contacts appears in both module sections. Planned unavailable Documents & Communication remains disabled. Workspace/personal navigation inherits catalog defaults, including the Contact-kind child lists and visible Resources block.
 
-Supplied objects use the common starter forms. Contacts have a fixed kind-specific core and editable extensions. Projects, Cases and Tasks show General, a Details group (Number, Responsible, Access principals) beside Schedule, then Primary association, Classification, relationship lists and final Notes as applicable. Project/Case Schedule has optional Start date and Target date. Task Schedule & progress has Start, Due, Progress and Completed at; Priority is in Classification. Administrators/Designers can edit these common layouts. Distribution lists keep Keyword/plain-text Description and final Notes, with no business number.
+Supplied objects use the common starter forms. Contacts have a fixed kind-specific core and editable extensions. Projects, Cases and Tasks show General, a Details group (Number, Responsible, Access principals) beside Schedule, then Primary association, Classification, relationship lists and final Notes as applicable. Project/Case Schedule has optional Start date and Target date. Task Schedule & progress has Start, Due, Priority directly before Progress, and Completed at. Administrators/Designers can edit these common layouts. Distribution lists keep Keyword/plain-text Description and final Notes, with no business number.
 
 Custom objects demonstrate additional authored groups, group/field widths, input aids, all 15 custom field kinds, unique identifiers and reference cardinalities. Their identities are separate from planned module objects such as Contracts. They are examples rather than previews of future module templates.
 
+## Appearance comparison
+
+Demo uses `defaultWorkspaceAppearance`: Neutral surfaces/theme/charts, Geist, inherited headings and the standard radius. ITextreme uses Gray surfaces, the Rose theme/chart palette, Inter interface text, Orbitron headings, large corners and the Network workspace icon. Primary colors are `#C81E3A` in Light and `#F26074` in Dark; secondary overrides are empty independently in both modes and use their paired theme defaults.
+
+The ITextreme example follows its Corporate Design/Tokens and the `itextreme.de` source: neutral surfaces, Inter UI text, Orbitron display headings and restrained red actions. Canonical brand red is `#E53145`; the separate action tones above preserve text contrast in each mode. The fixed font catalog includes locally served Orbitron. The selectable Lucide icon is a workspace identifier, not the official vector logo. The own-logo upload is a disabled preparation matching the existing photo/profile placeholders. All choices remain editable in Workspace → Appearance. Hover/active state formulas and general component spacing retain the standard shadcn behavior; mono-font selection, dedicated image upload/storage and a complete corporate-token editor are separate work.
+
 ## Objects and contents
 
-The fixture contains **9 active objects with 74 records**, plus one inactive lifecycle object with one retained record. All translatable metadata has English/German labels; account/group names and business contents have one language.
+Each workspace contains **9 active objects with 74 records**, plus one inactive lifecycle object with one retained record. Table names below show the `itx_` prefix; the standard workspace uses `demo_`. All translatable metadata has English/German labels; account/group names and business contents have one language.
 
 | Object / table | Records | Scenarios |
 | --- | --- | --- |
@@ -41,16 +47,18 @@ All active objects except Distribution lists have protected automatic business n
 
 ## Relationships
 
-There are **54 persisted edges**:
+There are **75 persisted edges per workspace**:
 
-- 40 Primary links across Contact → Project → Case and Tasks, including shortened chains and a standalone Task.
+- 61 Primary links across Contact → Project → Case, Tasks and the custom objects. All Mobile workshops, Support packages and Access checks plus three of four Workshop tools have a direct parent; ancestors are inherited normally. Contact-only, Project-only, complete customer chains and internal Projects/Cases without a Contact are represented. The Unassigned diagnostic kit and standalone Task deliberately remain without a Primary association.
 - Two Organization/Contact-person links, with one main Organization per Contact person.
 - Three Distribution memberships and one symmetric Contact Identities link.
 - Three Tool/Support-package links: each Tool has at most one package; packages support multiple Tools.
 - One optional 1:1 Mobile-workshop/Tool equipment assignment.
 - Four General links connecting Cases to Mobile workshops and a Project to a Support package.
 
-Single/multiple controls, endpoint conditions, derived context, the Projects-owned tree, Dossier and journals use real application relationships. The UUID plan is saved privately to `.local/demo-relationships.json`. Reapplying that exact plan adds no duplicate edges. Standard module forms have no demo-only relationship definitions.
+Mobile workshops and Support packages each demonstrate Case, Project and Contact parents. Workshop tools belong to customer Cases or the internal Project; Access checks belong to the internal Project or its Cases. These relationships never grant access to otherwise restricted records.
+
+Single/multiple controls, endpoint conditions, derived context, the Projects-owned tree, Dossier and journals use real application relationships. The UUID plans are saved privately to `.local/demo-relationships.json` (ITextreme) and `.local/demo-relationships-demo.json` (Demo). `.local/demo-workspaces.json` identifies both workspaces. Reapplying that exact plan adds no duplicate edges. Standard module forms have no demo-only relationship definitions.
 
 ## Assignment and permission checks
 
