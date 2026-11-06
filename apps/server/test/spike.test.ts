@@ -1,6 +1,8 @@
 import {withChangeNotifications} from '../src/change-notifications.js';
 import {liveUpdates} from '../src/live-updates.js';
 import {Application} from '../src/domain.js';
+import {withContentAccess} from '../src/content-permissions.js';
+import {relationshipTreeBranch} from '../src/record-relationships.js';
 import type {DataRecord} from '@xobject/contracts';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -11,7 +13,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash, randomUUID, randomBytes } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
-import { sql } from 'kysely';
+import { sql, type KyselyPlugin } from 'kysely';
 import { Client as PgClient } from 'pg';
 import { SkillsClient } from '@modelcontextprotocol/client/ext/skills';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -4339,4 +4341,216 @@ test('relationship-owned selection trees update edges, both endpoint versions an
  const edges=await ok('get_record_relationships',{objectTypeId:object.id,recordId:person.id}),target=edges.fields.find((f:any)=>f.definition.id===rel.id&&f.side==='right').targets[0];assert.deepEqual(target.attributeValues[field.id],[root,leaf].sort());
  assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:person.id})).version,person.version+1);assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:org.id})).version,before.version+1);
  for(const id of [person.id,org.id])assert.ok((await journalEntries({objectTypeId:object.id,recordId:id})).some(entry=>entry.field_id===field.id&&Array.isArray(entry.old_value)&&entry.old_value.length===1&&Array.isArray(entry.new_value)&&entry.new_value.length===2));
+});
+
+/** Observe real lock waiting, rather than assuming a sleep means transport authentication finished. */
+async function waitForModelWaiter(mode: 'ShareLock' | 'ExclusiveLock', excludePid: number) {
+  for (let attempt = 0; attempt < 500; attempt++) {
+    const waiting = (await sql`SELECT 1 FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid WHERE l.locktype='advisory' AND NOT l.granted AND l.mode=${mode} AND a.datname=current_database() AND a.pid<>${excludePid} AND a.query LIKE '%xobject:model%'`.execute(runtime.db)).rows.length;
+    if (waiting) return;
+    await setTimeout(10);
+  }
+  assert.fail(`An authenticated request must wait for the model ${mode}`);
+}
+
+test('queued cookie writes recheck a committed session revocation after acquiring application locks', async () => {
+  const workspace = await ok('create_workspace', { name: 'Queued session revocation', code: 'queuedrevoke' });
+  const object = await ok('create_object_type', { workspaceId: workspace.id, technicalName: 'items', labels: { en: 'Items' }, standardFields: ['keyword'] });
+  const record = await ok('create_record', { objectTypeId: object.id, keyword: 'Retained value' });
+  const secondCookie = await login('admin@example.test', 'test-password-administrator');
+  const secondSecurity = (await api('get_account_security', {}, secondCookie)).json();
+  const sessionId = secondSecurity.sessions.find((s: { current: boolean }) => s.current).id;
+  const before = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM sys_journal WHERE entity_kind='record' AND entity_id=${record.id}::uuid`.execute(runtime.db)).rows[0].n;
+  const blocker = new PgClient({ connectionString: databaseURL });
+  await blocker.connect();
+  let revoke: ReturnType<typeof api> | undefined, write: ReturnType<typeof api> | undefined;
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query("SELECT pg_advisory_xact_lock(hashtext('xobject:model'))");
+    const pid = (await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    // Queue revocation first. Its exclusive lock precedes the write's shared lock.
+    revoke = api('revoke_session', { sessionId });
+    await waitForModelWaiter('ExclusiveLock', pid);
+    write = api('update_record', { objectTypeId: object.id, recordId: record.id, version: record.version, keyword: 'Must not persist' }, secondCookie);
+    await waitForModelWaiter('ShareLock', pid);
+    await blocker.query('COMMIT');
+    assert.equal((await revoke).statusCode, 200);
+    const rejected = await write;
+    assert.equal(rejected.statusCode, 401, rejected.body);
+  } finally {
+    await blocker.query('ROLLBACK').catch(() => {});
+    await blocker.end();
+    await Promise.allSettled([revoke, write].filter(Boolean));
+  }
+  const unchanged = await ok('get_record', { objectTypeId: object.id, recordId: record.id });
+  assert.equal(unchanged.keyword, 'Retained value');
+  assert.equal(unchanged.version, record.version);
+  assert.equal((await sql<{ n: number }>`SELECT count(*)::int AS n FROM sys_journal WHERE entity_kind='record' AND entity_id=${record.id}::uuid`.execute(runtime.db)).rows[0].n, before);
+});
+
+test('queued cookie reads use current expiry and validate session ownership while internal calls remain available', async () => {
+  const application = new Application(runtime.db);
+  const secondCookie = await login('admin@example.test', 'test-password-administrator');
+  const security = (await api('get_account_security', {}, secondCookie)).json();
+  const sessionId = security.sessions.find((s: { current: boolean }) => s.current).id;
+  const userId = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0].id;
+  await assert.rejects(application.execute('list_workspaces', {}, userId, { sessionId }), (error: any) => error.status === 401);
+  await assert.rejects(application.execute('list_workspaces', {}, adminId, {}), (error: any) => error.status === 401);
+  const valid = await application.execute('get_access_context', {}, adminId, { sessionId });
+  assert.equal((valid as { isAdmin: boolean }).isAdmin, true);
+  assert.equal((await application.execute('get_access_context', {}, adminId) as { isAdmin: boolean }).isAdmin, true);
+  const blocker = new PgClient({ connectionString: databaseURL });
+  await blocker.connect();
+  let read: ReturnType<typeof api> | undefined;
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query("SELECT pg_advisory_xact_lock(hashtext('xobject:model'))");
+    const pid = (await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    const began = (await sql<{ at: Date }>`SELECT clock_timestamp() AS at`.execute(runtime.db)).rows[0].at;
+    read = api('list_workspaces', {}, secondCookie);
+    await waitForModelWaiter('ShareLock', pid);
+    await sql`UPDATE sys_sessions SET expires_at=clock_timestamp() WHERE id=${sessionId}`.execute(runtime.db);
+    await blocker.query('COMMIT');
+    const rejected = await read;
+    assert.equal(rejected.statusCode, 401, rejected.body);
+    const expired = (await sql<{ at: Date }>`SELECT expires_at AS at FROM sys_sessions WHERE id=${sessionId}`.execute(runtime.db)).rows[0].at;
+    assert.ok(expired >= began, 'expiry changes after the queued application transaction began');
+  } finally {
+    await blocker.query('ROLLBACK').catch(() => {});
+    await blocker.end();
+    await Promise.allSettled([read].filter(Boolean));
+    await sql`DELETE FROM sys_sessions WHERE id=${sessionId}`.execute(runtime.db);
+  }
+});
+
+test('classification list filters share OR/AND, empty values, Category tree closure and pagination across API and MCP',async()=>{
+ const type=await classificationObject('listfilters'),f=classificationFixture();
+ const leaf=randomUUID(),sibling=randomUUID();
+ const config={...f.config,category:{...f.config.category,tree:true},options:[...f.config.options,{id:leaf,kind:'category' as const,labels:{en:'Leaf'},active:true,typeId:null,parentId:f.catA},{id:sibling,kind:'category' as const,labels:{en:'Sibling'},active:true,typeId:null,parentId:f.catA}]};
+ await ok('configure_classification',{objectTypeId:type.id,version:1,config});
+ const first=await ok('create_record',{objectTypeId:type.id,keyword:'Alpha leaf',classification:{type:f.typeA,status:f.statusA,category:[leaf]}});
+ const second=await ok('create_record',{objectTypeId:type.id,keyword:'Beta sibling',classification:{type:f.typeB,status:f.statusB,category:[sibling]}});
+ const empty=await ok('create_record',{objectTypeId:type.id,keyword:'Gamma empty',classification:{type:null,status:null,category:[]}});
+ const listing=(classificationFilters:any,extra:any={})=>ok('list_records',{objectTypeId:type.id,classificationFilters,sortBy:'keyword',sortDirection:'asc',...extra});
+ let page=await listing({type:[f.typeA,f.typeB],category:[f.catA]},{limit:1,offset:1});assert.equal(page.total,2);assert.equal(page.records[0].id,second.id);
+ assert.deepEqual((await listing({category:[leaf]})).records.map((r:any)=>r.id),[first.id],'leaf must not match its sibling');
+ assert.equal((await listing({type:[f.typeA],status:[f.statusB]})).total,0,'dimensions combine with AND');
+ assert.deepEqual((await listing({type:[null],status:[null],category:[null]})).records.map((r:any)=>r.id),[empty.id]);
+ assert.equal((await listing({category:[leaf,null]})).total,2,'OR includes selected values and empty');
+ assert.equal((await listing({category:[f.catA]},{query:'Beta'})).total,1);
+ const mcp=await tool('list_records',{objectTypeId:type.id,classificationFilters:{category:[f.catA]},sortBy:'keyword',sortDirection:'asc'});assert.equal(mcp.total,2);
+ assert.equal((await api('list_records',{objectTypeId:type.id,classificationFilters:{type:[f.catA]}})).statusCode,400);
+ assert.equal((await api('list_records',{objectTypeId:type.id,classificationFilters:{category:[randomUUID()]}})).statusCode,400);
+ assert.equal((await api('list_records',{objectTypeId:type.id,classificationFilters:{category:[leaf,leaf]}})).statusCode,400);
+ const configured=await ok('get_object_type',{objectTypeId:type.id});await ok('configure_classification',{objectTypeId:type.id,version:configured.classification.version,config:{...config,options:config.options.map(o=>o.id===leaf?{...o,active:false}:o)}});
+ assert.equal((await listing({category:[leaf]})).total,1,'inactive retained choices remain filterable');
+ const single=await classificationObject('filtersingle'),sf=classificationFixture();await ok('configure_classification',{objectTypeId:single.id,version:1,config:{...sf.config,category:{...sf.config.category,multiple:false}}});
+ await ok('create_record',{objectTypeId:single.id,keyword:'Single'});assert.equal((await ok('list_records',{objectTypeId:single.id,classificationFilters:{category:[sf.catA]}})).total,1);
+});
+
+test('classification filters exclude hidden records and unreadable per-record fields before counts, including empty selections',async()=>{
+ const type=await classificationObject('filterrights'),f=classificationFixture();await ok('configure_classification',{objectTypeId:type.id,version:1,config:f.config});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:type.workspaceId,userId:user.id,role:'user',expectedRole:null});
+ const permissions=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...permissions,sensitive:true,grants:[{kind:'user',id:user.id,level:'read',fields:{}}]});
+ const create=(keyword:string)=>ok('create_record',{objectTypeId:type.id,keyword,classification:{type:null,status:null,category:[]},security:{policy:{...defaultRecordSecurity(),publicLevel:'read'},confirmPublic:true}});
+ const visible=await create('Visible'),restricted=await create('Restricted field'),hidden=await create('Hidden record');
+ const definition=await ok('get_object_type',{objectTypeId:type.id}),category=definition.fields.find((field:any)=>field.kind==='category');
+ let security=await ok('get_record_security',{objectTypeId:type.id,recordId:restricted.id});await ok('configure_record_security',{objectTypeId:type.id,recordId:restricted.id,version:security.version,policy:{...security.policy,fields:[{kind:'user',id:user.id,fields:{[category.id]:'none'}}]},confirmPublic:true});
+ security=await ok('get_record_security',{objectTypeId:type.id,recordId:hidden.id});await ok('configure_record_security',{objectTypeId:type.id,recordId:hidden.id,version:security.version,policy:{...security.policy,publicLevel:null,owners:[{kind:'user',id:adminId,level:'full'}]},confirmPublic:false});
+ const args={objectTypeId:type.id,classificationFilters:{category:[null]},limit:1,offset:0};
+ const page=await api('list_records',args,userCookie);assert.equal(page.statusCode,200,page.body);assert.equal(page.json().total,1);assert.deepEqual(page.json().records.map((r:any)=>r.id),[visible.id]);
+ assert.equal((await api('list_records',{...args,offset:1},userCookie)).json().records.length,0);
+ const permission=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...permission,grants:[{kind:'user',id:user.id,level:'read',fields:{[category.id]:'none'}}]});
+ assert.equal((await api('list_records',args,userCookie)).statusCode,403);
+ const plain=await ok('create_object_type',{workspaceId:type.workspaceId,technicalName:'plain',labels:{en:'Plain'},standardFields:['keyword']});
+ assert.equal((await api('list_records',{objectTypeId:plain.id,classificationFilters:{category:[null]}})).statusCode,400);
+});
+
+test('relationship tree reads stay branch bounded and preserve sorted pages, lifecycle and private child visibility',async()=>{
+ const ws=await ok('create_workspace',{code:'boundedtree',name:'Bounded tree'}),primary=await enableProjects(ws.id);
+ const types=await ok('list_object_types',{workspaceId:ws.id}),contact=types.find((type:any)=>type.technicalName==='contacts'),project=types.find((type:any)=>type.technicalName==='projects'),task=types.find((type:any)=>type.technicalName==='tasks');
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ for(const type of [contact,project,task]){const permission=await ok('get_content_permissions',{objectTypeId:type.id});await ok('configure_content_permissions',{...permission,grants:[{kind:'user',id:user.id,level:'read',fields:{}}]});}
+ const root=await createOrganization(contact.id,'Branch root');
+ const linked=(type:any,keyword:string,parentType:any,parent:any,hidden=false)=>ok('create_record',{objectTypeId:type.id,keyword,security:{policy:defaultRecordSecurity(hidden?[{kind:'user',id:adminId,level:'full'}]:[]),confirmPublic:true},relationships:[{relationshipTypeId:primary.id,version:primary.version,side:'right',targets:[{objectTypeId:parentType.id,recordId:parent.id}]}]});
+ const ten=await linked(project,'Project 10',contact,root),two=await linked(project,'Project 2',contact,root),recycled=await linked(project,'Project 1',contact,root);
+ await ok('recycle_record',{objectTypeId:project.id,recordId:recycled.id,version:recycled.version});
+ const hidden=await linked(task,'Private child',project,two,true);await linked(task,'Visible child',project,ten);
+ const args={objectTypeId:contact.id,recordId:root.id,offset:0,limit:1};
+ const measure=async()=>{
+  const edgeReads:number[]=[],tracked=new WeakSet<object>();
+  const plugin:KyselyPlugin={transformQuery({node,queryId}){if(JSON.stringify(node).includes('sys_relationships'))tracked.add(queryId);return node;},async transformResult({result,queryId}){if(tracked.has(queryId))edgeReads.push(result.rows.length);return result;}};
+  const db=runtime.db.withPlugin(plugin),value=await withContentAccess(db,user.id,()=>relationshipTreeBranch(db,args,user.id));return {value,edgeReads};
+ };
+ const before=await measure();assert.equal(before.value.total,2);assert.deepEqual(before.value.children.map(child=>child.record.recordId),[two.id]);assert.equal(before.value.children[0].hasChildren,false,'a private descendant must not make its parent expandable');assert.ok(!JSON.stringify(before.value).includes(hidden.id));
+ const page=await api('get_relationship_tree_branch',{...args,offset:1},userCookie);assert.equal(page.statusCode,200,page.body);assert.deepEqual(page.json().children.map((child:any)=>child.record.recordId),[ten.id]);assert.equal(page.json().children[0].hasChildren,true);
+ const noiseParent=await ok('create_record',{objectTypeId:project.id,keyword:'Unrelated parent'}),items=await ok('create_object_type',{workspaceId:ws.id,technicalName:'noise_items',labels:{en:'Noise items'},standardFields:['keyword']});
+ // A real unrelated graph makes a workspace-wide SELECT measurably different from a branch read.
+ await runtime.db.transaction().execute(async tx=>{
+  const rows=Array.from({length:120},(_,i)=>({id:randomUUID(),name:`Unrelated ${i}`}));
+  await sql`INSERT INTO sys_record_identities(workspace_id,object_type_id,record_id) SELECT ${ws.id}::uuid,${items.id}::uuid,id FROM unnest(${rows.map(row=>row.id)}::uuid[]) AS n(id)`.execute(tx);
+  await sql`INSERT INTO ${sql.table('boundedtree_noise_items')}(id,created_by,updated_by,keyword) SELECT id,${adminId},${adminId},name FROM unnest(${rows.map(row=>row.id)}::uuid[],${rows.map(row=>row.name)}::text[]) AS n(id,name)`.execute(tx);
+  await sql`INSERT INTO sys_relationships(id,workspace_id,relationship_type_id,left_object_type_id,left_record_id,right_object_type_id,right_record_id,created_by,updated_by) SELECT gen_random_uuid(),${ws.id}::uuid,${primary.id}::uuid,${project.id}::uuid,${noiseParent.id}::uuid,${items.id}::uuid,id,${adminId},${adminId} FROM unnest(${rows.map(row=>row.id)}::uuid[]) AS n(id)`.execute(tx);
+ });
+ const after=await measure();assert.deepEqual(after.value,before.value);assert.deepEqual(after.edgeReads,before.edgeReads,'unrelated graph size must not increase fetched edge rows or query count');assert.ok(after.edgeReads.length>0);assert.ok(Math.max(...after.edgeReads)<=3,'tree reads fetch only the immediate branch and page-local expansion projections');
+ assert.deepEqual(after.value,(await api('get_relationship_tree_branch',args,userCookie)).json(),'instrumented domain read retains the public API projection');
+});
+
+test('principal eligibility matches full object ceilings without depending on existing record ownership',async()=>{
+ const {ContentAccess}=await import('../src/content-permissions.js');
+ const ws=await ok('create_workspace',{name:'Principal ceiling parity',code:'principalparity'}),existing=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ const accounts:Record<string,any>={};
+ for(const key of ['reader','creator','inherited','availability','inactive','outsider']){
+  const user=await ok('create_user',{name:`Picker ${key}`,email:`picker-${key}@example.test`,initialPassword:randomBytes(24).toString('base64url')});accounts[key]=user;
+  if(key!=='outsider')await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ }
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:existing.id,role:'user',expectedRole:null});
+ const child=await ok('create_group',{workspaceId:ws.id,name:'Nested picker members',members:[existing,accounts.inherited].map(u=>({kind:'user',id:u.id,level:'full'}))});
+ const parent=await ok('create_group',{workspaceId:ws.id,name:'Picker ceiling',members:[{kind:'group',id:child.id,level:'read'}]});
+ const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']}),secretField=await ok('create_field',{objectTypeId:object.id,technicalName:'secret',labels:{en:'Secret'}});
+ const config=await ok('get_content_permissions',{objectTypeId:object.id});
+ await ok('configure_content_permissions',{...config,sensitive:true,grants:[
+  {kind:'group',id:parent.id,level:'full',create:true,fields:{}},
+  {kind:'user',id:existing.id,level:'none',create:false,fields:{}},
+  {kind:'user',id:accounts.reader.id,level:'read',create:false,fields:{[secretField.id]:'none'}},
+  {kind:'user',id:accounts.creator.id,level:'none',create:true,fields:{}},
+  {kind:'user',id:accounts.inherited.id,level:null,create:null,fields:{}},
+  {kind:'user',id:accounts.availability.id,level:'availability',create:false,fields:{}},
+  {kind:'user',id:accounts.inactive.id,level:'full',create:true,fields:{}}
+ ]});
+ await ok('configure_user',{userId:accounts.inactive.id,version:accounts.inactive.version,name:accounts.inactive.name,active:false,isAdmin:false});
+ const row=await ok('create_record',{objectTypeId:object.id,keyword:'Administrator personal record',security:{policy:{...defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}]),privacy:'personal'}}});
+ const actual=await runtime.db.transaction().execute(async tx=>{
+  const picker=await new ContentAccess(tx,adminId).eligiblePrincipals(object.id);
+  const candidates=(await sql<{id:string}>`SELECT u.id FROM sys_users u WHERE u.active AND (u.is_admin OR EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.workspace_id=${ws.id}::uuid AND m.user_id=u.id))`.execute(tx)).rows;
+  const expected:string[]=[];for(const user of candidates){const access=await new ContentAccess(tx,user.id).policy(object.id);if(access.capabilities.read||access.capabilities.create)expected.push(user.id);}
+  assert.deepEqual(picker.filter(p=>p.kind==='user').map(p=>p.id).sort(),expected.sort(),'Optimized eligibility equals complete record-policy loading');
+  for(const user of [accounts.reader,accounts.creator,accounts.inherited])assert.ok(picker.some(p=>p.kind==='user'&&p.id===user.id),'Read, separate Create and nested inherited grants remain eligible');
+  for(const user of [existing,accounts.availability,accounts.inactive,accounts.outsider])assert.ok(!picker.some(p=>p.kind==='user'&&p.id===user.id),'Explicit denial, availability-only, inactive and outside users stay excluded');
+  assert.ok(picker.some(p=>p.id===adminId),'An active installation Administrator is eligible without workspace membership');
+  assert.deepEqual(picker.filter(p=>p.kind==='group').map(p=>p.id),[parent.id],'Only groups with their own Read or Create ceiling are assignable');
+  assert.equal((await new ContentAccess(tx,accounts.reader.id).policy(object.id)).recordCapabilities(row.id).read,false,'A candidate need not own or read the existing personal record');
+  return picker;
+ });
+ const security=await ok('get_record_security',{objectTypeId:object.id,recordId:row.id});
+ assert.deepEqual(security.principals.filter((p:any)=>p.assignable).map((p:any)=>`${p.kind}:${p.id}`).sort(),actual.map(p=>`${p.kind}:${p.id}`).sort());
+});
+
+test('relationship tree defensive traversal retains the ancestor cap, cycle rejection and inactive endpoint reads',async()=>{
+ const ws=await ok('create_workspace',{code:'treeguards',name:'Tree guards'}),primary=await enableProjects(ws.id),type=await ok('create_object_type',{workspaceId:ws.id,technicalName:'nodes',labels:{en:'Nodes'},standardFields:['keyword']});
+ // Public writes reject these hierarchies. A synthetic graph exercises the reader's existing safeguards.
+ await runtime.db.transaction().execute(async tx=>{
+  const ids=Array.from({length:34},()=>randomUUID());
+  await sql`INSERT INTO sys_record_identities(workspace_id,object_type_id,record_id) SELECT ${ws.id}::uuid,${type.id}::uuid,id FROM unnest(${ids}::uuid[]) AS n(id)`.execute(tx);
+  await sql`INSERT INTO ${sql.table('treeguards_nodes')}(id,created_by,updated_by,keyword) SELECT id,${adminId},${adminId},'Node '||ordinality FROM unnest(${ids}::uuid[]) WITH ORDINALITY AS n(id,ordinality)`.execute(tx);
+  await sql`INSERT INTO sys_relationships(id,workspace_id,relationship_type_id,left_object_type_id,left_record_id,right_object_type_id,right_record_id,created_by,updated_by) SELECT gen_random_uuid(),${ws.id}::uuid,${primary.id}::uuid,${type.id}::uuid,parent,${type.id}::uuid,child,${adminId},${adminId} FROM unnest(${ids.slice(1)}::uuid[],${ids.slice(0,-1)}::uuid[]) AS n(parent,child)`.execute(tx);
+  await sql`UPDATE sys_object_types SET state='inactive' WHERE id=${type.id}::uuid`.execute(tx);
+  const read=(id:string)=>withContentAccess(tx,adminId,()=>relationshipTreeBranch(tx,{objectTypeId:type.id,recordId:id,offset:0,limit:10},adminId));
+  const capped=await read(ids[0]);assert.equal(capped.ancestors.length,32);assert.equal(capped.ancestorsTruncated,true);assert.deepEqual(capped.ancestors.map(record=>record.recordId),ids.slice(1,33).reverse());assert.ok(capped.ancestors.every(record=>record.state==='inactive'));
+  const end=await read(ids.at(-1)!);assert.equal(end.ancestorsTruncated,false);assert.equal(end.children[0].hasChildren,true,'inactive definitions keep readable descendants');
+  await sql`DELETE FROM sys_relationships WHERE workspace_id=${ws.id}::uuid AND right_record_id=${ids[1]}::uuid`.execute(tx);
+  await sql`INSERT INTO sys_relationships(id,workspace_id,relationship_type_id,left_object_type_id,left_record_id,right_object_type_id,right_record_id,created_by,updated_by) VALUES(gen_random_uuid(),${ws.id}::uuid,${primary.id}::uuid,${type.id}::uuid,${ids[0]}::uuid,${type.id}::uuid,${ids[1]}::uuid,${adminId},${adminId})`.execute(tx);
+  await assert.rejects(read(ids[0]),/Invalid Primary hierarchy/);
+ });
 });

@@ -267,32 +267,55 @@ async function journalEdge(tx:Executor,edge:Edge,type:RelationshipType,actor:str
   for(const ref of [left(edge),right(edge)])await sql`INSERT INTO sys_relationship_journal_endpoints VALUES(${journalId}::uuid,${edge.workspace_id}::uuid,${ref.objectTypeId}::uuid,${ref.recordId}::uuid)`.execute(tx);
 }
 
+/** Batch only the current branch's endpoints, retaining permission-aware names/icons. */
+async function treeReferences(tx:Executor,workspace:string,refs:RecordReference[]){
+  const result=new Map<string,RelatedRecord>();if(!refs.length)return result;
+  const models=(await sql<Model>`SELECT o.id,o.workspace_id,o.technical_name,o.labels,o.state,w.code FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.workspace_id=${workspace}::uuid AND o.id=ANY(${[...new Set(refs.map(ref=>ref.objectTypeId))]}::uuid[]) AND o.state<>'deleted'`.execute(tx)).rows;
+  for(const model of models){
+    const policy=await contentAccess().policy(model.id);if(!policy.capabilities.read)continue;
+    const ids=refs.filter(ref=>ref.objectTypeId===model.id).map(ref=>ref.recordId);
+    const rows=(await sql<{id:string;keyword:string;iconKey:import('@xobject/contracts').RecordIconKey}>`SELECT r.id,${await contentAccess().keywordValue(model.id,'r')} AS keyword,${await recordIconExpression(tx,model.id,'r')} AS "iconKey" FROM ${sql.table(table(model))} AS r WHERE r.id=ANY(${ids}::uuid[]) AND ${policy.predicate('r')}`.execute(tx)).rows;
+    for(const row of rows)result.set(`${model.id}:${row.id}`,{objectTypeId:model.id,recordId:row.id,keyword:row.keyword||row.id,iconKey:row.iconKey,objectTechnicalName:model.technical_name,objectLabels:model.labels,state:model.state as 'active'|'inactive'});
+  }
+  return result;
+}
+/** hasChildren is page-local and must not reveal inaccessible descendants. */
+async function treeExpandableParents(tx:Executor,workspace:string,primaryIds:string[],parents:RecordReference[]){
+  const result=new Set<string>();if(!parents.length)return result;
+  const parentTypes=parents.map(ref=>ref.objectTypeId),parentRecords=parents.map(ref=>ref.recordId);
+  const endpoints=sql`SELECT * FROM unnest(${parentTypes}::uuid[],${parentRecords}::uuid[]) AS p(object_type_id,record_id)`;
+  const types=(await sql<{id:string}>`SELECT DISTINCT e.right_object_type_id AS id FROM sys_relationships e JOIN (${endpoints}) AS p ON p.object_type_id=e.left_object_type_id AND p.record_id=e.left_record_id WHERE e.workspace_id=${workspace}::uuid AND e.relationship_type_id=ANY(${primaryIds}::uuid[])`.execute(tx)).rows;
+  const models=(await sql<Model>`SELECT o.id,o.workspace_id,o.technical_name,o.labels,o.state,w.code FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.workspace_id=${workspace}::uuid AND o.id=ANY(${types.map(type=>type.id)}::uuid[]) AND o.state<>'deleted'`.execute(tx)).rows;
+  for(const model of models){
+    const policy=await contentAccess().policy(model.id);if(!policy.capabilities.read)continue;
+    const visible=(await sql<{object_type_id:string;record_id:string}>`SELECT p.object_type_id,p.record_id FROM (${endpoints}) AS p WHERE EXISTS(SELECT 1 FROM sys_relationships e JOIN ${sql.table(table(model))} AS r ON r.id=e.right_record_id WHERE e.workspace_id=${workspace}::uuid AND e.relationship_type_id=ANY(${primaryIds}::uuid[]) AND e.left_object_type_id=p.object_type_id AND e.left_record_id=p.record_id AND e.right_object_type_id=${model.id}::uuid AND ${policy.predicate('r')})`.execute(tx)).rows;
+    for(const parent of visible)result.add(`${parent.object_type_id}:${parent.record_id}`);
+  }
+  return result;
+}
 /** Projects read model: one level of Primary descendants, never general/custom links. */
 export async function relationshipTreeBranch(tx:Executor,args:{objectTypeId:string;recordId:string;offset:number;limit:number},actor:string):Promise<import('@xobject/contracts').RelationshipTreeBranch> {
   await contentAccess().require(args.objectTypeId,args.recordId,args.recordId?'read':'create');
   const model=await modelFor(tx,args.objectTypeId),record=await visibleReference(tx,{objectTypeId:args.objectTypeId,recordId:args.recordId},model.workspace_id);
   if(!await primaryChain(tx,model.workspace_id))throw new AppError(409,'Enable the Projects module first');
-  const definitions=await relationshipTypes(tx,model.workspace_id),byId=new Map(definitions.map(type=>[type.id,type]));
-  const raw=(await edgesFor(tx,model.workspace_id)).filter(edge=>byId.get(edge.relationship_type_id)?.kind==='primary'),edges:Edge[]=[],focus=key(args);
-  for(const edge of raw)if(await contentAccess().readable(edge.left_object_type_id,edge.left_record_id)&&await contentAccess().readable(edge.right_object_type_id,edge.right_record_id))edges.push(edge);
-  const childrenFor=(identity:string)=>edges.filter(edge=>key(left(edge))===identity);
-  const parents=new Map(edges.filter(edge=>byId.get(edge.relationship_type_id)?.kind==='primary').map(edge=>[key(right(edge)),left(edge)]));
-  const ancestors:RelatedRecord[]=[],seen=new Set([focus]);let parent=parents.get(focus);
-  while(parent&&ancestors.length<32){
-    if(seen.has(key(parent)))throw new AppError(409,'Invalid Primary hierarchy');seen.add(key(parent));
-    ancestors.unshift(await visibleReference(tx,parent,model.workspace_id));parent=parents.get(key(parent));
+  const definitions=await relationshipTypes(tx,model.workspace_id),byId=new Map(definitions.map(type=>[type.id,type])),primaryIds=definitions.filter(type=>type.kind==='primary').map(type=>type.id);
+  // Resolve only this record's visible ancestor path, rather than every workspace edge.
+  const ancestors:RelatedRecord[]=[],seen=new Set([key(args)]);let current:RecordReference=args,parent:RelatedRecord|undefined;
+  while(true){
+    const incoming=(await sql<Edge>`SELECT * FROM sys_relationships WHERE workspace_id=${model.workspace_id}::uuid AND relationship_type_id=ANY(${primaryIds}::uuid[]) AND right_object_type_id=${current.objectTypeId}::uuid AND right_record_id=${current.recordId}::uuid ORDER BY id DESC`.execute(tx)).rows;
+    const visible=await treeReferences(tx,model.workspace_id,incoming.map(left));parent=incoming.map(edge=>visible.get(key(left(edge)))).find(value=>value!==undefined);
+    if(!parent||ancestors.length>=32)break;
+    if(seen.has(key(parent)))throw new AppError(409,'Invalid Primary hierarchy');seen.add(key(parent));ancestors.unshift(parent);current=parent;
   }
-  const candidates:(Omit<import('@xobject/contracts').RelationshipTreeChild,'record'>&{record:RelatedRecord})[]=[];
-  for(const edge of childrenFor(focus)) {
-    const type=byId.get(edge.relationship_type_id)!,target=right(edge);
-    candidates.push({edgeId:edge.id,record:await visibleReference(tx,target,model.workspace_id),relationshipTypeId:type.id,kind:'primary',labels:type.labels,sideLabels:type.leftLabels,direction:'outgoing',hasChildren:childrenFor(key(target)).length>0});
-  }
+  const own=(await sql<Edge>`SELECT * FROM sys_relationships WHERE workspace_id=${model.workspace_id}::uuid AND relationship_type_id=ANY(${primaryIds}::uuid[]) AND left_object_type_id=${args.objectTypeId}::uuid AND left_record_id=${args.recordId}::uuid ORDER BY id`.execute(tx)).rows;
+  const targets=await treeReferences(tx,model.workspace_id,own.map(right));
+  const candidates=own.flatMap(edge=>{const target=targets.get(key(right(edge)));if(!target)return [];const type=byId.get(edge.relationship_type_id)!;return [{edgeId:edge.id,record:target,relationshipTypeId:type.id,kind:'primary' as const,labels:type.labels,sideLabels:type.leftLabels,direction:'outgoing' as const,hasChildren:false}];});
   const locale=(await sql<{language:Language|null;default_language:Language;available_languages:Language[]}>`SELECT u.language,w.default_language,w.available_languages FROM sys_users u CROSS JOIN sys_workspaces w WHERE u.id=${actor} AND w.id=${model.workspace_id}::uuid`.execute(tx)).rows[0];
   const collator=new Intl.Collator(effectiveWorkspaceLanguage(locale.language,locale.available_languages,locale.default_language),{numeric:true,sensitivity:'base'});
   candidates.sort((a,b)=>collator.compare(a.record.keyword,b.record.keyword)||a.record.objectTypeId.localeCompare(b.record.objectTypeId)||a.record.recordId.localeCompare(b.record.recordId)||a.edgeId.localeCompare(b.edgeId));
-  const page=candidates.slice(args.offset,args.offset+args.limit),snapshots=await classificationSnapshots(tx,[record,...page.map(child=>child.record)]);
+  const page=candidates.slice(args.offset,args.offset+args.limit),expandable=await treeExpandableParents(tx,model.workspace_id,primaryIds,page.map(child=>child.record)),snapshots=await classificationSnapshots(tx,[record,...page.map(child=>child.record)]);
   const treeRecord=(record:RelatedRecord)=>({...record,statusLabels:snapshots.get(key(record))?.classificationOptions.find(option=>option.kind==='status'&&option.id===snapshots.get(key(record))?.status)?.labels??null});
-  return {record:treeRecord(record),ancestors,ancestorsTruncated:Boolean(parent),children:page.map(child=>({...child,record:treeRecord(child.record)})),total:candidates.length,limit:args.limit,offset:args.offset};
+  return {record:treeRecord(record),ancestors,ancestorsTruncated:Boolean(parent),children:page.map(child=>({...child,hasChildren:expandable.has(key(child.record)),record:treeRecord(child.record)})),total:candidates.length,limit:args.limit,offset:args.offset};
 }
 
 /** Read the same authoritative chain for persisted records and a proposed direct parent. */
