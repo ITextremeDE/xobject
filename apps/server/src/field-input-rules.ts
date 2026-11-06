@@ -7,7 +7,7 @@ import {AppError} from './errors.js';
 export type InputField=TypedField&{input_rules?:FieldInputRules};
 export async function normalizeInputRules(tx:Executor,field:TypedField,input:FieldInputRules,workspace:string):Promise<FieldInputRules>{
  if(input.unique&&!supportsUniqueField(field.kind,field.config))throw new AppError(400,'Uniqueness is not supported for this field type');
- if(['type','status','category','business_number','access_principals'].includes('technical_name' in field?field.technical_name:'')){
+ if(['type','status','category','record_number','access_principals'].includes('technical_name' in field?field.technical_name:'')){
   if(input.defaultValue!==null||input.unique)throw new AppError(400,'Standard field defaults use their dedicated configuration');
   return input;
  }

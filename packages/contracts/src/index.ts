@@ -68,7 +68,7 @@ export const schemas = {
   recycle_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive()}).strict(),
   restore_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive()}).strict(),
   get_recycled_record:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
-  list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['business_number','keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
+  list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['record_number','keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
   get_record_duplicate:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
   duplicate_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),keyword:z.string().trim().max(200).optional()}).strict(),
   configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,numbering:numberingSchema.optional(),primaryRequirements:primaryRequirementsSchema.optional(),security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
@@ -118,7 +118,7 @@ export const schemas = {
   search_workspace: z.object({ workspaceId: uuid, query: z.string().trim().min(2).max(200), limit: z.number().int().min(1).max(50).default(20) }).strict(),
   list_object_types: z.object({ workspaceId: uuid, includeInactive: z.boolean().default(false), includeDeleted: z.boolean().default(false) }).strict(),
   get_workspace_dashboard: z.object({ workspaceId: uuid, days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(90) }).strict(),
-  list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['business_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
+  list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['record_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   list_records: z.object({ objectTypeId: uuid, contactKindId:uuid.optional(), query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
   create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(3).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
   add_standard_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => args.field === 'keyword' ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
@@ -149,7 +149,7 @@ export interface HiddenRecordReceipt {id:string;version:number;keyword:string;pe
 export type RecordWriteResult=DataRecord|HiddenRecordReceipt;
 export function isReadableRecord(record:RecordWriteResult):record is DataRecord{return 'created_at' in record&&record.permissions?.read!==false;}
 export interface RecordPage { records: DataRecord[]; total: number; limit: number; offset: number }
-export interface SearchRecord { iconKey?:import('./record-icons.js').RecordIconKey; businessNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }
+export interface SearchRecord { iconKey?:import('./record-icons.js').RecordIconKey; recordNumber: string|null; id: string; keyword: string; objectTypeId: string; objectLabel: string }
 export interface WorkspaceSearch { objectTypes: ObjectSummary[]; records: SearchRecord[]; hasMoreObjects: boolean; hasMoreRecords: boolean }
 export interface JournalEntry {credential_context?:{name:string;userId:string;userName:string}; access_channel?:string; credential_id?:string|null; agent_name?:string|null; detail_context?:{schema:string;changes:{entryId?:string;path:string}[]}|null; security_context?: {principals:Record<string,string>}; form_layout_context?: {fields:Record<string,string>;relationships:Record<string,{left:string;right:string}>}; value_context?: { before: {kind:string;config:FieldConfig}|null; after: {kind:string;config:FieldConfig}|null }; field_label?: string | null; object_type_name?: string | null; entity_kind?: string; entity_id?: string; workspace_id?: string | null; workspace_name?: string | null; actor_name?: string | null; entity_name?: string | null; id: string; change_id: string; field_id: string | null; field_key: string; old_value: unknown; new_value: unknown; created_at: string; actor_id: string }
 export interface AuthUser { id: string; name: string; email: string; language?: Language | null; timeZone?: string | null; regionalPreferences?: PersonalRegionalSettings | null; mustChangePassword?: boolean; isAdmin?: boolean }
@@ -162,7 +162,7 @@ export interface AccountSecurity { hasPassword: boolean; sessions: AccountSessio
 export interface ManagedUser extends UserSummary { active: boolean; mustChangePassword: boolean; version: number }
 export interface SystemJournalEntry extends JournalEntry { entity_kind: string; entity_id: string; workspace_id: string | null; workspace_name: string | null; actor_name: string; entity_name: string | null }
 export interface RecycledRecord extends WorkspaceRecord {recycled_at:string;recycled_by:string;recycledByName:string;canRestore:boolean}
-export interface WorkspaceRecord { iconKey?:import('./record-icons.js').RecordIconKey; business_number?:string|null; id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
+export interface WorkspaceRecord { iconKey?:import('./record-icons.js').RecordIconKey; record_number?:string|null; id: string; objectTypeId: string; objectTechnicalName: string; objectLabel: string; keyword: string | null; type: string | null; status: string | null; category: string | null; created_at: string; updated_at: string; created_by: string; updated_by: string; createdByName: string; updatedByName: string; version: number }
 export interface Outputs {
   list_oauth_authorizations:{clientId:string;name:string;scopes:string[];createdAt:string}[];
   revoke_oauth_authorization:{revoked:boolean};
@@ -250,7 +250,7 @@ export interface Outputs {
   list_record_journal: {entries:JournalEntry[];total:number;limit:number;offset:number};
 }
 
-const reservedStandardFieldNames = new Set(['business_number','business number','fachliche nummer','access_principals','access principals','zugriffsberechtigte','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
+const reservedStandardFieldNames = new Set(['record_number','record number','datensatznummer','number','nummer','access_principals','access principals','zugriffsberechtigte','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
 export function isReservedStandardFieldName(value: string) { return reservedStandardFieldNames.has(value.normalize('NFKC').trim().toLowerCase()); }
 export function hasReservedStandardFieldLabel(labels: Record<string, string>) { return Object.values(labels).some(isReservedStandardFieldName); }
 

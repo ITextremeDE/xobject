@@ -75,7 +75,7 @@ Parents can review ordinary child-owned work. Children can read normal parent-ow
 - Heating reserve: Parents-owned and Confidential; Jamie cannot read it.
 - Birthday surprise: Jane-owned and Personal; neither Alex’s foreign access nor Jamie’s group rights open it.
 
-## Object names and business numbers
+## Object names and record numbers
 
 The five supplied objects remain Contacts, Distribution lists, Projects, Cases and Tasks. Their supplied forms remain canonical. Only custom objects demonstrate authored groups, widths, scalar/reference fields and explicit custom relationships.
 
@@ -86,7 +86,9 @@ The five supplied objects remain Contacts, Distribution lists, Projects, Cases a
 | Equipment | `workshop_tools` / `TOOL` | `service_assets` / `AST` | `household_items` / `ITEM` |
 | Rights/private working records | `access_checks` / `CHK` | `access_reviews` / `CHK` | `private_records` / `CHK` |
 
-Standard numbered objects use `CON`, `PRJ`, `CAS` and `TSK`. Distribution lists intentionally have no business number. Demo starts each sequence at 1 with five minimum digits; ITextreme starts at 1001 with four minimum digits and the case-sensitive `ITx-` workspace prefix; Family starts at 1 with one minimum digit and `JS-`. All use increment 1 and no restart. Examples: `ITx-AST-1001`, `JS-ITEM-1`. The prefixes use ordinary object-numbering configuration, not special application logic. Technical UUID generation is unchanged; business numbers are human-readable identifiers.
+Standard numbered objects use `CON`, `PRJ`, `CAS` and `TSK`. Distribution lists intentionally have no record number. Demo starts each sequence at 1 with five minimum digits; ITextreme starts at 1001 with four minimum digits and the case-sensitive `ITx-` workspace prefix; Family starts at 1 with one minimum digit and `JS-`. All use increment 1 and no restart. Examples: `ITx-AST-1001`, `JS-ITEM-1`. The prefixes use ordinary object-numbering configuration, not special application logic. Technical UUID generation is unchanged; record numbers are human-readable identifiers.
+
+The laboratory keeps `expected_result` and `sample_amount` as explicitly named test fields. The IT scenario uses `review_findings` and `amount`; the family scenario uses `context` and `amount`. Their technical field names match their respective domain meaning.
 
 ## Shared feature coverage
 

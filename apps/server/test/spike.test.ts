@@ -1835,7 +1835,7 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
     if(name==='mobile_workshops')assert.ok(groups.some((g:any)=>g.id==='operation'));
 
   }
-  assert.ok(result.objects.distribution_lists.numbering);assert.equal(result.objects.distribution_lists.numbering.enabled,false);assert.ok(!result.objects.distribution_lists.fields.some((f:any)=>f.technicalName==='business_number'));
+  assert.ok(result.objects.distribution_lists.numbering);assert.equal(result.objects.distribution_lists.numbering.enabled,false);assert.ok(!result.objects.distribution_lists.fields.some((f:any)=>f.technicalName==='record_number'));
   const identities = new Map(Object.entries(result.records).flatMap(([name, rows]) => rows.map(row => [row.id, result.objects[name].id])));
   const primaryChildren = new Set<string>();
   for (const link of result.links) {
@@ -1919,8 +1919,8 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   assert.notEqual(personal.objects.contacts.id,standard.objects.contacts.id);
   assert.equal(Object.values(personal.records).flat().length,47);
   assert.equal(personal.links.length,49);
-  assert.equal(personal.records.contacts[0].business_number,'JS-CON-1');
-  assert.equal(personal.records.access_checks[0].business_number,'JS-CHK-1');
+  assert.equal(personal.records.contacts[0].record_number,'JS-CON-1');
+  assert.equal(personal.records.access_checks[0].record_number,'JS-CHK-1');
   async function activateDemoAccounts(accounts:typeof personal.accounts){for(const account of accounts.filter(a=>a.password)){
     await login(account.email,account.password!);
     const session=(await sql<{id:string}>`SELECT id FROM sys_sessions WHERE user_id=${account.id}`.execute(runtime.db)).rows[0];
@@ -1929,17 +1929,21 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   await activateDemoAccounts(personal.accounts.filter(a=>a.password));
   const child=personal.accounts.find(a=>a.name==='Jamie Doe')!;
   const shared=await app.execute('get_record',{objectTypeId:personal.objects.access_checks.id,recordId:personal.records.access_checks[0].id},child.id) as DataRecord;
-  assert.equal(shared.sample_amount,undefined);
+  assert.equal(shared.amount,undefined);
+  assert.ok(personal.objects.access_checks.fields.some(f=>f.technicalName==='context'));
+  assert.ok(personal.objects.access_checks.fields.some(f=>f.technicalName==='amount'));
   for(const row of personal.records.access_checks.slice(1))await assert.rejects(app.execute('get_record',{objectTypeId:personal.objects.access_checks.id,recordId:row.id},child.id));
   const childTask=await app.execute('get_record',{objectTypeId:personal.objects.tasks.id,recordId:personal.records.tasks[0].id},child.id) as DataRecord;
   assert.ok(childTask.permissions);assert.equal(childTask.permissions.edit,true);assert.equal(childTask.permissions.delete,false);assert.equal(childTask.permissions.create,false);
   await assert.rejects(app.execute('duplicate_record',{objectTypeId:personal.objects.tasks.id,recordId:childTask.id,version:childTask.version},child.id));
   const business=await seedDemoData(runtime.db,adminId,'businessfixture',{scenario:'business',appearance:itextremeDemoAppearance,members:result.accounts.map(({id,role})=>({id,role}))});
   assert.equal(business.accounts.length,6);
+  assert.ok(business.objects.access_checks.fields.some(f=>f.technicalName==='review_findings'));
+  assert.ok(business.objects.access_checks.fields.some(f=>f.technicalName==='amount'));
   await activateDemoAccounts(business.accounts.filter(a=>a.password));
-  assert.equal(business.records.contacts[0].business_number,'ITx-CON-1001');
-  assert.equal(business.records.access_checks[0].business_number,'ITx-CHK-1001');
-  assert.equal(result.records.contacts[0].business_number,'CON-00001');
+  assert.equal(business.records.contacts[0].record_number,'ITx-CON-1001');
+  assert.equal(business.records.access_checks[0].record_number,'ITx-CHK-1001');
+  assert.equal(result.records.contacts[0].record_number,'CON-00001');
   const recycled=await ok('list_recycled_records',{workspaceId:personal.workspaceId});assert.ok(recycled.records.some((r:any)=>r.id===personal.lifecycle.recycledRecordId));
 
   const casey=business.accounts.find(a=>a.name==='Casey Doe')!,alex=business.accounts.find(a=>a.name==='Alex Doe')!,morgan=business.accounts.find(a=>a.name==='Morgan Doe')!,taylor=business.accounts.find(a=>a.name==='Taylor Doe')!;
@@ -2960,7 +2964,7 @@ test('Create is independent of existing Read and duplication copies only accessi
  const beforeDraft=(await ok('list_records',{objectTypeId:object.id})).total;
  const beforeEvents=(await sql<{count:string}>`SELECT count(*) AS count FROM sys_journal`.execute(runtime.db)).rows[0].count;
  const draftResponse=await api('get_record_duplicate',{objectTypeId:object.id,recordId:source.id},userCookie);assert.equal(draftResponse.statusCode,200,draftResponse.body);const draft=draftResponse.json();
- assert.equal(draft.sourceVersion,source.version);assert.equal(draft.values.detail,'Copy this');assert.equal(draft.values.secret,undefined);assert.equal(draft.values.access_principals,undefined);assert.equal(draft.values.business_number,undefined);
+ assert.equal(draft.sourceVersion,source.version);assert.equal(draft.values.detail,'Copy this');assert.equal(draft.values.secret,undefined);assert.equal(draft.values.access_principals,undefined);assert.equal(draft.values.record_number,undefined);
  assert.equal((await ok('list_records',{objectTypeId:object.id})).total,beforeDraft,'preparing and discarding a copy creates no row');
  assert.equal((await sql<{count:string}>`SELECT count(*) AS count FROM sys_journal`.execute(runtime.db)).rows[0].count,beforeEvents,'preparation writes no journal');
  const savedDraft=await api('create_record',{objectTypeId:object.id,duplicateFrom:{recordId:source.id,version:draft.sourceVersion},keyword:'Edited copy',values:{...draft.values,detail:'Changed before saving'},classification:draft.classification},userCookie);assert.equal(savedDraft.statusCode,200,savedDraft.body);
@@ -3303,31 +3307,33 @@ test('unique field rules use normalized scalar values, protect recycled slots an
  assert.equal((await api('create_record',{objectTypeId:object.id,values:{code:'abc'}})).statusCode,200);
 });
 
-test('business numbers use atomic workspace-scoped counters, preserve issued values and support guarded configuration and restarts',async()=>{
+test('record numbers use atomic workspace-scoped counters, preserve issued values and support guarded configuration and restarts',async()=>{
  const ws=await ok('create_workspace',{name:'Numbering',code:'numbering',timeZone:'Europe/Berlin'});let object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
  const config={enabled:true,prefix:'ITX-',suffix:'-X',start:'10',increment:'5',padding:4,restart:'never'};
  object=await tool('configure_object_settings',{objectTypeId:object.id,version:1,labels:object.labels,numbering:config});
- assert.equal(object.version,2);assert.ok(object.fields.some((f:any)=>f.technicalName==='business_number'&&f.isProtected));
- const protectedNumber=object.fields.find((f:any)=>f.technicalName==='business_number');const protectedEdit=await api('configure_field',{fieldId:protectedNumber.id,version:protectedNumber.version,required:false});assert.equal(protectedEdit.statusCode,403);assert.equal(protectedEdit.json().error,'System field definition is protected');
+ assert.equal(object.version,2);assert.ok(object.fields.some((f:any)=>f.technicalName==='record_number'&&f.isProtected));
+ const numberDefinition=object.fields.find((f:any)=>f.technicalName==='record_number');assert.deepEqual(numberDefinition.labels,{en:'Number',de:'Nummer'});
+ for(const label of ['Number','Nummer','Record number','Datensatznummer'])assert.equal((await api('create_field',{objectTypeId:object.id,technicalName:'conflicting_number',labels:{en:label},kind:'text'})).statusCode,400);
+ const protectedNumber=object.fields.find((f:any)=>f.technicalName==='record_number');const protectedEdit=await api('configure_field',{fieldId:protectedNumber.id,version:protectedNumber.version,required:false});assert.equal(protectedEdit.statusCode,403);assert.equal(protectedEdit.json().error,'System field definition is protected');
  const rows=await Promise.all(Array.from({length:3},(_,i)=>ok('create_record',{objectTypeId:object.id,keyword:String(i)})));
- assert.deepEqual(rows.map(r=>r.business_number).sort(),['ITX-0010-X','ITX-0015-X','ITX-0020-X']);
- assert.equal((await api('create_record',{objectTypeId:object.id,values:{business_number:'manual'}})).statusCode,400);
- assert.equal((await ok('list_records',{objectTypeId:object.id,query:rows[0].business_number})).total,1);
- assert.equal((await ok('list_workspace_records',{workspaceId:ws.id,query:rows[0].business_number})).total,1);
- assert.equal((await ok('search_workspace',{workspaceId:ws.id,query:rows[0].business_number})).records.length,1);
+ assert.deepEqual(rows.map(r=>r.record_number).sort(),['ITX-0010-X','ITX-0015-X','ITX-0020-X']);
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{record_number:'manual'}})).statusCode,400);
+ assert.equal((await ok('list_records',{objectTypeId:object.id,query:rows[0].record_number})).total,1);
+ assert.equal((await ok('list_workspace_records',{workspaceId:ws.id,query:rows[0].record_number})).total,1);
+ assert.equal((await ok('search_workspace',{workspaceId:ws.id,query:rows[0].record_number})).records.length,1);
  assert.equal((await api('configure_object_settings',{objectTypeId:object.id,version:1,labels:object.labels,numbering:config})).statusCode,409);
  object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,prefix:'NEW-'}});
- assert.equal((await ok('create_record',{objectTypeId:object.id})).business_number,'NEW-0025-X');
- assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:rows[0].id})).business_number,rows[0].business_number);
- const duplicate=await ok('duplicate_record',{objectTypeId:object.id,recordId:rows[0].id,version:rows[0].version});assert.equal(duplicate.business_number,'NEW-0030-X');
+ assert.equal((await ok('create_record',{objectTypeId:object.id})).record_number,'NEW-0025-X');
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:rows[0].id})).record_number,rows[0].record_number);
+ const duplicate=await ok('duplicate_record',{objectTypeId:object.id,recordId:rows[0].id,version:rows[0].version});assert.equal(duplicate.record_number,'NEW-0030-X');
  object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,restart:'yearly'}});
- assert.match((await ok('create_record',{objectTypeId:object.id})).business_number,/^ITX-\d{4}-0010-X$/);
+ assert.match((await ok('create_record',{objectTypeId:object.id})).record_number,/^ITX-\d{4}-0010-X$/);
  object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,restart:'monthly'}});
- assert.match((await ok('create_record',{objectTypeId:object.id})).business_number,/^ITX-\d{4}-\d{2}-0010-X$/);
+ assert.match((await ok('create_record',{objectTypeId:object.id})).record_number,/^ITX-\d{4}-\d{2}-0010-X$/);
  object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{...config,enabled:false}});
- assert.equal((await ok('create_record',{objectTypeId:object.id})).business_number,null);
+ assert.equal((await ok('create_record',{objectTypeId:object.id})).record_number,null);
  object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:config});
- assert.equal((await ok('create_record',{objectTypeId:object.id})).business_number,'ITX-0035-X');
+ assert.equal((await ok('create_record',{objectTypeId:object.id})).record_number,'ITX-0035-X');
 });
 
 test('input aid metadata follows language policy, conditional defaults and current field creation rights',async()=>{
@@ -3353,12 +3359,12 @@ test('failed numbered creation rolls back allocation, counter, contents and jour
  const ws=await ok('create_workspace',{name:'Number rollback',code:'numberrollback'}),created=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'}});
  let object=await ok('get_object_type',{objectTypeId:created.id});
  object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{enabled:true,prefix:'R-',suffix:'',start:'1',increment:'1',padding:2,restart:'never'}});
- await sql`CREATE FUNCTION fail_number_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='business_number' THEN RAISE EXCEPTION 'number journal fail'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+ await sql`CREATE FUNCTION fail_number_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='record_number' THEN RAISE EXCEPTION 'number journal fail'; END IF; RETURN NEW; END $$`.execute(runtime.db);
  await sql`CREATE TRIGGER fail_number BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_number_journal()`.execute(runtime.db);
  try {assert.equal((await api('create_record',{objectTypeId:object.id})).statusCode,500);assert.equal((await sql<{count:number}>`SELECT count(*)::integer AS count FROM sys_number_allocations WHERE object_type_id=${object.id}::uuid`.execute(runtime.db)).rows[0].count,0);}
  finally {await sql`DROP TRIGGER fail_number ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_number_journal()`.execute(runtime.db);}
- const row=await ok('create_record',{objectTypeId:object.id});assert.equal(row.business_number,'R-01');
- assert.equal((await journalEntries({objectTypeId:object.id,recordId:row.id})).filter((e:any)=>e.field_key==='business_number').length,1);
+ const row=await ok('create_record',{objectTypeId:object.id});assert.equal(row.record_number,'R-01');
+ assert.equal((await journalEntries({objectTypeId:object.id,recordId:row.id})).filter((e:any)=>e.field_key==='record_number').length,1);
 });
 
 test('every custom field type accepts typed defaults and rejects stale inactive choices without changing stored metadata',async()=>{
@@ -3392,7 +3398,7 @@ test('combined group editing saves name and graded members with one version/chan
  assert.equal((await ok('list_groups',{workspaceId:ws.id}))[0].name,'After');
 });
 
-test('unique input errors identify only the field and context while global search returns only permitted business numbers',async()=>{
+test('unique input errors identify only the field and context while global search returns only permitted record numbers',async()=>{
  const ws=await ok('create_workspace',{name:'Field feedback',code:'fieldfeedback'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});
  const field=await ok('create_field',{objectTypeId:object.id,technicalName:'registration',kind:'text',labels:{en:'Registration'},inputRules:{unique:true}});
  await ok('create_record',{objectTypeId:object.id,keyword:'Private source',values:{registration:'BUSY'}});
@@ -3402,12 +3408,12 @@ test('unique input errors identify only the field and context while global searc
  await ok('create_record',{objectTypeId:object.id,values:{duplicate_value:'Repeated'}});await ok('create_record',{objectTypeId:object.id,values:{duplicate_value:'Repeated'}});
  const definitionError=await api('configure_field',{fieldId:second.id,version:1,required:false,inputRules:{unique:true}});assert.equal(definitionError.statusCode,409);assert.deepEqual(definitionError.json().details,{code:'unique_value',fieldId:second.id,context:'definition'});
  const configured=await ok('configure_object_settings',{objectTypeId:object.id,version:1,labels:{en:'Items'},numbering:{enabled:true,prefix:'FB-',suffix:'',start:'1',increment:'1',padding:3,restart:'never'}});
- const row=await ok('create_record',{objectTypeId:object.id,keyword:'Numbered'});assert.equal((await ok('search_workspace',{workspaceId:ws.id,query:row.business_number})).records[0].businessNumber,row.business_number);
+ const row=await ok('create_record',{objectTypeId:object.id,keyword:'Numbered'});assert.equal((await ok('search_workspace',{workspaceId:ws.id,query:row.record_number})).records[0].recordNumber,row.record_number);
  const ordinary=(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0];await ok('set_workspace_member',{workspaceId:ws.id,userId:ordinary.id,role:'user',expectedRole:null});
- const rights=await ok('get_content_permissions',{objectTypeId:object.id}),numberField=configured.fields.find((f:any)=>f.technicalName==='business_number');
+ const rights=await ok('get_content_permissions',{objectTypeId:object.id}),numberField=configured.fields.find((f:any)=>f.technicalName==='record_number');
  await ok('configure_content_permissions',{objectTypeId:object.id,version:rights.version,sensitive:false,grants:[{kind:'user',id:ordinary.id,level:'read',create:false,fields:{[numberField.id]:'none'}}]});
- assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Numbered'},userCookie)).json().records[0].businessNumber,null);
- assert.equal((await api('search_workspace',{workspaceId:ws.id,query:row.business_number},userCookie)).json().records.length,0);
+ assert.equal((await api('search_workspace',{workspaceId:ws.id,query:'Numbered'},userCookie)).json().records[0].recordNumber,null);
+ assert.equal((await api('search_workspace',{workspaceId:ws.id,query:row.record_number},userCookie)).json().records.length,0);
 });
 
 test('structured contact fields share API/MCP, field permissions, safe conversion, versions and atomic history',async()=>{
@@ -3528,7 +3534,7 @@ test('Contact salutations and academic titles are configurable independent choic
  const summary=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');
  const model=await ok('get_object_type',{objectTypeId:summary.id}),profile=model.contactProfile;
  const field=(key:string)=>model.fields.find((f:any)=>f.id===profile.fields[key]);
- const title=field('name_prefix'),salutation=field('salutation'),gender=field('gender');
+ const title=field('academic_title'),salutation=field('salutation'),gender=field('gender');
  for(const [purpose,schema] of [['emails','email_entries'],['phones','phone_entries'],['addresses','address_entries'],['websites','url_entries']]){
   const collection=field(purpose);assert.equal(collection.config.schema,schema);assert.notEqual(collection.config.fixedOptions,true);
   assert.deepEqual(collection.config.options.map((o:any)=>o.labels.en),purpose==='phones'?['Work','Home','Mobile','Voice calls','Fax','SMS / text','Video','Pager','Textphone']:['Work','Home']);
@@ -3539,11 +3545,11 @@ test('Contact salutations and academic titles are configurable independent choic
  assert.equal(title.kind,'single_choice');assert.equal(title.config.fixedOptions,false);assert.equal(title.labels.de,'Titel');
  assert.equal(salutation.kind,'single_choice');assert.equal(salutation.labels.de,'Anrede');assert.equal(field('additional_names').labels.de,'Weitere Vornamen');assert.equal(field('name_suffix').labels.de,'Namenszusatz');
  const name=(text:string)=>[{id:randomUUID(),text}],dr=title.config.options.find((o:any)=>o.labels.en==='Dr.').id,ms=salutation.config.options.find((o:any)=>o.labels.en==='Ms').id;
- const row=await tool('create_record',{objectTypeId:model.id,values:{contact_kind:profile.kinds.person,salutation:ms,gender:other,name_prefix:dr,first_name:name('Jane'),additional_names:name('Marie'),last_name:name('Doe'),name_suffix:name('Jr.')}});
+ const row=await tool('create_record',{objectTypeId:model.id,values:{contact_kind:profile.kinds.person,salutation:ms,gender:other,academic_title:dr,first_name:name('Jane'),additional_names:name('Marie'),last_name:name('Doe'),name_suffix:name('Jr.')}});
  assert.equal(row.formatted_name,'Dr. Jane Marie Doe Jr.');assert.equal(row.keyword,'Doe, Jane');assert.equal(row.salutation,ms);assert.equal(row.gender,other);
  const added={id:randomUUID(),labels:{en:'Dr. habil.',de:'Dr. habil.'},active:true};
  await ok('configure_field',{fieldId:title.id,required:false,config:{...title.config,options:[...title.config.options,added]}});
- const changed=await ok('update_record',{objectTypeId:model.id,recordId:row.id,version:row.version,values:{name_prefix:added.id,gender:male}});
+ const changed=await ok('update_record',{objectTypeId:model.id,recordId:row.id,version:row.version,values:{academic_title:added.id,gender:male}});
  assert.equal(changed.formatted_name,'Dr. habil. Jane Marie Doe Jr.');assert.equal(changed.gender,male);assert.equal(changed.salutation,ms);
  const genderHistory=(await ok('list_record_journal',{objectTypeId:model.id,recordId:row.id})).entries.find((entry:any)=>entry.field_id===gender.id&&entry.new_value===male);assert.equal(genderHistory.value_context.after.kind,'single_choice');
  assert.equal((await api('create_record',{objectTypeId:model.id,values:{contact_kind:profile.kinds.organization,company_name:'Company',gender:male}})).statusCode,400);
@@ -3587,8 +3593,8 @@ test('additional Contact details retain kind applicability, typed API/MCP histor
  const contact=await ok('get_object_type',{objectTypeId:(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts').id});
  const kinds=contact.fields.find((f:any)=>f.technicalName==='contact_kind').config.options,person=kinds.find((o:any)=>o.labels.en==='Contact person').id,organization=kinds.find((o:any)=>o.labels.en==='Organization').id;
  const lang={id:randomUUID(),value:'EN-gb',contexts:[],preference:null},messenger={id:randomUUID(),value:'xmpp:jane@example.test',contexts:[],preference:null};
- const row=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:person,last_name:[{id:randomUUID(),text:'Example'}],nickname:'Jay',languages:[lang],messenger_addresses:[messenger],contact_time_zone:{timeZone:'America/New_York'},anniversary:{year:null,month:9,day:12},death_date:{year:2024,month:2,day:29}}});
- assert.equal(row.languages[0].value,'en-GB');assert.equal(row.languages[0].preference,1);assert.equal(row.contact_time_zone.timeZone,'America/New_York');assert.equal(row.anniversary.year,null);
+ const row=await ok('create_record',{objectTypeId:contact.id,values:{contact_kind:person,last_name:[{id:randomUUID(),text:'Example'}],nickname:'Jay',languages:[lang],messenger_addresses:[messenger],contact_time_zone:{timeZone:'America/New_York'},wedding_anniversary:{year:null,month:9,day:12},death_date:{year:2024,month:2,day:29}}});
+ assert.equal(row.languages[0].value,'en-GB');assert.equal(row.languages[0].preference,1);assert.equal(row.contact_time_zone.timeZone,'America/New_York');assert.equal(row.wedding_anniversary.year,null);
  assert.equal((await api('update_record',{objectTypeId:contact.id,recordId:row.id,version:row.version,values:{contact_time_zone:{timeZone:'Invalid/Zone'}}})).statusCode,400);
  assert.equal((await ok('get_record',{objectTypeId:contact.id,recordId:row.id})).version,row.version);
  assert.equal((await api('create_record',{objectTypeId:contact.id,values:{contact_kind:organization,company_name:'Test organization',death_date:{year:null,month:1,day:1}}})).statusCode,400);
@@ -3597,9 +3603,9 @@ test('additional Contact details retain kind applicability, typed API/MCP histor
  assert.equal((await api('update_record',{objectTypeId:contact.id,recordId:row.id,version:row.version,values:{nickname:'stale'}})).statusCode,409);
  const history=await journalEntries({objectTypeId:contact.id,recordId:row.id});const zone=history.find((e:any)=>e.field_key==='contact_time_zone'&&e.old_value!==null);assert.deepEqual(zone.old_value,{timeZone:'America/New_York'});assert.deepEqual(zone.new_value,{timeZone:'UTC'});
  const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
- const hidden=contact.fields.find((f:any)=>f.technicalName==='anniversary'),permissions=await ok('get_content_permissions',{objectTypeId:contact.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'edit',fields:{[hidden.id]:'none'}}]});
- const visible=(await api('get_record',{objectTypeId:contact.id,recordId:row.id},userCookie)).json();assert.ok(!Object.hasOwn(visible,'anniversary'));assert.deepEqual(visible.contact_time_zone,{timeZone:'UTC'});
- assert.equal((await api('update_record',{objectTypeId:contact.id,recordId:row.id,version:updated.version,values:{anniversary:null}},userCookie)).statusCode,403);
+ const hidden=contact.fields.find((f:any)=>f.technicalName==='wedding_anniversary'),permissions=await ok('get_content_permissions',{objectTypeId:contact.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'edit',fields:{[hidden.id]:'none'}}]});
+ const visible=(await api('get_record',{objectTypeId:contact.id,recordId:row.id},userCookie)).json();assert.ok(!Object.hasOwn(visible,'wedding_anniversary'));assert.deepEqual(visible.contact_time_zone,{timeZone:'UTC'});
+ assert.equal((await api('update_record',{objectTypeId:contact.id,recordId:row.id,version:updated.version,values:{wedding_anniversary:null}},userCookie)).statusCode,403);
  const hiddenHistory=(await api('list_record_journal',{objectTypeId:contact.id,recordId:row.id},userCookie)).json();assert.ok(!JSON.stringify(hiddenHistory).includes(hidden.id));
  const currentWs=(await ok('list_workspaces',{})).find((w:any)=>w.id===ws.id);assert.equal(currentWs.time_zone,'UTC');
 });

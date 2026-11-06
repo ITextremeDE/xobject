@@ -13194,12 +13194,6 @@
       },
       "RecycledRecord": {
         "properties": {
-          "business_number": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "canRestore": {
             "type": "boolean"
           },
@@ -13249,6 +13243,12 @@
           },
           "objectTypeId": {
             "type": "string"
+          },
+          "record_number": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "recycledByName": {
             "type": "string"
@@ -13309,12 +13309,6 @@
       },
       "SearchRecord": {
         "properties": {
-          "businessNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "iconKey": {
             "enum": [
               "case",
@@ -13340,14 +13334,20 @@
           },
           "objectTypeId": {
             "type": "string"
+          },
+          "recordNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "required": [
-          "businessNumber",
           "id",
           "keyword",
           "objectLabel",
-          "objectTypeId"
+          "objectTypeId",
+          "recordNumber"
         ],
         "type": "object"
       },
@@ -13764,12 +13764,6 @@
       },
       "WorkspaceRecord": {
         "properties": {
-          "business_number": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "category": {
             "type": [
               "null",
@@ -13816,6 +13810,12 @@
           },
           "objectTypeId": {
             "type": "string"
+          },
+          "record_number": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "status": {
             "type": [
@@ -17219,7 +17219,7 @@
             "default": "recycled_at",
             "type": "string",
             "enum": [
-              "business_number",
+              "record_number",
               "keyword",
               "objectLabel",
               "recycled_at"
@@ -20864,7 +20864,7 @@
             "default": "updated_at",
             "type": "string",
             "enum": [
-              "business_number",
+              "record_number",
               "keyword",
               "objectLabel",
               "type",

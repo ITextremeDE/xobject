@@ -11,8 +11,8 @@ export function journalPropertyLabel(key: string, t: TFunction, technicalFallbac
   if(key.startsWith('navigation.')){const [,scope,property]=key.split('.');return `${t(scope==='personal'?'navigationPersonal':'navigationWorkspace')} · ${t(({order:'navigationOrder',hidden:'navigationHidden',resources:'navigationResources',override:'navigationOverride'} as Record<string,string>)[property]??'customizeNavigation')}`;}
   if(key.startsWith('input.'))return t(({description:'fieldPurposeDescription',helpText:'fieldHelpText',defaultValue:'defaultValue',unique:'uniqueField'} as Record<string,string>)[key.slice(6)]??'fieldInputAids');
   if(key.startsWith('primaryRequirements.'))return `${t('primaryChainTitle')} · ${t(key.endsWith('.requiredLevels')?'primaryRequiredLevels':'primaryAssociationRequired')}`;
-  if(key.startsWith('numbering.'))return `${t('businessNumbering')} · ${t(key.slice(10)==='enabled'?'enableBusinessNumbering':`numbering_${key.slice(10)}`)}`;
-  if(key==='business_number.definition')return t('businessNumbering');
+  if(key.startsWith('numbering.'))return `${t('recordNumbering')} · ${t(key.slice(10)==='enabled'?'enableRecordNumbering':`numbering_${key.slice(10)}`)}`;
+  if(key==='record_number.definition')return t('recordNumbering');
   if(key.startsWith('access.'))return t(({owners:'accessPrincipalsLabel',publicLevel:'publicLevel',privacy:'recordPrivacy',foreignMax:'foreignLimit'} as Record<string,string>)[key.slice(7)]??'recordFieldExceptions');
   if(key==='sensitive')return t('userSensitive');
   if(key.startsWith('access_principals.'))return `${t('accessPrincipalsLabel')} · ${t(key.endsWith('.state')?'definitionState':'journalDefinition')}`;
