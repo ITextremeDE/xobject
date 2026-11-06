@@ -27,19 +27,21 @@ Module-based navigation now supports shared workspace defaults, personal orderin
 
 ## Public project introduction
 
-The independent Astro project homepage introduces the product and links canonical Git documentation. Its source, design system and CSP/browser checks are present. Full Starlight documentation, changelog/roadmap pages and version navigation remain future work. Selected public URLs are not proof of deployment of those pages.
+The independent Astro project homepage introduces the product and links canonical Git documentation. Its source, design system and CSP/browser checks are present. Starlight documentation, generated changelog/roadmap pages and versioned-base builds are locally verified; public deployment and actual release snapshots remain pending. Selected public URLs are not proof of deployment of those pages.
 
 ## Next — Complete and accept version 1
 
 | Goal | Remaining outcome |
 | --- | --- |
-| Permissions and identity | Session hardening, representative-volume permission/query performance and product acceptance. User-bound API/MCP credentials and the generated versioned contract are implemented locally. The local ownership/foreign-access model and current installation are implemented. |
-| Configurable object platform | Measured data/query scaling and released schema/template upgrade tooling. Field input rules and business numbers are implemented locally under ADR 0030. |
+| Permissions and identity | Database-backed login limits, explicit session/cookie policy, trusted proxy IPs and response security headers are implemented locally. The representative 10,250-record/20-nested-group profile meets all specified p95 targets; full-product acceptance remains. User-bound API/MCP credentials and the generated versioned contract are implemented locally. The local ownership/foreign-access model and current installation are implemented. |
+| MCP interoperability | Protocol alignment, shared output schemas/structured results and tool annotations are implemented locally with SDK 2.4.0. Standard HTTP OAuth/CIMD discovery, PKCE, consent, resource-bound opaque tokens and application revocation are implemented locally. Perform [OpenAI-only V1 provider acceptance](docs/PRD.md#92-mcp-interoperability-and-v1-acceptance). Codex is the primary path; ChatGPT/API coverage depends on available product access. Other providers remain untested; no additional provider subscriptions are required. |
+| Supplied agent skills | The [four canonical workflows](docs/PRD.md#93-supplied-agent-skills) are served locally through the official Skills extension with current module/role/object filtering, private resources and verified digests. Verify actual OpenAI discovery/loading support; optional portable plugin packaging is locally verified; provider acceptance remains open. |
+| Configurable object platform | Representative query scaling is locally measured; released-source schema/template upgrade migrations follow actual predecessors. Field input rules and business numbers are implemented locally under ADR 0030. |
 | Projects & Tasks | Contacts and Distribution lists are locally accepted. The reduced [five-object V1 scope](docs/PRD.md#6-supplied-domain-models) supplies Projects, Cases and Tasks with editable starter forms, shared temporal values and consistent completion. The V1 Projects/Cases/Tasks slice has passed local functional acceptance, including ordinary-user workflows, rights and module combinations; full-product/release acceptance remains. Appointments, Vacations and the four other Projects objects are later scope. |
 | Standards-aligned domain profiles | The appendix proposes fields, mappings and acceptance cases for Contacts, Distribution lists, Appointments, Vacations and Tasks. ADR 0032 specifies typed JSONB fields, semantic bindings, edge attributes and sparse recurrence overrides with shared authorization/history; the nine contact codecs and base Contacts/Distribution lists are implemented locally. The common temporal codec is implemented; recurrence, calendar parties and complete versioned exchange-profile coverage remain later work. Synchronization is later scope. |
 | Shared modules/forms | Shared object/field contributions, common object forms, retained activation/deactivation and additive template updates are implemented locally. Released upgrade tooling remains open. |
-| Delivery and acceptance | Interactive first-Administrator container setup, prebuilt images, Linux Compose installation, release migration/backup/restore tooling, performance/accessibility targets and PRD end-to-end acceptance. |
-| Public documentation | Astro/Starlight at the selected documentation URL, canonical changelog/roadmap reuse, release notes and versioned documentation. |
+| Delivery and acceptance | The local image, interactive first-Administrator setup, Linux Compose operator, checksummed backup/restore and maintenance failure/recovery acceptance are implemented. Publish reviewed images/archives only after final acceptance. Add supported released-source migrations when predecessors exist; local performance targets are met; complete whole-product accessibility, platform and OpenAI acceptance before release. |
+| Public documentation | Astro/Starlight source, canonical Markdown/changelog/roadmap generation, Pagefind search, built-link validation and versioned-base builds are implemented locally. Publish to the selected documentation origin only after authorization and live verification; actual released snapshots follow releases. |
 
 Every capability must use the same backend authorization, validation and journal rules through web, API and MCP. A passing prototype test is not complete version-1 acceptance. See the [initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios) and [remaining design decisions](docs/PRD.md#10-remaining-design-decisions).
 
@@ -68,7 +70,7 @@ Every capability must use the same backend authorization, validation and journal
 - Import/export, external SSO, desktop clients (Electron or Tauri selection pending), separate mobile clients, offline operation/synchronization and hosted cloud service.
 - Creation templates/default-group configuration and other separately specified extensions.
 
-Computed fields and general undo remain candidates requiring separate specification. Community/Premium allocation, pricing, contribution and service terms remain open; the full product including Premium code remains `AGPL-3.0-only`.
+Computed fields and general undo remain candidates requiring separate specification. V1 is entirely Community under Jürgen Schadek personally/ITextreme; contribution terms are defined. Future Premium allocation, pricing and service terms remain open; the full product including Premium code remains `AGPL-3.0-only`.
 
 ## Keeping this roadmap current
 

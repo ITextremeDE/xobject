@@ -8,6 +8,15 @@ The project is in early development. These entries describe source changes, incl
 
 ### Added
 
+- Transaction-local reuse of equivalent permission explanations and indexed incident-relationship loading meet the specified 10,250-record/20-nested-group performance profile; retain per-record field restrictions and verify all 163 backend regressions.
+- Local checksummed source/installer/documentation candidate preparation and an installation-specific portable OpenAI plugin built from canonical skills; define release gates without publishing or changing client configuration.
+- Independent Astro/Starlight documentation and canonical product-site Changelog/Roadmap routes with generated pages, user/operator guidance, Pagefind search, changelog/roadmap routes, source-edit links, versioned-base builds and HTML link/anchor validation. Verify responsive navigation/search and address the standard Search button’s visible-label accessibility mismatch through component composition; no documentation deployment.
+- Confirm V1 as entirely Community without Premium feature gates, maintained/licensed by Jürgen Schadek personally under ITextreme. Define same-license DCO contributions, copyright notices and private security reporting; future commercial allocation remains separate.
+- Local non-root container/Compose installation with atomic current-schema initialization, one-time interactive Administrator setup, dedicated runtime/operator roles and health checks. Add private checksummed backups, transactional restore/integrity verification, maintenance-only current-target upgrade/refusal and isolated Linux-container recovery acceptance. Images remain unpublished.
+- Database-backed login limits across application instances, trusted/overwritten client-IP headers, explicit session/cookie policy, HTTPS HSTS, CSP/frame/referrer protection and complete auth-only pool shutdown.
+- Standard MCP OAuth authorization with maintained Better Auth 1.7.18 plugins: public HTTPS client metadata, PKCE, signed consent, resource-bound opaque tokens, rotating refresh and interactive application revocation. Recheck current user/session/scope/revocation in application transactions and journal token state without secrets. Provide bilingual consent and account-management UI; live OpenAI host acceptance remains separate.
+- Official MCP SDK 2.4.0 with 2026-07-28 discovery/envelopes, SDK-managed stateless 2025 support, shared REST output schemas, validated structured results and conservative action annotations. OpenAI-only live acceptance remains separate delivery work.
+- Four canonical agent skills through the official MCP Skills extension: foundation, Contacts, Projects and model design. Current module/object/role rights filter discovery and direct file reads; private zero-lifetime resources carry verified digests. Optional plugin packaging is locally verified; live OpenAI activation remains pending.
 - User-bound API/MCP credentials with one-time secrets, channel/read-only restrictions, mandatory expiry, current-rights enforcement, last-use metadata and individual/all-token revocation. Account security manages personal credentials; Administrators inspect/revoke other users’ credentials. Password changes and account deactivation revoke access, and journals record the trusted access channel, credential ID and actor.
 - Versioned API v1 with generated OpenAPI request/response schemas, an authenticated contract endpoint and MCP resource, a typed bearer client and consistent structured errors. Integration tests validate successful responses against the generated contract.
 - Confirmed Full-level permanent deletion from the recycle bin: remove live contents and operational links atomically, retain complete immutable history for installation Administrators and project only content-free deletion notices to other previously/currently authorized readers, including linked-record history. Current rights, frozen visibility and dependency guards remain enforced; the Administrator recycle-bin history opens retained journals.
@@ -107,6 +116,8 @@ The project is in early development. These entries describe source changes, incl
 
 ### Fixed
 
+- Reserve Caddy’s fixed backend address outside Docker’s dynamic pool so database-first installation cannot consume the proxy address. Exercise loopback HTTPS without public DNS or ACME.
+- Resume OAuth authorization through signed sign-in context, serve the early theme initializer as a CSP-compatible external script, and improve settings scroll focus/profile-initial contrast.
 - Include Customize navigation in command search, keep one record-draft notice in the footer across tabs and match Dashboard/Recycle bin sidebar spacing to the other navigation groups.
 - Place Task Priority in Schedule & progress directly before Progress, rather than in Classification.
 - Use the same permission-aware record icon projection for creation, updates, duplication, recycling/restoration and single/list reads.

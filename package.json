@@ -23,7 +23,10 @@
     "db:init": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts initialize",
     "db:reset": "npm run build --workspace @xobject/contracts && node --env-file-if-exists=.env --import tsx apps/server/src/cli.ts reset-development --confirm-dev-reset",
     "api:generate": "npm run build --workspace @xobject/contracts && node scripts/generate-api-contract.mjs",
-    "api:check": "node scripts/generate-api-contract.mjs --check"
+    "api:check": "node scripts/generate-api-contract.mjs --check",
+    "measure:permissions": "npm run build --workspace @xobject/contracts && node --import tsx scripts/measure-permissions.ts",
+    "plugin:prepare": "node scripts/prepare-openai-plugin.mjs",
+    "test:packaging": "node --test scripts/test-packaging.mjs"
   },
   "devDependencies": {
     "typescript-json-schema": "0.68.0"

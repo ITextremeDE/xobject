@@ -9,6 +9,8 @@ export const primaryNavigation = [
 
 export const projectResources = [
   { label: "Quellcode", href: repositoryURL },
-  { label: "Anforderungen", href: `${repositoryURL}/blob/main/docs/PRD.md` },
-  { label: "Roadmap", href: `${repositoryURL}/blob/main/ROADMAP.md` },
+  { label: "Dokumentation", href: "https://docs.xobject.org/" },
+  { label: "Changelog", href: "/changelog/" },
+  { label: "Anforderungen", href: "https://docs.xobject.org/prd/" },
+  { label: "Roadmap", href: "/roadmap/" },
 ] as const;

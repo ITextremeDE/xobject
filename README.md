@@ -55,28 +55,30 @@ Documents & Communication is a later module, including supplied Emails, Document
 
 PostgreSQL will hold application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject will not require a Git account or a user-owned repository.
 
-The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Evaluated versions are recorded in the package manifests and lockfile. The local prototype uses a current fresh-installation baseline, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Complete product permission acceptance, production installation/upgrade packaging, deployment design and overall release acceptance remain open.
+The technical spike evaluates Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Evaluated versions are recorded in the package manifests and lockfile. The local prototype uses a current fresh-installation baseline, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Complete product permission acceptance, the local container/maintenance candidate is described in the [self-hosting guide](docs/self-hosting.md). Registry publication, supported released-source migrations and overall release acceptance remain open.
 
 ## Documentation and development
 
+- [Using xObject](docs/user-guide.md)
 - [Documentation and architecture index](docs/README.md)
 - [Product requirements](docs/PRD.md)
 - [Draft V1 domain start profiles](docs/domain-profiles.md)
 - [Local development and technical spike](docs/development.md)
+- [Self-hosting, backup and recovery](docs/self-hosting.md)
 - [Changelog](CHANGELOG.md)
 - [Roadmap](ROADMAP.md)
 - [Remaining design decisions](docs/PRD.md#10-remaining-design-decisions)
 - [Initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios)
 
-Development uses small changes, pull requests, review and checks against acceptance criteria. The backend, shared contracts, web workspace and GitHub checks are defined; a release process and contribution guide remain to be implemented.
+Development uses small changes, pull requests, review and checks against acceptance criteria. The backend, shared contracts, web workspace and GitHub checks are defined; see [Contributing](CONTRIBUTING.md) for contribution rights and [Security](SECURITY.md) for private reporting; release publication remains separate.
 
 ## Licensing and commercial model
 
 **xObject is licensed under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`).** You may redistribute and modify it under version 3 of that license. See [LICENSE](LICENSE) for the full terms. xObject is provided without any warranty, including the implied warranties of merchantability or fitness for a particular purpose.
 
-This licensing declaration also applies to Premium code. Contribution terms remain to be defined.
+The project is maintained and licensed by **Jürgen Schadek personally, under the ITextreme brand**. Contributors retain their copyrights and submit under the same license with a Developer Certificate of Origin sign-off; see [Contributing](CONTRIBUTING.md) and [NOTICE](NOTICE). This declaration also applies to future Premium code.
 
-The planned model combines an independently usable free Community edition with paid Premium activation, support and maintenance. Premium code will also remain open source. A hosted cloud offering may follow later. Feature tiers, pricing and commercial terms are not yet defined.
+**Version 1 is entirely Community, with its complete agreed V1 functionality and no Premium feature gates.** Future Premium activation, support/maintenance and a hosted cloud offering may follow separately. Future feature tiers, pricing and service terms remain undecided; Premium code will also remain open source under the same license.
 
 ## Public project website
 
@@ -85,3 +87,5 @@ Its static Astro/TypeScript source lives in `apps/site`, with Tailwind CSS 4,
 ITextreme design tokens and selective shadcn/ui Base UI components. See the
 [website guide](docs/website.md) for design provenance, development and release checks. The project website is
 separate from the planned xObject application and does not provide an installation.
+
+Local delivery and acceptance: [self-hosting](docs/self-hosting.md), [quality evidence](docs/quality-acceptance.md), [release preparation](docs/releasing.md), [public documentation](docs/public-documentation.md) and the [optional agent plugin](docs/agent-plugin.md). Current source is unreleased; publication and actual OpenAI client/model acceptance remain separate gates.
