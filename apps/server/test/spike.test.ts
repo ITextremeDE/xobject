@@ -1,3 +1,4 @@
+import type {DataRecord} from '@xobject/contracts';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import { after, before, beforeEach, test } from 'node:test';
@@ -1900,7 +1901,7 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   await app.execute('set_definition_state',{kind:'field',id:designerField.id,expectedState:'active',state:'deleted',confirm:true},designer.id);
   const {defaultWorkspaceAppearance}=await import('@xobject/contracts');
   const {itextremeDemoAppearance}=await import('../src/demo-data.js');
-  assert.deepEqual((await ok('list_workspaces',{})).find((w:any)=>w.id===result.workspaceId).appearance,itextremeDemoAppearance);
+  assert.deepEqual((await ok('list_workspaces',{})).find((w:any)=>w.id===result.workspaceId).appearance,defaultWorkspaceAppearance);
   const usersBefore=Number((await sql<{count:string}>`SELECT count(*) FROM sys_users`.execute(runtime.db)).rows[0].count);
   const standard=await seedDemoData(runtime.db,adminId,'standardfixture',{name:'Demo',appearance:defaultWorkspaceAppearance,members:result.accounts.map(({id,role})=>({id,role}))});
   assert.equal(Number((await sql<{count:string}>`SELECT count(*) FROM sys_users`.execute(runtime.db)).rows[0].count),usersBefore);
@@ -1908,6 +1909,51 @@ test('fictional demo fixtures use validated fields, canonical field order and ac
   assert.ok(standard.accounts.every(a=>a.password===undefined));
   assert.deepEqual((await ok('list_workspaces',{})).find((w:any)=>w.id===standard.workspaceId).appearance,defaultWorkspaceAppearance);
   assert.notEqual(standard.objects.contacts.id,result.objects.contacts.id);
+  const {juergenSchadekDemoAppearance}=await import('../src/demo-data.js');
+  const personal=await seedDemoData(runtime.db,adminId,'personalfixture',{scenario:'family',name:'Jürgen Schadek',appearance:juergenSchadekDemoAppearance,members:result.accounts.map(({id,role})=>({id,role}))});
+  assert.equal(Number((await sql<{count:string}>`SELECT count(*) FROM sys_users`.execute(runtime.db)).rows[0].count),usersBefore+1);
+  assert.deepEqual(personal.accounts.slice(0,2).map(a=>a.id),result.accounts.map(a=>a.id));
+  assert.ok(personal.accounts.slice(0,2).every(a=>a.password===undefined));
+  assert.deepEqual((await ok('list_workspaces',{})).find((w:any)=>w.id===personal.workspaceId).appearance,juergenSchadekDemoAppearance);
+  assert.notEqual(personal.objects.contacts.id,result.objects.contacts.id);
+  assert.notEqual(personal.objects.contacts.id,standard.objects.contacts.id);
+  assert.equal(Object.values(personal.records).flat().length,47);
+  assert.equal(personal.links.length,49);
+  assert.equal(personal.records.contacts[0].business_number,'JS-CON-1');
+  assert.equal(personal.records.access_checks[0].business_number,'JS-CHK-1');
+  async function activateDemoAccounts(accounts:typeof personal.accounts){for(const account of accounts.filter(a=>a.password)){
+    await login(account.email,account.password!);
+    const session=(await sql<{id:string}>`SELECT id FROM sys_sessions WHERE user_id=${account.id}`.execute(runtime.db)).rows[0];
+    await app.execute('change_password',{currentPassword:account.password!,newPassword:randomBytes(24).toString('base64url')},account.id,{sessionId:session.id});
+  }}
+  await activateDemoAccounts(personal.accounts.filter(a=>a.password));
+  const child=personal.accounts.find(a=>a.name==='Jamie Doe')!;
+  const shared=await app.execute('get_record',{objectTypeId:personal.objects.access_checks.id,recordId:personal.records.access_checks[0].id},child.id) as DataRecord;
+  assert.equal(shared.sample_amount,undefined);
+  for(const row of personal.records.access_checks.slice(1))await assert.rejects(app.execute('get_record',{objectTypeId:personal.objects.access_checks.id,recordId:row.id},child.id));
+  const childTask=await app.execute('get_record',{objectTypeId:personal.objects.tasks.id,recordId:personal.records.tasks[0].id},child.id) as DataRecord;
+  assert.ok(childTask.permissions);assert.equal(childTask.permissions.edit,true);assert.equal(childTask.permissions.delete,false);assert.equal(childTask.permissions.create,false);
+  await assert.rejects(app.execute('duplicate_record',{objectTypeId:personal.objects.tasks.id,recordId:childTask.id,version:childTask.version},child.id));
+  const business=await seedDemoData(runtime.db,adminId,'businessfixture',{scenario:'business',appearance:itextremeDemoAppearance,members:result.accounts.map(({id,role})=>({id,role}))});
+  assert.equal(business.accounts.length,6);
+  await activateDemoAccounts(business.accounts.filter(a=>a.password));
+  assert.equal(business.records.contacts[0].business_number,'ITx-CON-1001');
+  assert.equal(business.records.access_checks[0].business_number,'ITx-CHK-1001');
+  assert.equal(result.records.contacts[0].business_number,'CON-00001');
+  const recycled=await ok('list_recycled_records',{workspaceId:personal.workspaceId});assert.ok(recycled.records.some((r:any)=>r.id===personal.lifecycle.recycledRecordId));
+
+  const casey=business.accounts.find(a=>a.name==='Casey Doe')!,alex=business.accounts.find(a=>a.name==='Alex Doe')!,morgan=business.accounts.find(a=>a.name==='Morgan Doe')!,taylor=business.accounts.find(a=>a.name==='Taylor Doe')!;
+  const technician=await app.execute('get_record',{objectTypeId:business.objects.workshop_tools.id,recordId:business.records.workshop_tools[0].id},casey.id) as DataRecord;
+  assert.ok(technician.permissions);assert.equal(technician.purchase_price,undefined);assert.equal(technician.permissions.edit,true);assert.equal(technician.permissions.delete,false);
+  const leadership=await app.execute('get_record',{objectTypeId:business.objects.cases.id,recordId:business.records.cases[0].id},alex.id) as DataRecord;assert.ok(leadership.permissions);assert.equal(leadership.permissions.full,true);
+  const audit=await app.execute('get_record',{objectTypeId:business.objects.tasks.id,recordId:business.records.tasks[1].id},taylor.id) as DataRecord;assert.ok(audit.permissions);assert.equal(audit.permissions.edit,false);
+  await assert.rejects(app.execute('get_record',{objectTypeId:business.objects.access_checks.id,recordId:business.records.access_checks[0].id},morgan.id));
+  assert.notEqual(business.records.projects[0].keyword,personal.records.projects[0].keyword);
+  assert.notEqual(business.objects.workshop_tools.technicalName,personal.objects.workshop_tools.technicalName);
+  const identitiesAcross=[...Object.values(result.records).flat(),...Object.values(standard.records).flat(),...Object.values(personal.records).flat(),...Object.values(business.records).flat()].map(r=>r.id);
+  assert.equal(new Set(identitiesAcross).size,identitiesAcross.length);
+
+
   await assert.rejects(seedDemoData(runtime.db, adminId, 'demofixture'), /already exists/);
   assert.equal((await api('list_records', { objectTypeId: result.objects.contacts.id }, userCookie)).statusCode, 403);
 });
