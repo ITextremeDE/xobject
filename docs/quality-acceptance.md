@@ -84,3 +84,33 @@ The shared URL input is used by general URL fields and structured Contact websit
 ## Stable live-update navigation — 2026-11-06
 
 The shared live-update hook delays connecting notices by 1.5 seconds and scopes the pending notice to the current workspace. Normal visible-record subscription renewals no longer insert/remove a banner during navigation. Offline feedback remains immediate. Web type checking/build and a Chrome check across Tasks, Projects and Dashboard passed without the transient notice. Tab-scoped network emulation verified immediate offline feedback, a visible notice during a deliberately slow reconnect and automatic removal after recovery; normal network conditions were restored afterward.
+
+## V1 audit corrections and rendered regression — 2026-11-06
+
+Synthetic-secret packaging checks now inspect actual commit-bound source archives and exported Docker contexts. Both public environment examples remain included; generated recovery/environment files remain excluded even if accidentally tracked. Operator fixtures verify the private pre-restore configuration, restrictive permissions and atomic upgrade replacement without loading real configuration. Uncommitted public source is refused before release artifacts/builds start. The current dirty worktree has not been packaged as a release candidate.
+
+Twelve focused session/personal-token/OAuth/password cases pass after the shared transactional request-context check. Two deterministic PostgreSQL scenarios observe a real lock wait, commit session revocation or pass wall-clock expiry, then release the queued request. It returns 401 without changing record contents, optimistic version or journal; ownership/malformed context/internal calls are also covered.
+
+Two API/MCP classification-filter scenarios cover OR within a field, AND between fields, empty values, single/multiple/tree Category, parent versus leaf filters, inactive choices, search, counts/pagination and both global/per-record field restrictions. The current Web logic/rendering suite passes 141 tests. Root type checking, API generation/check and production builds pass.
+
+The separate `npm run test:browser` command passes seven real Chromium scenarios (eight Node test entries including the parent). A fresh current PostgreSQL installation uses ordinary Administrator/User/Designer accounts and initial-password onboarding. It exercises Save/discard/readback, nested-dialog focus/command search, filter combinations and list return URLs, workspace/system-theme/portal previews, restricted-user and Designer workflows, and mobile 390×844 settings/record/field editing. The fixture and all sessions are disposed; development data and personal browser profiles remain untouched. CI configuration is prepared locally; no external CI run of this new job is claimed before publication. These focused scenarios supplement, rather than complete, assistive-technology and cross-browser acceptance.
+
+## V1 path performance and targeted query corrections
+
+Run `npm run measure:v1-paths` for this separate current-installation profile. The measured local environment is Node.js 26.9.0 on macOS/ARM64 with disposable PostgreSQL 18. There are 10,000 records, 1,000 Primary edges across ten Projects, 10,000 field-journal events on one visible record and 32 eligible active accounts; 5% of custom records are denied Personal records. Complete scenarios use 24 measured calls and eight concurrent readers after preflight/warmup. HTTP injection exercises real authentication/application paths without network or TLS latency.
+
+Targets were fixed before the baseline: tree branch and record journal p95 at most 1,000 ms, Access-principals selection at most 750 ms. The same fixture and targets were used after the corrections.
+
+| Read path | Baseline | After correction | Fixed target |
+| --- | --- | --- | --- |
+| Primary tree branch | One preflight: 9,844.1 ms; concurrent repetition skipped, no p95 estimate | Preflight 57.3 ms; p95 201.0 ms | p95 ≤ 1,000 ms |
+| Record journal | p95 368.1 ms | p95 379.5 ms | p95 ≤ 1,000 ms |
+| Access-principals selection | p95 3,563.2 ms | p95 160.1 ms | p95 ≤ 750 ms |
+
+The tree reads only the requested ancestor path, direct children and visible page-local descendant existence, using existing endpoint indexes and grouped record projections. Locale-aware numeric sorting still precedes paging. Selection reuses the exact administrative object-ceiling resolver without rebuilding every existing record policy for every candidate account. No schema, permission rule, cross-request cache or advisory-lock strategy changed. Journal queries already met their target and were retained.
+
+Eight focused tree/relation cases and four principal-selection/permission cases pass. Coverage includes unrelated graph growth, hidden/recycled children, no hidden `hasChildren` signal, inactive definitions, numeric sorting/paging, ancestor bounds/cycles and direct/group/Create/denial/availability/Administrator eligibility. A 120-edge unrelated graph increases neither the branch's returned edge-row volume nor its query count; this is a bounded regression fixture, not an unlimited scaling claim.
+
+Single-record transport p95 observations are cookie HTTP 160.4 ms, cookie MCP 170.1 ms, one shared personal-token MCP 580.8 ms and one shared OAuth-token MCP 328.4 ms. MCP uses the official client and actual local authentication; OAuth follows authorization, consent, PKCE and token exchange. These observations have no transport SLA. Controlled workspace/model advisory barriers hold four readers for about 204 ms; the batches finish after 317.6/321.6 ms respectively. The barrier measurement is synthetic and does not establish the duration of real business mutations or justify a lock-strategy change.
+
+The command removes its own container and writes `.local/v1-path-performance.json`; the baseline was retained separately before rerunning. This profile has no deleted-identity history, large relationship-journal history, external model, TLS/network latency, native AMD64 or supported-host evidence. Functional history/lifecycle tests cover the corresponding semantics separately; production sizing and whole-product release acceptance remain distinct.

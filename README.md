@@ -41,7 +41,7 @@ Workspaces keep data and configuration separate. The Projects module supplies a 
 
 Uploads, attachments, import/export, SSO, desktop and mobile clients, offline synchronization, Kanban and calendar views are outside the first-version scope.
 
-Documents & Communication is a later module, including supplied Emails, Documents and Phone calls. No email handling or uploads are implemented. Modules may share one object and record while using different field selections and form layouts. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
+Documents & Communication is a later module, including supplied Emails, Documents and Phone calls. No email handling or uploads are implemented. Modules may contribute different fields to one shared object and record. Each object has one common form that combines its applicable contributions. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
 
 ## Planned technology
 

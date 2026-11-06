@@ -30,6 +30,12 @@ Cookie-authenticated browser `POST` requests additionally require `X-XObject-Req
 
 Call `get_access_context` to identify the authenticated `user.id`, `user.name` and `isAdmin`; obtain workspace roles separately from `list_workspaces`. Use that user identity for requests such as assigning work to yourself, rather than inferring it from a member list. For record writes, `values` keys are the writable field `technicalName` strings returned by `get_object_type`, not field UUIDs. Supply Keyword separately; record numbers and derived Contact names are computed. Field UUIDs identify definition/permission targets, while choice/reference values retain their discovered option/user/group IDs. Relationship-attribute writes are separate: `relationshipAttributes[].values` uses the relationship field UUIDs from its definition; follow that nested schema rather than the top-level record map.
 
+### Classification list filters
+
+`list_records.classificationFilters` accepts optional `type`, `status` and `category` arrays of discovered option UUIDs or `null`. Values within an array combine with OR; dimensions combine with AND. `null` matches an unset Type/Status or empty Category. Omitted/empty arrays do not restrict that dimension. Each array allows at most 100 distinct values. Retained inactive options remain filterable. Unknown options or unavailable classification fields are rejected.
+
+Category arrays select at least one matching value. Tree records already retain their ancestors: selecting a parent finds its descendant selections; selecting a leaf does not add its parents to the filter. Queries exclude records whose filtered field is unreadable before counts/paging; a globally unreadable field cannot be filtered. Search, filters and sorting share the authorized result. These rules apply identically to REST and MCP.
+
 ## Contract and versions
 
 - `GET /api/v1/openapi.json`: authenticated OpenAPI 3.1 document with input and output JSON Schemas for all application operations, authentication alternatives and error envelopes.

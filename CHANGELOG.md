@@ -8,6 +8,9 @@ The project is in early development. These entries describe source changes, incl
 
 ### Added
 
+- Isolated tree/journal/principal-selection benchmark with fixed targets, cookie/personal-token/OAuth comparisons and observed model/workspace barriers.
+- Reproducible Chromium application regression with isolated current-installation fixtures, normal User/Designer onboarding, permission-aware views, drafts, classification filters, theme/portal switching, keyboard focus and mobile layouts; add a dedicated CI job with bounded failure-artifact retention.
+- Shared Type/Status/Category list filters through web/API/MCP, with OR/AND semantics, explicit empty values, Category tree matching, URL state and field-aware counts/paging.
 - Shared URL-field action opens valid HTTP(S) links in a new tab, including Contact website entries and readable fields without edit rights; empty/invalid values remain non-actionable.
 - General Selection tree fields and tree Category mode with same-dictionary parent UUIDs, automatic ancestor selection, descendant deselection and shared API/MCP validation. Preserve safe conversions and update existing selections with atomic per-field journals when a hierarchy changes. Multiple/tree selections use one searchable list/tree dialog with keyboard controls; demo workspaces show all Category modes and independent custom trees.
 - Installable online application shell with an original xObject icon family, manifest, Apple/maskable icons, generic private Open Graph previews, contextual/neutral browser titles, effective language/theme color and canonical copy/native-share record links. Application-build updates offer an explicit reload that protects open drafts.
@@ -130,6 +133,10 @@ The project is in early development. These entries describe source changes, incl
 
 ### Fixed
 
+- Bound Primary-tree reads to the requested branch and reuse the administrative ceiling for Access-principals eligibility; preserve visibility, locale sorting, paging and lifecycle semantics while meeting all three scoped path targets.
+- Revalidate interactive sessions inside business transactions after lock acquisition, using wall-clock expiry and shared session-row locks; queued revoked/expired requests cannot commit changes.
+- Keep pre-restore configurations in private recovery storage and exclude generated environment files from Git, Docker contexts and commit-bound source archives; verify artifact contents using synthetic-secret regressions.
+- Align the collapsed-sidebar Search button with the other navigation icons by removing duplicate header/group padding and using the shared sidebar menu structure.
 - Keep normal navigation stable while live-update subscriptions renew: show connecting notices only after a sustained attempt, retain immediate offline feedback and cancel pending notices on reconnect/workspace changes.
 - Preserve cached record editors and their drafts through transient background session/data failures; show a retry notice while continuing to close views after confirmed access loss or deletion.
 - Apply draft interface fonts and color schemes to portalled preview menus. Expand the design preview with real sidebar/card/table primitives, local active/selection states, mode-correct labels and advisory custom-primary contrast checks for links and focus borders. Align English/German explanations.

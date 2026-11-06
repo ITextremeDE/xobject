@@ -4,7 +4,7 @@ A release is a reviewed source revision with matching immutable images, installe
 
 ## Prepare an unpublished candidate
 
-Complete scoped checks and [quality acceptance](quality-acceptance.md), resolve release blockers and reconcile the PRD, roadmap, changelog, ADRs and user/operator guides. Actual OpenAI client/model acceptance, supported-host validation and public TLS verification must be evidenced rather than inferred from local SDK/container checks.
+Complete scoped checks and [quality acceptance](quality-acceptance.md), resolve release blockers and reconcile the PRD, roadmap, changelog, ADRs and user/operator guides. Prepare artifacts from a clean checkout of the reviewed commit; commit all intended public source before running the preparer. Actual OpenAI client/model acceptance, supported-host validation and public TLS verification must be evidenced rather than inferred from local SDK/container checks.
 
 ```sh
 npm ci --prefix apps/docs
@@ -18,7 +18,7 @@ npm run test:packaging
 node scripts/prepare-release.mjs --output .local/release-candidate
 ```
 
-The packaging command builds current and version-based documentation, copies the operator package, archives public source and the built product website and generates `candidate.json` plus `SHA256SUMS`. Its default version is `0.0.0-unreleased`. The manifest records the actual base commit, dirty state and source hashes, so a working-tree candidate cannot masquerade as a tagged release. Private runtime files, environment files, dependencies, build directories and database archives are excluded. Review archive contents before any upload. Installer archives preserve the repository paths; extract and run `scripts/xobject` from the extracted root.
+The packaging command builds current and version-based documentation, copies the operator package, archives public source and the built product website and generates `candidate.json` plus `SHA256SUMS`. Its default version is `0.0.0-unreleased`. The manifest records the exact commit and SHA-256 hashes of the committed source. Source selection uses an explicit set of public directories/root files and additional private-file exclusions; untracked files never enter the archive. Tracked changes and untracked public source are rejected before artifacts or builds are created. Installer, documentation and website builds use that same clean checkout. Private runtime files, environment files (including restore copies and upgrade temporaries), dependencies, build directories and database archives are excluded; the two supplied environment examples remain included. Review archive contents before any upload. Installer archives preserve the repository paths; extract and run `scripts/xobject` from the extracted root.
 
 Build and retain the corresponding local image separately:
 
