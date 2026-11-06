@@ -45,7 +45,7 @@ const technicalName = z.string().regex(/^[a-z][a-z0-9_]*$/).max(63);
 const standardField = z.enum(['type_status', 'category', 'keyword']);
 const values = z.record(z.string(), fieldValueSchema).refine(value=>!Object.hasOwn(value,'access_principals'),'Use record security for Access principals').refine(
   (value) => Object.keys(value).length <= 100, 'At most 100 fields per write',
-);
+).describe('Field values keyed by each field technicalName from get_object_type, never by field UUID. Choice/reference values still use their discovered option/user/group IDs. Keyword, record_number, access_principals and derived fields are not writable through this map.');
 const definitionState = z.enum(['active', 'inactive', 'deleted']);
 const workspaceRole = z.enum(['user', 'designer']);
 const recordSecurityWrite = z.object({policy:recordSecuritySchema,confirmPublic:z.boolean().default(false)}).strict();
@@ -212,7 +212,7 @@ export interface Outputs {
   revoke_other_sessions: { revokedSessions: number };
   set_definition_state: { id: string; state: DefinitionState };
   get_definition_journal: JournalEntry[];
-  get_access_context: { isAdmin: boolean };
+  get_access_context: { user: { id: string; name: string }; isAdmin: boolean };
   list_users: UserSummary[];
   list_workspace_members: WorkspaceMember[];
   set_workspace_member: { workspaceId: string; userId: string; role: 'user' | 'designer' | null };

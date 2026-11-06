@@ -6030,10 +6030,26 @@
                   "properties": {
                     "isAdmin": {
                       "type": "boolean"
+                    },
+                    "user": {
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
-                    "isAdmin"
+                    "isAdmin",
+                    "user"
                   ],
                   "type": "object"
                 }

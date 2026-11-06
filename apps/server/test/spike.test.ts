@@ -204,6 +204,11 @@ test('API and real MCP share definitions, data, UUIDv7 identities and per-field 
   assert.equal(stale.statusCode, 409);
   const invalid = await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 2, values: { unknown: 'invalid' } });
   assert.equal(invalid.statusCode, 400);
+  assert.match(invalid.json().error, /technical field names, not field IDs/);
+  const fieldIdKey = await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 2, values: { [field.id]: 'invalid' } });
+  assert.equal(fieldIdKey.statusCode, 400);
+  assert.match(fieldIdKey.json().error, /technical field names, not field IDs/);
+  assert.equal((await tool('get_record', { objectTypeId: type.id, recordId: record.id })).registration, 'ITX 2');
   assert.equal((await journalEntries({ objectTypeId: type.id, recordId: record.id })).length, 4);
 });
 

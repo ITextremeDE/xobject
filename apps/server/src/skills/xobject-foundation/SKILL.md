@@ -4,9 +4,9 @@ description: Discover an xObject workspace and safely read or change its records
 ---
 # Work with xObject
 
-1. Call `list_workspaces`, select the intended workspace, then `list_object_types` and `get_object_type`. Never guess installation IDs, field UUIDs, contact kinds or input-aid values.
+1. Call `get_access_context` to identify your user, then `list_workspaces`, select the intended workspace, and use `list_object_types` and `get_object_type` for the relevant objects. Never guess installation IDs, field UUIDs, contact kinds or input-aid values. Prefer each tool's advertised input schema; the complete OpenAPI resource is an optional reference, not a prerequisite for ordinary work.
 2. Inspect capabilities and current values before changing anything. Follow list pagination. An unavailable field or record must stay unavailable; do not infer its value from another projection.
-3. Use `create_record` or `update_record` with current metadata. Supply optimistic versions from the latest read. On conflict, reread and reconcile the user's requested change; never blindly overwrite.
+3. Use `create_record` or `update_record` with current metadata. Keys in `values` are field `technicalName` strings, never field UUIDs. Choice/reference values use their discovered option/user/group IDs. Field UUIDs identify definition, permission and configuration targets. Supply optimistic versions from the latest read. On conflict, reread and reconcile the user's requested change; never blindly overwrite.
 4. Use the relationship option and candidate operations before linking. Existing records and new linked records share the normal permission checks, cardinalities and journal.
 5. Public access is deliberate: explain the effect and obtain the user's explicit confirmation before widening security. A foreign-access grant does not assign work.
 6. Summarize the result after reading it back. Do not expose credentials, private record contents or personal data in unrelated outputs.

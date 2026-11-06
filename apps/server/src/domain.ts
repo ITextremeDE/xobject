@@ -186,7 +186,10 @@ export class Application {
           case 'set_group_active': return configureGroup(tx, schemas.set_group_active.parse(parsed), configJournal);
           case 'set_definition_state': return this.setDefinitionState(tx, schemas.set_definition_state.parse(parsed), userId);
           case 'get_definition_journal': { const args = schemas.get_definition_journal.parse(parsed); const type = await this.objectType(tx, args.objectTypeId, true); return enrichJournalContext(tx, (await sql<Record<string, unknown>>`SELECT j.*, a.name AS actor_name, w.name AS workspace_name FROM sys_journal j LEFT JOIN sys_users a ON a.id = j.actor_id LEFT JOIN sys_workspaces w ON w.id = j.workspace_id WHERE (j.object_type_id = ${type.id}::uuid OR j.field_id IN (SELECT f.id FROM sys_fields f JOIN sys_relationship_type_pairs p ON p.relationship_type_id=f.relationship_type_id WHERE p.left_object_type_id=${type.id}::uuid OR p.right_object_type_id=${type.id}::uuid)) AND j.entity_kind NOT IN ('record','relationship') ORDER BY j.created_at, j.id`.execute(tx)).rows, userId, false); }
-          case 'get_access_context': return { isAdmin: access.isAdmin };
+          case 'get_access_context': {
+            const user = (await sql<{ id: string; name: string }>`SELECT id, name FROM sys_users WHERE id = ${userId}`.execute(tx)).rows[0];
+            return { user, isAdmin: access.isAdmin };
+          }
           case 'list_managed_users': return managedUsers(tx);
           case 'create_user': return createUser(tx, schemas.create_user.parse(parsed), (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
           case 'configure_user': return configureUser(tx, schemas.configure_user.parse(parsed), userId, (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
@@ -1018,7 +1021,7 @@ export class Application {
   private async fields(tx: Executor, type: ObjectType, args: Record<string, FieldValue>) {
     const fields = (await sql<Field>`SELECT value_mode,applicability, id, technical_name, kind, required, config,input_rules, state, is_protected FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted'`.execute(tx)).rows;
     for (const name of Object.keys(args)) {
-      if (['keyword','record_number'].includes(name)||fields.some(f=>f.technical_name===name&&f.value_mode==='derived') || !fields.some(f => f.state === 'active' && f.technical_name === name && isCustomFieldKind(f.kind))) throw new AppError(400, 'Unknown or reserved record field');
+      if (['keyword','record_number'].includes(name)||fields.some(f=>f.technical_name===name&&f.value_mode==='derived') || !fields.some(f => f.state === 'active' && f.technical_name === name && isCustomFieldKind(f.kind))) throw new AppError(400, 'Unknown or reserved record field; values keys must be writable technical field names, not field IDs');
     }
     this.requireActive(type);
     return fields;
