@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
 // Pinned to shadcn 4.23.0 PRESET_FONTS / PRESET_BASE_COLORS. No arbitrary font or CSS input.
-export const workspaceFonts = ["inter", "noto-sans", "nunito-sans", "figtree", "roboto", "raleway", "dm-sans", "public-sans", "outfit", "jetbrains-mono", "geist", "geist-mono", "lora", "merriweather", "playfair-display", "noto-serif", "roboto-slab", "oxanium", "manrope", "space-grotesk", "montserrat", "ibm-plex-sans", "source-sans-3", "instrument-sans", "eb-garamond", "instrument-serif"] as const;
+export const workspaceFonts = ["inter", "noto-sans", "nunito-sans", "figtree", "roboto", "raleway", "dm-sans", "public-sans", "outfit", "jetbrains-mono", "geist", "geist-mono", "lora", "merriweather", "playfair-display", "noto-serif", "roboto-slab", "oxanium", "manrope", "space-grotesk", "montserrat", "ibm-plex-sans", "source-sans-3", "instrument-sans", "eb-garamond", "instrument-serif", "orbitron"] as const;
 export const workspaceBaseColors = ['neutral', 'stone', 'zinc', 'gray', 'mauve', 'olive', 'mist', 'taupe'] as const;
 export const workspaceThemes = ["neutral", "stone", "zinc", "gray", "amber", "blue", "cyan", "emerald", "fuchsia", "green", "indigo", "lime", "orange", "pink", "purple", "red", "rose", "sky", "teal", "violet", "yellow", "mauve", "olive", "mist", "taupe"] as const;
 export const workspaceChartColors = workspaceThemes;
+export const workspaceLogoIcons=['layers','building','briefcase','blocks','folder','users','network','globe','rocket','code','landmark','wrench'] as const;
+export type WorkspaceLogoIcon=typeof workspaceLogoIcons[number];
 export const workspaceHeadingFonts = ['inherit', ...workspaceFonts] as const;
 export const workspaceMenuColors = ['default', 'inverted', 'default-translucent', 'inverted-translucent'] as const;
 export const workspaceMenuAccents = ['subtle', 'bold'] as const;
@@ -16,13 +18,16 @@ export const workspaceAppearanceSchema = z.object({
   theme: z.enum(workspaceThemes),
   chartColor: z.enum(workspaceChartColors),
   fontHeading: z.enum(workspaceHeadingFonts),
+  logoIcon:z.enum(workspaceLogoIcons),
+  primaryColorDark:z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+  secondaryColorDark: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
   secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
   radius: z.enum(workspaceRadii),
   font: z.enum(workspaceFonts),
 }).strict();
 export type WorkspaceAppearance = z.infer<typeof workspaceAppearanceSchema>;
-export const defaultWorkspaceAppearance: WorkspaceAppearance = { baseColor: 'neutral', menuColor: 'default', menuAccent: 'subtle', theme: 'neutral', chartColor: 'neutral', fontHeading: 'inherit', primaryColor: null, secondaryColor: null, radius: 'default', font: 'geist' };
+export const defaultWorkspaceAppearance: WorkspaceAppearance = { baseColor: 'neutral', menuColor: 'default', menuAccent: 'subtle', theme: 'neutral', chartColor: 'neutral', fontHeading: 'inherit', logoIcon:'layers', primaryColorDark:null, primaryColor: null, secondaryColorDark: null, secondaryColor: null, radius: 'default', font: 'geist' };
 
 /** WCAG sRGB relative luminance; choose the better of black and white for solid custom fills. */
 export function colorForeground(hex: string): '#000000' | '#ffffff' {

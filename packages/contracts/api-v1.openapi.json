@@ -10956,7 +10956,7 @@
                 "schema": {
                   "properties": {
                     "appearance": {
-                      "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_inherit_primaryColor_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_"
+                      "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_inherit_logoIcon_code_layers_building_briefcase_blocks_folder_users_network_globe_rocket_landmark_wrench_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_"
                     },
                     "version": {
                       "type": "number"
@@ -13613,7 +13613,7 @@
       "Workspace": {
         "properties": {
           "appearance": {
-            "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_inherit_primaryColor_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_"
+            "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_inherit_logoIcon_code_layers_building_briefcase_blocks_folder_users_network_globe_rocket_landmark_wrench_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_"
           },
           "appearance_version": {
             "type": "number"
@@ -14955,7 +14955,7 @@
         ],
         "type": "object"
       },
-      "_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_inherit_primaryColor_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_": {
+      "_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_inherit_logoIcon_code_layers_building_briefcase_blocks_folder_users_network_globe_rocket_landmark_wrench_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_": {
         "properties": {
           "baseColor": {
             "enum": [
@@ -15019,6 +15019,7 @@
               "noto-sans",
               "noto-serif",
               "nunito-sans",
+              "orbitron",
               "outfit",
               "oxanium",
               "playfair-display",
@@ -15051,6 +15052,7 @@
               "noto-sans",
               "noto-serif",
               "nunito-sans",
+              "orbitron",
               "outfit",
               "oxanium",
               "playfair-display",
@@ -15060,6 +15062,23 @@
               "roboto-slab",
               "source-sans-3",
               "space-grotesk"
+            ],
+            "type": "string"
+          },
+          "logoIcon": {
+            "enum": [
+              "blocks",
+              "briefcase",
+              "building",
+              "code",
+              "folder",
+              "globe",
+              "landmark",
+              "layers",
+              "network",
+              "rocket",
+              "users",
+              "wrench"
             ],
             "type": "string"
           },
@@ -15085,6 +15104,12 @@
               "string"
             ]
           },
+          "primaryColorDark": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "radius": {
             "enum": [
               "default",
@@ -15096,6 +15121,12 @@
             "type": "string"
           },
           "secondaryColor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "secondaryColorDark": {
             "type": [
               "null",
               "string"
@@ -15137,11 +15168,14 @@
           "chartColor",
           "font",
           "fontHeading",
+          "logoIcon",
           "menuAccent",
           "menuColor",
           "primaryColor",
+          "primaryColorDark",
           "radius",
           "secondaryColor",
+          "secondaryColorDark",
           "theme"
         ],
         "type": "object"
@@ -23633,10 +23667,50 @@
                   "source-sans-3",
                   "instrument-sans",
                   "eb-garamond",
-                  "instrument-serif"
+                  "instrument-serif",
+                  "orbitron"
+                ]
+              },
+              "logoIcon": {
+                "type": "string",
+                "enum": [
+                  "layers",
+                  "building",
+                  "briefcase",
+                  "blocks",
+                  "folder",
+                  "users",
+                  "network",
+                  "globe",
+                  "rocket",
+                  "code",
+                  "landmark",
+                  "wrench"
+                ]
+              },
+              "primaryColorDark": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               },
               "primaryColor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "secondaryColorDark": {
                 "anyOf": [
                   {
                     "type": "string",
@@ -23696,7 +23770,8 @@
                   "source-sans-3",
                   "instrument-sans",
                   "eb-garamond",
-                  "instrument-serif"
+                  "instrument-serif",
+                  "orbitron"
                 ]
               }
             },
@@ -23707,7 +23782,10 @@
               "theme",
               "chartColor",
               "fontHeading",
+              "logoIcon",
+              "primaryColorDark",
               "primaryColor",
+              "secondaryColorDark",
               "secondaryColor",
               "radius",
               "font"

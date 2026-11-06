@@ -1356,7 +1356,7 @@ test('workspace appearance is shared, versioned and journaled per property throu
   const ordinary = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
   const ws = await ok('create_workspace', { name: 'Shared appearance', code: 'appearance' });
   const other = await ok('create_workspace', { name: 'Other appearance', code: 'appearanceother' });
-  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'mauve', font: 'inter', primaryColor: '#2563eb', secondaryColor: '#facc15', radius: 'large' };
+  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'mauve', font: 'inter', primaryColor: '#2563eb', primaryColorDark:'#60a5fa',logoIcon:'network',fontHeading:'orbitron', secondaryColor: '#facc15', secondaryColorDark: '#713f12', radius: 'large' };
   const payload = { workspaceId: ws.id, version: 1, appearance };
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });
   const own = (await api('list_workspaces', {}, userCookie)).json().find((item: { id: string }) => item.id === ws.id);
@@ -1365,7 +1365,7 @@ test('workspace appearance is shared, versioned and journaled per property throu
   assert.equal((await api('set_workspace_appearance', payload, userCookie)).statusCode, 403);
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'designer', expectedRole: 'user' });
   assert.equal((await api('set_workspace_appearance', { ...payload, workspaceId: other.id }, userCookie)).statusCode, 403);
-  for (const invalid of [{ ...appearance, font: 'custom-font' }, { ...appearance, primaryColor: 'url(https://example.test)' }, { ...appearance, extraCSS: 'body{}' }, { ...appearance, radius: 'arbitrary' }]) {
+  for (const invalid of [{ ...appearance, font: 'custom-font' },{...appearance,primaryColorDark:'url(https://example.test)'},{...appearance,secondaryColorDark:'url(https://example.test)'},{...appearance,logoIcon:'custom-url'}, { ...appearance, primaryColor: 'url(https://example.test)' }, { ...appearance, extraCSS: 'body{}' }, { ...appearance, radius: 'arbitrary' }]) {
     assert.equal((await api('set_workspace_appearance', { ...payload, appearance: invalid }, userCookie)).statusCode, 400);
   }
   const saved = await api('set_workspace_appearance', payload, userCookie);
@@ -1375,13 +1375,13 @@ test('workspace appearance is shared, versioned and journaled per property throu
   assert.deepEqual(updated.appearance, appearance);
   assert.equal(updated.appearance_version, 2);
   const journals = (await sql<{ field_key: string; change_id: string; actor_id: string }>`SELECT field_key, change_id, actor_id FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%'`.execute(runtime.db)).rows;
-  assert.equal(journals.length, 5);
+  assert.equal(journals.length, 9);
   assert.equal(new Set(journals.map(item => item.change_id)).size, 1);
   assert.ok(journals.every(item => item.actor_id === ordinary.id));
   assert.equal((await api('set_workspace_appearance', payload)).statusCode, 409);
   assert.equal((await tool('set_workspace_appearance', { ...payload, version: 2 })).version, 2);
-  assert.equal((await sql<{ count: number }>`SELECT count(*)::int AS count FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%'`.execute(runtime.db)).rows[0].count, 5);
-  assert.equal(workspaceFonts.length, 26);
+  assert.equal((await sql<{ count: number }>`SELECT count(*)::int AS count FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%'`.execute(runtime.db)).rows[0].count, 9);
+  assert.equal(workspaceFonts.length, 27);
   for (const font of workspaceFonts) {
     const result = await tool('set_workspace_appearance', { workspaceId: other.id, version: (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === other.id).appearance_version, appearance: { ...defaultWorkspaceAppearance, font } });
     assert.equal(result.appearance.font, font);

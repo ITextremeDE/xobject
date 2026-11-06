@@ -56,16 +56,16 @@ export const workspaceThemes = {
   },
   "gray": {
     "light": {
-      "primary": "220.9 39.3% 11%",
-      "primary-foreground": "210 20% 98%",
-      "secondary": "220 14.3% 95.9%",
-      "secondary-foreground": "220.9 39.3% 11%"
+      "primary": "hsl(220.9 39.3% 11%)",
+      "primary-foreground": "hsl(210 20% 98%)",
+      "secondary": "hsl(220 14.3% 95.9%)",
+      "secondary-foreground": "hsl(220.9 39.3% 11%)"
     },
     "dark": {
-      "primary": "210 20% 98%",
-      "primary-foreground": "220.9 39.3% 11%",
-      "secondary": "215 27.9% 16.9%",
-      "secondary-foreground": "210 20% 98%"
+      "primary": "hsl(210 20% 98%)",
+      "primary-foreground": "hsl(220.9 39.3% 11%)",
+      "secondary": "hsl(215 27.9% 16.9%)",
+      "secondary-foreground": "hsl(210 20% 98%)"
     }
   },
   "amber": {
@@ -499,18 +499,18 @@ export const workspaceChartPalettes = {
   },
   "gray": {
     "light": {
-      "chart-1": "12 76% 61%",
-      "chart-2": "173 58% 39%",
-      "chart-3": "197 37% 24%",
-      "chart-4": "43 74% 66%",
-      "chart-5": "27 87% 67%"
+      "chart-1": "hsl(12 76% 61%)",
+      "chart-2": "hsl(173 58% 39%)",
+      "chart-3": "hsl(197 37% 24%)",
+      "chart-4": "hsl(43 74% 66%)",
+      "chart-5": "hsl(27 87% 67%)"
     },
     "dark": {
-      "chart-1": "220 70% 50%",
-      "chart-2": "160 60% 45%",
-      "chart-3": "30 80% 55%",
-      "chart-4": "280 65% 60%",
-      "chart-5": "340 75% 55%"
+      "chart-1": "hsl(220 70% 50%)",
+      "chart-2": "hsl(160 60% 45%)",
+      "chart-3": "hsl(30 80% 55%)",
+      "chart-4": "hsl(280 65% 60%)",
+      "chart-5": "hsl(340 75% 55%)"
     }
   },
   "amber": {
