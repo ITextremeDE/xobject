@@ -116,6 +116,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Fixed
 
+- Resume the unchanged application container after backup with Compose v2-compatible `up --wait --no-recreate`; report bounded operator diagnostics without private payloads.
 - Reserve Caddy’s fixed backend address outside Docker’s dynamic pool so database-first installation cannot consume the proxy address. Exercise loopback HTTPS without public DNS or ACME.
 - Resume OAuth authorization through signed sign-in context, serve the early theme initializer as a CSP-compatible external script, and improve settings scroll focus/profile-initial contrast.
 - Include Customize navigation in command search, keep one record-draft notice in the footer across tabs and match Dashboard/Recycle bin sidebar spacing to the other navigation groups.

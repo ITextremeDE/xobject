@@ -4,7 +4,7 @@ The repository contains an unreleased installation candidate. It has passed loca
 
 ## Prepare an installation
 
-Use a Linux host with Docker Engine, Docker Compose v2, Bash, OpenSSL and a SHA-256 utility. Give xObject a dedicated PostgreSQL service/volume. The supplied installation exposes only Caddy on ports 80/443; the database and application have no public port mappings. Point your chosen DNS name to the host before starting Caddy. Caddy obtains certificates using the supplied TLS contact address.
+Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, OpenSSL and a SHA-256 utility. Give xObject a dedicated PostgreSQL service/volume. The supplied installation exposes only Caddy on ports 80/443; the database and application have no public port mappings. Point your chosen DNS name to the host before starting Caddy. Caddy obtains certificates using the supplied TLS contact address.
 
 Build the current source candidate locally:
 
@@ -82,3 +82,5 @@ This uses a random Compose project, loopback port, isolated fictional account/da
 `XOBJECT_ENV_FILE`, `XOBJECT_PROJECT_NAME` and an optional `XOBJECT_COMPOSE_OVERRIDE` explicitly select an installation. `XOBJECT_START_SERVICES=app` supports isolated loopback acceptance without Caddy. Stop/start/restore/upgrade always act on that selected Compose project. Backups and existing volumes are retained unless an operator deliberately removes them.
 
 The separate proxy acceptance binds only loopback, uses Caddy’s local certificate authority and trusts that CA only inside the test client. It verifies the supplied proxy/backend topology, secure cookies, trusted client-IP replacement, same-origin API checks and HTTPS OAuth discovery. It neither changes the Mac trust store nor uses public DNS or ACME. Run these isolated Compose tests sequentially because the documented default subnet is shared.
+
+When backup temporarily stops a running application, the operator resumes that same container with `up -d --wait --no-recreate`. This preserves its identity/configuration and waits for health on the documented Compose v2 baseline; it does not require the newer `start --wait` option. Failure diagnostics identify the operator line without printing command arguments or private payloads.

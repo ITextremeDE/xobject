@@ -42,7 +42,7 @@ backup() {
   compose config --images > "$directory/images.txt"
   date -u '+%Y-%m-%dT%H:%M:%SZ' > "$directory/created-at.txt"
   (cd "$directory"; checksum database.dump install.env image-id.txt schema.txt images.txt created-at.txt > SHA256SUMS)
-  if [[ $was_running == 1 ]]; then compose start --wait app; fi
+  if [[ $was_running == 1 ]]; then compose up -d --wait --no-recreate app; fi
   printf 'Verified backup created: %s\n' "$directory"
 }
 case ${1:-help} in

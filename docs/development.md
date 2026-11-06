@@ -557,3 +557,7 @@ Root type checking/build, 163 backend regressions, three additional focused auth
 Final Node.js 24 container recovery acceptance passes again on ARM64 and with the AMD64 application/operator under emulation (native PostgreSQL 18 on the ARM64 Docker host). Local source, installer, current/versioned documentation and product-site artifacts have SHA-256 manifests. These are unpublished dirty-working-tree candidates; native external-host/public TLS and actual OpenAI host/model acceptance remain gates. Each completed work block has a private local closeout receipt; no OpenProject write, Git publication or deployment was performed.
 
 Caddy loopback-HTTPS acceptance now also passes against the supplied Compose topology, with a test-local CA and no public listeners, ACME or host trust-store changes. It exposed and fixed a dynamic/fixed backend IP collision; the proxy address now stays outside the dynamic pool. Secure cookies, Host, spoofed client-IP replacement, Origin rejection and HTTPS OAuth discovery are verified. The separate recovery/proxy test commands run sequentially against the documented default subnet.
+
+### 2026-11-06 — Native Linux CI portability
+
+The first native Ubuntu container check exposed use of `compose start --wait`, which is absent from the runner’s documented Compose 2.38.2. Backup resumption now uses the supported `up -d --wait --no-recreate` operation, retaining the existing container. CI records its Compose version and failures expose only bounded operator diagnostics. The PR checks must pass on the corrected head before merge.
