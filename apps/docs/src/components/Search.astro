@@ -1,0 +1,18 @@
+---
+import DefaultSearch from '@astrojs/starlight/components/Search.astro';
+---
+<DefaultSearch {...Astro.props} />
+<script>
+  // Starlight 0.42.9 exposes a visible key hint outside its "Search" label.
+  // Compose the standard component and include all visible label text in its
+  // accessible name (WCAG 2.5.3), retaining native aria-keyshortcuts behavior.
+  function labelSearchShortcut() {
+    document.querySelectorAll('site-search button[data-open-modal]').forEach(button => {
+      const label = button.querySelector('span')?.textContent?.trim();
+      const hint = button.querySelector('kbd')?.textContent?.replace(/\s+/g, ' ').trim();
+      if (label && hint) button.setAttribute('aria-label', `${label} ${hint}`);
+    });
+  }
+  labelSearchShortcut();
+  document.addEventListener('astro:page-load', labelSearchShortcut);
+</script>

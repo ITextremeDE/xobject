@@ -8,3 +8,8 @@ coverage/
 
 # Local development fixtures, relationship plans and private recovery artifacts.
 .local/
+
+# Private self-hosting configuration.
+deploy/selfhost.env
+
+/apps/site/src/content/project/generated/

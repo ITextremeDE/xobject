@@ -1,3 +1,4 @@
+import {OAuthApplications} from './oauth-applications';
 import {notifySuccess} from '@/lib/notifications';
 import {ApiCredentialSettings} from './api-credentials';
 import {SettingsHelp} from './settings-help';
@@ -52,13 +53,15 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
     setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true); notifySuccess(t('passwordChanged'));
     await client.invalidateQueries({ queryKey: ['account-security', user.id] });
     await client.invalidateQueries({queryKey:['api-credentials']});
+    await client.invalidateQueries({queryKey:['oauth-authorizations']});
     await client.invalidateQueries({ queryKey: ['session'] });
   } });
   const revoke = useMutation({ mutationFn: (id: string) => id === 'others' ? api('revoke_other_sessions', {}) : api('revoke_session', { sessionId: id }), onSuccess: async () => {
     setConfirmSession(null); notifySuccess(t('sessionsRevoked'));
     await client.invalidateQueries({ queryKey: ['account-security', user.id] });
   } });
-  const busy = password.isPending || revoke.isPending || credentialBusy;
+  const [oauthBusy,setOAuthBusy]=useState(false);
+  const busy = password.isPending || revoke.isPending || credentialBusy || oauthBusy;
   useEffect(() => { onDirtyChange(dirty||credentialDirty); }, [dirty,credentialDirty,onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
   function reset() { setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setRevokeOthers(true);  password.reset(); }
@@ -88,6 +91,7 @@ export function AccountSecuritySettings({ user, active, initialOnly = false, onD
       </FieldSet></SettingsSection></> : null}
     </>}
     {!initialOnly&&security.isSuccess?<ApiCredentialSettings ownerName={user.name} active={active} disabled={password.isPending||revoke.isPending||dirty} onDirtyChange={setCredentialDirty} onBusyChange={setCredentialBusy}/>:null}
+    {!initialOnly&&security.isSuccess?<OAuthApplications active={active} disabled={busy||dirty} onBusyChange={setOAuthBusy}/>:null}
     <AlertDialog open={confirmSession !== null} onOpenChange={open => { if (!open && !revoke.isPending) setConfirmSession(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t(confirmSession === 'others' ? 'revokeOtherSessions' : 'revokeSession')}</AlertDialogTitle><AlertDialogDescription>{t('revokeSessionHelp')}</AlertDialogDescription></AlertDialogHeader>{revoke.isError ? <ErrorNotice error={revoke.error} /> : null}<AlertDialogFooter><AlertDialogCancel disabled={revoke.isPending}>{t('cancel')}</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={revoke.isPending} onClick={() => { if (confirmSession) revoke.mutate(confirmSession); }}>{revoke.isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}{t('signOut')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </FieldGroup>;
 }

@@ -1,0 +1,25 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import {getEntry,render} from 'astro:content';
+export function getStaticPaths(){return ['changelog','roadmap'].map(page=>({params:{page}}));}
+const entry=await getEntry('project',`generated/${Astro.params.page}`);
+if(!entry)throw new Error('Missing canonical project page');
+const {Content}=await render(entry);
+---
+<SiteLayout title={`${entry.data.title} – xObject`} description={`xObject ${entry.data.title.toLowerCase()} from the canonical project source.`} lang="en">
+  <main id="inhalt" tabindex="-1" class="site-container project-document"><article><Content/></article></main>
+</SiteLayout>
+<style>
+.project-document{padding-block:3rem 5rem;max-width:76rem}
+.project-document :global(h1){margin-bottom:2rem}
+.project-document :global(h2){margin-top:2.5rem;margin-bottom:1rem}
+.project-document :global(h3){margin-top:2rem;margin-bottom:.75rem}
+.project-document :global(p),.project-document :global(ul),.project-document :global(ol),.project-document :global(table){margin-block:1rem}
+.project-document :global(li){margin-block:.6rem}
+.project-document :global(ul){list-style:disc;padding-left:1.5rem}
+.project-document :global(ol){list-style:decimal;padding-left:1.5rem}
+.project-document :global(a){text-decoration:underline;text-underline-offset:.2em}
+.project-document :global(code){overflow-wrap:anywhere}
+.project-document :global(table){display:block;overflow-x:auto;border-collapse:collapse}
+.project-document :global(th),.project-document :global(td){border:1px solid var(--border);padding:.75rem;vertical-align:top;text-align:left;min-width:10rem}
+</style>

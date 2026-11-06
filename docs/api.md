@@ -54,9 +54,46 @@ It sends versioned JSON without cookies, redirects, token persistence or automat
 
 Use the stateless Streamable HTTP endpoint `/mcp`, with the same Bearer header and preferably `X-XObject-API-Version: 1`. A token must permit the MCP channel. The MCP server advertises `xobject` version `1.0.0`; the SDK-negotiated MCP protocol version is separate from this application contract.
 
-All operation names and input schemas are exposed as tools. Read-only/destructive annotations assist clients but grant no authority. Successful tool text contains the operation's JSON result; tool failures use `isError` with the shared JSON error envelope. Transport authentication can fail before tool execution. A long-lived client cannot outlive revocation: each HTTP request authenticates, and every operation rechecks the credential in its application transaction. Token-management and password/session operations require an interactive session rather than bearer access.
+All operation names and input/output schemas are exposed as tools. Output schemas reuse the generated REST contract and contain only reachable definitions. Read-only/destructive annotations assist clients but grant no authority. Successful tools return schema-validated `structuredContent` and JSON text; the official SDK projects non-object results for negotiated older revisions. Modern requests use MCP 2026-07-28 discovery, per-request metadata and result envelopes; the SDK also serves stateless 2025-era clients. Tool reads are marked read-only/idempotent, writes conservatively destructive/non-idempotent, and all operations closed-world. Hints do not authorize automatic retries. Successful tool text contains the operation's JSON result; tool failures use `isError` with the shared JSON error envelope. Transport authentication can fail before tool execution. A long-lived client cannot outlive revocation: each HTTP request authenticates, and every operation rechecks the credential in its application transaction. Token-management and password/session operations require an interactive session rather than bearer access.
 
-The read-only resource `xobject://api/v1/openapi` supplies the complete input/output contract to MCP-only clients. No OAuth server, SSO or third-party consent flow is supplied by these personal access tokens.
+The read-only resource `xobject://api/v1/openapi` supplies the complete input/output contract to MCP-only clients. Personal access tokens are independent of the OAuth flow below. External SSO remains later scope.
+
+### OAuth authorization
+
+MCP clients can discover `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/api/auth`. The maintained Better Auth 1.7.18 MCP/OAuth/CIMD plugins implement Authorization Code with S256 PKCE and signed, expiring consent continuations. Client identity uses HTTPS Client ID Metadata Documents under the MCP 2026-07-28 profile. The Node transport validates DNS answers, pins the approved public address and refuses redirects/private addresses. Anonymous dynamic registration, client-credentials grants and external SSO are not enabled.
+
+Clients request the canonical `<BASE_URL>/mcp` resource and `xobject:read` or `xobject:write` (read/change) scopes. Optional `offline_access` enables rotating refresh tokens. Access tokens are opaque, hashed at rest and valid for 15 minutes; refresh tokens have seven-day validity with strict replay handling. This Bearer-only profile advertises no DPoP signing algorithms and rejects sender-constrained tokens. No session JWT or arbitrary third-party token is accepted. REST continues using personal access tokens; OAuth tokens are bound to MCP.
+
+The login/consent pages show the verified application identity, requested access and return address. Consent does not widen current business permissions. Every MCP request and application transaction rechecks token expiry/revocation, resource, scope, active user, first-password-change state, active client and attached session. Password changes and account deactivation revoke OAuth tokens. Session termination invalidates attached access. Issuance/refresh is serialized with application security mutations; token state changes are journaled atomically without tokens/hashes/codes/proofs.
+
+**Settings → Personal → Account & security → Authorized applications** lists current token/refresh/consent grants, including applications whose access token has expired but refresh/consent remains. Revoke removes your application's consent and revokes its access/refresh tokens. Authorization management requires an interactive session, including through the shared API/MCP operation names; delegated agents cannot grant themselves more access.
+
+Local SDK acceptance covers discovery, explicit consent, tampered-query rejection, PKCE code exchange, structured read/write, read-only restriction, resource mismatch, refresh, interactive-management denial, revocation and secret-free journals. Actual OpenAI host authorization/Skills activation remains separate acceptance.
+
+### Client compatibility and acceptance
+
+MCP connects a **client/host** to xObject. Model tool-use capability and client support for the negotiated MCP revision, transport and authentication are all required. Support for MCP by a vendor is not proof of tested xObject compatibility.
+
+| Client path | Documentation-supported connection | xObject acceptance status |
+| --- | --- | --- |
+| OpenAI Codex (local desktop/CLI/IDE path) | Streamable HTTP with configured Bearer or OAuth credentials. A local client can reach local xObject. | Primary planned V1 provider acceptance; not yet executed. |
+| OpenAI ChatGPT plugin/app path | MCP integration subject to account/workspace features, plugin setup, authentication and endpoint reachability. | Additional OpenAI coverage when available; not yet executed. |
+| OpenAI Responses API | Remote MCP with authorization; supported private connectivity can replace public exposure. The selected model must support the MCP tool. | Additional OpenAI coverage only with separately available API access; not yet executed. |
+| Anthropic Claude API MCP connector | Documented remote Streamable HTTP/tool-call path; supported features differ by client/product. | Documentation assessed only; untested, outside V1 provider acceptance. |
+| Google Gemini Interactions API | Documented remote Streamable HTTP tool path with optional request headers. | Documentation assessed only; untested, outside V1 provider acceptance. |
+| Other MCP clients and locally hosted models | A suitable MCP client can bridge a tool-capable model to the same endpoint. | No blanket compatibility claim; evaluate the concrete client/model combination later. |
+
+Documentation reviewed on 2026-11-05: [OpenAI client setup](https://developers.openai.com/codex/mcp), [OpenAI Responses MCP](https://developers.openai.com/api/docs/guides/tools-connectors-mcp), [Claude MCP connector](https://platform.claude.com/docs/en/agents-and-tools/mcp-connector), [Gemini remote MCP](https://aistudio.google.com/docs/function-calling#mcp). These are connection possibilities, not xObject test receipts. A subscription to an assistant does not establish API access, model availability or permission to use every integration feature. Record exact versions/models and supported capabilities when testing rather than maintaining an assumed universal model list.
+
+The pinned official server/client SDKs are 2.4.0. Local integration tests exercise MCP 2026-07-28 discovery, structured results, schema validation, permission-aware Skills and the SDK's 2025-11-25 stateless path. Standard HTTP OAuth discovery/authorization is implemented locally as described below; live provider acceptance remains open. [PRD section 9.2](PRD.md#92-mcp-interoperability-and-v1-acceptance) defines OpenAI-only provider acceptance; no live provider test has been recorded. SDK integration tests do not call a paid model.
+
+### Supplied skills
+
+The versioned [skill sources](../apps/server/src/skills/) provide the shared foundation, Contacts & Relations, Projects & Tasks and model-design workflows. The build includes their canonical `SKILL.md` files. They inspect current definitions/rights and use normal tools for work; they contain no installation-specific UUIDs.
+
+The official [MCP Skills Extension](https://skills.extensions.modelcontextprotocol.io/) declares `io.modelcontextprotocol/skills`, with `skills/list`, `skills/get` and file reads through resources. Foundation is available to authenticated application users. Module workflows require an active module and readable contributed objects in an accessible workspace. Model design requires a workspace Designer/Administrator role. Each discovery/read rechecks current context; denied and unlisted file URIs cannot be read directly. Resources are private with zero cache lifetime. The SDK client verifies file size/digest and frontmatter in local acceptance.
+
+Direct discovery/loading/activation with the available OpenAI client remains untested; readable resources do not establish native client skill support. An optional [OpenAI plugin package](agent-plugin.md) reuses these sources with an installation-specific MCP connection; its generator and portable manifests are locally verified. No client installation or directory submission has occurred. Other providers remain untested under the existing acceptance policy.
 
 ## Permanent deletion
 

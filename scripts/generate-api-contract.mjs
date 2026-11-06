@@ -27,7 +27,7 @@ function ref(value){
  }));
 }
 const definitions=Object.fromEntries(Object.entries(output.definitions??{}).map(([name,value])=>[names.get(name),ref(value)])),paths={};
-const management=new Set(['list_api_credentials','create_api_credential','revoke_api_credential','revoke_all_api_credentials','get_account_security','change_password','revoke_session','revoke_other_sessions']);
+const management=new Set(['list_oauth_authorizations','revoke_oauth_authorization','list_api_credentials','create_api_credential','revoke_api_credential','revoke_all_api_credentials','get_account_security','change_password','revoke_session','revoke_other_sessions']);
 for(const [name,input] of Object.entries(schemas)){
  if(!output.properties[name])throw Error(`Missing response contract for ${name}`);
  const request=z.toJSONSchema(input,{target:'draft-7',io:'input'});delete request.$schema;

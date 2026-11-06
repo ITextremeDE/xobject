@@ -1,3 +1,4 @@
+import {validateOAuthContext,manageOAuth} from './oauth.js';
 import {permanentlyDeleteRecord,deletedRecordIdentity,listDeletedRecords} from './record-deletion.js';
 import {ApiCredentials,credentialOperation,validateCredentialContext,type RequestContext} from './api-credentials.js';
 import {activityObjectKeys,isActivityObject} from './activity.js';
@@ -75,8 +76,10 @@ export class Application {
       return await this.db.transaction().execute(async (tx) => withContentAccess(tx,userId,async()=>{
         await lockOperation(tx, operation, parsed as Record<string, unknown>);
         await validateCredentialContext(tx,userId,operation,context);
-        await sql`SELECT set_config('xobject.channel',${context?.channel??'internal'},true),set_config('xobject.credential_id',${context?.credentialId??''},true),set_config('xobject.agent_name',${context?.agentName??''},true)`.execute(tx);
+        await validateOAuthContext(tx,userId,operation,context);
+        await sql`SELECT set_config('xobject.actor_id',${userId},true),set_config('xobject.channel',${context?.channel??'internal'},true),set_config('xobject.credential_id',${context?.credentialId??context?.oauthTokenId??''},true),set_config('xobject.agent_name',${context?.agentName??''},true)`.execute(tx);
         const access = await this.authorize(tx, operation, parsed as Record<string, unknown>, userId);
+        if(operation==='list_oauth_authorizations'||operation==='revoke_oauth_authorization'){const args=parsed as {clientId?:string};return manageOAuth(tx,operation,userId,context,args.clientId,before=>this.journal(tx,userId,null,null,'account_security',userId,v7(),'oauth_revoked',before,true));}
         if(credentialOperation(operation)){const change=v7();return this.apiCredentials.execute(tx,operation,parsed,userId,access.isAdmin,context,(id,key,before,after)=>this.journal(tx,userId,null,null,'api_credential',id,change,key,before,after));}
 
         if (isAccountSecurityOperation(operation)) return this.accountSecurity.execute(tx, operation, parsed, userId, context?.sessionId, (kind, id, change, key, before, after) => this.journal(tx, userId, null, null, kind, id, change, key, before, after));
@@ -327,7 +330,7 @@ export class Application {
     const user = (await sql<{ is_admin: boolean; active: boolean; must_change_password: boolean }>`SELECT is_admin, active, must_change_password FROM sys_users WHERE id = ${actor}`.execute(tx)).rows[0];
     if (!user || !user.active) throw new AppError(403, 'Access denied');
     if (user.must_change_password && !['get_account_security', 'change_password'].includes(operation)) throw new AppError(403, 'Password change required');
-    if (isAccountSecurityOperation(operation)||credentialOperation(operation)) return { isAdmin: user.is_admin };
+    if (isAccountSecurityOperation(operation)||credentialOperation(operation)||operation==='list_oauth_authorizations'||operation==='revoke_oauth_authorization') return { isAdmin: user.is_admin };
     const recycledRead=operation==='get_recycled_record'||operation==='restore_record'||operation==='permanently_delete_record'||(operation==='list_record_journal'&&(args.includeRecycled===true||args.includeDeleted===true));
     if(operation==='list_deleted_records'){if(!user.is_admin)throw new AppError(403,'Access denied');return {isAdmin:true};}
     if(operation==='list_record_journal'&&args.includeDeleted===true){const removed=await deletedRecordIdentity(tx,String(args.objectTypeId),String(args.recordId));if(removed?.deleted_at){if(!await contentAccess().historyReadable(String(args.objectTypeId),String(args.recordId)))throw new AppError(403,'Content access denied');return {isAdmin:user.is_admin};}}

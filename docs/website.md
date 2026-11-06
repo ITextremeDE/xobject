@@ -158,3 +158,7 @@ For read-only acceptance of the deployed build, run
 `SITE_TEST_URL=https://xobject.org/ npm test` from `apps/site`. With no URL,
 the same suite serves `dist/` under the production policy in an isolated local
 fixture. Both modes use a fresh browser context without personal sessions.
+
+## Canonical project pages
+
+The build generates `/changelog/` and `/roadmap/` from the root Markdown sources. Generated content is ignored; edit `CHANGELOG.md` and `ROADMAP.md`. These English pages use the shared site frame and explicit English document language. Project resources link documentation at `https://docs.xobject.org/`. Local build/QA is separate from public deployment; selected URLs require live verification after publication.

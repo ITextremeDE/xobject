@@ -24,4 +24,4 @@ Disposable PostgreSQL tests exercise User/Admin ownership, current-session prote
 
 ## Deferred identity setup and profile features
 
-The [PRD setup/profile plan](../PRD.md#planned-installation-setup-and-deferred-profile-features) records the agreed future interactive container command for the first Administrator and the verified email-change flow. Email changes depend on outgoing mail and remain unavailable. The profile-picture area currently shows initials and a disabled upload action; image loading/upload/storage remains deferred.
+The [PRD setup/profile plan](../PRD.md#installation-setup-and-deferred-profile-features) records the agreed future interactive container command for the first Administrator and the verified email-change flow. Email changes depend on outgoing mail and remain unavailable. The profile-picture area currently shows initials and a disabled upload action; image loading/upload/storage remains deferred.

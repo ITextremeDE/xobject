@@ -1,0 +1,35 @@
+import {execFileSync} from 'node:child_process';
+import {mkdir,readFile,writeFile,lstat,cp,readdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('../',import.meta.url));
+const args=process.argv.slice(2),get=name=>args[args.indexOf(name)+1];
+if(!args.includes('--output'))throw Error('Usage: node scripts/prepare-release.mjs --output NEW_DIRECTORY [--version SEMVER]');
+const output=path.resolve(get('--output')),version=args.includes('--version')?get('--version'):'0.0.0-unreleased';
+if(!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version))throw Error('Invalid candidate version');
+await mkdir(path.dirname(output),{recursive:true});await mkdir(output,{mode:0o700});
+const run=(command,argv,options={})=>execFileSync(command,argv,{cwd:root,encoding:'utf8',...options});
+const candidates=[...new Set(run('git',['ls-files','--cached','--others','--exclude-standard','-z']).split('\0').filter(Boolean))].sort();
+const excluded=/(^|\/)(?:\.git|\.local|node_modules|dist|\.astro)(?:\/|$)|(?:^|\/)\.env(?:$|\.)|\.(?:dump|backup|pem|key)$/;
+const files=[];
+for(const file of candidates){if(/(^|\/)(?:\.git|\.local|node_modules|dist|\.astro)(?:\/|$)/.test(file))continue;if(excluded.test(file)&&!['.env.example','deploy/selfhost.env.example'].includes(file))continue;if(file.includes('\n'))throw Error('Archive paths cannot contain newlines');let stat;try{stat=await lstat(path.join(root,file));}catch(e){if(e.code==='ENOENT')continue;throw e;}if(stat.isSymbolicLink())throw Error(`Review symlink before packaging: ${file}`);if(stat.isFile())files.push(file);}
+const source=await Promise.all(files.map(async file=>({path:file,sha256:createHash('sha256').update(await readFile(path.join(root,file))).digest('hex')})));
+const list=path.join(output,'source-files.txt');await writeFile(list,files.map(f=>`./${f}`).join('\n')+'\n');
+run('tar',['-czf',path.join(output,`xobject-${version}-source.tar.gz`),'-T',list]);
+const installer=path.join(output,'installer');await mkdir(installer);
+for(const file of ['scripts/xobject','deploy/compose.selfhost.yaml','deploy/Caddyfile','deploy/selfhost.env.example','docs/self-hosting.md','LICENSE','NOTICE']){await mkdir(path.dirname(path.join(installer,file)),{recursive:true});await cp(path.join(root,file),path.join(installer,file));}
+run('tar',['-czf',path.join(output,`xobject-${version}-selfhost.tar.gz`),'-C',installer,'.']);
+const docs=path.join(output,'documentation');
+run('npm',['run','build','--prefix','apps/docs'],{env:{...process.env,XOBJECT_DOCS_VERSION:version},stdio:'inherit'});
+await cp(path.join(root,'apps/docs/dist'),path.join(docs,'versions',version),{recursive:true});
+const rootEnv={...process.env};delete rootEnv.XOBJECT_DOCS_VERSION;
+run('npm',['run','build','--prefix','apps/docs'],{env:rootEnv,stdio:'inherit'});
+for(const entry of await readdir(path.join(root,'apps/docs/dist')))await cp(path.join(root,'apps/docs/dist',entry),path.join(docs,entry),{recursive:true});
+run('tar',['-czf',path.join(output,`xobject-${version}-documentation.tar.gz`),'-C',docs,'.']);
+run('npm',['run','build','--prefix','apps/site'],{stdio:'inherit'});
+run('tar',['-czf',path.join(output,`xobject-${version}-website.tar.gz`),'-C',path.join(root,'apps/site/dist'),'.']);
+await writeFile(path.join(output,'candidate.json'),JSON.stringify({status:'local unpublished candidate',version,baseCommit:run('git',['rev-parse','HEAD']).trim(),dirty:run('git',['status','--porcelain']).length>0,source,images:'Not included; build and retain the matching image separately. No registry publication performed.'},null,2)+'\n');
+const artifacts=(await readdir(output)).filter(f=>f.endsWith('.tar.gz')||f==='candidate.json').sort();
+await writeFile(path.join(output,'SHA256SUMS'),(await Promise.all(artifacts.map(async file=>`${createHash('sha256').update(await readFile(path.join(output,file))).digest('hex')}  ${file}`))).join('\n')+'\n');
+console.log(`Prepared ${artifacts.length} checksummed local artifacts. No tag, commit, upload or publication performed.`);

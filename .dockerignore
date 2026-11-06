@@ -1,0 +1,17 @@
+.git
+.local
+**/node_modules
+**/dist
+**/coverage
+.env
+.env.*
+**/*.env
+**/.env
+**/.env.*
+**/backups
+**/*.dump
+**/*.sql.gz
+**/.DS_Store
+apps/site
+
+apps/docs

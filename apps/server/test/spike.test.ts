@@ -1,16 +1,16 @@
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
-import { after, before, test } from 'node:test';
+import { after, before, beforeEach, test } from 'node:test';
 import { existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { createHash, randomUUID, randomBytes } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
 import { sql } from 'kysely';
 import { Client as PgClient } from 'pg';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { SkillsClient } from '@modelcontextprotocol/client/ext/skills';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildServer } from '../src/server.js';
 import { initializeDatabase } from '../src/database.js';
 import { createAuth } from '../src/auth.js';
@@ -132,9 +132,11 @@ before(async () => {
       return new Response(response.body || null, { status: response.statusCode, headers: response.headers as Record<string, string> });
     },
   });
-  client = new Client({ name: 'xobject-acceptance', version: '0.0.0' });
+  client = new Client({ name: 'xobject-acceptance', version: '0.0.0' }, {versionNegotiation:{mode:'auto'}});
   await client.connect(transport);
 }, { timeout: 180000 });
+
+beforeEach(async()=>{await sql`DELETE FROM sys_auth_rate_limits`.execute(runtime.db);});
 
 after(async () => {
   if (client) await client.close();
@@ -152,6 +154,25 @@ test('credentials and sessions are persisted in PostgreSQL; public signup stays 
     headers: { host: '127.0.0.1:4100', origin: baseURL },
     payload: { name: 'Unexpected user', email: 'stranger@example.test', password: 'test-password-stranger' } });
   assert.notEqual(response.statusCode, 200);
+});
+
+test('trusted client IPs bound database-backed login attempts across instances and HTTPS sessions carry secure headers/cookies',async()=>{
+  for(let i=0;i<11;i++){
+    const response=await runtime.app.inject({method:'POST',url:'/api/auth/sign-in/email',headers:{host:'127.0.0.1:4100',origin:baseURL,'x-forwarded-for':`192.0.2.${i+1}`,'x-xobject-client-ip':`198.51.100.${i+1}`},payload:{email:'unknown@example.test',password:'a-wrong-test-password'}});
+    assert.equal(response.statusCode,i<10?401:429,response.body);
+  }
+  const second=buildServer({databaseURL,authSecret:secret,baseURL});
+  try{
+    const denied=await second.app.inject({method:'POST',url:'/api/auth/sign-in/email',headers:{host:'127.0.0.1:4100',origin:baseURL},payload:{email:'admin@example.test',password:'test-password-administrator'}});
+    assert.equal(denied.statusCode,429);
+  }finally{await second.app.close();}
+  const secure=buildServer({databaseURL,authSecret:secret,baseURL:'https://secure.example'});
+  try{
+    const result=await secure.app.inject({method:'POST',url:'/api/auth/sign-in/email',remoteAddress:'192.0.2.51',headers:{host:'secure.example',origin:'https://secure.example'},payload:{email:'admin@example.test',password:'test-password-administrator'}});
+    assert.equal(result.statusCode,200,result.body);assert.ok(result.cookies.some(cookie=>cookie.secure&&cookie.httpOnly&&cookie.sameSite==='Lax'));
+    assert.equal(result.headers['x-frame-options'],'DENY');assert.match(String(result.headers['content-security-policy']),/frame-ancestors 'none'/);assert.equal(result.headers['referrer-policy'],'no-referrer');assert.match(String(result.headers['strict-transport-security']),/max-age=/);
+    const health=await secure.app.inject({method:'GET',url:'/healthz',headers:{host:'secure.example'}});assert.equal(health.statusCode,200);assert.deepEqual(health.json(),{status:'ok'});
+  }finally{await secure.app.close();}
 });
 
 test('API and real MCP share definitions, data, UUIDv7 identities and per-field journal', async () => {
@@ -183,6 +204,118 @@ test('API and real MCP share definitions, data, UUIDv7 identities and per-field 
   const invalid = await api('update_record', { objectTypeId: type.id, recordId: record.id, version: 2, values: { unknown: 'invalid' } });
   assert.equal(invalid.statusCode, 400);
   assert.equal((await journalEntries({ objectTypeId: type.id, recordId: record.id })).length, 4);
+});
+
+test('MCP 2026 discovery, typed results and Skills use current permissions without exposing unlisted files', async () => {
+  assert.equal(client.getNegotiatedProtocolVersion(), '2026-07-28');
+  assert.equal(client.getProtocolEra(), 'modern');
+  const tools = await client.listTools();
+  assert.equal(tools.tools.length, Object.keys(schemas).length);
+  for (const item of tools.tools) {
+    assert.ok(item.outputSchema, item.name);
+    assert.ok(item.description && !item.description.includes('API v1 operation:'), item.name);
+    assert.equal(item.annotations?.openWorldHint, false);
+  }
+  const listing = await client.callTool({name:'list_workspaces',arguments:{}});
+  assert.ok(Array.isArray(listing.structuredContent));
+  assert.deepEqual(listing.structuredContent, JSON.parse((listing.content as {text:string}[])[0].text));
+  const ws = await ok('create_workspace', {name:'Skills workspace',code:'skillscheck'});
+  const member = (await ok('list_users',{})).find((item:any) => item.email === 'user@example.test');
+  await ok('set_workspace_member',{workspaceId:ws.id,userId:member.id,role:'user',expectedRole:null});
+  let modules = await ok('list_workspace_modules',{workspaceId:ws.id});
+  for (const key of ['contacts','projects']) {
+    const module = modules.find((item:any) => item.key === key);
+    await ok('configure_workspace_module',{workspaceId:ws.id,key,enabled:true,version:module.version});
+  }
+  const skills = new SkillsClient(client);
+  assert.equal(skills.supported,true);
+  const catalog = await skills.list();
+  assert.equal(catalog.cacheScope,'private');
+  assert.equal(catalog.ttlMs,0);
+  assert.deepEqual(catalog.skills.map(item => item.frontmatter.name).sort(), ['xobject-contacts','xobject-foundation','xobject-model-design','xobject-projects']);
+  for (const item of catalog.skills) {
+    const file = await skills.read(item);
+    assert.equal(file.verified,true);
+    assert.ok(file.text?.includes('---'));
+    assert.equal((await skills.get(item.uri)).skill.uri,item.uri);
+  }
+  const ordinary = new Client({name:'Skills ordinary user',version:'1'}, {versionNegotiation:{mode:'auto'}});
+  await ordinary.connect(new StreamableHTTPClientTransport(new URL('/mcp',baseURL), {
+    requestInit:{headers:{cookie:userCookie,'x-xobject-request':'1'}},
+    fetch:async (url,init) => {
+      const req=new Request(url,init);
+      const response=await runtime.app.inject({method:req.method as 'POST',url:new URL(req.url).pathname,headers:{...Object.fromEntries(req.headers),host:'127.0.0.1:4100'},...(req.method==='POST'?{payload:await req.text()}:{})});
+      return new Response(response.body || null,{status:response.statusCode,headers:response.headers as HeadersInit});
+    },
+  }));
+  try {
+    const restricted = new SkillsClient(ordinary);
+    assert.deepEqual((await restricted.list()).skills.map(item => item.frontmatter.name),['xobject-foundation']);
+    const designer = catalog.skills.find(item => item.frontmatter.name === 'xobject-model-design')!;
+    await assert.rejects(() => restricted.get(designer.uri));
+    await assert.rejects(() => ordinary.readResource({uri:designer.uri}));
+    await assert.rejects(() => ordinary.readResource({uri:'skill://xobject-foundation/../../.env'}));
+    const objects = await ok('list_object_types',{workspaceId:ws.id});
+    for (const object of objects) {
+      const policy = await ok('get_content_permissions',{objectTypeId:object.id});
+      await ok('configure_content_permissions',{...policy,grants:[{kind:'user',id:member.id,level:'read',fields:{}}]});
+    }
+    assert.deepEqual((await restricted.list()).skills.map(item => item.frontmatter.name).sort(),['xobject-contacts','xobject-foundation','xobject-projects']);
+    await ok('set_workspace_member',{workspaceId:ws.id,userId:member.id,role:null,expectedRole:'user'});
+    assert.deepEqual((await restricted.list()).skills.map(item => item.frontmatter.name),['xobject-foundation']);
+  } finally { await ordinary.close(); }
+});
+
+test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, refresh and revocation share application rights',async()=>{
+  const headers={host:'127.0.0.1:4100',cookie:adminCookie,'x-xobject-request':'1',origin:baseURL};
+  const resource=`${baseURL}/mcp`;
+  const metadata=await runtime.app.inject({method:'GET',url:'/.well-known/oauth-protected-resource/mcp',headers:{host:headers.host}});
+  assert.equal(metadata.statusCode,200,metadata.body);assert.equal(metadata.json().resource,resource);
+  const discovery=await runtime.app.inject({method:'GET',url:'/.well-known/oauth-authorization-server/api/auth',headers:{host:headers.host}});
+  assert.equal(discovery.statusCode,200,discovery.body);assert.equal(discovery.json().client_id_metadata_document_supported,true);assert.ok(!discovery.json().registration_endpoint);
+  const unauthorized=await runtime.app.inject({method:'POST',url:'/mcp',headers:{host:headers.host},payload:{}});
+  assert.equal(unauthorized.statusCode,401);assert.match(String(unauthorized.headers['www-authenticate']),/resource_metadata/);
+  const registered=await runtime.auth.api.createOAuthClient({headers:new Headers({cookie:adminCookie}),body:{client_name:'Local acceptance client',redirect_uris:['http://127.0.0.1:49152/callback'],token_endpoint_auth_method:'none',application_type:'native',grant_types:['authorization_code','refresh_token'],scope:'xobject:read xobject:write offline_access'}});
+  const clientId=registered.client_id;
+  const verifier=randomBytes(32).toString('base64url'),challenge=createHash('sha256').update(verifier).digest('base64url');
+  const query=new URLSearchParams({client_id:clientId,redirect_uri:'http://127.0.0.1:49152/callback',response_type:'code',scope:'xobject:read xobject:write offline_access',resource,code_challenge:challenge,code_challenge_method:'S256',state:'acceptance-state'});
+  const authorize=await runtime.app.inject({method:'GET',url:`/api/auth/oauth2/authorize?${query}`,headers});
+  assert.equal(authorize.statusCode,302,authorize.body);
+  const consentUrl=new URL(String(authorize.headers.location),baseURL);assert.equal(consentUrl.pathname,'/oauth/consent');
+  const context=await runtime.app.inject({method:'POST',url:'/api/oauth/consent-context',headers,payload:{query:consentUrl.search.slice(1)}});
+  assert.equal(context.statusCode,200,context.body);assert.equal(context.json().name,'Local acceptance client');
+  assert.equal((await runtime.app.inject({method:'POST',url:'/api/oauth/consent-context',headers,payload:{query:consentUrl.search.slice(1)+'&scope=changed'}})).statusCode,400);
+  const consent=await runtime.app.inject({method:'POST',url:'/api/auth/oauth2/consent',headers,payload:{accept:true,oauth_query:consentUrl.search.slice(1)}});
+  assert.equal(consent.statusCode,200,consent.body);
+  const callback=new URL(consent.json().url);assert.equal(callback.searchParams.get('state'),'acceptance-state');
+  const code=callback.searchParams.get('code')!;
+  const tokenCall=(body:Record<string,string>)=>runtime.app.inject({method:'POST',url:'/api/auth/oauth2/token',headers:{host:headers.host,'content-type':'application/x-www-form-urlencoded'},payload:new URLSearchParams(body).toString()});
+  const token=await tokenCall({grant_type:'authorization_code',client_id:clientId,redirect_uri:'http://127.0.0.1:49152/callback',code,code_verifier:verifier,resource});
+  assert.equal(token.statusCode,200,token.body);const issued=token.json();assert.ok(issued.access_token);assert.ok(issued.refresh_token);assert.equal(issued.token_type,'Bearer');
+  const external=new Client({name:'OAuth SDK acceptance',version:'1'},{versionNegotiation:{mode:'auto'}});
+  await external.connect(new StreamableHTTPClientTransport(new URL('/mcp',baseURL),{requestInit:{headers:{authorization:`Bearer ${issued.access_token}`}},fetch:async(url,init)=>{const req=new Request(url,init),response=await runtime.app.inject({method:req.method as 'POST',url:new URL(req.url).pathname,headers:{...Object.fromEntries(req.headers),host:headers.host},...(req.method==='POST'?{payload:await req.text()}:{})});return new Response(response.body||null,{status:response.statusCode,headers:response.headers as HeadersInit});}}));
+  try{
+    assert.equal(external.getNegotiatedProtocolVersion(),'2026-07-28');
+    assert.ok(!(await external.callTool({name:'list_workspaces',arguments:{}})).isError);
+    const write=await external.callTool({name:'create_workspace',arguments:{name:'OAuth workspace',code:'oauthscope'}});assert.ok(!write.isError,JSON.stringify(write));
+    const events=await ok('list_system_journal',{limit:100});assert.ok(events.entries.some((entry:any)=>entry.access_channel==='mcp'&&entry.agent_name==='Local acceptance client'&&entry.actor_id===adminId));
+    const applications=await ok('list_oauth_authorizations',{});assert.ok(applications.some((app:any)=>app.clientId===clientId));
+    const tokenId=(await sql<{id:string}>`SELECT id FROM sys_oauth_access_token WHERE token=${createHash('sha256').update(issued.access_token).digest('hex')}`.execute(runtime.db)).rows[0].id;
+    await sql`UPDATE sys_oauth_access_token SET scopes='["xobject:read"]'::jsonb WHERE id=${tokenId}`.execute(runtime.db);
+    assert.equal((await external.callTool({name:'create_workspace',arguments:{name:'Denied',code:'oauthdenied'}})).isError,true);
+    assert.ok(!(await external.callTool({name:'list_workspaces',arguments:{}})).isError);
+    await sql`UPDATE sys_oauth_access_token SET resources='["https://other.example/mcp"]'::jsonb WHERE id=${tokenId}`.execute(runtime.db);
+    await assert.rejects(()=>external.callTool({name:'list_workspaces',arguments:{}}));
+    await sql`UPDATE sys_oauth_access_token SET resources=${JSON.stringify([resource])}::jsonb,scopes='["xobject:read","xobject:write","offline_access"]'::jsonb WHERE id=${tokenId}`.execute(runtime.db);
+    assert.equal((await external.callTool({name:'list_oauth_authorizations',arguments:{}})).isError,true);
+    const refreshed=await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:issued.refresh_token,resource});assert.equal(refreshed.statusCode,200,refreshed.body);
+    await ok('revoke_oauth_authorization',{clientId});
+    await assert.rejects(()=>external.callTool({name:'list_workspaces',arguments:{}}));
+    assert.notEqual((await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:refreshed.json().refresh_token,resource})).statusCode,200);
+    assert.ok(!(await ok('list_oauth_authorizations',{})).some((app:any)=>app.clientId===clientId));
+    const history=(await sql<{old_value:unknown;new_value:unknown}>`SELECT old_value,new_value FROM sys_journal WHERE entity_kind='oauth_credential'`.execute(runtime.db)).rows;
+    assert.ok(history.length>=4);assert.ok(!JSON.stringify(history).includes(issued.access_token));assert.ok(!JSON.stringify(history).includes(issued.refresh_token));
+  }finally{await external.close();}
 });
 
 test('names are validated and same object names in different workspaces remain separate', async () => {
@@ -218,7 +351,10 @@ test('unauthenticated, non-admin, forged and cross-origin requests cannot mutate
   const deniedMcp = await runtime.app.inject({ method: 'POST', url: '/mcp',
     headers: { host: '127.0.0.1:4100', cookie: userCookie, 'x-xobject-request': '1', accept: 'application/json, text/event-stream' },
     payload: { jsonrpc: '2.0', id: 19, method: 'tools/call', params: { name: 'create_workspace', arguments: { name: 'Denied', code: 'denied' } } } });
-  assert.equal(deniedMcp.json().result.isError, true);
+  const deniedBody = deniedMcp.headers['content-type']?.includes('text/event-stream')
+    ? JSON.parse(deniedMcp.body.split('\n').find(line => line.startsWith('data: '))!.slice(6))
+    : deniedMcp.json();
+  assert.equal(deniedBody.result.isError, true);
 });
 
 test('journal failure rolls back record writes and schema/metadata changes', async () => {
@@ -266,13 +402,22 @@ test('concurrent edits cannot silently overwrite each other', async () => {
   assert.equal(journal.length, 2);
 });
 
-test('the local administrator CLI provisions a database account that can sign in', async () => {
-  await exec(process.execPath, ['--import', 'tsx', 'src/cli.ts', 'create-admin'], {
-    env: { ...process.env, DATABASE_URL: databaseURL, BETTER_AUTH_SECRET: secret, BASE_URL: baseURL,
-      ADMIN_EMAIL: 'cli@example.test', ADMIN_NAME: 'CLI Administrator', ADMIN_PASSWORD: 'test-password-local-cli' },
-  });
-  const cookie = await login('cli@example.test', 'test-password-local-cli');
-  assert.equal((await api('list_workspaces', {}, cookie)).statusCode, 200);
+test('first-Administrator CLI provisions an empty installation once and signs in without exposing credentials', async () => {
+  const name=`xobject_setup_${randomUUID().replaceAll('-','')}`,url=new URL(databaseURL);url.pathname=`/${name}`;
+  await sql`CREATE DATABASE ${sql.id(name)}`.execute(runtime.db);
+  let instance:ReturnType<typeof buildServer>|undefined;
+  try{
+    await initializeDatabase(url.href,secret,baseURL);
+    const args=['--import','tsx',new URL('../src/cli.ts',import.meta.url).pathname,'create-admin'];
+    const env={...process.env,DATABASE_URL:url.href,BETTER_AUTH_SECRET:secret,BASE_URL:baseURL,ADMIN_EMAIL:'cli@example.test',ADMIN_NAME:'CLI Administrator',ADMIN_PASSWORD:'test-password-local-cli'};
+    const created=await exec(process.execPath,args,{env});assert.ok(!created.stdout.includes(env.ADMIN_PASSWORD));
+    await assert.rejects(()=>exec(process.execPath,args,{env}),/already complete/);
+    instance=buildServer({databaseURL:url.href,authSecret:secret,baseURL});
+    const signedIn=await instance.app.inject({method:'POST',url:'/api/auth/sign-in/email',headers:{host:'127.0.0.1:4100',origin:baseURL},payload:{email:env.ADMIN_EMAIL,password:env.ADMIN_PASSWORD}});
+    assert.equal(signedIn.statusCode,200,signedIn.body);
+    const user=(await sql<{is_admin:boolean;must_change_password:boolean}>`SELECT is_admin,must_change_password FROM sys_users`.execute(instance.db)).rows[0];assert.equal(user.is_admin,true);assert.equal(user.must_change_password,false);
+    assert.equal((await sql`SELECT 1 FROM sys_journal WHERE entity_kind='user' AND field_key='created'`.execute(instance.db)).rows.length,1);
+  }finally{await instance?.app.close();await sql`DROP DATABASE ${sql.id(name)} WITH (FORCE)`.execute(runtime.db);}
 });
 
 test('sign-out revokes the session for API and MCP', async () => {
@@ -901,7 +1046,10 @@ test('instance Administrators assign workspace roles; users read settings and De
   const userRequest = (operation: Operation, payload: unknown) => api(operation, payload, userCookie);
   async function userTool(operation: Operation, args: unknown) {
     const response = await runtime.app.inject({ method: 'POST', url: '/mcp', headers: { host: '127.0.0.1:4100', cookie: userCookie, 'x-xobject-request': '1', accept: 'application/json, text/event-stream' }, payload: { jsonrpc: '2.0', id: 913, method: 'tools/call', params: { name: operation, arguments: args } } });
-    assert.equal(response.statusCode, 200, response.body); return response.json().result;
+    assert.equal(response.statusCode, 200, response.body);
+    const envelope = response.headers['content-type']?.includes('text/event-stream')
+      ? JSON.parse(response.body.split('\n').find(line => line.startsWith('data: '))!.slice(6)) : response.json();
+    return envelope.result;
   }
   assert.equal((await userRequest('get_object_type', { objectTypeId: type.id })).statusCode, 403);
   await tool('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });

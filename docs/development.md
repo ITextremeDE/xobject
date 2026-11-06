@@ -72,7 +72,7 @@ Base Contacts activation creates Contacts and Distribution lists with protected 
 
 Sign in through JSON `POST /api/auth/sign-in/email` with `email` and `password` and preserve the session cookie. Auth also exposes the supported session lookup/sign-out routes. Generic auth profile/account mutations cannot bypass the application layer. Every application operation is a JSON `POST /api/v1/<operation>` and an identically named MCP tool at `/mcp`.
 
-Send `Content-Type: application/json`, the current session cookie and `X-XObject-Request: 1`. MCP uses stateless Streamable HTTP POST with JSON responses; GET/DELETE return 405. Cookie transport is a local evaluation mechanism, not production OAuth/token issuance. An agent cannot submit a different user identity to impersonate another account.
+Send `Content-Type: application/json`, the current session cookie and `X-XObject-Request: 1`. MCP uses stateless Streamable HTTP POST with SDK-managed JSON/SSE responses; GET/DELETE return 405. Cookie transport is a local evaluation mechanism; external clients use personal Bearer credentials or the OAuth flow in the API guide. An agent cannot submit a different user identity to impersonate another account.
 
 The canonical input schemas, defaults, limits, wire types and output mappings live in [shared contracts](../packages/contracts/src/index.ts). The following inventory groups the current operations; it does not duplicate their schemas:
 
@@ -517,3 +517,47 @@ Chrome verified the ten-row expanded Project tree, complete collapse, roving key
 The source/documentation review reconciled the PRD, ADRs 0020/0027, API guide, roadmap, changelog and agent guidance with the delivered behavior. Changelog entries retain consistent category spacing and consecutive bullets. A duplicate draft now also remounts when its source identity changes, including already cached preparations; 123 web tests and the web build passed again after this narrow correction. Six applicable backend scenarios, prior root type checking, application builds and the recorded responsive/browser evidence were reused. The generated independent API 1.0.0 contract covers 81 operations; application packages remain 0.0.0 / Unreleased. Documentation validation covers 46 Markdown files, 263 relative links/anchors, 48 requirement IDs and 34 ADRs.
 
 The local server responds with HTTP 200 and the development database remains healthy. Application builds/dependencies, private runtime evidence and verified recovery dumps are required retained resources. The older isolated test container still has its anonymous PostgreSQL volume and no ownership labels; it remains possibly orphaned and was preserved. This review performed no cleanup, service restart or database reset. Both configured remote main refs still match the previous closeout; this new block is locally prepared for three reviewed commit groups and an external planning/PR/CI closeout. No release or production deployment is part of this block.
+
+### MCP protocol and Skills local acceptance
+
+The official server/client SDKs 2.4.0 are pinned. The acceptance client explicitly uses automatic version discovery; it negotiates 2026-07-28 and validates typed structured output against the generated REST schemas. Additional clients exercise the SDK-managed 2025-11-25 stateless path. No hand-written protocol translation is maintained. Dates are serialized like REST before output validation.
+
+On 2026-11-05, the affected backend run exercised 161 tests: 160 passed initially; the remaining raw-transport test assumed JSON instead of the SDK's valid legacy SSE response. Its corrected assertion and the new protocol/Skills scenario both passed in a focused rerun. Server build, root type checking and contract freshness passed. Skills acceptance checks declared capability, private zero-lifetime catalogs, verified content digests, module/read/role filtering, direct-read/traversal denial and current membership removal. Local test containers were disposable; the development database and private recovery artifacts were preserved.
+
+This proves SDK/application integration, not OpenAI model use, native OpenAI Skills activation, OAuth authorization or a public installation. Those remain separately recorded acceptance boundaries in the API guide.
+
+### OAuth authorization local acceptance
+
+On 2026-11-05, 162 backend tests passed after integrating Better Auth 1.7.18 MCP/OAuth/CIMD. The generated API 1.0.0 contract now covers 83 named application operations, including interactive-only OAuth application inspection/revocation. Focused OAuth/current-password/personal-token scenarios also passed. Server/web builds, root type checking, contract freshness and 123 web tests passed.
+
+The OAuth scenario exercises protected-resource/authorization-server discovery, no anonymous DCR advertisement, PKCE, signed consent and tampered-query rejection, opaque resource-bound tokens, modern SDK reads/writes, trusted journal provenance, scope/resource rejection, blocked delegated authorization management, refresh, revocation and secret-free token history. Provider token writes share the global model barrier with application security changes; token-state database triggers journal in the same statement transaction.
+
+An isolated Playwright Chromium 1.62.1 run exercised login, consent, callback, code exchange and account application revocation at desktop/mobile sizes (1440×1000 and 390×844). It reported no JavaScript/console errors or horizontal page overflow. Browser plugin was unavailable, so the existing project Playwright installation was used; the development database and Chrome session were untouched. Screenshots and detailed receipts are private local artifacts. Live OpenAI host authorization/Skills activation remains untested.
+
+### Installation and recovery local acceptance
+
+The Node 24 Linux/ARM64 image passed `scripts/test-selfhost.mjs` on 2026-11-05: atomic empty installation, one-time Administrator, limited runtime writes, security headers, consistent record/version/journal backup/restore, stopped restore, current-target upgrade, unknown-source refusal with the app stopped and subsequent recovery. Its random Compose project was removed; private checksummed backups and receipts were retained. Public TLS/ACME, an external host and registry publication were not performed. The [self-hosting guide](self-hosting.md) owns current operator commands.
+
+Focused first-Administrator and session tests passed. They prove persistent cross-instance login limits despite spoofed client-IP headers, secure HTTPS cookies/headers and auth-only database pool shutdown. The initial run exposed a lazy unused application-pool close bug; explicit pool closure removed asynchronous test activity. The current initializer executes the official auth schema and application schema/catalog in one transaction. No migration path for a nonexistent released predecessor is fabricated.
+
+### Public documentation local acceptance
+
+The independent Astro 7.4.7/Starlight 0.42.9 source built 53 pages from canonical Markdown on 2026-11-05. Root and `/versions/0.0.0-unreleased/` builds passed local HTML link/asset/anchor validation; source-hash tests and Astro checks passed. An isolated Chromium 1.62.1 run covered six representative routes at desktop/mobile sizes, Pagefind search/results and Escape closing, with no console errors or root horizontal overflow. The user-guide page had no serious/critical axe violations at either viewport after a narrow standard-Search accessible-name correction. This is scoped automated accessibility evidence, not a whole-product WCAG conformance certification. No docs host, DNS or Caddy deployment was changed.
+
+### 2026-11-05 — Permission/query measurement and packaging
+
+The [quality profile](quality-acceptance.md) meets all seven predeclared p95 targets after transaction-local explanation memoization and indexed incident-edge loading. All 163 backend tests pass. The [optional plugin](agent-plugin.md) preserves four canonical skill files, rejects unsafe endpoints/overwrites and validates against official portable schemas. No provider activation or publication is implied. The [release procedure](releasing.md) separates local preparation from external publication.
+
+### 2026-11-06 — Final browser and delivery checks
+
+The current development installation was rebuilt from the current schema and canonical demo after a verified private database backup. The existing Administrator credential and the additional user-created Access check were retained; its recreated identity is recorded privately. Installation integrity passes. The final browser pass covers 42 object-list, record, mobile and Settings checks without console errors or horizontal overflow, and no serious/critical axe findings in the tested Settings sections. OAuth now also passes authorization without a session, sign-in with signed OAuth context, resumed consent, code exchange and application revocation. The early theme script is external for the strict CSP; scroll focus and profile-initial contrast are corrected.
+
+Root type checking/build, 163 backend regressions, three additional focused authentication checks, 123 web tests, plugin packaging and documentation-source checks pass. Production-dependency audit reports zero known vulnerabilities. Canonical product-site Changelog/Roadmap pages pass desktop/mobile accessibility and production-CSP browser checks. Authentication vendor diagnostics omit raw messages/arguments. None of these checks publishes a release, connects an actual OpenAI model or establishes whole-product assistive-technology certification.
+
+Final Node.js 24 container recovery acceptance passes again on ARM64 and with the AMD64 application/operator under emulation (native PostgreSQL 18 on the ARM64 Docker host). Local source, installer, current/versioned documentation and product-site artifacts have SHA-256 manifests. These are unpublished dirty-working-tree candidates; native external-host/public TLS and actual OpenAI host/model acceptance remain gates. Each completed work block has a private local closeout receipt; no OpenProject write, Git publication or deployment was performed.
+
+Caddy loopback-HTTPS acceptance now also passes against the supplied Compose topology, with a test-local CA and no public listeners, ACME or host trust-store changes. It exposed and fixed a dynamic/fixed backend IP collision; the proxy address now stays outside the dynamic pool. Secure cookies, Host, spoofed client-IP replacement, Origin rejection and HTTPS OAuth discovery are verified. The separate recovery/proxy test commands run sequentially against the documented default subnet.
+
+### 2026-11-06 — Native Linux CI portability
+
+The first native Ubuntu container check exposed use of `compose start --wait`, which is absent from the runner’s documented Compose 2.38.2. Backup resumption now uses the supported `up -d --wait --no-recreate` operation, retaining the existing container. CI records its Compose version and failures expose only bounded operator diagnostics. The PR checks must pass on the corrected head before merge.

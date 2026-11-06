@@ -69,7 +69,7 @@ test("header controls match ITx and remain usable under production CSP", async (
       );
       const file = resolve(
         root,
-        "." + (pathname === "/" ? "/index.html" : pathname),
+        "." + (pathname.endsWith("/") ? pathname + "index.html" : pathname),
       );
       if (!file.startsWith(root + "/")) throw Error("outside fixture");
       const body = await readFile(file);
@@ -271,6 +271,17 @@ test("header controls match ITx and remain usable under production CSP", async (
       .all())
       if (await button.isVisible())
         assert((await button.boundingBox()).height >= 44, "COS target height");
+    for (const destination of ['changelog','roadmap']) {
+      for (const width of [1440,390]) {
+        await page.setViewportSize({width,height:1000});
+        await page.goto(new URL(destination+'/',url).href);
+        await expect(page.locator('html')).toHaveAttribute('lang','en');
+        await expect(page.getByRole('heading',{level:1})).toHaveText(destination==='changelog'?'Changelog':'Roadmap');
+        assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+        await accessible(page);
+      }
+      await screenshot(page,`xobject-${destination}-mobile.png`);
+    }
     assert.deepEqual(failures, []);
   } finally {
     await browser.close();

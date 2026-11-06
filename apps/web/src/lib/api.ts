@@ -22,5 +22,5 @@ export function api<K extends Operation>(operation: K, input: Inputs[K]): Promis
   return request(`/api/v1/${operation}`, input);
 }
 export const getSession = () => request<{ user: AuthUser } | null>('/api/auth/get-session');
-export const signIn = (email: string, password: string) => request('/api/auth/sign-in/email', { email, password });
+export const signIn = (email: string, password: string) => request<{url?:string}>('/api/auth/sign-in/email', { email, password, ...(window.location.pathname==='/oauth/login'?{oauth_query:window.location.search.slice(1)}:{}) });
 export const signOut = () => request('/api/auth/sign-out', {});

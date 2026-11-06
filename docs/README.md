@@ -6,6 +6,8 @@ The [domain-profile appendix](domain-profiles.md) owns detailed proposed startin
 
 The root [changelog](../CHANGELOG.md) records notable source changes; the [roadmap](../ROADMAP.md) is a curated product overview. OpenProject owns detailed work, priorities and publication evidence. Release or deployment status must not be inferred from a local ADR or passing source build.
 
+[Using xObject](user-guide.md) introduces the current UI workflows. [Self-hosting and recovery](self-hosting.md) owns installation/maintenance commands. [Public documentation](public-documentation.md) describes the generated Starlight source and checks.
+
 [API and MCP access](api.md) describes user-owned tokens, management, transport/version/error contracts, the typed client and retained-history access.
 
 ## Architecture decisions
@@ -48,9 +50,14 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: nine typed contact codecs and locally accepted Contacts/Distribution lists; relationship attributes and both-endpoint rights/history implemented; shared temporal codec and lean Projects/Cases/Tasks templates implemented; calendar parties and sparse exceptions pending. |
 | [0033](adr/0033-configurable-workspace-navigation.md) | Configurable navigation | Module sections, repeated object entries, Contact filters, shared defaults/personal layouts and optional Resources; versioned API/MCP persistence. |
 | [0034](adr/0034-user-bound-api-mcp-access.md) | User-bound API/MCP access | One-time tokens, current-rights enforcement, scopes/expiry/revocation, audit provenance and generated OpenAPI/typed client. |
+| [0035](adr/0035-container-delivery-and-maintenance.md) | Container delivery and maintenance | Local Linux container candidate, atomic first setup, verified backup/restore and fail-closed upgrade direction. |
 
 ## Ownership of repeated information
 
-Requirements and permission precedence belong in the PRD, concrete implemented architecture in the applicable ADR, operation schemas/types in [shared contracts](../packages/contracts/src/index.ts), and operator commands in the development/website guides. Summaries should link those authorities rather than introduce competing rules. Tests and their code are evidence for behavior; source changes are not proof of a production release.
+Requirements and permission precedence belong in the PRD, concrete implemented architecture in the applicable ADR, operation schemas/types in [shared contracts](../packages/contracts/src/index.ts), and operator commands in the [self-hosting](self-hosting.md), development and website guides. Summaries should link those authorities rather than introduce competing rules. Tests and their code are evidence for behavior; source changes are not proof of a production release.
 
 The full application, including Premium code, remains `AGPL-3.0-only`; [licensing](../README.md#licensing-and-commercial-model) and [LICENSE](../LICENSE) govern that statement. Planned documents, release images, email/upload facilities and hosted/native clients must not be presented as already delivered.
+
+- [Local quality acceptance](quality-acceptance.md): measured profile, targets, accessibility and remaining release gates.
+- [Optional agent plugin](agent-plugin.md): canonical workflows, packaging and actual-client acceptance.
+- [Releasing](releasing.md): local artifacts, publication gates and recovery.
