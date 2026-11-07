@@ -8,8 +8,8 @@ The project is in early development. These entries describe source changes, incl
 
 ### Added
 
+- Extend isolated product acceptance to selectable Chromium/Firefox/WebKit engines, automated WCAG checks, every settings section in Light/Dark and all five V1 objects with ordinary-user edits, duplicate/recycle/restore and Primary/Journal/Dossier/Tree readback. Use disposable current installations with normal role onboarding, draft/filter/focus/mobile coverage and bounded failure artifacts. Prepare a Firefox CI job; distinguish engine, operating-system and real screenreader acceptance.
 - Isolated tree/journal/principal-selection benchmark with fixed targets, cookie/personal-token/OAuth comparisons and observed model/workspace barriers.
-- Reproducible Chromium application regression with isolated current-installation fixtures, normal User/Designer onboarding, permission-aware views, drafts, classification filters, theme/portal switching, keyboard focus and mobile layouts; add a dedicated CI job with bounded failure-artifact retention.
 - Shared Type/Status/Category list filters through web/API/MCP, with OR/AND semantics, explicit empty values, Category tree matching, URL state and field-aware counts/paging.
 - Shared URL-field action opens valid HTTP(S) links in a new tab, including Contact website entries and readable fields without edit rights; empty/invalid values remain non-actionable.
 - General Selection tree fields and tree Category mode with same-dictionary parent UUIDs, automatic ancestor selection, descendant deselection and shared API/MCP validation. Preserve safe conversions and update existing selections with atomic per-field journals when a hierarchy changes. Multiple/tree selections use one searchable list/tree dialog with keyboard controls; demo workspaces show all Category modes and independent custom trees.
@@ -133,6 +133,8 @@ The project is in early development. These entries describe source changes, incl
 
 ### Fixed
 
+- Reserve the Primary-association section before Classification in fresh supplied module templates without rebuilding authored forms when Projects activates; correct the documented Task Priority placement.
+- Correct accessible shell labels, native-search ARIA and record-tree naming; use readable semantic text for muted keyboard hints/avatar initials, destructive feedback and larger sidebar action targets. Preserve HTTP throttling status for non-JSON failures and show a localized retry-later message.
 - Bound Primary-tree reads to the requested branch and reuse the administrative ceiling for Access-principals eligibility; preserve visibility, locale sorting, paging and lifecycle semantics while meeting all three scoped path targets.
 - Revalidate interactive sessions inside business transactions after lock acquisition, using wall-clock expiry and shared session-row locks; queued revoked/expired requests cannot commit changes.
 - Keep pre-restore configurations in private recovery storage and exclude generated environment files from Git, Docker contexts and commit-bound source archives; verify artifact contents using synthetic-secret regressions.
