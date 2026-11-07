@@ -4554,3 +4554,22 @@ test('relationship tree defensive traversal retains the ancestor cap, cycle reje
   await assert.rejects(read(ids[0]),/Invalid Primary hierarchy/);
  });
 });
+
+test('fresh supplied forms reserve Primary before Classification and preserve authored layouts when Projects activates',async()=>{
+ const ws=await ok('create_workspace',{name:'Fresh form acceptance',code:'freshformsqa'});
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+ let contact=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');
+ contact=await ok('get_object_type',{objectTypeId:contact.id});
+ assert.ok(contact.formLayouts.default.groups.some((g:any)=>g.fields.some((e:any)=>e.primary)));
+ const authored={groups:[{id:'authored',labels:{en:'Authored position'},fields:[{primary:true,width:'full',visible:true}]}]};
+ await ok('configure_form_layout',{objectTypeId:contact.id,version:contact.version,layout:authored});
+ const projects=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');
+ await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:projects.version});
+ assert.deepEqual((await ok('get_object_type',{objectTypeId:contact.id})).formLayouts.default,authored);
+ for(const model of (await ok('list_object_types',{workspaceId:ws.id})).filter((o:any)=>['projects','cases','tasks','distribution_lists'].includes(o.technicalName))){
+  const definition=await ok('get_object_type',{objectTypeId:model.id}),groups=definition.formLayouts.default.groups;
+  const primary=groups.findIndex((g:any)=>g.fields.some((e:any)=>e.primary));
+  const classification=groups.findIndex((g:any)=>g.fields.some((e:any)=>definition.fields.some((f:any)=>f.id===e.fieldId&&f.technicalName==='type')));
+  assert.ok(primary>=0&&primary<classification,model.technicalName);
+ }
+});
