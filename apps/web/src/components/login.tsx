@@ -23,7 +23,7 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
       <CardContent>
         <form data-shortcut-submit id="login" onSubmit={event => { event.preventDefault(); if (mutation.isPending) return; const data = new FormData(event.currentTarget); mutation.mutate({ email: String(data.get('email')), password: String(data.get('password')) }); }}>
           <FieldGroup>
-            {mutation.isError ? <Alert variant="destructive"><AlertDescription>{t(mutation.error instanceof ApiError && mutation.error.status === 401 ? 'loginFailed' : 'networkError')}</AlertDescription></Alert> : null}
+            {mutation.isError ? <Alert variant="destructive"><AlertDescription>{t(mutation.error instanceof ApiError ? mutation.error.status === 401 ? 'loginFailed' : mutation.error.status === 429 ? 'rateLimited' : 'networkError' : 'networkError')}</AlertDescription></Alert> : null}
             <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="email">{t('email')}</FieldLabel><Input autoFocus id="email" name="email" type="email" autoComplete="username" required disabled={mutation.isPending} /></Field>
             <Field data-disabled={mutation.isPending || undefined}><FieldLabel htmlFor="password">{t('password')}</FieldLabel><Input id="password" name="password" type="password" autoComplete="current-password" required disabled={mutation.isPending} /></Field>
           </FieldGroup>
