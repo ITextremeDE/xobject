@@ -10,7 +10,8 @@ async function request<T>(url: string, body?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', 'X-XObject-Request': '1' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const result = await response.json();
+  let result;
+  try { result = await response.json(); } catch (error) { if(response.ok)throw error; result={}; }
   if (!response.ok) {
     if (response.status === 401 && url.startsWith('/api/v1/')) window.dispatchEvent(new Event('xobject:session-expired'));
     throw new ApiError(response.status, result.error || result.message || 'Request failed',result.details);

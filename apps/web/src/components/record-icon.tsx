@@ -6,5 +6,5 @@ export const recordIcons:Record<RecordIconKey,LucideIcon>={object:DatabaseIcon,c
 export function RecordIcon({iconKey='object',objectLabel}:{iconKey?:RecordIconKey;objectLabel?:string}){
  const {t}=useTranslation(),Icon=recordIcons[iconKey]??DatabaseIcon;
  const label=['organization','person','individual'].includes(iconKey)?t(`contactKind_${iconKey}`):objectLabel||t(`recordIcon_${iconKey}`);
- return <Tooltip><TooltipTrigger render={<span/>} className="inline-flex shrink-0 items-center text-muted-foreground" aria-label={label} data-record-icon={iconKey}><Icon className="size-4" aria-hidden="true"/></TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
+ return <Tooltip><TooltipTrigger render={<span role="img"/>} className="inline-flex shrink-0 items-center text-muted-foreground" aria-label={label} data-record-icon={iconKey}><Icon className="size-4" aria-hidden="true"/></TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
 }

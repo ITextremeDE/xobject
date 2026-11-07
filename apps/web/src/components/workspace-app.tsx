@@ -180,7 +180,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
     <Sidebar collapsible="icon" variant="inset" mobileTitle={t('menu')} mobileDescription={t('selectObject')}>
       <SidebarHeader>
         <SidebarMenu><SidebarMenuItem>
-          <DropdownMenu><DropdownMenuTrigger render={<SidebarMenuButton data-definition-trigger="workspace" size="lg" className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground" disabled={busy || workspaces.isPending} aria-label={t('workspace')} />}>
+          <DropdownMenu><DropdownMenuTrigger render={<SidebarMenuButton data-definition-trigger="workspace" size="lg" className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground" disabled={busy || workspaces.isPending} />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"><WorkspaceLogo icon={workspace?.appearance.logoIcon??'layers'}/></div>
               <div className="grid flex-1 text-left text-sm leading-tight"><span className="truncate font-medium">{workspace?.name ?? 'xObject'}</span><span className="truncate text-xs">xObject</span></div>
               <ChevronsUpDownIcon className="ml-auto" />

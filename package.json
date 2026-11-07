@@ -32,6 +32,7 @@
     "test:benchmark-cleanup": "node --import tsx --test scripts/test-benchmark-cleanup.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.62.1",
     "typescript-json-schema": "0.68.0"
   },

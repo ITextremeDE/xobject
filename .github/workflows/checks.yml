@@ -24,6 +24,13 @@ jobs:
       - run: npm run test:packaging
       - run: npm run test:benchmark-cleanup
   browser:
+    name: ${{ matrix.browser == 'chromium' && 'browser' || matrix.browser }}
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    env:
+      XOBJECT_TEST_BROWSER: ${{ matrix.browser }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -39,13 +46,13 @@ jobs:
       - name: Use Ubuntu archive for browser dependencies
         # The hosted runner's Azure mirror repeatedly stalled during font downloads.
         run: sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
       - run: npm run test:browser
       - name: Retain browser failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: application-browser-failure
+          name: application-browser-failure-${{ matrix.browser }}
           path: .local/browser-acceptance/
           include-hidden-files: true
           retention-days: 7

@@ -680,6 +680,12 @@ export class Application {
       const relationships=formRelationshipFields(await relationshipTypes(tx,workspaceId),id,await primaryChain(tx,workspaceId));
       const profile=await workProfile(tx,id);
       const layout=profile?workFormLayout(profile,fields,relationships):resolveFormLayout(undefined,fields,true,relationships);layout.groups[0].id=v7();
+      // Supplied fresh templates retain the module-gated slot before Projects is enabled.
+      // Normal form resolution hides the unavailable element; authored layouts are untouched.
+      if(!layout.groups.some(group=>group.fields.some(entry=>'primary' in entry))){
+        const classification=layout.groups.findIndex(group=>group.id==='classification');
+        layout.groups.splice(classification<0?1:classification,0,{id:v7(),labels:{en:'Primary association',de:'Hauptzuordnung'},fields:[{primary:true,width:'full',visible:true}]});
+      }
       const previous=(await this.objectType(tx,id)).form_layouts?.default??null;
       await sql`UPDATE sys_object_types SET form_layouts=${JSON.stringify({default:layout})}::jsonb,version=version+1 WHERE id=${id}::uuid`.execute(tx);
       await this.journal(tx,actor,workspaceId,id,'object_type',id,v7(),'form_layout.default',previous,layout);

@@ -15,15 +15,16 @@ export function UserMenu({ user, placement, busy, signingOut, onSettings, onSign
   const { t } = useTranslation();
   const { isMobile } = useSidebar();
   const sidebar = placement === 'sidebar';
+  const initials=user.name.split(/\s+/).map(part=>Array.from(part)[0]).slice(0,2).join('').toUpperCase();
   const afterClose=useRef<(()=>void)|null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   return <DropdownMenu onOpenChangeComplete={open=>{if(!open){const action=afterClose.current;afterClose.current=null;action?.();}}}>
-    <DropdownMenuTrigger ref={triggerRef} render={sidebar ? <SidebarMenuButton data-user-menu={placement} size="lg" aria-label={user.name} /> : <Button data-user-menu={placement} variant="outline" size="icon-lg" aria-label={user.name} title={user.name} />}>
-      <Avatar className={sidebar ? undefined : "size-5"}><AvatarFallback>{user.name.split(/\s+/).map(part => Array.from(part)[0]).slice(0, 2).join('').toUpperCase()}</AvatarFallback></Avatar>
+    <DropdownMenuTrigger ref={triggerRef} render={sidebar ? <SidebarMenuButton data-user-menu={placement} size="lg" /> : <Button data-user-menu={placement} variant="outline" size="icon-lg" aria-label={`${initials} ${user.name}`} title={user.name} />}>
+      <Avatar aria-hidden="true" className={sidebar ? undefined : "size-5"}><AvatarFallback>{initials}</AvatarFallback></Avatar>
       {sidebar ? <><div className="grid flex-1 text-left text-sm leading-tight"><span className="truncate font-medium">{user.name}</span><span className="truncate text-xs">{user.email}</span></div><ChevronsUpDownIcon className="ml-auto" /></> : null}
     </DropdownMenuTrigger>
     <DropdownMenuContent className="min-w-56" align="end" side={sidebar && !isMobile ? 'right' : 'bottom'} sideOffset={4}>
-      <DropdownMenuGroup><DropdownMenuLabel className="p-0 font-normal"><div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm"><Avatar><AvatarFallback>{user.name.split(/\s+/).map(part => Array.from(part)[0]).slice(0, 2).join('').toUpperCase()}</AvatarFallback></Avatar><div className="grid flex-1 text-left text-sm leading-tight"><span className="truncate font-medium">{user.name}</span><span className="truncate text-xs text-muted-foreground">{user.email}</span></div></div></DropdownMenuLabel></DropdownMenuGroup>
+      <DropdownMenuGroup><DropdownMenuLabel className="p-0 font-normal"><div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm"><Avatar><AvatarFallback>{initials}</AvatarFallback></Avatar><div className="grid flex-1 text-left text-sm leading-tight"><span className="truncate font-medium">{user.name}</span><span className="truncate text-xs text-muted-foreground">{user.email}</span></div></div></DropdownMenuLabel></DropdownMenuGroup>
       <DropdownMenuSeparator />
       <DropdownMenuGroup>{onNavigation?<DropdownMenuItem className="gap-2 py-1.5" disabled={busy||navigationDisabled} onClick={()=>{afterClose.current=()=>onNavigation(triggerRef.current);}}><PanelLeftIcon/>{t('customizeNavigation')}</DropdownMenuItem>:null}<DropdownMenuItem className="gap-2 py-1.5" disabled={busy} onClick={onSettings}><SettingsIcon />{t('settings')}</DropdownMenuItem><DropdownMenuItem className="gap-2 py-1.5" disabled={busy} onClick={() => onKeyboardHelp(triggerRef.current)}><KeyboardIcon />{t('keyboardHelp')}</DropdownMenuItem></DropdownMenuGroup>
       <DropdownMenuSeparator />

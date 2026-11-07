@@ -1,4 +1,4 @@
-# Local quality acceptance
+# Quality and acceptance evidence
 
 This report describes the current unreleased candidate. Local evidence does not establish a published release, a production SLA or client/model compatibility.
 
@@ -87,13 +87,13 @@ The shared live-update hook delays connecting notices by 1.5 seconds and scopes 
 
 ## V1 audit corrections and rendered regression — 2026-11-06
 
-Synthetic-secret packaging checks now inspect actual commit-bound source archives and exported Docker contexts. Both public environment examples remain included; generated recovery/environment files remain excluded even if accidentally tracked. Operator fixtures verify the private pre-restore configuration, restrictive permissions and atomic upgrade replacement without loading real configuration. Uncommitted public source is refused before release artifacts/builds start. The current dirty worktree has not been packaged as a release candidate.
+Synthetic-secret packaging checks now inspect actual commit-bound source archives and exported Docker contexts. Both public environment examples remain included; generated recovery/environment files remain excluded even if accidentally tracked. Operator fixtures verify the private pre-restore configuration, restrictive permissions and atomic upgrade replacement without loading real configuration. Uncommitted public source is refused before release artifacts/builds start. At that local checkpoint the source was uncommitted and was not packaged as a release candidate.
 
 Twelve focused session/personal-token/OAuth/password cases pass after the shared transactional request-context check. Two deterministic PostgreSQL scenarios observe a real lock wait, commit session revocation or pass wall-clock expiry, then release the queued request. It returns 401 without changing record contents, optimistic version or journal; ownership/malformed context/internal calls are also covered.
 
 Two API/MCP classification-filter scenarios cover OR within a field, AND between fields, empty values, single/multiple/tree Category, parent versus leaf filters, inactive choices, search, counts/pagination and both global/per-record field restrictions. The current Web logic/rendering suite passes 141 tests. Root type checking, API generation/check and production builds pass.
 
-The separate `npm run test:browser` command passes seven real Chromium scenarios (eight Node test entries including the parent). A fresh current PostgreSQL installation uses ordinary Administrator/User/Designer accounts and initial-password onboarding. It exercises Save/discard/readback, nested-dialog focus/command search, filter combinations and list return URLs, workspace/system-theme/portal previews, restricted-user and Designer workflows, and mobile 390×844 settings/record/field editing. The fixture and all sessions are disposed; development data and personal browser profiles remain untouched. CI configuration is prepared locally; no external CI run of this new job is claimed before publication. These focused scenarios supplement, rather than complete, assistive-technology and cross-browser acceptance.
+The separate `npm run test:browser` command passes seven real Chromium scenarios (eight Node test entries including the parent). A fresh current PostgreSQL installation uses ordinary Administrator/User/Designer accounts and initial-password onboarding. It exercises Save/discard/readback, nested-dialog focus/command search, filter combinations and list return URLs, workspace/system-theme/portal previews, restricted-user and Designer workflows, and mobile 390×844 settings/record/field editing. The fixture and all sessions are disposed; development data and personal browser profiles remain untouched. The integrated baseline subsequently passed [PR CI](https://github.com/ITextremeDE/xobject/actions/runs/42263595464) and [merge CI](https://github.com/ITextremeDE/xobject/actions/runs/42264895106) at `32e1c7e`, including 177 backend tests, 141 Web tests, the seven Chromium scenarios, packaging, documentation and fresh container/restore/HTTPS checks. Those runs establish that baseline, not later working-tree changes. These focused scenarios supplement, rather than complete, assistive-technology and cross-browser acceptance.
 
 ## V1 path performance and targeted query corrections
 
@@ -114,3 +114,45 @@ Eight focused tree/relation cases and four principal-selection/permission cases 
 Single-record transport p95 observations are cookie HTTP 160.4 ms, cookie MCP 170.1 ms, one shared personal-token MCP 580.8 ms and one shared OAuth-token MCP 328.4 ms. MCP uses the official client and actual local authentication; OAuth follows authorization, consent, PKCE and token exchange. These observations have no transport SLA. Controlled workspace/model advisory barriers hold four readers for about 204 ms; the batches finish after 317.6/321.6 ms respectively. The barrier measurement is synthetic and does not establish the duration of real business mutations or justify a lock-strategy change.
 
 The command removes its own container and writes `.local/v1-path-performance.json`; the baseline was retained separately before rerunning. This profile has no deleted-identity history, large relationship-journal history, external model, TLS/network latency, native AMD64 or supported-host evidence. Functional history/lifecycle tests cover the corresponding semantics separately; production sizing and whole-product release acceptance remain distinct.
+
+## Expanded V1 product acceptance — 2026-11-06
+
+This local acceptance block extends the integrated `32e1c7e` baseline; it does not certify a release. The browser harness creates a current empty PostgreSQL installation, performs normal account/password onboarding and activates both V1 modules. Administrator, Designer and User contexts retain their own normally authenticated sessions. Development contents and personal browser profiles are not used or reset.
+
+The suite now contains ten functional scenarios (eleven Node test entries including the parent). Besides the existing seven, it exercises all five supplied objects and all three Contact kinds as an ordinary User, edits Project/Case/Task Keywords with independent API readback, inspects Journal/Dossier/Tree and checks the complete derived Primary chain. It duplicates a record into an editable unsaved draft, saves the copy, recycles/restores it through the UI and verifies the original remains unchanged. A controlled plain-text HTTP 429 response verifies localized retry guidance. The workspace/theme scenario visits all 15 settings sections in both Light and Dark.
+
+Automated accessibility uses the pinned Axe integration's WCAG 2 A/AA, 2.1 A/AA and 2.2 AA tags. All collected violations fail the parent test; vendor nodes and rules are not excluded. Screenshots, raw violations, failure traces and scenario/filter identity remain local under `.local/browser-acceptance/`. Passing this subset of automated rules is not WCAG conformance or assistive-technology acceptance.
+
+Confirmed corrections from rendered evidence:
+
+- Search/security inputs no longer carry `aria-expanded` without a supporting role. Record icons use named image semantics; User/workspace/tree names reflect their visible contents. Contact submenu controls provide 24-pixel target width.
+- Keyboard hints and avatar initials use readable foreground tokens on muted surfaces. Error descriptions retain the full destructive color instead of reduced opacity. Destructive buttons use readable foreground text with the destructive icon and background tint. These are intentional accessibility changes to the copied component recipes, rather than unexplained theme overrides.
+- Non-JSON error responses preserve their HTTP status. Both inline login errors and shared feedback explain rate limiting in English/German, rather than reporting it as a network failure.
+- Fresh supplied templates reserve Primary before Classification. Eight focused module/template regressions verify gating, module combinations, common identities, additive updates and preservation of authored forms. An older ADR sentence now places Task Priority before Progress in Schedule, matching the existing implementation.
+
+### Current local results
+
+- Chromium: all ten functional scenarios and the parent pass (eleven test entries); no Axe violations across checked views. The fresh-installation run is identified locally by `2026-11-06T18-56-03-824Z`.
+- WebKit: all ten functional scenarios pass without uncaught browser errors in the final stable-asset run (`2026-11-06T18-54-20-729Z`). The parent fails because Axe reports `aria-command-name` on upstream dialog focus guards in 33 checked views; it is not an accessibility pass.
+- Root type checking/generated-contract drift check, 142 Web tests, eight focused backend module/template cases and server/Web builds pass.
+- Documentation: zero check errors/warnings; 58 generated pages and 5,307 local links/assets/anchors validated; the documentation source test passes.
+- The local development server runs the rebuilt assets/backend and passes its health check; its business data was preserved.
+
+### Acceptance map and remaining boundaries
+
+| PRD section 11 area | Evidence used | Remaining boundary |
+| --- | --- | --- |
+| Object core | Integrated API/MCP/backend baseline; browser Save/discard, Designer field creation and API readback | Browser coverage is representative, not every possible custom field combination. |
+| Permissions | Three browser roles, restricted-field omission/read-only views; integrated resolver/session regressions and prior live MCP denial cases | Real screenreader use of the rights editors remains unchecked. |
+| Contacts | Three Contact-kind forms, Organization linkage, Distribution-list form; existing domain-profile/backend and live MCP evidence | This block does not repeat every contact codec, Identities or exchange case. Exchange is later scope. |
+| Project context | Actual Contact → Project → Case → Task, derived-chain readback and all record tabs; existing relationship/history/performance regressions | Not every parent-change permutation is repeated in the browser. |
+| Modules/forms | Fresh combined browser installation; eight focused backend module/template scenarios | No released-predecessor upgrade is claimed. |
+| Lifecycle | Browser duplicate/save/recycle/restore and unchanged-original check; integrated permanent-deletion/history tests and prior live MCP case | Permanent deletion is not newly exercised through the browser in this block. |
+| MCP | Existing dated live Codex/model acceptance above, reused without another paid model run | Other providers/client surfaces/native Skills activation remain untested. |
+| Self-hosting | Existing isolated Linux container, backup/restore and Caddy acceptance above | Separate supported external Linux-host/public-TLS acceptance and publication remain pending. |
+
+Local Firefox launch fails before application navigation with macOS sandbox-extension denial and a compositor framebuffer error. The sandbox remains enabled. The Linux Chromium/Firefox CI matrix preserves the existing Chromium check identity and gives each engine separate failure artifacts. Both browser jobs passed on `77bb755` in the [first PR CI run](https://github.com/ITextremeDE/xobject/actions/runs/42333382594), each with ten functional scenarios/eleven Node test entries and no Axe findings in the checked views. That Linux evidence complements the local macOS results; it does not establish native Safari/VoiceOver or real-device acceptance.
+
+Playwright WebKit identifies unnamed Base UI FocusGuard buttons in dialog focus management. The installed upstream implementation intentionally exposes those guards to WebKit/VoiceOver. A clean automated accessibility verdict cannot be issued for those views; retain the findings and perform actual VoiceOver/Safari testing before choosing an upstream report or application change. Do not hide the guards or disable the rule solely to make the report green. Earlier WebKit session-refresh errors did not recur in the final full stable-asset run. A separate run overlapped a Web asset rebuild and is excluded as invalid functional evidence. This does not establish native Safari behavior.
+
+Desktop Chromium and a 390 × 844 viewport are tested; actual mobile devices, operating-system installation, native Safari, VoiceOver and broader manual keyboard/screenreader exploration remain release gates. This block records partial whole-product acceptance, not a completed V1 release decision.
