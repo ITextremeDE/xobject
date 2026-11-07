@@ -250,7 +250,7 @@ For exploration, `XOBJECT_BENCH_RECORDS`, `XOBJECT_BENCH_EDGES`, `XOBJECT_BENCH_
 
 ## Cross-browser and automated accessibility acceptance
 
-The isolated application harness accepts `XOBJECT_TEST_BROWSER=chromium|firefox|webkit` (Chromium by default). Install the intended engine with `npx playwright install firefox` or `npx playwright install webkit`, then run `XOBJECT_TEST_BROWSER=firefox npm run test:browser`. The prepared CI matrix retains the `browser` Chromium check and adds Firefox. Its first execution for this acceptance change remains pending publication.
+The isolated application harness accepts `XOBJECT_TEST_BROWSER=chromium|firefox|webkit` (Chromium by default). Install the intended engine with `npx playwright install firefox` or `npx playwright install webkit`, then run `XOBJECT_TEST_BROWSER=firefox npm run test:browser`. The CI matrix retains the `browser` Chromium check and adds Firefox, with separate engine-specific failure artifacts. Both Linux jobs have passed the expanded suite; the quality report records the exact run and remaining platform boundaries.
 
 The harness uses the pinned Axe integration for WCAG A/AA tags, waits for finite UI animations to finish and collects findings without suppressing rules or vendor nodes. A finding makes the overall test fail after the functional scenarios finish. It includes all five V1 object profiles, ordinary-user edits with independent API readback, the Primary chain, Journal/Dossier/Tree views and every settings section in Light/Dark. Browser contexts reuse only their own fixture role's normally signed-in session; first-password rules and login limits remain unchanged. Firefox/WebKit engine checks do not establish native Firefox/Safari/device or real screenreader acceptance.
 

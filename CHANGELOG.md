@@ -8,7 +8,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Added
 
-- Extend isolated product acceptance to selectable Chromium/Firefox/WebKit engines, automated WCAG checks, every settings section in Light/Dark and all five V1 objects with ordinary-user edits, duplicate/recycle/restore and Primary/Journal/Dossier/Tree readback. Use disposable current installations with normal role onboarding, draft/filter/focus/mobile coverage and bounded failure artifacts. Prepare a Firefox CI job; distinguish engine, operating-system and real screenreader acceptance.
+- Extend isolated product acceptance to selectable Chromium/Firefox/WebKit engines, automated WCAG checks, every settings section in Light/Dark and all five V1 objects with ordinary-user edits, duplicate/recycle/restore and Primary/Journal/Dossier/Tree readback. Use disposable current installations with normal role onboarding, draft/filter/focus/mobile coverage and bounded failure artifacts. Run Chromium/Firefox in Linux CI with separate failure artifacts; distinguish engine, operating-system and real screenreader acceptance.
 - Isolated tree/journal/principal-selection benchmark with fixed targets, cookie/personal-token/OAuth comparisons and observed model/workspace barriers.
 - Shared Type/Status/Category list filters through web/API/MCP, with OR/AND semantics, explicit empty values, Category tree matching, URL state and field-aware counts/paging.
 - Shared URL-field action opens valid HTTP(S) links in a new tab, including Contact website entries and readable fields without edit rights; empty/invalid values remain non-actionable.
