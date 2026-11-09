@@ -235,8 +235,20 @@ test('rendered application workflows on an isolated current installation',{timeo
   });
   await scenario('Ordinary user follows all five V1 objects and their Primary chain','user',async page=>{
    for(const [key,{model,record}] of Object.entries(domain)){
+    let releaseContext;const contextGate=new Promise(resolve=>{releaseContext=resolve;});
+    const holdContext=async route=>{await contextGate;await route.continue();};
+    if(key==='tasks')await page.route('**/api/v1/get_primary_chain_context',holdContext);
+    try{
     await page.goto(`${baseURL}/w/qa/objects/${model.technicalName}/${record.id}`);
     await expect(page.getByRole('heading',{name:record.keyword,exact:true})).toBeVisible();
+    if(key==='tasks'){
+     const parent=page.locator('input[id^="primary-"]').last(),group=parent.locator('..');
+     await expect(parent).toHaveValue(`${domain.cases.record.keyword} reviewed`);
+     await expect(parent).toBeEnabled();await expect(group.locator('button').first()).toBeDisabled();
+     await expect(group).toHaveCSS('opacity','1');
+     await page.screenshot({path:path.join(artifacts,`${engineName}-primary-context-loading.png`),fullPage:true});
+    }
+    }finally{releaseContext();if(key==='tasks')await page.unrouteAll({behavior:'wait'});}
     if(['projects','cases','tasks'].includes(key)){
      await page.getByRole('textbox',{name:/^Keyword(?: \*)?$/}).fill(`${record.keyword} reviewed`);
      await page.getByRole('button',{name:/^Save/}).click();
