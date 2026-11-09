@@ -1,6 +1,7 @@
 ---
 import SiteLayout from "../layouts/SiteLayout.astro";
 import Screenshot from "./Screenshot.astro";
+import ScreenshotLightbox from "./ScreenshotLightbox.astro";
 import { ProjectActions } from "./site/project-actions";
 import { content, type Language } from "../config/content";
 import { repositoryURL } from "../config/navigation";
@@ -199,4 +200,5 @@ const t = content[lang],
     </section>
     <p class="screenshot-disclosure site-container">{t.screenshots}</p>
   </main>
+  <ScreenshotLightbox lang={lang} />
 </SiteLayout>

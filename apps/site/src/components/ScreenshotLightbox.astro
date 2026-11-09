@@ -1,0 +1,18 @@
+---
+import type { Language } from "../config/content";
+const { lang } = Astro.props as { lang: Language };
+---
+
+<div id="screenshot-lightbox" data-language={lang}></div>
+<script>
+  import { createElement } from "react";
+  import { createRoot } from "react-dom/client";
+  import { ScreenshotLightbox } from "./site/screenshot-lightbox";
+  const element = document.getElementById("screenshot-lightbox");
+  if (element)
+    createRoot(element).render(
+      createElement(ScreenshotLightbox, {
+        lang: element.dataset.language === "de" ? "de" : "en",
+      }),
+    );
+</script>

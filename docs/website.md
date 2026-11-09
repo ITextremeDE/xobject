@@ -17,7 +17,9 @@ live AI integration or a public application demo.
 Only `/` negotiates language: a saved explicit selection wins, otherwise the
 browser's first preferred language selects German or falls back to English.
 Direct localized URLs are never redirected by that preference. The language
-switch preserves section anchors and uses normal links even without JavaScript.
+switch uses local flag images (United Kingdom for English, Germany for German),
+with native-language accessible names/tooltips and the current-language state. It
+preserves section anchors and uses normal links even without JavaScript.
 With JavaScript disabled, `/` provides the complete English page. Language and
 color-mode preferences are independent browser settings. Localized pages expose
 canonical, `hreflang` and `x-default` metadata, Open Graph metadata and a share image.
@@ -47,8 +49,8 @@ Shared brand roles, rather than application-specific overrides, define the frame
 Use existing shadcn primitives and built-in variants first. Keep primitive styling
 in their source and map it to semantic roles. Base UI owns menu focus, radio
 semantics, Escape and dismissal. Native links and disclosure elements keep static
-content usable without hydration. Only the header menus hydrate; product content
-and action links render at build time. Component/font notices ship under `/licenses/`.
+content usable without hydration. The header menus hydrate; a separate small React root mounts the shared screenshot
+dialog. Product content and action links render at build time. Component/font notices ship under `/licenses/`.
 
 `SiteLayout.astro` owns the frame and metadata; `config/content.ts` owns localized
 product copy. The parent website remains the magazine; xObject has product-specific
@@ -64,7 +66,10 @@ are included. Record contents remain in their original English language.
 Capture through a separate browser session and restore temporary account settings.
 
 The screenshot component follows the site's effective color mode, supplies localized
-captions and alternative text, and links to full-resolution originals. Astro generates
+captions and alternative text, and opens a full-resolution shadcn/Base UI Dialog in
+the same tab. Escape, the localized close control and outside click dismiss it;
+focus returns to the originating image link. Without JavaScript, the original
+image opens in the same tab as a normal link. Astro generates
 responsive WebP assets; below-fold media loads lazily. Dashboard draft metrics are
 not used to illustrate delivered capabilities. Refresh images when relevant forms
 or navigation change; never fabricate controls or edit application contents into images.
