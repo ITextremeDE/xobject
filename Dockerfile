@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS build
+FROM node:26-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/package.json
@@ -8,7 +8,7 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
-FROM node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS dependencies
+FROM node:26-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/package.json
@@ -16,7 +16,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 RUN mkdir -p apps/server/node_modules && npm ci --omit=dev --ignore-scripts --workspace @xobject/server --workspace @xobject/contracts
 
-FROM node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
+FROM node:26-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
 ARG RELEASE_VERSION=0.0.0-unreleased
 ARG VCS_REF=unpublished
 LABEL org.opencontainers.image.title="xObject" \
