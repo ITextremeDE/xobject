@@ -13,6 +13,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Changed
 
+- Wait for the restored record to leave the recycle-bin list and table controls to re-enable before browser accessibility checks, so the existing animation wait covers their disabled-state transition.
 - Update paired GitHub artifact upload/download actions with a CI transfer check for merged architecture-digest paths and exact file contents; retain default digest-mismatch rejection.
 - Update application and website dependencies, including Fastify, Kysely, TanStack Query, i18next, Tailwind, Vite, Astro and Playwright, and SHA-pinned GitHub checkout/setup-node actions after review; retain the supported TypeScript 6 Astro-checker and Node 24 LTS container baselines with explicit Dependabot constraints.
 - Clarify the released Community 1.0.0 baseline, independently published website/documentation and retained later scope in the PRD, roadmap and project instructions.

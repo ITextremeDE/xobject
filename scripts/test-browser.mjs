@@ -288,6 +288,9 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.getByRole('alertdialog').getByRole('button',{name:'Restore record',exact:true}).click();
    await expect(page.getByRole('dialog',{name:'Lifecycle acceptance copy',exact:true})).toHaveCount(0);
    assert.equal((await api('get_record',{objectTypeId:object.id,recordId:copyId})).keyword,'Lifecycle acceptance copy');
+   // Closing the dialog precedes list invalidation; audit only after the controls' re-enable transition has started.
+   await expect(page.getByRole('button',{name:'Checks Lifecycle acceptance copy',exact:true})).toHaveCount(0);
+   await expect(page.getByRole('columnheader').getByRole('button').first()).toBeEnabled();
   });
   await scenario('Mobile record and settings remain usable','admin',async page=>{
    await page.goto(recordPath);await expect(page.getByRole('textbox',{name:/^Keyword(?: \*)?$/})).toBeVisible();
