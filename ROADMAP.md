@@ -37,7 +37,7 @@ Object lists now expose shared Type/Status/Category filters with empty-value sel
 
 The independent Astro project homepage introduces the product and links canonical Git documentation. Its source, design system and CSP/browser checks are present. Starlight documentation, generated changelog/roadmap pages and versioned-base builds are locally verified; public deployment and actual release snapshots remain pending. Selected public URLs are not proof of deployment of those pages.
 
-Expanded local acceptance now covers every settings section in Light/Dark, the five V1 objects, all three Contact kinds, ordinary-user edits and duplicate/recycle/restore workflows with automated accessibility findings retained. Chromium and Firefox Linux CI have passed the expanded suite. WebKit/VoiceOver findings and native-device/external-host acceptance remain explicit gates in the [acceptance map](docs/quality-acceptance.md#expanded-v1-product-acceptance--2026-11-06).
+Expanded local acceptance now covers every settings section in Light/Dark, the five V1 objects, all three Contact kinds, ordinary-user edits and duplicate/recycle/restore workflows with automated accessibility findings retained. Chromium and Firefox Linux CI have passed the expanded suite. Native Safari read/UI checks, narrow settings interactions and targeted VoiceOver dialog/list traversal have also passed; the [quality report](docs/quality-acceptance.md#direct-voiceover-and-narrow-safari-follow-up--2026-11-09) distinguishes these results from broader assistive-technology, real-device and external-host acceptance. Raw WebKit focus-guard findings remain retained without rule suppressions.
 
 ## Next — Complete and accept version 1
 
