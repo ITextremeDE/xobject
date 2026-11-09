@@ -142,6 +142,8 @@ First Community release. Delivered capabilities and verified acceptance are list
 
 ### Fixed
 
+- Give the complete isolated browser suite a bounded six-minute deadline so the slower Firefox run can finish every unchanged functional and accessibility check on hosted runners.
+
 - Preserve readable InputGroup values when only an addon action is disabled. Apply group disabled styling to the input/textarea control itself; cover pending Primary-context loading with a deterministic browser regression.
 - Translate new-record browser titles with the existing shared label and include visible selections in the accessible name of shared multiple-value controls.
 - Reserve the Primary-association section before Classification in fresh supplied module templates without rebuilding authored forms when Projects activates; correct the documented Task Priority placement.
