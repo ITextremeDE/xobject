@@ -134,6 +134,7 @@ The project is in early development. These entries describe source changes, incl
 
 ### Fixed
 
+- Preserve readable InputGroup values when only an addon action is disabled. Apply group disabled styling to the input/textarea control itself; cover pending Primary-context loading with a deterministic browser regression.
 - Translate new-record browser titles with the existing shared label and include visible selections in the accessible name of shared multiple-value controls.
 - Reserve the Primary-association section before Classification in fresh supplied module templates without rebuilding authored forms when Projects activates; correct the documented Task Priority placement.
 - Correct accessible shell labels, native-search ARIA and record-tree naming; use readable semantic text for muted keyboard hints/avatar initials, destructive feedback and larger sidebar action targets. Preserve HTTP throttling status for non-JSON failures and show a localized retry-later message.
