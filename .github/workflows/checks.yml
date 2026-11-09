@@ -92,3 +92,34 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: XOBJECT_DOCS_VERSION=0.0.0-unreleased npm run build
+  artifact-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Prepare representative release digest files
+        run: |
+          mkdir artifact-probe
+          printf 'sha256:%064d\n' 1 > artifact-probe/amd64.txt
+          printf 'sha256:%064d\n' 2 > artifact-probe/arm64.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: artifact-probe-amd64-${{ github.run_attempt }}
+          path: artifact-probe/amd64.txt
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: artifact-probe-arm64-${{ github.run_attempt }}
+          path: artifact-probe/arm64.txt
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: artifact-probe-*-${{ github.run_attempt }}
+          path: downloaded-probe
+          merge-multiple: true
+      - name: Verify merged paths and exact contents
+        run: |
+          test "$(find downloaded-probe -type f | wc -l)" -eq 2
+          cmp artifact-probe/amd64.txt downloaded-probe/amd64.txt
+          cmp artifact-probe/arm64.txt downloaded-probe/arm64.txt
