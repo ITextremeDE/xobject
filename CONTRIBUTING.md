@@ -2,6 +2,16 @@
 
 xObject is maintained by Jürgen Schadek under the ITextreme project brand. Version 1 is entirely Community and licensed under [AGPL-3.0-only](LICENSE).
 
+## Reports and proposals
+
+Use the [public issue forms](https://github.com/ITextremeDE/xobject/issues/new/choose) for reproducible bugs and feature proposals. Maintainers triage feedback and decide delivery scope; an issue or proposal does not imply a delivery commitment. The [roadmap](ROADMAP.md) summarizes planned direction. English is preferred; German reports are welcome.
+
+Participation follows the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities through the [security policy](SECURITY.md).
+
+## Dependency maintenance
+
+Dependabot checks the application workspaces, website, documentation, GitHub Actions and container base image weekly. Minor and patch npm version updates are grouped per project; major updates receive separate review. Security updates are enabled separately and can open pull requests outside the weekly schedule. Maintainers review and validate dependency pull requests before merging; updates are not automatically merged.
+
 ## Contribution rights
 
 Submit original work that you have the right to contribute under the project's existing license. Contributions use the same AGPL-3.0-only terms; authors retain their copyright. Preserve third-party notices and identify imported code/assets and their compatible licenses. No copyright assignment or separate contributor license agreement is required.
