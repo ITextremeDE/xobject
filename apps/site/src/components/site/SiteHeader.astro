@@ -1,24 +1,80 @@
 ---
-import { createElement } from 'react';
-import { renderToString } from 'react-dom/server';
-import { HeaderControls, headerIdentifierPrefix } from './header-controls';
-import { primaryNavigation, repositoryURL } from '../../config/navigation';
-const controls = renderToString(createElement(HeaderControls), {identifierPrefix: headerIdentifierPrefix});
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { HeaderControls, headerIdentifierPrefix } from "./header-controls";
+import { navigation, repositoryURL } from "../../config/navigation";
+import { ui, type Language } from "../../config/content";
+const { lang = "en" } = Astro.props as { lang?: Language };
+const t = ui[lang],
+  primaryNavigation = navigation(lang);
+const controls = renderToString(createElement(HeaderControls, { lang }), {
+  identifierPrefix: headerIdentifierPrefix,
+});
 ---
+
 <header class="site-header">
   <div class="site-container header-bar">
-    <a class="project-brand" href="/" aria-label="xObject – Startseite">xObject <span>by ITextreme</span></a>
-    <nav class="section-navigation" aria-label="Hauptnavigation" data-section-navigation>
-      {primaryNavigation.map(link => <a href={link.href}>{link.label}</a>)}
+    <a class="project-brand" href={`/${lang}/`} aria-label="xObject">
+      xObject <span>by ITextreme</span>
+    </a>
+    <nav
+      class="section-navigation"
+      aria-label={t.navigation}
+      data-section-navigation
+    >
+      {primaryNavigation.map((link) => (
+        <a href={link.href}>{link.label}</a>
+      ))}
     </nav>
-    <nav class="header-utility" aria-label="Weitere Angebote"><a href="https://itextreme.de/">ITextreme</a><a href={repositoryURL}>GitHub</a></nav>
-    <div id="header-controls" class="header-controls" set:html={controls}/>
+    <nav
+      class="header-utility"
+      aria-label={lang === "de" ? "Weitere Angebote" : "Related sites"}
+    >
+      <a href="https://itextreme.de/">ITextreme</a>
+      <a href={repositoryURL}>GitHub</a>
+    </nav>
+    <nav
+      class="language-navigation"
+      aria-label={lang === "de" ? "Sprache" : "Language"}
+    >
+      <a
+        data-language="en"
+        href="/en/"
+        lang="en"
+        hreflang="en"
+        aria-current={lang === "en" ? "page" : undefined}
+      >
+        EN
+      </a>
+      <a
+        data-language="de"
+        href="/de/"
+        lang="de"
+        hreflang="de"
+        aria-current={lang === "de" ? "page" : undefined}
+      >
+        DE
+      </a>
+    </nav>
+    <div
+      data-language={lang}
+      id="header-controls"
+      class="header-controls"
+      set:html={controls}
+    />
   </div>
 </header>
 <script>
-  import { createElement } from 'react';
-  import { hydrateRoot } from 'react-dom/client';
-  import { HeaderControls, headerIdentifierPrefix } from './header-controls';
-  const container = document.getElementById('header-controls');
-  if (container) hydrateRoot(container, createElement(HeaderControls), { identifierPrefix: headerIdentifierPrefix });
+  import { createElement } from "react";
+  import { hydrateRoot } from "react-dom/client";
+  import { HeaderControls, headerIdentifierPrefix } from "./header-controls";
+  const container = document.getElementById("header-controls");
+  if (container)
+    hydrateRoot(
+      container,
+      createElement(HeaderControls, {
+        lang: container.dataset.language === "de" ? "de" : "en",
+      }),
+      { identifierPrefix: headerIdentifierPrefix },
+    );
 </script>

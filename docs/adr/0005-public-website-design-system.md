@@ -35,6 +35,26 @@ WebSite JSON-LD belong to the shared layout; the sitemap derives from built
 routes. New image content should use Astro's image pipeline where appropriate.
 The existing SVG brand assets remain unchanged.
 
+## Product presentation and documentation (2026-11-09)
+
+Keep localized product pages at `/en/` and `/de/`. Only the neutral `/` entry
+negotiates browser language, with explicit saved preference taking precedence
+and English as fallback. Direct language URLs stay stable. Native links work
+without JavaScript; canonical/hreflang metadata identifies equivalents.
+The root has a complete English fallback. Language and theme preferences remain
+independent, with early same-origin initializers and no remote services.
+
+Use real fictional-demo screenshots in each interface language and effective
+light/dark appearance. Supply descriptive captions, full-size links and Astro
+responsive image output; retain original business-content language. Explanatory
+AI examples are text, not a simulated live integration. The canonical Changelog
+and Roadmap remain English rather than gaining independently maintained copies.
+
+Apply the same self-hosted fonts and semantic brand roles to Starlight, retaining
+its layout, navigation, theme behavior and search. Reference content remains
+English. Product presentation and technical documentation share identity while
+keeping their task-appropriate information hierarchy.
+
 ## Consequences
 
 - The current static Caddy runtime and signed deployment contract still apply.
@@ -46,5 +66,5 @@ The existing SVG brand assets remain unchanged.
   acceptance are release gates. No application build is required for site-only
   changes.
 - OpenSiteStack remains a Next.js platform dependency and is not added to Astro.
-- The website foundation is delivered independently of full product pages,
-  Starlight documentation or installable application releases.
+- Website and reference-documentation builds remain independent of installable
+  application releases. Released documentation snapshots keep their matching source.

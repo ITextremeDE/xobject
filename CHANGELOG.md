@@ -4,7 +4,14 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
-Changes after version 1.0.0 will be recorded here.
+### Added
+
+- English and German product pages with browser-language selection, remembered manual choice, localized navigation/metadata, a connected-workflow introduction, feature overview, self-hosting actions and FAQ.
+- Actual ITextreme demo screenshots in both interface languages and light/dark modes, responsive full-size viewing links and a social-sharing preview.
+
+### Changed
+
+- Public documentation uses self-hosted ITextreme fonts and consistent semantic light/dark surfaces, text, action and focus colors, matching favicon and font license notices while retaining standard Starlight navigation and search.
 
 ## [1.0.0] - 2026-11-09
 
