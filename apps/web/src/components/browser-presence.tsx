@@ -27,7 +27,7 @@ export function BrowserPresence({dirty=false,busy=false}:{dirty?:boolean;busy?:b
   const workspaces=client.getQueryCache().findAll({queryKey:['workspaces']}).flatMap(query=>(query.state.data??[]) as Workspace[]),workspace=workspaces.find(item=>item.code===match?.[1]);
   const definition=client.getQueryCache().findAll({queryKey:['definition']}).map(query=>query.state.data as ObjectDefinition|undefined).find(item=>item?.workspaceId===workspace?.id&&item?.technicalName===match?.[2]);
   const record=definition&&match?.[3]&&match[3]!=='new'?client.getQueryData<DataRecord>(['record',definition.id,match[3]]):undefined;
-  const label=location.pathname==='/settings'?t('settings'):match?.[3]==='new'?t('createRecord'):record?.keyword??definition?.label??(match?t('dashboard'):undefined);
+  const label=location.pathname==='/settings'?t('settings'):match?.[3]==='new'?t('newRecord'):record?.keyword??definition?.label??(match?t('dashboard'):undefined);
   return pageTitle(info.data?.name??'xObject',info.data?.titleMode??'neutral',[label,workspace?.name]);
  });
  useEffect(()=>{document.title=title;},[title]);

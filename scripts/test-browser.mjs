@@ -58,6 +58,7 @@ test('rendered application workflows on an isolated current installation',{timeo
   }
   const object=await api('create_object_type',{workspaceId:workspace.id,technicalName:'checks',labels:{en:'Checks',de:'Prüfungen'},standardFields:['keyword','type_status','category']});
   const privateField=await api('create_field',{objectTypeId:object.id,technicalName:'internal_note',labels:{en:'Internal note',de:'Interne Notiz'},kind:'multiline'});
+  await api('create_field',{objectTypeId:object.id,technicalName:'custodians',labels:{en:'Custodians',de:'Betreuung'},kind:'reference',config:{referenceTarget:'both',multiple:true}});
   const permissions=await api('get_content_permissions',{objectTypeId:object.id});
   await api('configure_content_permissions',{...permissions,grants:[{kind:'user',id:actors.user.id,level:'read',create:false,fields:{[privateField.id]:'none'}},{kind:'user',id:actors.designer.id,level:'edit',create:true,fields:{}}]});
   const ids={typeA:randomUUID(),typeB:randomUUID(),open:randomUUID(),done:randomUUID(),ready:randomUUID(),parent:randomUUID(),child:randomUUID()};
@@ -74,7 +75,7 @@ test('rendered application workflows on an isolated current installation',{timeo
   ];
   const definition=await api('get_object_type',{objectTypeId:object.id});
   await api('configure_classification',{objectTypeId:object.id,version:definition.classification.version,config});
-  const editable=await api('create_record',{objectTypeId:object.id,keyword:'Editable sample',values:{internal_note:'Admin-only fixture note'}});
+  const editable=await api('create_record',{objectTypeId:object.id,keyword:'Editable sample',values:{internal_note:'Admin-only fixture note',custodians:[{kind:'user',id:actors.user.id}]}});
   await api('create_record',{objectTypeId:object.id,keyword:'Alpha filter sample',classification:{type:ids.typeA,status:ids.open,category:[ids.child]}});
   await api('create_record',{objectTypeId:object.id,keyword:'Beta filter sample',classification:{type:ids.typeB,status:ids.ready}});
   await api('create_record',{objectTypeId:object.id,keyword:'Gamma filter sample',classification:{type:ids.typeA,status:ids.done}});
@@ -258,6 +259,9 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.goto(recordPath);await expect(page.getByRole('button',{name:'Duplicate record',exact:true})).toBeEnabled();
    await page.getByRole('button',{name:'Duplicate record',exact:true}).click();await expect(page).toHaveURL(/\/new\?duplicateFrom=/);
    await expect(page.getByText('Edit this copy before saving. It becomes a new record only when you save it.',{exact:true})).toBeVisible();
+   await expect(page).toHaveTitle('Create record · Browser checks · xObject');
+   await expect(page.getByRole('button',{name:'Custodians: James Doe (User)',exact:true})).toBeVisible();
+   await auditPage(page,'duplicate-draft');
    await page.getByRole('textbox',{name:/^Keyword(?: \*)?$/}).fill('Lifecycle acceptance copy');
    await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
    const copyId=new URL(page.url()).pathname.split('/').at(-1);assert.notEqual(copyId,editable.id);assert.notEqual(copyId,'new');
