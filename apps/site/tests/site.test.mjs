@@ -148,6 +148,62 @@ test("localized product site, theme controls, screenshots and resources under pr
         await page.locator("main figure.product-screenshot").count(),
         5,
       );
+      await expect(
+        page.locator('.language-navigation a[data-language="en"]'),
+      ).toHaveAccessibleName("English");
+      await expect(
+        page.locator('.language-navigation a[data-language="de"]'),
+      ).toHaveAccessibleName("Deutsch");
+      assert.equal(await page.locator(".language-navigation img").count(), 2);
+      const openScreenshot = async () => {
+        const trigger = page.locator(".hero .screenshot-link:visible");
+        await trigger.click();
+        const dialog = page.getByRole("dialog", {
+          name: "Screenshot",
+          exact: true,
+        });
+        await expect(dialog).toBeVisible();
+        await expect(
+          dialog.getByRole("heading", { name: "Screenshot", exact: true }),
+        ).toHaveCSS("font-size", "16px");
+        await expect(dialog.locator("img")).toHaveJSProperty("complete", true);
+        assert(
+          await dialog.locator("img").evaluate((img) => img.naturalWidth > 0),
+        );
+        assert.equal(
+          context.pages().length,
+          1,
+          "Screenshot stays in the same tab",
+        );
+        assert.equal(new URL(page.url()).pathname, `/${lang}/`);
+        return { dialog, trigger };
+      };
+      let viewer = await openScreenshot();
+      await page.keyboard.press("Tab");
+      await expect
+        .poll(() =>
+          viewer.dialog.evaluate((el) => el.contains(document.activeElement)),
+        )
+        .toBe(true);
+      await accessible(page);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(viewer.trigger).toBeFocused();
+      viewer = await openScreenshot();
+      await viewer.dialog
+        .getByRole("button", {
+          name: lang === "de" ? "Schließen" : "Close",
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(viewer.trigger).toBeFocused();
+      viewer = await openScreenshot();
+      await page.mouse.click(2, 2);
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(viewer.trigger).toBeFocused();
+
+      await page.reload({ waitUntil: "networkidle" });
       await page.keyboard.press("Tab");
       await expect(page.locator(".skip-link")).toBeFocused();
       await page.keyboard.press("Enter");
@@ -171,6 +227,10 @@ test("localized product site, theme controls, screenshots and resources under pr
         await expect(page.getByRole("menu")).not.toBeVisible();
         await page.reload({ waitUntil: "networkidle" });
         await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+        viewer = await openScreenshot();
+        await accessible(page);
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("dialog")).toHaveCount(0);
         await accessible(page);
         await trigger.click();
         await expect(
@@ -217,6 +277,22 @@ test("localized product site, theme controls, screenshots and resources under pr
           await capture(page, `site-${lang}-${width}.png`);
         }
       }
+      viewer = await openScreenshot();
+      assert(
+        await viewer.dialog.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return (
+            r.x >= 0 &&
+            r.y >= 0 &&
+            r.right <= innerWidth &&
+            r.bottom <= innerHeight
+          );
+        }),
+        "Lightbox fits the mobile viewport",
+      );
+      await accessible(page);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
       const navigation = page.getByRole("button", {
         name: t[lang].menu,
         exact: true,
@@ -284,6 +360,12 @@ test("localized product site, theme controls, screenshots and resources under pr
     await expect(p.getByRole("heading", { level: 1 })).toBeVisible();
     await p.locator('.language-navigation a[data-language="de"]').click();
     await expect(p.locator("html")).toHaveAttribute("lang", "de");
+    await p.locator(".hero .screenshot-link:visible").click();
+    assert(
+      new URL(p.url()).pathname.endsWith(".png"),
+      "Without JavaScript the same-tab original image remains available",
+    );
+    assert.equal(noScript.pages().length, 1);
     await noScript.close();
     assert.deepEqual(errors, []);
   } finally {

@@ -111,7 +111,7 @@ export const content = {
         "A custom service plan: your fields, your relationships, your form.",
       journal: "Individual changes remain traceable in the record journal.",
     },
-    zoom: "Open full-size screenshot",
+    zoom: "Enlarge screenshot",
   },
   de: {
     title: "Deine Daten. Klar verbunden.",
@@ -226,7 +226,7 @@ export const content = {
       journal:
         "Einzelne Änderungen bleiben im Datensatzjournal nachvollziehbar.",
     },
-    zoom: "Screenshot in voller Größe öffnen",
+    zoom: "Screenshot vergrößern",
   },
 } as const;
 export const ui = {

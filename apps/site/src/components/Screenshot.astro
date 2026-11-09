@@ -25,15 +25,21 @@ const modes = ["light", "dark"] as const;
       <a
         class:list={["screenshot-link", `screenshot-${mode}`]}
         href={asset.src}
-        target="_blank"
-        rel="noopener"
+        data-screenshot
+        data-caption={caption}
+        data-width={asset.width}
+        data-height={asset.height}
         aria-label={`${t.zoom}: ${caption}`}
       >
         <Image
           src={asset}
           alt={caption}
           widths={[480, 800, 1200, 1600]}
-          sizes={view === "list" ? "(min-width: 1440px) 1344px, calc(100vw - 48px)" : "(max-width: 1023px) calc(100vw - 32px), 50vw"}
+          sizes={
+            view === "list"
+              ? "(min-width: 1440px) 1344px, calc(100vw - 48px)"
+              : "(max-width: 1023px) calc(100vw - 32px), 50vw"
+          }
           format="webp"
           quality={85}
           loading={eager ? "eager" : "lazy"}

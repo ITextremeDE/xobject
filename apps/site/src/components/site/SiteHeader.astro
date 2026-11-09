@@ -39,21 +39,37 @@ const controls = renderToString(createElement(HeaderControls, { lang }), {
     >
       <a
         data-language="en"
+        aria-label="English"
+        title="English"
         href="/en/"
         lang="en"
         hreflang="en"
         aria-current={lang === "en" ? "page" : undefined}
       >
-        EN
+        <img
+          src="/flags/gb.svg"
+          width="24"
+          height="16"
+          alt=""
+          aria-hidden="true"
+        />
       </a>
       <a
         data-language="de"
+        aria-label="Deutsch"
+        title="Deutsch"
         href="/de/"
         lang="de"
         hreflang="de"
         aria-current={lang === "de" ? "page" : undefined}
       >
-        DE
+        <img
+          src="/flags/de.svg"
+          width="24"
+          height="16"
+          alt=""
+          aria-hidden="true"
+        />
       </a>
     </nav>
     <div

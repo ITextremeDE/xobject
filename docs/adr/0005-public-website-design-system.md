@@ -22,8 +22,9 @@ CLI. Use `base-nova`, Base UI, Lucide and CSS variables, matching ITextreme's
 component strategy. Astro does not use React Server Components: `rsc` is false.
 Static actions are rendered at build time. The header uses the same real Base UI
 Dropdown Menu and icon-button patterns as ITx for theme and mobile navigation.
-Only this small header root is hydrated. A Vite-bundled same-origin entry calls
-React `hydrateRoot` on markup generated with `renderToString` and the same
+The small header root is hydrated; a separate small React root mounts the shared
+screenshot Dialog. Vite-bundled same-origin entries initialize these roots. The
+header calls React `hydrateRoot` on markup generated with `renderToString` and the same
 identifier prefix. This preserves the existing CSP without executable inline
 bootstrap code or a broader page/client boundary. The early external theme
 initializer remains the single owner of color-mode application; controls
@@ -46,7 +47,10 @@ independent, with early same-origin initializers and no remote services.
 
 Use real fictional-demo screenshots in each interface language and effective
 light/dark appearance. Supply descriptive captions, full-size links and Astro
-responsive image output; retain original business-content language. Explanatory
+responsive image output; retain original business-content language. The shared
+shadcn/Base UI image Dialog handles modal focus and dismissal, returning focus
+to the original image link. Local flag controls retain native-language accessible
+names; image links fall back to the same-tab original without JavaScript. Explanatory
 AI examples are text, not a simulated live integration. The canonical Changelog
 and Roadmap remain English rather than gaining independently maintained copies.
 

@@ -50,6 +50,7 @@
   --color-border: var(--border);
   --color-input: var(--border-strong);
   --color-ring: var(--focus-ring);
+  --color-overlay: var(--overlay);
   --color-button-outline: var(--button-outline);
   --color-button-outline-border: var(--button-outline-border);
   --color-button-outline-hover: var(--button-outline-hover);
@@ -58,6 +59,7 @@
 
 :root {
   color-scheme: light;
+  --overlay: rgb(3 7 18 / 0.6);
   --background: #f9fafb;
   --surface: #fff;
   --surface-muted: #f3f4f6;
@@ -176,27 +178,30 @@ h3,
 figure {
   margin: 0;
 }
-h1,
-h2,
-h3,
-.project-brand {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+@layer base {
+  h1,
+  h2,
+  h3,
+  .project-brand {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  h1 {
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    line-height: 1.125;
+  }
+  h2 {
+    font-size: clamp(1.75rem, 3.6vw, 2.25rem);
+    line-height: 1.23;
+  }
+  h3 {
+    font-size: 1.25rem;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
 }
-h1 {
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  line-height: 1.125;
-}
-h2 {
-  font-size: clamp(1.75rem, 3.6vw, 2.25rem);
-  line-height: 1.23;
-}
-h3 {
-  font-size: 1.25rem;
-  line-height: 1.4;
-  letter-spacing: -0.01em;
-}
+
 p {
   color: var(--foreground-muted);
 }
@@ -846,4 +851,9 @@ p {
   .project-brand {
     font-size: 1rem;
   }
+}
+
+.language-navigation img {
+  display: block;
+  object-fit: contain;
 }
