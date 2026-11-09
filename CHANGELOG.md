@@ -13,6 +13,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Changed
 
+- Update application and website dependencies, including Fastify, Kysely, TanStack Query, i18next, Tailwind, Vite, Astro and Playwright, and SHA-pinned GitHub checkout/setup-node actions after review; retain the supported TypeScript 6 Astro-checker and Node 24 LTS container baselines with explicit Dependabot constraints.
 - Clarify the released Community 1.0.0 baseline, independently published website/documentation and retained later scope in the PRD, roadmap and project instructions.
 - Public documentation uses self-hosted ITextreme fonts and consistent semantic light/dark surfaces, text, action and focus colors, matching favicon and font license notices while retaining standard Starlight navigation and search.
 

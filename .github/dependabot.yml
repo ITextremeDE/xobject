@@ -15,6 +15,10 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /apps/site
+    # @astrojs/check 0.9.12 supports TypeScript 5/6; revisit with its next update.
+    ignore:
+      - dependency-name: typescript
+        versions: ['7.x']
     schedule:
       interval: weekly
     open-pull-requests-limit: 2
@@ -27,6 +31,10 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /apps/docs
+    # Keep the documentation checker on its supported compiler peer range.
+    ignore:
+      - dependency-name: typescript
+        versions: ['7.x']
     schedule:
       interval: weekly
     open-pull-requests-limit: 2
@@ -46,6 +54,11 @@ updates:
       prefix: chore(deps)
   - package-ecosystem: docker
     directory: /
+    # The released container/operator baseline is Node 24 LTS.
+    # Runtime-major changes need coordinated image, CI and operator acceptance.
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
     schedule:
       interval: weekly
     open-pull-requests-limit: 2

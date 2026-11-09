@@ -12,6 +12,8 @@ Participation follows the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerab
 
 Dependabot checks the application workspaces, website, documentation, GitHub Actions and container base image weekly. Minor and patch npm version updates are grouped per project; major updates receive separate review. Security updates are enabled separately and can open pull requests outside the weekly schedule. Maintainers review and validate dependency pull requests before merging; updates are not automatically merged.
 
+The website and documentation retain TypeScript 6 while `@astrojs/check` 0.9.12 supports only TypeScript 5/6; their TypeScript 7 proposals are temporarily excluded. Revisit that exclusion when updating the checker. The released container remains on Node 24 LTS, with updates within that major; a runtime-major change requires coordinated container, CI and operator validation. These version constraints do not disable vulnerability alerts.
+
 ## Contribution rights
 
 Submit original work that you have the right to contribute under the project's existing license. Contributions use the same AGPL-3.0-only terms; authors retain their copyright. Preserve third-party notices and identify imported code/assets and their compatible licenses. No copyright assignment or separate contributor license agreement is required.
