@@ -10,7 +10,7 @@ OpenProject is the source for operational tasks, priorities and dependencies. Th
 
 ## Current state and commands
 
-The repository contains a local backend technical spike in `apps/server`, with npm workspaces, a lockfile and a GitHub checks workflow. A first React/Vite web client in `apps/web` uses shared contracts in `packages/contracts`. There is a local container/Compose installation candidate; no software release or registry image has been published. The experiment supports typed custom fields, shared Type/Status/Category configuration and workspace User/Designer memberships. Content access follows administrative ceilings, graded ownership and foreign access in ADR 0027; complete version-1 delivery remains open.
+The repository contains a local backend technical spike in `apps/server`, with npm workspaces, a lockfile and a GitHub checks workflow. A first React/Vite web client in `apps/web` uses shared contracts in `packages/contracts`. Version 1.0.0 is the first Community container/Compose release baseline; release artifacts and image digests are published through the documented release workflow. The experiment supports typed custom fields, shared Type/Status/Category configuration and workspace User/Designer memberships. Content access follows administrative ceilings, graded ownership and foreign access in ADR 0027; complete version-1 delivery remains open.
 
 From the repository root, use `npm ci`, `npm run typecheck`, `npm run build` and `npm test`. Tests require Docker and start an isolated disposable PostgreSQL container. See `docs/development.md` for `npm run db:init`, `npm run admin:create` and `npm run dev`; never point experimental initialization at a production database. No lint command is established.
 

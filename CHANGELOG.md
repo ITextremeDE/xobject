@@ -4,9 +4,15 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
-The project is in early development. These entries describe source changes, including locally verified work that has not yet been published. No installable software release is available. Planned capabilities are identified as specifications rather than delivered functionality. Related changes within this unreleased baseline are consolidated to describe their final behavior; superseded intermediate UI states are not separate release features.
+Changes after version 1.0.0 will be recorded here.
+
+## [1.0.0] - 2026-11-09
+
+First Community release. Delivered capabilities and verified acceptance are listed below. Explicit later specifications remain planned work. Related development changes are consolidated to describe their final behavior.
 
 ### Added
+
+- Versioned Community installation packages and native AMD64/ARM64 release-image acceptance before multi-platform publication.
 
 - Native Ubuntu/AMD64 self-hosting acceptance with trusted HTTPS, fresh first-Administrator setup, API/MCP writes and provenance, application/database restart and exact recovery into a second empty installation. Verify credential revocation and off-host backup checksums; document the existing-reverse-proxy variant and retained delivery boundaries.
 

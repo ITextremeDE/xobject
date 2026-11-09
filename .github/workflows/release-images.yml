@@ -1,0 +1,97 @@
+name: Release images
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+jobs:
+  image:
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Build and accept the native release image
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          image="ghcr.io/itextremede/xobject:${version}-${ARCH}"
+          echo "RELEASE_IMAGE=$image" >> "$GITHUB_ENV"
+          docker build --build-arg "RELEASE_VERSION=$version" --build-arg "VCS_REF=$GITHUB_SHA" --tag "$image" .
+          XOBJECT_TEST_IMAGE="$image" node scripts/test-selfhost.mjs
+          XOBJECT_TEST_IMAGE="$image" node scripts/test-selfhost-proxy.mjs
+      - name: Publish the tested architecture
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker push "$RELEASE_IMAGE"
+          mkdir -p image-digests
+          docker image inspect "$RELEASE_IMAGE" --format '{{index .RepoDigests 0}}' > "image-digests/${ARCH}.txt"
+          docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-image-${{ matrix.arch }}
+          path: image-digests/*.txt
+          retention-days: 7
+  manifest:
+    needs: image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: release-image-*
+          merge-multiple: true
+          path: image-digests
+      - name: Publish the multi-platform immutable release reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          image="ghcr.io/itextremede/xobject:$version"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          if docker buildx imagetools inspect "$image" > existing-manifest.txt 2> existing-manifest-error.txt; then
+            echo 'Refusing to overwrite an existing release version.' >&2
+            exit 1
+          fi
+          grep -Eqi 'not found|manifest unknown|name unknown' existing-manifest-error.txt
+          docker buildx imagetools create --tag "$image" "$(cat image-digests/amd64.txt)" "$(cat image-digests/arm64.txt)"
+          docker buildx imagetools inspect "$image" > image-digests/manifest.txt
+          docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-image-manifest
+          path: image-digests/*.txt
+          retention-days: 7

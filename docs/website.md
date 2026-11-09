@@ -1,8 +1,7 @@
 # Public project website
 
 The Astro site in `apps/site` introduces xObject at <https://xobject.org>.
-It describes intended functionality and explicitly identifies the project as
-early development. It is separate from the application: no login, database,
+It introduces the Community release and links its source, installation and documentation. It is separate from the application: no login, database,
 uploads, analytics, remote fonts or mail service is provided.
 
 ## Local development
@@ -101,8 +100,7 @@ No private planning data is imported into public content.
 
 `@astrojs/sitemap` generates `sitemap-index.xml` and its route files during the
 build; `robots.txt` points to that index. Use Astro image components for future
-raster media; current diagrams/icons/logos remain SVG. Full Starlight
-reference documentation is still a separate planned increment.
+raster media; current diagrams/icons/logos remain SVG. The independent Starlight reference documentation is described in [Public documentation](public-documentation.md).
 
 ## ITextreme page structure
 

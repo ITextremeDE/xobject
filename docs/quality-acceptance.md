@@ -1,6 +1,6 @@
 # Quality and acceptance evidence
 
-This report describes the current unreleased candidate. Local evidence does not establish a published release, a production SLA or client/model compatibility.
+This report records the evidence used for the 1.0.0 Community baseline. Each dated block retains its actual test scope; publication is evidenced by the matching release artifacts. Tests do not establish a production SLA or compatibility with untested clients/models.
 
 ## Permission and query performance
 
