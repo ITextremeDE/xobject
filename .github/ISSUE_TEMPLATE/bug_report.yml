@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem in xObject, its website or documentation.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve xObject. Search existing issues before reporting a problem.
+        Report vulnerabilities privately using our [security policy](https://github.com/ITextremeDE/xobject/blob/main/SECURITY.md).
+        Use fictional examples; keep credentials, personal data and private logs out of this public report.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Application interface
+        - API or MCP
+        - Installation or operation
+        - Website or documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: For the website or documentation, provide the affected URL instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include only the setup and steps needed to reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and additional evidence
+      description: Relevant browser/OS, installation method, sanitized errors or screenshots. Review attachments for private data before posting.

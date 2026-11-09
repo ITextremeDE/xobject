@@ -6,8 +6,8 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Added
 
+- Contributor Covenant Code of Conduct, public bug/feature issue forms and a pull request template, with contribution guidance and Dependabot configuration for the application, website, documentation, GitHub Actions and container base image.
 - Flag-based language controls with accessible names and screenshot enlargement in a shared, keyboard-accessible dialog instead of a new browser tab.
-
 - English and German product pages with browser-language selection, remembered manual choice, localized navigation/metadata, a connected-workflow introduction, feature overview, self-hosting actions and FAQ.
 - Actual ITextreme demo screenshots in both interface languages and light/dark modes, responsive full-size viewing links and a social-sharing preview.
 

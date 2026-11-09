@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an improvement and explain the problem it solves.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues and the [roadmap](https://github.com/ITextremeDE/xobject/blob/main/ROADMAP.md) before adding a proposal.
+        Use fictional examples and keep private information out of this public discussion.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Who needs this, and what are they trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the user-visible outcome and a concrete example.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and additional context
