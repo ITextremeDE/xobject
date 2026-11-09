@@ -1,6 +1,6 @@
 # Self-hosting and recovery
 
-The repository contains an unreleased installation candidate. It has passed local Linux/ARM64 container acceptance and the AMD64 application/operator path under emulation; native target-host/public TLS acceptance remains separate. No image or installation archive has been published; use a local source build until a reviewed release exists. The source [Dockerfile](../Dockerfile), [Compose definition](../deploy/compose.selfhost.yaml) and [operator](../scripts/xobject) are authoritative. [ADR 0035](adr/0035-container-delivery-and-maintenance.md) explains the delivery boundary.
+The repository contains an unreleased installation candidate. It has passed local Linux/ARM64 container acceptance and the AMD64 application/operator path under emulation; native Ubuntu/AMD64 acceptance with a publicly trusted HTTPS certificate and an existing reverse proxy has also passed. See the scoped [acceptance evidence](quality-acceptance.md#native-linux-host-and-recovery--2026-11-09). No image or installation archive has been published; use a local source build until a reviewed release exists. The source [Dockerfile](../Dockerfile), [Compose definition](../deploy/compose.selfhost.yaml) and [operator](../scripts/xobject) are authoritative. [ADR 0035](adr/0035-container-delivery-and-maintenance.md) explains the delivery boundary.
 
 ## Prepare an installation
 
@@ -16,6 +16,12 @@ docker build --tag xobject:local-acceptance .
 For a released installation, select its reviewed immutable image reference instead of the local tag. `configure` writes `deploy/selfhost.env` with independent random database/runtime passwords and auth secret, mode `0600`. It refuses to overwrite an existing file. Keep that file with your private recovery material. Never place it in source control. The example uses hex passwords; manually supplied URL passwords must be URL-encoded.
 
 The default private subnet is `172.30.61.0/24`, its dynamic container pool is `172.30.61.128/25`, and Caddy is fixed at `172.30.61.2` outside that pool. If it conflicts with another network, change `BACKEND_SUBNET`, `BACKEND_IP_RANGE` and `PROXY_ADDRESS` together before setup: the dynamic pool and proxy must lie inside the subnet, and the proxy must stay outside the dynamic pool. Only that explicit proxy address is trusted for client IPs. The app can reach public HTTPS client-metadata documents; the database stays on the internal network.
+
+## Use an existing reverse proxy
+
+Keep the dedicated application/database project and use `XOBJECT_START_SERVICES=app` to leave the supplied proxy stopped. Select a private Compose override with `XOBJECT_COMPOSE_OVERRIDE`: connect `app` to the existing proxy network, assign a unique network alias and override its `TRUSTED_PROXIES` environment variable with the proxy's actual fixed address/CIDR. Avoid broad trust ranges. Keep PostgreSQL unpublished and on its internal network; the app needs no public port mapping.
+
+Configure the existing proxy to serve `BASE_URL` with a valid certificate and forward to the application alias on port 4100. Preserve canonical Host/Origin, replace forwarded client headers and permit the streaming transport described below. The existing proxy's configuration, certificate recovery and access restrictions remain the operator's responsibility. Retain the override and required network configuration with private recovery material; the database backup includes `install.env`, not external proxy configuration or custom Compose overrides. Use distinct project names and nonoverlapping backend subnets for a second recovery installation.
 
 ## Initialize and sign in
 
