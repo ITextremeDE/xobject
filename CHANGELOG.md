@@ -4,6 +4,10 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-09
+
+Community maintenance release with unchanged database schema. Includes dependency maintenance, contributor resources and independently delivered website/documentation improvements.
+
 ### Added
 
 - Contributor Covenant Code of Conduct, public bug/feature issue forms and a pull request template, with contribution guidance and Dependabot configuration for the application, website, documentation, GitHub Actions and container base image.
@@ -13,6 +17,9 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Changed
 
+- Pin generated release documentation source links to its exact reviewed commit.
+- Include the Code of Conduct in checksummed public source archives.
+- Verify native upgrades from the immutable 1.0.0 image with preserved records, versions and journal; clarify same-schema maintenance and mismatched-schema recovery guidance.
 - Wait for the restored record to leave the recycle-bin list and table controls to re-enable before browser accessibility checks, so the existing animation wait covers their disabled-state transition.
 - Update paired GitHub artifact upload/download actions with a CI transfer check for merged architecture-digest paths and exact file contents; retain default digest-mismatch rejection.
 - Update application and website dependencies, including Fastify, Kysely, TanStack Query, i18next, Tailwind, Vite, Astro and Playwright, and SHA-pinned GitHub checkout/setup-node actions after review; retain the supported TypeScript 6 Astro-checker and Node 24 LTS container baselines with explicit Dependabot constraints.

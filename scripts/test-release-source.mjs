@@ -15,7 +15,7 @@ test('release source uses reviewed commit files and excludes tracked/untracked p
  const directory=await mkdtemp(path.join(tmpdir(),'xobject-release-source-'));
  try{
   git(directory,'init','-q');git(directory,'config','user.name','Release test');git(directory,'config','user.email','release@example.test');
-  const publicFiles={'.env.example':'SAMPLE=example\n','deploy/selfhost.env.example':'SAMPLE=example\n','README.md':'Reviewed source\n','package.json':'{}\n','apps/server/src/main.ts':'export const value=1;\n','scripts/xobject':'operator\n'};
+  const publicFiles={'.env.example':'SAMPLE=example\n','deploy/selfhost.env.example':'SAMPLE=example\n','README.md':'Reviewed source\n','CODE_OF_CONDUCT.md':'Public community policy\n','package.json':'{}\n','apps/server/src/main.ts':'export const value=1;\n','scripts/xobject':'operator\n'};
   const privateFiles=['deploy/selfhost.env','deploy/selfhost.env.before-restore-20261106T120000Z','deploy/selfhost.env.upgrade.aBc123','deploy/.env.xobject-upgrade.aBc123','docs/recovery/install.env','.local/accounts.json','apps/server/key.pem','docs/database.dump'];
   for(const [file,content] of Object.entries(publicFiles))await put(directory,file,content);
   for(const file of privateFiles)await put(directory,file,'SECRET-FIXTURE-DO-NOT-PACK');

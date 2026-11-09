@@ -2,7 +2,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 
 const publicDirectories=new Set(['apps','packages','scripts','docs','deploy','.github']);
-const publicRootFiles=new Set(['.dockerignore','.env.example','.gitignore','AGENTS.md','CLAUDE.md','CHANGELOG.md','CONTRIBUTING.md','Dockerfile','LICENSE','NOTICE','README.md','ROADMAP.md','SECURITY.md','package.json','package-lock.json']);
+const publicRootFiles=new Set(['.dockerignore','.env.example','.gitignore','AGENTS.md','CLAUDE.md','CHANGELOG.md','CODE_OF_CONDUCT.md','CONTRIBUTING.md','Dockerfile','LICENSE','NOTICE','README.md','ROADMAP.md','SECURITY.md','package.json','package-lock.json']);
 const examples=new Set(['.env.example','deploy/selfhost.env.example']);
 /** A commit is the source boundary; these exclusions also reject tracked recovery files. */
 export function isPublicSourcePath(file){

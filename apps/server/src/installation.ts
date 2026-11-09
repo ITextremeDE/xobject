@@ -31,8 +31,9 @@ export async function upgradeInstallation(operatorURL:string,runtimeURL:string,b
     const role=decodeURIComponent(new URL(runtimeURL).username);
     const writers=await pool.query('SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND usename=$1 AND pid<>pg_backend_pid() LIMIT 1',[role]);
     if(writers.rowCount)throw new Error('Stop all application writers before upgrading.');
-    // No released predecessor exists. Future released-version migrations belong here,
-    // followed by complete target verification; never start a mixed runtime model.
+    // Released 1.0.0 and 1.0.1 share the exact schema/catalog/auth fingerprint.
+    // Same-schema upgrades require verification only. Future schema-changing
+    // migrations belong here, followed by complete target verification.
     try{await assertCurrentSchema(pool);}catch{throw new Error('No supported released upgrade path exists for this source installation. Use its matching application and recovery backup.');}
   }finally{await db.destroy();if(!pool.ended)await pool.end();}
   return verifyInstallation(operatorURL);

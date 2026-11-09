@@ -1,8 +1,8 @@
 # Roadmap
 
-Version 1.0.0 provides the Community foundation described below. Available artifacts are listed in [GitHub Releases](https://github.com/ITextremeDE/xobject/releases). This is a curated product overview, not a parallel task tracker. OpenProject owns operational priorities, dependencies and completion evidence; the [PRD](docs/PRD.md) owns requirements and the [changelog](CHANGELOG.md) records source changes. No dates are committed.
+Version 1.0.1 is the Community maintenance release of the 1.0.0 foundation described below. Available artifacts are listed in [GitHub Releases](https://github.com/ITextremeDE/xobject/releases). This is a curated product overview, not a parallel task tracker. OpenProject owns operational priorities, dependencies and completion evidence; the [PRD](docs/PRD.md) owns requirements and the [changelog](CHANGELOG.md) records source changes. No dates are committed.
 
-The product foundation below is included in the released Community version 1.0.0. Subsequent website/documentation changes are published independently and appear under Unreleased in the changelog. Acceptance evidence and coverage limits are recorded in the [quality report](docs/quality-acceptance.md); reserved calendar capabilities and notifications remain later scope.
+The product foundation below is included in the released Community version 1.0.0. The 1.0.1 maintenance release updates dependencies and contributor resources without changing the database schema. Website/documentation changes are published independently; the changelog assigns delivered changes to their release. Acceptance evidence and coverage limits are recorded in the [quality report](docs/quality-acceptance.md); reserved calendar capabilities and notifications remain later scope.
 
 ## Released — Community 1.0.0 foundation
 
@@ -42,7 +42,7 @@ Expanded local acceptance now covers every settings section in Light/Dark, the f
 ## Published website and contributor resources
 
 - English/German product pages with automatic browser-language selection, remembered manual choice, real demo screenshots, light/dark presentation and accessible screenshot dialogs.
-- ITextreme-branded documentation at [docs.xobject.org](https://docs.xobject.org/), with canonical changelog/roadmap pages, search and a retained [1.0.0 snapshot](docs/versions.md).
+- ITextreme-branded documentation at [docs.xobject.org](https://docs.xobject.org/), with canonical changelog/roadmap pages, search and retained [1.0.0/1.0.1 snapshots](docs/versions.md).
 - Contributor Covenant, public issue forms, pull request guidance and reviewed Dependabot updates for all npm projects, GitHub Actions and the container base image.
 
 ## Delivery and remaining coverage
@@ -55,7 +55,7 @@ Expanded local acceptance now covers every settings section in Light/Dark, the f
 | Standards-aligned domain profiles | The appendix proposes fields, mappings and acceptance cases for Contacts, Distribution lists, Appointments, Vacations and Tasks. ADR 0032 specifies typed JSONB fields, semantic bindings, edge attributes and sparse recurrence overrides with shared authorization/history; the nine contact codecs and base Contacts/Distribution lists are implemented locally. The common temporal codec is implemented; recurrence, calendar parties and complete versioned exchange-profile coverage remain later work. Synchronization is later scope. |
 | Shared modules/forms | Shared object/field contributions, common object forms, retained activation/deactivation and additive template updates are implemented locally. Migrations from a supported released predecessor are required when that predecessor exists. |
 | Delivery and acceptance | The local image, interactive first-Administrator setup, Linux Compose operator, checksummed backup/restore and maintenance failure/recovery acceptance are implemented. Native Ubuntu/AMD64 execution, privately accessible trusted HTTPS and restoration into a second empty installation are accepted; see the scoped quality report. Community 1.0.0 images and installation/source/documentation archives are published in GitHub Releases. Add supported released-source migrations when predecessors exist; local performance targets are met; retain the documented accessibility, platform and Codex coverage limits without treating them as unimplemented V1 features. |
-| Public documentation | Astro/Starlight source, canonical Markdown/changelog/roadmap generation, Pagefind search, built-link validation and versioned-base builds are implemented locally. Current documentation and the retained 1.0.0 snapshot are published at https://docs.xobject.org/; the website and documentation share the existing website host. |
+| Public documentation | Astro/Starlight source, canonical Markdown/changelog/roadmap generation, Pagefind search, built-link validation and versioned-base builds are implemented locally. Current documentation and the retained released snapshots are published at https://docs.xobject.org/; the website and documentation share the existing website host. |
 
 Every capability must use the same backend authorization, validation and journal rules through web, API and MCP. A passing prototype test is not complete version-1 acceptance. See the [initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios) and [remaining design decisions](docs/PRD.md#10-remaining-design-decisions).
 
