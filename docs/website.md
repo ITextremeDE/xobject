@@ -1,162 +1,108 @@
-# Public project website
+# Public product website
 
-The Astro site in `apps/site` introduces xObject at <https://xobject.org>.
-It introduces the Community release and links its source, installation and documentation. It is separate from the application: no login, database,
-uploads, analytics, remote fonts or mail service is provided.
+The independent Astro application in `apps/site` introduces xObject at
+<https://xobject.org>. It presents released capabilities, actual application
+screenshots and links to installation, documentation and source code. It has
+no application login, business-data access, analytics or external font service.
 
-## Local development
+## Content and languages
+
+English and German product pages live at `/en/` and `/de/`. They explain connected
+records, Contacts & Relations, Projects & Tasks, custom objects/forms, permissions,
+journals, workspaces, API/MCP and Community self-hosting. Later capabilities are
+identified as planned in the FAQ. The primary action opens the self-hosting guide;
+GitHub is the secondary action. The workflow example is explanatory text, not a
+live AI integration or a public application demo.
+
+Only `/` negotiates language: a saved explicit selection wins, otherwise the
+browser's first preferred language selects German or falls back to English.
+Direct localized URLs are never redirected by that preference. The language
+switch preserves section anchors and uses normal links even without JavaScript.
+With JavaScript disabled, `/` provides the complete English page. Language and
+color-mode preferences are independent browser settings. Localized pages expose
+canonical, `hreflang` and `x-default` metadata, Open Graph metadata and a share image.
+
+The canonical English Changelog and Roadmap remain at `/changelog/` and `/roadmap/`.
+The build generates them from the root Markdown files; edit those originals,
+not the ignored generated content. The reference documentation currently remains
+English at <https://docs.xobject.org/>; both product languages state this clearly.
+
+## Design and components
+
+The implementation follows ITextreme's Corporate Design and public website.
+Shared brand roles, rather than application-specific overrides, define the frame:
+
+- Inter Variable for body text and controls, Orbitron Variable for concise
+  headings, JetBrains Mono Variable for technical accents. All fonts are self-hosted.
+- Brand red `#E53145`, light action `#C81E3A`, dark action `#F26074`, light
+  background `#F9FAFB` and dark background `#030712`, with semantic surface,
+  text, border and focus roles.
+- A 72 px header, a 90 rem container and responsive gutters; clear section
+  surfaces, generous spacing, visible focus and reduced-motion support.
+- Official ITextreme SVG assets are used unchanged, including their original
+  tagline, proportions and minimum 240 px horizontal width.
+
+`components.json` uses `base-nova`, Base UI, Lucide and `rsc: false`.
+[ADR 0005](adr/0005-public-website-design-system.md) records the component strategy.
+Use existing shadcn primitives and built-in variants first. Keep primitive styling
+in their source and map it to semantic roles. Base UI owns menu focus, radio
+semantics, Escape and dismissal. Native links and disclosure elements keep static
+content usable without hydration. Only the header menus hydrate; product content
+and action links render at build time. Component/font notices ship under `/licenses/`.
+
+`SiteLayout.astro` owns the frame and metadata; `config/content.ts` owns localized
+product copy. The parent website remains the magazine; xObject has product-specific
+navigation, examples and calls to action. No private planning files are runtime or
+build dependencies.
+
+## Screenshots
+
+`src/assets/screenshots/` contains actual fictional ITextreme demo views in both
+interface languages and light/dark modes: a project tree, a record list, a Contact,
+a custom service plan and a record journal. No real customer data or credentials
+are included. Record contents remain in their original English language.
+Capture through a separate browser session and restore temporary account settings.
+
+The screenshot component follows the site's effective color mode, supplies localized
+captions and alternative text, and links to full-resolution originals. Astro generates
+responsive WebP assets; below-fold media loads lazily. Dashboard draft metrics are
+not used to illustrate delivered capabilities. Refresh images when relevant forms
+or navigation change; never fabricate controls or edit application contents into images.
+
+## Local development and acceptance
+
+From `apps/site`:
 
 ```sh
-cd apps/site
 npm ci
 npm run dev
 npm run typecheck
 npm run build
+npm test
 ```
 
-`dist/` is static build output. The `Website Quality` workflow checks strict Astro/TypeScript diagnostics,
-builds that output, runs browser acceptance and audits its locked dependencies. Production serves the generated
-files through Caddy; Astro's development/preview server is not a production
-service. The existing website host owns deployment, TLS, canonical apex/`www`
-redirects and retained releases.
+`dist/` is static output. The Website Quality workflow checks Astro/TypeScript,
+builds it, runs isolated Chromium acceptance and audits locked dependencies.
+The tests cover language negotiation/manual choice/direct links, both localized
+pages, theme persistence/system changes, responsive screenshots, menus, keyboard
+focus, FAQ, accessibility, resource pages and console errors under production CSP.
 
-## Design provenance
+Use `QA_SCREENSHOT_DIR=/absolute/path npm test` to retain browser captures.
+For read-only checks of an already deployed matching build, use
+`SITE_TEST_URL=https://xobject.org/ npm test`. Review desktop/mobile screenshots
+as well as automated findings. Do not infer public deployment from local checks.
 
-The design implements ITextreme's Corporate Operating System (Corporate Design
-and Corporate Tokens, reviewed 2026-08-22), aligned with the current public
-ITextreme website. There is no runtime dependency on personal planning files.
+## Hosting and security
 
-- Orbitron Variable: short project headings; Inter Variable: body and controls;
-  JetBrains Mono Variable: object identifiers. Fonts are self-hosted under OFL.
-- Brand red `#E53145`; accessible light action `#C81E3A`; background `#F9FAFB`.
-  Dark roles use `#030712`, `#F9FAFB` and the action color `#F26074`.
-- Semantic CSS roles define all component colors. System, light and dark modes
-  share one layout. Theme selection is local to the browser.
-- The conceptual object diagram implements the brand's connected-order
-  principle; it is not a screenshot of an existing application.
-- Official SVG brand assets are copied unchanged from the public ITextreme
-  website source. The horizontal logo is displayed at least 240 px wide and
-  retains its original tagline and proportions. Do not redraw or typeset it.
-- Product requirements, roadmap and changelog link to their canonical Git
-  sources instead of maintaining separate website copies.
+The existing website host serves static output, owns TLS, apex/`www` redirects,
+retained releases and rollback, and also serves the Starlight documentation.
+Astro development/preview servers are local tooling. Publication and live readback
+remain separate from source changes.
 
-Check desktop/mobile layout, all resource links, keyboard focus, reduced
-motion, system/light/dark selection and the absence of overflow before release.
+Executable scripts, fonts and media come from the same origin. Asset inlining stays
+disabled; no executable inline script, `unsafe-inline`, remote code or broader
+hydration is required. The inert JSON-LD block is metadata. Preserve the existing
+production CSP. `@astrojs/sitemap` and `robots.txt` provide crawler entry points.
 
-`npm test` exercises the built output in isolated Chromium under the production
-Content-Security-Policy. It checks persisted theme selection, accessibility,
-navigation, responsive overflow at 390/320 px and browser errors. The CI runs
-this check after the static build. Executable scripts and fonts come from the same origin only; build-time asset
-inlining is disabled to preserve that policy. Inert `application/ld+json`
-metadata requires no executable inline-script permission.
-
-The 2026-10-29 design review compared the complete compact concept and rendered
-1024 × 1536 view: heading/body/mono roles, semantic palette, section order,
-CTA copy, object diagram, open-column rhythm and mobile reflow. The actual
-official ITextreme SVG replaces the draft image's invented logo. Font sizes
-adapt to the available width using the COS hierarchy; the early-development
-statement remains visible. Browser/IAB inspection was completed first; after
-the Chrome connection timed out, responsive/CSP acceptance used isolated
-Chromium instead of controlling the user's browser through another channel.
-
-## Shared component rules
-
-The ITextreme COS is the design source. The public ITextreme website's ADR 0002
-provides the shared implementation strategy; [ADR 0005](adr/0005-public-website-design-system.md)
-records its application to Astro.
-
-- `components.json`: `base-nova`, Base UI, Lucide, CSS variables, `rsc: false`.
-  The initial source was generated by shadcn CLI 4.23.0 using `init --base base
---preset nova`, then adapted to COS roles and 44 px targets. CLI preset `nova`
-  plus base `base` resolves to the existing ITextreme style `base-nova`.
-- Inspect `npx shadcn@latest info --json`, search the explicit `@shadcn` registry
-  and read component docs before additions. The CLI is an on-demand development
-  tool, not an application/build dependency.
-- Use existing primitives before custom markup. Choose built-in variants;
-  `className` at call sites is for outer layout, not primitive colors/type.
-  Keep adaptations in the primitive source and map colors through semantic
-  roles. Do not add per-component `dark:` color overrides.
-- Compose components according to their API: Base UI uses `render` and
-  `nativeButton={false}` for anchor buttons. Groups contain their items;
-  dialogs/sheets/drawers need accessible titles. Future forms use Field/FieldGroup
-  composition and explicit validation/disabled semantics.
-- Use `cn()` for merged/conditional classes, `gap-*` for spacing and `size-*`
-  for square dimensions. Icons are component references; button icons use
-  `data-icon` and inherit sizing from the primitive.
-- Preserve native HTML and keyboard operation, visible focus, 44 px standard
-  targets, semantic light/dark roles and reduced motion. Only one primary
-  action per group. Add no unused component catalog or speculative effects.
-- Review CLI-generated files and upstream diffs; never overwrite local
-  adaptations blindly. Font/icon/component notices ship under `/licenses/`.
-
-## Content and page foundations
-
-`src/layouts/SiteLayout.astro` owns fonts, global tokens, header/footer,
-canonical/OG/Twitter metadata and WebSite JSON-LD. Product pages compose this
-layout with content and components. Only the two header menus hydrate; product
-content and static actions remain build-rendered. `src/content.config.ts` validates the first MDX collection;
-`src/content/project/development.mdx` is the current development statement.
-No private planning data is imported into public content.
-
-`@astrojs/sitemap` generates `sitemap-index.xml` and its route files during the
-build; `robots.txt` points to that index. Use Astro image components for future
-raster media; current diagrams/icons/logos remain SVG. The independent Starlight reference documentation is described in [Public documentation](public-documentation.md).
-
-## ITextreme page structure
-
-The page frame follows the current public ITextreme website's SiteHeader,
-Container, HomeHero and SiteFooter. The 2026-10-29 review used anonymous live
-1440 × 1000 reference captures and the corresponding source components.
-
-- Header: one 72 px sticky row with brand, a compact group of four section
-  links, related-site links and neutral 44 px icon controls. It does not spread
-  a small navigation across the whole viewport.
-- Theme/mobile navigation: the actual shadcn/Base UI Dropdown Menu primitives
-  and Button variants used by ITx. Theme options use Sun/Moon/Monitor icons and
-  radio semantics; current state is reflected in the trigger's accessible name.
-  Base UI owns Escape, focus return, arrow-key navigation and outside click.
-  The old native select and details/summary substitutes are removed.
-- Containers: the same 90 rem maximum and 16/24/32/48 px responsive side padding.
-- Hero: surface-colored full-width band, equal desktop columns, the shared
-  heading scale and 18 px/32 px intro text. xObject's own copy and object-model
-  diagram remain the product-specific content; no magazine kicker is invented.
-- Footer: ITextreme brand and adapted xObject description on the left, the same
-  nine social brand icons and public ITextreme channel URLs as the parent site
-  (maintained in `src/config/social.ts`), grouped xObject/project/legal navigation,
-  developer credit with the actual Astro stack, copyright and a native back-to-top link.
-- Intentional differences: xObject's identity and four real section targets
-  replace magazine categories. Only existing project resources are linked;
-  no empty search, social feeds or third-party consent widget is added.
-  Asset license files stay under `/licenses/`
-  without a visible license link or license label in the page frame.
-
-Reference/render comparison checks header hierarchy, container alignment,
-hero typography and surface, section rhythm, footer group spacing and mobile
-reflow. Above-the-fold product copy and CTA labels remain unchanged; navigation
-labels reflect actual section targets. Automated QA uses isolated Chromium against the built site and its production CSP, independently of personal browser sessions. The normal acceptance flow now
-also covers Escape/focus return, outside click, fragment navigation, sticky
-anchor clearance, back-to-top and open-menu closure on desktop resize.
-
-## Header interactivity and security
-
-`SiteHeader.astro` renders `HeaderControls` using React `renderToString`; its
-bundled external entry hydrates that root with the same `identifierPrefix`.
-No executable inline script, `unsafe-inline`, remote code or wider application
-hydration is needed. The production CSP is unchanged. Keep client/server
-markup deterministic and treat hydration warnings as acceptance failures.
-
-The original `xobject-theme` preference key is retained. The early external
-initializer applies/persists color-mode events and system changes; the React
-control reads the current mode through `useSyncExternalStore`. It displays the
-same icon menu and real menu/radio behavior as ITx. Popup/accent roles and
-neutral Button variants use the shared semantic colors. Compact navigation
-spacing and consistent control sizes are explicit browser acceptance checks.
-
-For read-only acceptance of the deployed build, run
-`SITE_TEST_URL=https://xobject.org/ npm test` from `apps/site`. With no URL,
-the same suite serves `dist/` under the production policy in an isolated local
-fixture. Both modes use a fresh browser context without personal sessions.
-
-## Canonical project pages
-
-The build generates `/changelog/` and `/roadmap/` from the root Markdown sources. Generated content is ignored; edit `CHANGELOG.md` and `ROADMAP.md`. These English pages use the shared site frame and explicit English document language. Project resources link documentation at `https://docs.xobject.org/`. Local build/QA is separate from public deployment; selected URLs require live verification after publication.
+See [Public documentation](public-documentation.md) for Starlight's independent
+canonical content generation, versioned snapshots and checks.

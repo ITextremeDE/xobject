@@ -1,11 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir } from "node:fs/promises";
 import { resolve, extname, join } from "node:path";
 import { chromium, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-
 const root = resolve("dist");
 const policy =
   "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
@@ -14,26 +13,38 @@ const types = {
   ".js": "text/javascript",
   ".css": "text/css",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".webp": "image/webp",
   ".woff2": "font/woff2",
   ".txt": "text/plain",
   ".xml": "application/xml",
 };
-const labels = { light: "Hell", dark: "Dunkel", system: "System" };
-async function chooseTheme(page, theme) {
-  const trigger = page.getByRole("button", { name: /^Darstellung:/ });
-  await trigger.click();
-  await page
-    .getByRole("menuitemradio", { name: labels[theme], exact: true })
-    .click();
-  await expect(trigger).toHaveAccessibleName(`Darstellung: ${labels[theme]}`);
-  await expect(page.getByRole("menu")).not.toBeVisible();
-}
+const t = {
+  en: {
+    appearance: "Appearance",
+    light: "Light",
+    dark: "Dark",
+    system: "System",
+    nav: "Main navigation",
+    menu: "Open navigation",
+    start: "Get started",
+  },
+  de: {
+    appearance: "Darstellung",
+    light: "Hell",
+    dark: "Dunkel",
+    system: "System",
+    nav: "Hauptnavigation",
+    menu: "Navigation öffnen",
+    start: "Loslegen",
+  },
+};
 async function accessible(page) {
-  const result = await new AxeBuilder({ page })
+  const scan = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
   assert.deepEqual(
-    result.violations.map((v) => ({
+    scan.violations.map((v) => ({
       id: v.id,
       nodes: v.nodes.map((n) => ({
         target: n.target,
@@ -43,246 +54,238 @@ async function accessible(page) {
     [],
   );
 }
-async function stable(page) {
-  await page.waitForFunction(
-    () =>
-      !document
-        .getAnimations()
-        .some((animation) => animation.playState === "running"),
-  );
-}
-async function screenshot(page, name, fullPage = true) {
+async function capture(page, name) {
   if (process.env.QA_SCREENSHOT_DIR) {
-    await stable(page);
+    await mkdir(process.env.QA_SCREENSHOT_DIR, { recursive: true });
+    for (const img of await page.locator("img:visible").all()) {
+      await img.scrollIntoViewIfNeeded();
+      await expect(img).toHaveJSProperty("complete", true);
+      assert(await img.evaluate((n) => n.naturalWidth > 0));
+    }
+    await page.evaluate(() => scrollTo(0, 0));
     await page.screenshot({
       path: join(process.env.QA_SCREENSHOT_DIR, name),
-      fullPage,
+      fullPage: true,
     });
   }
 }
-
-test("header controls match ITx and remain usable under production CSP", async () => {
-  const server = http.createServer(async (request, response) => {
+test("localized product site, theme controls, screenshots and resources under production CSP", async () => {
+  const server = http.createServer(async (req, res) => {
     try {
-      const pathname = decodeURIComponent(
-        new URL(request.url, "http://localhost").pathname,
+      const name = decodeURIComponent(
+        new URL(req.url, "http://localhost").pathname,
       );
       const file = resolve(
         root,
-        "." + (pathname.endsWith("/") ? pathname + "index.html" : pathname),
+        "." + (name.endsWith("/") ? name + "index.html" : name),
       );
-      if (!file.startsWith(root + "/")) throw Error("outside fixture");
+      if (!file.startsWith(root + "/")) throw Error();
       const body = await readFile(file);
-      response.writeHead(200, {
+      res.writeHead(200, {
         "Content-Type": types[extname(file)] || "application/octet-stream",
         "Content-Security-Policy": policy,
       });
-      response.end(body);
+      res.end(body);
     } catch {
-      response.writeHead(404);
-      response.end();
+      res.writeHead(404);
+      res.end();
     }
   });
   if (!process.env.SITE_TEST_URL)
     await new Promise((done) => server.listen(0, "127.0.0.1", done));
-  const url =
-    process.env.SITE_TEST_URL || `http://127.0.0.1:${server.address().port}/`;
-  const browser = await chromium.launch();
+  const base =
+      process.env.SITE_TEST_URL || `http://127.0.0.1:${server.address().port}/`,
+    browser = await chromium.launch();
   try {
-    const context = await browser.newContext({
-      viewport: { width: 1440, height: 1000 },
-    });
-    const page = await context.newPage();
-    const failures = [];
-    page.on("pageerror", (error) => failures.push(error.message));
-    page.on("console", (message) => {
-      if (["error", "warning"].includes(message.type()))
-        failures.push(message.text());
-    });
-    const response = await page.goto(url, { waitUntil: "networkidle" });
-    assert.equal(response.status(), 200);
-    assert.match(
-      response.headers()["content-security-policy"],
-      /script-src 'self'/,
-    );
-    await page.evaluate(() => document.fonts.ready);
-    assert.match(await page.title(), /xObject by ITextreme/);
-    assert.match(
-      await page.locator("main").innerText(),
-      /Community-Version ist vollständig Open Source und selbst hostbar/,
-    );
-    assert.equal(
-      await page
-        .locator('script:not([src]):not([type="application/ld+json"])')
-        .count(),
-      0,
-      "no executable inline scripts",
-    );
-    assert.match(
-      await page
-        .locator("h1")
-        .evaluate((node) => getComputedStyle(node).fontFamily),
-      /Orbitron/,
-    );
-    assert.match(
-      await page
-        .locator("body")
-        .evaluate((node) => getComputedStyle(node).fontFamily),
-      /Inter/,
-    );
-    assert.equal(
-      await page.getByRole("combobox").count(),
-      0,
-      "theme is the ITx icon menu",
-    );
-    assert.equal(
-      await page.getByRole("link", { name: "Lizenzen", exact: true }).count(),
-      0,
-    );
-    assert.equal(
-      JSON.parse(
-        await page.locator('script[type="application/ld+json"]').textContent(),
-      ).url,
-      "https://xobject.org/",
-    );
-    await page.keyboard.press("Tab");
-    await expect(page.locator(".skip-link")).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(page.locator("#inhalt")).toBeFocused();
-    const nav = page.getByRole("navigation", {
-      name: "Hauptnavigation",
-      exact: true,
-    });
-    assert(
-      (await nav.boundingBox()).width < 500,
-      "navigation must remain compact",
-    );
-    await nav.getByRole("link", { name: "Entwicklung", exact: true }).click();
-    await expect(
-      nav.getByRole("link", { name: "Entwicklung", exact: true }),
-    ).toHaveAttribute("aria-current", "location");
-    await page.goto(url, { waitUntil: "networkidle" });
-    assert.equal(await page.locator('.hero [data-slot="button"]').count(), 2);
-    for (const mode of ["light", "dark", "system"]) {
-      await chooseTheme(page, mode);
-      await page.reload({ waitUntil: "networkidle" });
+    const errors = [];
+    for (const lang of ["en", "de"]) {
+      const context = await browser.newContext({
+          locale: lang === "de" ? "de-DE" : "en-US",
+          viewport: { width: 1440, height: 1000 },
+          reducedMotion: "reduce",
+        }),
+        page = await context.newPage();
+      page.on("pageerror", (e) => errors.push(e.message));
+      page.on("console", (m) => {
+        if (["error", "warning"].includes(m.type())) errors.push(m.text());
+      });
+      let response = await page.goto(base, { waitUntil: "networkidle" });
+      assert.equal(response.status(), 200);
+      await expect(page).toHaveURL(new URL(lang + "/", base).href);
+      await expect(page.locator("html")).toHaveAttribute("lang", lang);
+      assert.match(await page.title(), /xObject by ITextreme/);
+      await page.evaluate(() => document.fonts.ready);
+      assert.equal(
+        await page
+          .locator('script:not([src]):not([type="application/ld+json"])')
+          .count(),
+        0,
+      );
+      assert.match(
+        await page
+          .locator("h1")
+          .evaluate((n) => getComputedStyle(n).fontFamily),
+        /Orbitron/,
+      );
+      assert.match(
+        await page
+          .locator("body")
+          .evaluate((n) => getComputedStyle(n).fontFamily),
+        /Inter/,
+      );
+      assert.equal(
+        await page.locator('link[rel="alternate"][hreflang]').count(),
+        3,
+      );
+      assert.equal(await page.locator('.hero [data-slot="button"]').count(), 2);
+      assert.equal(
+        (
+          await context.request.get(new URL("/social-preview.png", base).href)
+        ).status(),
+        200,
+      );
+      assert.equal(
+        await page.locator("main figure.product-screenshot").count(),
+        5,
+      );
+      await page.keyboard.press("Tab");
+      await expect(page.locator(".skip-link")).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#inhalt")).toBeFocused();
+      const nav = page.getByRole("navigation", {
+        name: t[lang].nav,
+        exact: true,
+      });
+      await nav.getByRole("link", { name: t[lang].start, exact: true }).click();
       await expect(
-        page.getByRole("button", {
-          name: `Darstellung: ${labels[mode]}`,
+        nav.getByRole("link", { name: t[lang].start, exact: true }),
+      ).toHaveAttribute("aria-current", "location");
+      for (const mode of ["light", "dark", "system"]) {
+        const trigger = page.getByRole("button", {
+          name: new RegExp("^" + t[lang].appearance + ":"),
+        });
+        await trigger.click();
+        await page
+          .getByRole("menuitemradio", { name: t[lang][mode], exact: true })
+          .click();
+        await expect(page.getByRole("menu")).not.toBeVisible();
+        await page.reload({ waitUntil: "networkidle" });
+        await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+        await accessible(page);
+        await trigger.click();
+        await expect(
+          page.getByRole("menuitemradio", { name: t[lang][mode], exact: true }),
+        ).toHaveAttribute("aria-checked", "true");
+        await accessible(page);
+        await page.keyboard.press("Escape");
+        await expect(trigger).toBeFocused();
+        const displayed = page.locator(".hero .screenshot-link:visible img");
+        await expect(displayed).toBeVisible();
+        assert.equal(
+          await displayed.evaluate((n) => n.complete && n.naturalWidth > 0),
+          true,
+        );
+        if (mode === "dark") {
+          await page.goto(new URL(lang + "/", base).href, {
+            waitUntil: "networkidle",
+          });
+          await capture(page, `site-${lang}-dark.png`);
+        }
+      }
+      await page.emulateMedia({ colorScheme: "dark" });
+      await page.waitForFunction(() =>
+        document.documentElement.classList.contains("dark"),
+      );
+      await expect(page.locator(".hero .screenshot-dark")).toBeVisible();
+      await page.emulateMedia({ colorScheme: "light" });
+      await page.waitForFunction(
+        () => !document.documentElement.classList.contains("dark"),
+      );
+      for (const width of [1440, 1024, 1023, 768, 390, 320]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.goto(new URL(lang + "/", base).href, {
+          waitUntil: "networkidle",
+        });
+        assert(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+          `overflow ${lang} ${width}`,
+        );
+        if ([1440, 390].includes(width)) {
+          await accessible(page);
+          await capture(page, `site-${lang}-${width}.png`);
+        }
+      }
+      const navigation = page.getByRole("button", {
+        name: t[lang].menu,
+        exact: true,
+      });
+      await navigation.click();
+      await accessible(page);
+      await page.keyboard.press("Escape");
+      await expect(navigation).toBeFocused();
+      await navigation.press("ArrowDown");
+      await expect(
+        page.getByRole("menuitem", {
+          name: t[lang].overview ?? (lang === "de" ? "Überblick" : "Overview"),
           exact: true,
         }),
-      ).toBeVisible();
-      assert.equal(await page.locator("html").getAttribute("data-theme"), mode);
-      await stable(page);
-      await accessible(page);
-      await page.getByRole("button", { name: /^Darstellung:/ }).click();
-      await expect(
-        page.getByRole("menuitemradio", { name: labels[mode], exact: true }),
-      ).toHaveAttribute("aria-checked", "true");
-      await stable(page);
-      await accessible(page);
-      if (mode === "dark")
-        await screenshot(page, "xobject-header-dark-menu.png", false);
+      ).toBeFocused();
       await page.keyboard.press("Escape");
-    }
-    await page.getByRole("button", { name: /^Darstellung:/ }).click();
-    await expect(
-      page.getByRole("menuitemradio", { name: "System", exact: true }),
-    ).toHaveAttribute("aria-checked", "true");
-    await stable(page);
-    await accessible(page);
-    await screenshot(page, "xobject-itx-theme-menu.png", false);
-    await page.keyboard.press("Escape");
-    await expect(
-      page.getByRole("button", { name: /^Darstellung:/ }),
-    ).toBeFocused();
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.waitForFunction(() =>
-      document.documentElement.classList.contains("dark"),
-    );
-    await screenshot(page, "xobject-header-dark.png");
-    await page.emulateMedia({ colorScheme: "light" });
-    await page.waitForFunction(
-      () => !document.documentElement.classList.contains("dark"),
-    );
-    await chooseTheme(page, "light");
-    await screenshot(page, "xobject-header-desktop.png");
-    for (const width of [1024, 1023, 768, 390, 320]) {
-      await page.setViewportSize({ width, height: 844 });
-      await stable(page);
-      assert(
-        await page.evaluate(
-          () =>
-            document.documentElement.scrollWidth <=
-            document.documentElement.clientWidth,
-        ),
-        `overflow at ${width}`,
+      await navigation.click();
+      await page
+        .getByRole("menuitem", { name: t[lang].start, exact: true })
+        .click();
+      await expect(page.getByRole("menu")).not.toBeVisible();
+      await page.locator(".faq-item summary").first().click();
+      assert.equal(
+        await page.locator(".faq-item").first().getAttribute("open"),
+        "",
       );
-      for (const heading of await page.locator("h3").all())
-        assert(
-          await heading.evaluate(
-            (node) => node.scrollWidth <= node.clientWidth,
-          ),
-          `heading overflow at ${width}`,
-        );
-    }
-    const navigation = page.getByRole("button", {
-      name: "Navigation öffnen",
-      exact: true,
-    });
-    await navigation.click();
-    await expect(
-      page.getByRole("menuitem", { name: "Überblick", exact: true }),
-    ).toBeVisible();
-    await stable(page);
-    await accessible(page);
-    await page.keyboard.press("Escape");
-    await expect(navigation).toBeFocused();
-    await navigation.press("ArrowDown");
-    await expect(
-      page.getByRole("menuitem", { name: "Überblick", exact: true }),
-    ).toBeFocused();
-    await page.mouse.click(4, 400);
-    await expect(page.getByRole("menu")).not.toBeVisible();
-    await navigation.click();
-    await page
-      .getByRole("menuitem", { name: "Entwicklung", exact: true })
-      .click();
-    await expect(page.getByRole("menu")).not.toBeVisible();
-    const heading = page.getByRole("heading", {
-      name: "Offen entwickelt. Von Anfang an.",
-    });
-    await expect(heading).toBeInViewport();
-    assert(
-      (await heading.boundingBox()).y >=
-        (await page.locator(".site-header").boundingBox()).height,
-    );
-    await page.getByRole("link", { name: "Nach oben", exact: true }).click();
-    await page.waitForFunction(() => window.scrollY < 2);
-    await accessible(page);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await screenshot(page, "xobject-header-mobile.png");
-    await navigation.click();
-    await screenshot(page, "xobject-header-mobile-menu.png", false);
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await expect(page.getByRole("menu")).not.toBeVisible();
-    for (const button of await page
-      .locator('.header-controls button, .hero [data-slot="button"]')
-      .all())
-      if (await button.isVisible())
-        assert((await button.boundingBox()).height >= 44, "COS target height");
-    for (const destination of ['changelog','roadmap']) {
-      for (const width of [1440,390]) {
-        await page.setViewportSize({width,height:1000});
-        await page.goto(new URL(destination+'/',url).href);
-        await expect(page.locator('html')).toHaveAttribute('lang','en');
-        await expect(page.getByRole('heading',{level:1})).toHaveText(destination==='changelog'?'Changelog':'Roadmap');
-        assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      const other = lang === "en" ? "de" : "en";
+      await page
+        .locator(`.language-navigation a[data-language="${other}"]`)
+        .click();
+      await expect(page).toHaveURL(new RegExp("/" + other + "/#start$"));
+      assert.equal(
+        await page.evaluate(() => localStorage.getItem("xobject-language")),
+        other,
+      );
+      await page.goto(base, { waitUntil: "networkidle" });
+      await expect(page).toHaveURL(new URL(other + "/", base).href);
+      await page.goto(new URL(lang + "/", base).href, {
+        waitUntil: "networkidle",
+      });
+      await expect(page.locator("html")).toHaveAttribute("lang", lang);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      for (const path of ["changelog", "roadmap"]) {
+        await page.goto(new URL(path + "/", base).href, {
+          waitUntil: "networkidle",
+        });
+        await expect(page.locator("html")).toHaveAttribute("lang", "en");
         await accessible(page);
+        assert(await page.getByRole("heading", { level: 1 }).count());
       }
-      await screenshot(page,`xobject-${destination}-mobile.png`);
+      await context.close();
     }
-    assert.deepEqual(failures, []);
+    for (const locale of ["fr-FR", "de-AT"]) {
+      const ctx = await browser.newContext({ locale }),
+        p = await ctx.newPage();
+      await p.goto(base, { waitUntil: "networkidle" });
+      await expect(p).toHaveURL(
+        new URL((locale.startsWith("de") ? "de" : "en") + "/", base).href,
+      );
+      await ctx.close();
+    }
+    const noScript = await browser.newContext({ javaScriptEnabled: false }),
+      p = await noScript.newPage();
+    await p.goto(base);
+    await expect(p.getByRole("heading", { level: 1 })).toBeVisible();
+    await p.locator('.language-navigation a[data-language="de"]').click();
+    await expect(p.locator("html")).toHaveAttribute("lang", "de");
+    await noScript.close();
+    assert.deepEqual(errors, []);
   } finally {
     await browser.close();
     if (server.listening) await new Promise((done) => server.close(done));

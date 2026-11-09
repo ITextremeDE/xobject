@@ -11,14 +11,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { primaryNavigation, repositoryURL } from "@/config/navigation";
+import { navigation, repositoryURL } from "@/config/navigation";
+
+import { ui, type Language } from "@/config/content";
 
 export const headerIdentifierPrefix = "xobject-header-";
 type Theme = "light" | "dark" | "system";
 const options = [
-  { value: "light", label: "Hell", icon: Sun },
-  { value: "dark", label: "Dunkel", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+  { value: "light", icon: Sun },
+  { value: "dark", icon: Moon },
+  { value: "system", icon: Monitor },
 ] as const;
 function subscribeTheme(callback: () => void) {
   document.addEventListener("xobject-theme-change", callback);
@@ -37,14 +39,21 @@ function subscribeLocation(callback: () => void) {
   return () => window.removeEventListener("hashchange", callback);
 }
 function readLocation() {
-  return window.location.hash;
+  return window.location.pathname + window.location.hash;
 }
-function normalizeLocation(hash: string) {
-  return ["", "#seitenanfang", "#inhalt"].includes(hash) ? "#ueberblick" : hash;
+function normalizeLocation(location: string) {
+  const url = new URL(location, "https://xobject.org");
+  const hash = ["", "#seitenanfang", "#inhalt"].includes(url.hash)
+    ? "#overview"
+    : url.hash;
+  return url.pathname + hash;
 }
 
 /** Same Base UI controls and interaction model as ITx, hydrated only in the header. */
-export function HeaderControls() {
+export function HeaderControls({ lang = "en" }: { lang?: Language }) {
+  const t = ui[lang];
+  const primaryNavigation = navigation(lang);
+  const localizedOptions = options.map((o) => ({ ...o, label: t[o.value] }));
   const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "system");
   const location = useSyncExternalStore(
     subscribeLocation,
@@ -54,7 +63,8 @@ export function HeaderControls() {
   const [themeOpen, setThemeOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const current =
-    options.find((option) => option.value === theme) ?? options[2];
+    localizedOptions.find((option) => option.value === theme) ??
+    localizedOptions[2];
   const CurrentIcon = current.icon;
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 1024px)");
@@ -82,8 +92,8 @@ export function HeaderControls() {
               size="icon"
               variant="ghost"
               className="xl:border"
-              aria-label={`Darstellung: ${current.label}`}
-              title={`Darstellung: ${current.label}`}
+              aria-label={`${t.appearance}: ${current.label}`}
+              title={`${t.appearance}: ${current.label}`}
             />
           }
         >
@@ -91,7 +101,7 @@ export function HeaderControls() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-44">
           <DropdownMenuRadioGroup value={theme} onValueChange={selectTheme}>
-            {options.map(({ value, label, icon: Icon }) => (
+            {localizedOptions.map(({ value, label, icon: Icon }) => (
               <DropdownMenuRadioItem
                 key={value}
                 value={value}
@@ -111,8 +121,8 @@ export function HeaderControls() {
               size="icon"
               variant="outline"
               className="lg:hidden"
-              aria-label="Navigation öffnen"
-              title="Navigation"
+              aria-label={t.menu}
+              title={t.navigation}
             />
           }
         >
@@ -133,8 +143,7 @@ export function HeaderControls() {
                   <a
                     href={link.href}
                     aria-current={
-                      normalizeLocation(location) ===
-                      new URL(link.href, "https://xobject.org").hash
+                      normalizeLocation(location) === link.href
                         ? "location"
                         : undefined
                     }

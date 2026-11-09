@@ -1,0 +1,46 @@
+---
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+import { content, type Language } from "../config/content";
+const {
+  view,
+  lang = "en",
+  eager = false,
+} = Astro.props as { view: string; lang?: Language; eager?: boolean };
+const images = import.meta.glob<{ default: ImageMetadata }>(
+  "../assets/screenshots/*.png",
+  { eager: true },
+);
+const t = content[lang];
+const caption = t.captions[view as keyof typeof t.captions];
+const modes = ["light", "dark"] as const;
+---
+
+<figure class="product-screenshot">
+  {modes.map((mode) => {
+    const asset =
+      images[`../assets/screenshots/${view}-${lang}-${mode}.png`]?.default;
+    if (!asset) throw new Error(`Missing screenshot ${view}-${lang}-${mode}`);
+    return (
+      <a
+        class:list={["screenshot-link", `screenshot-${mode}`]}
+        href={asset.src}
+        target="_blank"
+        rel="noopener"
+        aria-label={`${t.zoom}: ${caption}`}
+      >
+        <Image
+          src={asset}
+          alt={caption}
+          widths={[480, 800, 1200, 1600]}
+          sizes={view === "list" ? "(min-width: 1440px) 1344px, calc(100vw - 48px)" : "(max-width: 1023px) calc(100vw - 32px), 50vw"}
+          format="webp"
+          quality={85}
+          loading={eager ? "eager" : "lazy"}
+          fetchpriority={eager && mode === "light" ? "high" : undefined}
+        />
+      </a>
+    );
+  })}
+  <figcaption>{caption}</figcaption>
+</figure>

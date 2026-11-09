@@ -6,7 +6,7 @@ export default defineConfig({
   site:'https://docs.xobject.org',base:version?`/versions/${version}`:'/',
   integrations:[starlight({
     title:'xObject',description:'Connected business data — Community documentation',
-    social:[{icon:'github',label:'GitHub',href:'https://github.com/ITextremeDE/xobject'}],
+    social:[{icon:'external',label:'xObject by ITextreme',href:'https://xobject.org/'},{icon:'github',label:'GitHub',href:'https://github.com/ITextremeDE/xobject'}],
     customCss:['./src/styles/custom.css'],
     components:{Search:'./src/components/Search.astro'},
     sidebar:[
