@@ -2,7 +2,7 @@
 
 ## Purpose and sources
 
-xObject is ITextreme's planned metadata-driven, API-first application for connected business data. Version 1 combines Contacts & Relations, Projects & Tasks and user-defined object types. The PRD defines a 22-object target catalog with five V1 objects, 11 additional Contacts objects deferred to the next version and six additional Projects objects deferred beyond V1; `docs/domain-profiles.md` provides draft starter fields/relationships and acceptance cases for all 22, with unresolved domain contracts clearly separated from implemented features. Documents & Communication and the other target modules are later scope.
+xObject is ITextreme's metadata-driven, API-first application for connected business data. Version 1 combines Contacts & Relations, Projects & Tasks and user-defined object types. The PRD defines a 22-object target catalog with five V1 objects, 11 additional Contacts objects deferred to the next version and six additional Projects objects deferred beyond V1; `docs/domain-profiles.md` provides draft starter fields/relationships and acceptance cases for all 22, with unresolved domain contracts clearly separated from implemented features. Documents & Communication and the other target modules are later scope.
 
 Read [README.md](README.md) and the [documentation index](docs/README.md) for orientation and [docs/PRD.md](docs/PRD.md) for requirements, acceptance criteria and open design decisions. Preserve requirement IDs when refining the PRD. Do not treat a specification or proposed acceptance scenario as an implemented feature or a passed test.
 
@@ -10,7 +10,7 @@ OpenProject is the source for operational tasks, priorities and dependencies. Th
 
 ## Current state and commands
 
-The repository contains a local backend technical spike in `apps/server`, with npm workspaces, a lockfile and a GitHub checks workflow. A first React/Vite web client in `apps/web` uses shared contracts in `packages/contracts`. Version 1.0.0 is the first Community container/Compose release baseline; release artifacts and image digests are published through the documented release workflow. The experiment supports typed custom fields, shared Type/Status/Category configuration and workspace User/Designer memberships. Content access follows administrative ceilings, graded ownership and foreign access in ADR 0027; complete version-1 delivery remains open.
+The repository contains the backend in `apps/server`, with npm workspaces, a lockfile and a GitHub checks workflow. The React/Vite web client in `apps/web` uses shared contracts in `packages/contracts`. Version 1.0.0 is the first Community container/Compose release baseline; release artifacts and image digests are published through the documented release workflow. The application supports typed custom fields, shared Type/Status/Category configuration and workspace User/Designer memberships. Content access follows administrative ceilings, graded ownership and foreign access in ADR 0027; Community 1.0.0 is published; later targets and retained acceptance limits are documented separately in the PRD, roadmap and quality report.
 
 From the repository root, use `npm ci`, `npm run typecheck`, `npm run build` and `npm test`. Tests require Docker and start an isolated disposable PostgreSQL container. See `docs/development.md` for `npm run db:init`, `npm run admin:create` and `npm run dev`; never point experimental initialization at a production database. No lint command is established.
 
