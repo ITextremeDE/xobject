@@ -12,6 +12,8 @@ const project=`xobject-accept-${randomUUID()}`,directory=path.join(root,'.local'
 await mkdir(directory,{recursive:true,mode:0o700});
 const listener=createServer();await new Promise(resolve=>listener.listen(0,'127.0.0.1',resolve));const port=listener.address().port;await new Promise(resolve=>listener.close(resolve));
 const base=`http://127.0.0.1:${port}`,image=process.env.XOBJECT_TEST_IMAGE??'xobject:local-acceptance';
+const predecessor=process.env.XOBJECT_TEST_PREDECESSOR_IMAGE;
+if(predecessor&&!/@sha256:[a-f0-9]{64}$/.test(predecessor))throw Error('Use an immutable predecessor image digest');
 const env={...process.env,XOBJECT_ENV_FILE:path.join(directory,'install.env'),XOBJECT_RECOVERY_DIR:path.join(directory,'recovery'),XOBJECT_PROJECT_NAME:project,XOBJECT_COMPOSE_OVERRIDE:path.join(directory,'override.yaml'),XOBJECT_START_SERVICES:'app',ADMIN_NAME:'John Doe',ADMIN_EMAIL:'john@example.test',ADMIN_PASSWORD:randomBytes(24).toString('base64url')};
 await writeFile(env.XOBJECT_COMPOSE_OVERRIDE,`services:\n  app:\n    ports: [\"127.0.0.1:${port}:4100\"]\n`,{mode:0o600});
 const compose=['compose','--project-name',project,'--env-file',env.XOBJECT_ENV_FILE,'-f',path.join(root,'deploy/compose.selfhost.yaml'),'-f',env.XOBJECT_COMPOSE_OVERRIDE];
@@ -22,7 +24,8 @@ let cookie='';
 async function login(){const response=await fetch(`${base}/api/auth/sign-in/email`,{method:'POST',headers:{'Content-Type':'application/json',origin:base},body:JSON.stringify({email:env.ADMIN_EMAIL,password:env.ADMIN_PASSWORD})});assert.equal(response.status,200);cookie=response.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');}
 async function api(name,input){const response=await fetch(`${base}/api/v1/${name}`,{method:'POST',headers:{'Content-Type':'application/json','X-XObject-Request':'1',origin:base,cookie},body:JSON.stringify(input)});assert.equal(response.status,200,`${name} returned ${response.status}`);return response.json();}
 try{
-  await helper('configure',base,image,'qa@example.test');
+  if(predecessor)await run('docker',['pull',predecessor]);
+  await helper('configure',base,predecessor??image,'qa@example.test');
   await run('docker',[...compose,'up','-d','--wait','db']);
   await operator('initialize');
   await run('docker',[...compose,'run','--rm','-T','-e','ADMIN_NAME','-e','ADMIN_EMAIL','-e','ADMIN_PASSWORD','operator','setup']);
@@ -45,14 +48,17 @@ try{
   await helper('verify');
   const imageId=(await run('docker',['image','inspect',image,'--format','{{.Id}}'])).stdout.trim();
   await helper('upgrade',imageId,path.join(directory,'upgrade-backup'));
-  await login();assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id})).description,'Before backup');
+  await login();
+  const upgraded=await api('get_record',{objectTypeId:object.id,recordId:record.id});
+  assert.equal(upgraded.description,'Before backup');assert.equal(upgraded.version,record.version);assert.equal(upgraded.keyword,record.keyword);
+  assert.deepEqual(await api('list_record_journal',{objectTypeId:object.id,recordId:record.id}),journal);
   await run('docker',[...compose,'stop','app']);
   await run('docker',[...compose,'exec','-T','db','psql','-X','-v','ON_ERROR_STOP=1','-U','xobject','-d','xobject','-c',"UPDATE sys_schema_version SET definition_hash='unsupported-source' WHERE singleton"]);
   await assert.rejects(()=>helper('upgrade',imageId,path.join(directory,'unsupported-source-backup')));
   const failedState=await run('docker',[...compose,'ps','--status','running','--services']);assert.ok(!failedState.stdout.split('\n').includes('app'));
   await helper('restore',bundle,'--confirm-restore');await helper('start');await login();
   assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id})).description,'Before backup');
-  await writeFile(path.join(directory,'acceptance.json'),JSON.stringify({status:'passed',platform:process.platform,containerPlatform:(await run('docker',['image','inspect',image,'--format','{{.Os}}/{{.Architecture}}'])).stdout.trim(),imageId,checks:['empty installation','one-time first Administrator','runtime-only application','HTTP security headers','record and journal backup/restore','restoration remains stopped','same-target upgrade','unknown-source rejection remains stopped','recovery after failed upgrade'],publication:'none'},null,2)+'\n',{mode:0o600});
+  await writeFile(path.join(directory,'acceptance.json'),JSON.stringify({status:'passed',platform:process.platform,containerPlatform:(await run('docker',['image','inspect',image,'--format','{{.Os}}/{{.Architecture}}'])).stdout.trim(),imageId,predecessor:predecessor??null,checks:['empty installation','one-time first Administrator','runtime-only application','HTTP security headers','record and journal backup/restore','restoration remains stopped',predecessor?'released-source upgrade with unchanged records/versions/journal':'same-target upgrade','unknown-source rejection remains stopped','recovery after failed upgrade'],publication:'none'},null,2)+'\n',{mode:0o600});
   console.log(`Self-hosting acceptance passed: ${directory}`);
 }finally{
   try{const logs=await run('docker',[...compose,'logs','--no-color','app']);await writeFile(path.join(directory,'runtime.log'),logs.stdout,{mode:0o600});}catch{}

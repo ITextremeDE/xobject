@@ -40,6 +40,7 @@ jobs:
           echo "RELEASE_IMAGE=$image" >> "$GITHUB_ENV"
           docker build --build-arg "RELEASE_VERSION=$version" --build-arg "VCS_REF=$GITHUB_SHA" --tag "$image" .
           XOBJECT_TEST_IMAGE="$image" node scripts/test-selfhost.mjs
+          XOBJECT_TEST_IMAGE="$image" XOBJECT_TEST_PREDECESSOR_IMAGE=ghcr.io/itextremede/xobject@sha256:3202ca817d5447ae24068fab3d098fb8123a12d53f672299d549bf6df01edf7f node scripts/test-selfhost.mjs
           XOBJECT_TEST_IMAGE="$image" node scripts/test-selfhost-proxy.mjs
       - name: Publish the tested architecture
         env:

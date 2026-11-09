@@ -69,7 +69,11 @@ For a private local image, exact image identity is required. A published immutab
 
 The command requires an immutable target digest, stops writers, makes a verified private backup, selects the target image and runs its maintenance-only upgrade/verification command before starting services. On failure, retain the stopped state and restore the backup with its matching image. Old and new application versions do not serve concurrently.
 
-There is no released predecessor yet. The current runner verifies a matching target as a no-op and rejects unknown/unreleased source fingerprints. It does not pretend to migrate historical development installations. From the first release, supported stable V1 predecessors need dedicated, tested migration paths to the one complete target model before restart. A release without the required supported-source tests cannot be published.
+Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint. The 1.0.1 runner verifies this unchanged model without SQL conversion; future schema-changing releases require dedicated supported-source migrations. Unknown fingerprints remain rejected. A release without its required supported-source tests cannot be published.
+
+### Upgrade from 1.0.0 to 1.0.1
+
+Use `scripts/xobject upgrade IMMUTABLE_1_0_1_IMAGE NEW_BACKUP_DIRECTORY` with the digest from the 1.0.1 release. The operator stops writers, preserves a verified database/configuration backup, switches the image and verifies the complete target schema and integrity before restarting. Both versions share the schema/catalog/auth fingerprint; no SQL conversion or content rewrite is required. Native AMD64/ARM64 release checks cover fresh installation and this upgrade, including unchanged record versions and journal entries. Unknown schemas are rejected and remain stopped. For rollback, use the retained backup and its matching 1.0.0 image through the existing restore procedure.
 
 ## Local acceptance and diagnostics
 

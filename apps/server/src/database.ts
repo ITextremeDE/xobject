@@ -25,7 +25,7 @@ export async function assertCurrentSchema(pool:Pool){
  const exists=(await pool.query("SELECT to_regclass('public.sys_schema_version') AS name")).rows[0]?.name;
  if(!exists)throw new Error('Initialize an empty database with db:init before starting xObject');
  const current=(await pool.query('SELECT version,definition_hash FROM sys_schema_version WHERE singleton')).rows[0];
- if(current?.version!==1||current.definition_hash!==hash)throw new Error('Database does not match the current unreleased installation. Recreate the development database; upgrades are not supported before release.');
+ if(current?.version!==1||current.definition_hash!==hash)throw new Error('Database schema does not match this application. Stop writers and use the documented upgrade or matching-image recovery procedure.');
 }
 /** Install the current model into an empty database; never adopt older development schemas. */
 export async function initializeDatabase(connectionString:string,secret:string,baseURL:string){

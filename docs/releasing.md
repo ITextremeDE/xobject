@@ -27,7 +27,7 @@ docker build --build-arg RELEASE_VERSION=0.0.0-unreleased -t xobject:local-accep
 node scripts/test-selfhost.mjs
 ```
 
-For private offline recovery, retain an image archive with `docker image save xobject:local-acceptance | gzip > xobject-local-image.tar.gz` and record its SHA-256. Load it with `docker image load` before using the installer. Local image identifiers are not published registry digests. A local candidate is not a user-facing release. The operator's same-target maintenance check and unknown-source refusal are available; the first release has no historical predecessor to migrate. Add and validate dedicated supported-source migrations when an actual released predecessor exists, keeping the runtime on the target schema only.
+For private offline recovery, retain an image archive with `docker image save xobject:local-acceptance | gzip > xobject-local-image.tar.gz` and record its SHA-256. Load it with `docker image load` before using the installer. Local image identifiers are not published registry digests. A local candidate is not a user-facing release. Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint: upgrading requires backup, stopped writers and target/integrity verification, with no SQL conversion. The native image workflow checks both fresh installation and upgrade from the immutable 1.0.0 image, retaining record values, versions and journal. Unknown schemas fail closed. Future schema-changing releases require dedicated supported-source migrations; the runtime serves only the target model.
 
 ## Publish after explicit authorization
 
