@@ -11,6 +11,7 @@ const output=path.resolve(get('--output')),version=args.includes('--version')?ge
 if(!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version))throw Error('Invalid candidate version');
 // Validate the checked-out revision before creating artifacts or running builds.
 const snapshot=releaseSourceSnapshot(root),source=snapshot.source;
+const artifactEnv={...process.env,XOBJECT_SOURCE_REF:snapshot.commit};
 await mkdir(path.dirname(output),{recursive:true});await mkdir(output,{mode:0o700});
 const run=(command,argv,options={})=>execFileSync(command,argv,{cwd:root,encoding:'utf8',...options});
 const list=path.join(output,'source-files.txt');await writeFile(list,source.map(file=>file.path).join('\n')+'\n');
@@ -19,13 +20,13 @@ const installer=path.join(output,'installer');await mkdir(installer);
 for(const file of ['scripts/xobject','deploy/compose.selfhost.yaml','deploy/Caddyfile','deploy/selfhost.env.example','docs/self-hosting.md','LICENSE','NOTICE']){await mkdir(path.dirname(path.join(installer,file)),{recursive:true});await cp(path.join(root,file),path.join(installer,file));}
 run('tar',['-czf',path.join(output,`xobject-${version}-selfhost.tar.gz`),'-C',installer,'.']);
 const docs=path.join(output,'documentation');
-run('npm',['run','build','--prefix','apps/docs'],{env:{...process.env,XOBJECT_DOCS_VERSION:version},stdio:'inherit'});
+run('npm',['run','build','--prefix','apps/docs'],{env:{...artifactEnv,XOBJECT_DOCS_VERSION:version},stdio:'inherit'});
 await cp(path.join(root,'apps/docs/dist'),path.join(docs,'versions',version),{recursive:true});
-const rootEnv={...process.env};delete rootEnv.XOBJECT_DOCS_VERSION;
+const rootEnv={...artifactEnv};delete rootEnv.XOBJECT_DOCS_VERSION;
 run('npm',['run','build','--prefix','apps/docs'],{env:rootEnv,stdio:'inherit'});
 for(const entry of await readdir(path.join(root,'apps/docs/dist')))await cp(path.join(root,'apps/docs/dist',entry),path.join(docs,entry),{recursive:true});
 run('tar',['-czf',path.join(output,`xobject-${version}-documentation.tar.gz`),'-C',docs,'.']);
-run('npm',['run','build','--prefix','apps/site'],{stdio:'inherit'});
+run('npm',['run','build','--prefix','apps/site'],{env:rootEnv,stdio:'inherit'});
 run('tar',['-czf',path.join(output,`xobject-${version}-website.tar.gz`),'-C',path.join(root,'apps/site/dist'),'.']);
 await writeFile(path.join(output,'candidate.json'),JSON.stringify({status:'local unpublished candidate',version,baseCommit:snapshot.commit,dirty:false,source,images:'Not included; build and retain the matching image separately. No registry publication performed.'},null,2)+'\n');
 const artifacts=(await readdir(output)).filter(f=>f.endsWith('.tar.gz')||f==='candidate.json').sort();

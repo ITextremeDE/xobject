@@ -18,6 +18,7 @@ Community maintenance release with unchanged database schema. Includes dependenc
 ### Changed
 
 - Verify native upgrades from the immutable 1.0.0 image with preserved records, versions and journal; clarify same-schema maintenance and mismatched-schema recovery guidance.
+- Pin generated release documentation source links to its exact reviewed commit.
 - Include the Code of Conduct in checksummed public source archives.
 - Wait for the restored record to leave the recycle-bin list and table controls to re-enable before browser accessibility checks, so the existing animation wait covers their disabled-state transition.
 - Update paired GitHub artifact upload/download actions with a CI transfer check for merged architecture-digest paths and exact file contents; retain default digest-mismatch rejection.
