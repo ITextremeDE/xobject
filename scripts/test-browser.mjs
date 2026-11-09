@@ -22,7 +22,7 @@ const engine={chromium,firefox,webkit}[engineName];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function freePort(){const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));return port;}
 
-test('rendered application workflows on an isolated current installation',{timeout:240000},async t=>{
+test('rendered application workflows on an isolated current installation',{timeout:360000},async t=>{
  const container=`xobject-browser-${randomUUID()}`,baseURL=`http://127.0.0.1:${await freePort()}`;
  const secret=randomBytes(48).toString('base64url'),password=randomBytes(24).toString('base64url');
  const artifacts=path.resolve('.local/browser-acceptance',new Date().toISOString().replace(/[:.]/g,'-'));

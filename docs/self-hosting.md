@@ -1,19 +1,18 @@
 # Self-hosting and recovery
 
-The repository contains an unreleased installation candidate. It has passed local Linux/ARM64 container acceptance and the AMD64 application/operator path under emulation; native Ubuntu/AMD64 acceptance with a publicly trusted HTTPS certificate and an existing reverse proxy has also passed. See the scoped [acceptance evidence](quality-acceptance.md#native-linux-host-and-recovery--2026-11-09). No image or installation archive has been published; use a local source build until a reviewed release exists. The source [Dockerfile](../Dockerfile), [Compose definition](../deploy/compose.selfhost.yaml) and [operator](../scripts/xobject) are authoritative. [ADR 0035](adr/0035-container-delivery-and-maintenance.md) explains the delivery boundary.
+Version 1.0.0 is the first Community installation baseline. It has passed local Linux/ARM64 container acceptance and the AMD64 application/operator path under emulation; native Ubuntu/AMD64 acceptance with a publicly trusted HTTPS certificate and an existing reverse proxy has also passed. See the scoped [acceptance evidence](quality-acceptance.md#native-linux-host-and-recovery--2026-11-09). Get the matching installer and image digests from [GitHub Releases](https://github.com/ITextremeDE/xobject/releases). The source [Dockerfile](../Dockerfile), [Compose definition](../deploy/compose.selfhost.yaml) and [operator](../scripts/xobject) are authoritative. [ADR 0035](adr/0035-container-delivery-and-maintenance.md) explains the delivery boundary.
 
 ## Prepare an installation
 
 Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, OpenSSL and a SHA-256 utility. Give xObject a dedicated PostgreSQL service/volume. The supplied installation exposes only Caddy on ports 80/443; the database and application have no public port mappings. Point your chosen DNS name to the host before starting Caddy. Caddy obtains certificates using the supplied TLS contact address.
 
-Build the current source candidate locally:
+Install Docker on the target host, download the installer and verify its SHA-256 against the release checksums. Extract the archive and run from its root. Select the immutable multi-platform image reference from the release's image-digests file:
 
 ```sh
-docker build --tag xobject:local-acceptance .
-./scripts/xobject configure https://xobject.example xobject:local-acceptance admin@example.com
+./scripts/xobject configure https://xobject.example ghcr.io/itextremede/xobject@sha256:RELEASE_DIGEST admin@example.com
 ```
 
-For a released installation, select its reviewed immutable image reference instead of the local tag. `configure` writes `deploy/selfhost.env` with independent random database/runtime passwords and auth secret, mode `0600`. It refuses to overwrite an existing file. Keep that file with your private recovery material. Never place it in source control. The example uses hex passwords; manually supplied URL passwords must be URL-encoded.
+The digest selects the reviewed Linux/AMD64 or Linux/ARM64 image for your host. `configure` writes `deploy/selfhost.env` with independent random database/runtime passwords and auth secret, mode `0600`. It refuses to overwrite an existing file. Keep that file with your private recovery material. Never place it in source control. The example uses hex passwords; manually supplied URL passwords must be URL-encoded.
 
 The default private subnet is `172.30.61.0/24`, its dynamic container pool is `172.30.61.128/25`, and Caddy is fixed at `172.30.61.2` outside that pool. If it conflicts with another network, change `BACKEND_SUBNET`, `BACKEND_IP_RANGE` and `PROXY_ADDRESS` together before setup: the dynamic pool and proxy must lie inside the subnet, and the proxy must stay outside the dynamic pool. Only that explicit proxy address is trusted for client IPs. The app can reach public HTTPS client-metadata documents; the database stays on the internal network.
 

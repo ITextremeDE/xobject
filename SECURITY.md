@@ -8,7 +8,7 @@ Keep credentials, personal/business contents, database dumps and private logs ou
 
 ## Supported versions
 
-No application release exists yet. Security corrections target the current unreleased source. The first release will declare its supported stable versions and publish reviewed fixes and upgrade/recovery guidance. A local prototype, green test or container candidate is not a declaration of production acceptance.
+The latest stable 1.x release receives security corrections on a best-effort basis. Install the current stable release; older patch versions and unreleased development schemas are not maintained in parallel. Released updates include their supported-source upgrade and recovery guidance.
 
 ## Boundaries to preserve
 

@@ -1,6 +1,6 @@
 # Prepare and publish a release
 
-A release is a reviewed source revision with matching immutable images, installer, documentation and recovery evidence. The current repository is unreleased. Version 1 is entirely Community under AGPL-3.0-only, maintained by Jürgen Schadek personally under ITextreme.
+A release is a reviewed source revision with matching immutable images, installer, documentation and recovery evidence. Version 1.0.0 is the first stable baseline. Version 1 is entirely Community under AGPL-3.0-only, maintained by Jürgen Schadek personally under ITextreme.
 
 ## Prepare an unpublished candidate
 
@@ -33,7 +33,7 @@ For private offline recovery, retain an image archive with `docker image save xo
 
 1. Select the semantic version and reviewed release notes; move the agreed changelog scope under that version/date and update versioned package metadata together.
 2. Finish required client/accessibility/platform acceptance. Commit, push intended refs separately to GitHub and Forgejo, open/review the PR, require green CI and merge. Verify both remote refs independently.
-3. Build images from the exact release commit for the supported architectures. Run installation, backup/restore and upgrade acceptance on the final image. Publish reviewed immutable images and retain their digests with the corresponding public source revision.
+3. Run the manually dispatched `Release images` workflow on the accepted `main` commit. It builds and tests Linux/AMD64 and Linux/ARM64 natively before publishing the multi-platform reference to `ghcr.io/itextremede/xobject`. Verify anonymous pulling and package visibility before publishing downloads. Build images from the exact release commit for the supported architectures. Run installation, backup/restore and upgrade acceptance on the final image. Publish reviewed immutable images and retain their digests with the corresponding public source revision.
 4. Create the version tag and release assets: source, installer, checksums, image digests and migration/recovery instructions. Verify downloaded hashes and source availability, including the source of network-served AGPL modifications.
 5. Build documentation from that tag under its version path. Preserve earlier released snapshots. Publish current documentation, changelog/roadmap and website links through the selected Caddy deployment; verify all public origins and search assets live.
 6. Record release/runtime evidence and the operational completion in OpenProject. Git platform metadata such as issues and releases requires its own backup; mirroring Git refs alone does not copy it.

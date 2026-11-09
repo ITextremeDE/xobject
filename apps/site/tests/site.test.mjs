@@ -109,7 +109,7 @@ test("header controls match ITx and remain usable under production CSP", async (
     assert.match(await page.title(), /xObject by ITextreme/);
     assert.match(
       await page.locator("main").innerText(),
-      /Eine installierbare Version gibt es noch nicht/,
+      /Community-Version ist vollständig Open Source und selbst hostbar/,
     );
     assert.equal(
       await page
