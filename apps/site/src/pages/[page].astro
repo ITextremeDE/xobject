@@ -34,7 +34,7 @@ const sections=headings.filter(heading=>heading.depth===2);
     </header>
     <div class="site-container document-container document-layout">
       <aside class="document-aside">
-        <nav aria-label={isChangelog?'Releases on this page':'Roadmap on this page'}>
+        <nav data-section-navigation aria-label={isChangelog?'Releases on this page':'Roadmap on this page'}>
           <h2>{isChangelog?'Releases':'On this page'}</h2>
           <ul>{sections.map(section=><li><a href={`#${section.slug}`}>{section.text}</a></li>)}</ul>
         </nav>
@@ -61,6 +61,7 @@ const sections=headings.filter(heading=>heading.depth===2);
 .document-aside ul{display:flex;flex-direction:column;gap:.375rem}
 .document-aside a{display:block;padding:.65rem .75rem;border-radius:.5rem;font-size:.875rem;line-height:1.55;overflow-wrap:anywhere}
 .document-aside a:hover{background:var(--surface-muted);color:var(--primary)}
+.document-aside a[aria-current="location"]{background:var(--accent);color:var(--accent-foreground);font-weight:600}
 .document-aside p{border-top:1px solid var(--border);padding-top:1.25rem;margin-top:1.5rem;font-size:.8125rem;color:var(--foreground-muted);line-height:1.7}
 .document-content{min-width:0;padding:clamp(1.25rem,3vw,3rem);border:1px solid var(--border);border-radius:1.25rem;background:var(--surface);font-size:.9375rem;line-height:1.85;overflow-wrap:anywhere}
 .document-content :global(>p:first-child){color:var(--foreground-muted);margin-top:0;font-size:.875rem}
