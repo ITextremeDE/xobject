@@ -14,6 +14,10 @@ for(const file of pages){
     if(/^(?:mailto:|tel:|data:|javascript:)/.test(href))continue;
     const url=new URL(href,pageURL);if(url.origin!==pageURL.origin)continue;
     const decoded=decodeURIComponent(url.pathname);
+    // Explicit published snapshot URLs point to separate release artifacts, not this build.
+    // Relative internal links must still remain inside the selected version and be checked.
+    const snapshotBase=decoded.match(/^\/versions\/\d+\.\d+\.\d+\//)?.[0];
+    if(href.startsWith('https://docs.xobject.org/')&&snapshotBase&&snapshotBase!==base)continue;
     if(base!=='/'&&decoded==='/')continue; // Explicit link to current documentation from archived version guidance.
     if(!decoded.startsWith(base)){errors.push(`${relative}: link leaves documentation version: ${href}`);continue;}
     let target=decoded===base+'404/'?path.join(root,'404.html'):path.join(root,decoded.slice(base.length));
