@@ -23,7 +23,8 @@ async function rewrite(body,file){
       const [link,...fragment]=raw.split('#'),absolute=path.resolve(path.dirname(file),decodeURIComponent(link));
       const hash=fragment.length?'#'+fragment.join('#'):'';
       let replacement;
-      if(pages.has(absolute))replacement=base+(pages.get(absolute)==='index'?'':pages.get(absolute)+'/')+hash;
+      if(!version&&['changelog','roadmap'].includes(pages.get(absolute)))replacement='https://xobject.org/'+pages.get(absolute)+'/'+hash;
+      else if(pages.has(absolute))replacement=base+(pages.get(absolute)==='index'?'':pages.get(absolute)+'/')+hash;
       else{
         const relative=path.relative(root,absolute).replaceAll(path.sep,'/');
         if(relative.startsWith('../'))throw Error(`Source link leaves repository: ${path.relative(root,file)}`);
@@ -37,6 +38,7 @@ async function rewrite(body,file){
 }
 const manifest=[];
 for(const [file,slug] of pages){
+  if(!version&&['changelog','roadmap'].includes(slug))continue;
   const source=await readFile(file,'utf8'),relative=path.relative(root,file).replaceAll(path.sep,'/');
   const license=relative==='LICENSE',heading=source.match(/^# (.+)$/m);
   const title=license?'License':heading?.[1].replaceAll('`','')??slug;
@@ -46,4 +48,4 @@ for(const [file,slug] of pages){
   manifest.push({source:relative,slug:slug==='index'?'':slug,sha256:createHash('sha256').update(source).digest('hex')});
 }
 await mkdir(path.join(app,'.astro'),{recursive:true});await writeFile(path.join(app,'.astro/canonical-sources.json'),JSON.stringify(manifest,null,2)+'\n');
-console.log(`Prepared ${pages.size} documentation pages from canonical repository sources.`);
+console.log(`Prepared ${manifest.length} documentation pages from canonical repository sources.`);
