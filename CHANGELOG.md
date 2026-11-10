@@ -19,7 +19,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Fixed
 
-- Update active website section links while scrolling, including Changelog/Roadmap navigation and the mobile section strip, without rewriting URL history or moving keyboard focus.
+- Update active website section links while scrolling, including Changelog/Roadmap navigation and the mobile section strip, without rewriting URL history or moving keyboard focus. Bundle the script under a content-hashed asset URL to prevent stale browser caches after deployment.
 - Keep explicit links to separately published documentation snapshots usable without treating them as missing files in the current build; retain internal link and version-isolation checks.
 - Keep delegated MCP offline access renewable after natural browser-session expiry or cleanup, with a new seven-day lifetime on each successful refresh. Explicit sign-out and session revocation invalidate the user's OAuth connections alongside password changes, account deactivation and application revocation.
 
