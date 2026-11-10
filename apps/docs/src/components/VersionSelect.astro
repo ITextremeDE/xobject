@@ -1,0 +1,28 @@
+---
+import Select from '@astrojs/starlight/components/Select.astro';
+import {versionOptions} from '../config/versions';
+---
+<xobject-docs-version data-current-url={versionOptions.find(option=>option.selected)?.value}><Select icon="open-book" label="Documentation version" options={versionOptions} width="14em"/></xobject-docs-version>
+<script>
+  class DocumentationVersionSelect extends HTMLElement {
+    sync = () => {
+      const select=this.querySelector('select');
+      if(select&&this.dataset.currentUrl)select.value=this.dataset.currentUrl;
+    };
+    change = (event:Event) => {
+      const target=new URL((event.target as HTMLSelectElement).value);
+      if(target.origin==='https://docs.xobject.org')window.location.assign(target.href);
+    };
+    connectedCallback() {
+      this.sync();
+      this.addEventListener('change',this.change);
+      window.addEventListener('pageshow',this.sync);
+    }
+    disconnectedCallback() {
+      this.removeEventListener('change',this.change);
+      window.removeEventListener('pageshow',this.sync);
+    }
+  }
+  if(!customElements.get('xobject-docs-version'))customElements.define('xobject-docs-version',DocumentationVersionSelect);
+</script>
+<style>xobject-docs-version{display:inline-flex}</style>

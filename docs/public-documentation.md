@@ -4,9 +4,15 @@ The independent **Astro + Starlight** application in `apps/docs` builds the sele
 
 ## Canonical content
 
-Repository Markdown remains authoritative. `scripts/prepare-content.mjs` generates ignored Starlight content from root README/CHANGELOG/ROADMAP/CONTRIBUTING/SECURITY/LICENSE and `docs/**/*.md`. It derives titles, links edits to the original source, rewrites document links to rendered routes and links code references to GitHub. It refuses private local/outside-repository paths. Generated pages are build artifacts; edit the canonical source instead.
+Repository Markdown remains authoritative. `scripts/prepare-content.mjs` generates ignored Starlight content from CHANGELOG/ROADMAP/CONTRIBUTING/SECURITY/LICENSE and `docs/**/*.md`. `docs/start.md` supplies the audience-oriented landing page; the repository README remains the GitHub overview. `docs/first-steps.md` owns the first-workspace walkthrough. It derives titles, links edits to the original source, rewrites document links to rendered routes and links code references to GitHub. It refuses private local/outside-repository paths. Generated pages are build artifacts; edit the canonical source instead.
 
 The current documentation links directly to the Changelog and Roadmap on the [product website](website.md#content-and-languages), at `https://xobject.org/changelog/` and `https://xobject.org/roadmap/`. Its sidebar and generated Markdown links use those entry points; old documentation routes redirect there instead of duplicating the content. Versioned documentation snapshots retain their own Changelog and Roadmap from the corresponding source ref, with internal links kept in the snapshot. Existing published snapshots remain unchanged. User guidance, self-hosting, API/MCP, product references and ADRs remain available through the sidebar/search. Technical acceptance history stays in its canonical development guide.
+
+## Version context and navigation
+
+Current pages identify themselves as **Current development** and explicitly include unreleased changes. Newly built snapshots identify their version; published snapshots continue to come from their immutable original sources and are not retrofitted with newer controls. A version picker above each page title uses Starlight’s existing Select; it remains directly available on narrow screens and leaves the global header/theme component unchanged. Selection opens the chosen version’s start page, avoiding nonexistent page paths between releases. Its supported snapshot list is `apps/docs/src/config/versions.ts`. The standard PageTitle remains in use beneath a compact version note.
+
+Navigation separates first steps and user guidance, installation/operation, integrations, development/reference and project information. Page descriptions derive from the first meaningful source paragraph, with Markdown markup removed and a bounded length. Source content, licensing and historical decisions remain canonical.
 
 ## Build and check
 
@@ -20,7 +26,7 @@ npm test
 npm run preview
 ```
 
-The build checks every generated HTML link/asset and anchor, rejects incomplete output and creates the Pagefind search index. The content test verifies canonical-source hashes. The independent package uses the TypeScript version supported by Astro's checker; this does not change the application compiler.
+The build checks every generated HTML link/asset and anchor, rejects incomplete output and creates the Pagefind search index. The content test verifies canonical-source hashes, landing-page ownership and page-specific descriptions. The independent package uses the TypeScript version supported by Astro's checker; this does not change the application compiler.
 
 To prepare a versioned snapshot from its matching reviewed source:
 

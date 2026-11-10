@@ -8,13 +8,15 @@ xObject is developed by **ITextreme** to bring contacts, projects, cases, tasks 
 
 **Version 1.0.1 — Community.** The PostgreSQL-backed application supports configurable typed objects, classification, workspace roles/groups, shared API/MCP operations and atomic journals. Its React/Vite interface includes searchable tables, full-page record forms, Settings, a Form designer, relationship controls, Dossier and a Projects-owned Primary tree. Dashboard statistics/chart content remains exploratory; its record table is normal application UI.
 
-The local permission model combines user/group object and field ceilings, separate Create rights, graded ownership and nested-group/foreign-access inheritance. Sensitive records configure Access principals, public access, Personal/Confidential privacy, foreign maxima and field exceptions. Membership and Designer status grant no content by themselves; Administrators retain installation-wide content access. See [PRD section 4](docs/PRD.md#4-permissions) and [ADR 0027](docs/adr/0027-ownership-and-foreign-access.md). Calendar-only operations and notification delivery remain later work.
+The permission model combines user/group object and field ceilings, separate Create rights, graded ownership and nested-group/foreign-access inheritance. Sensitive records configure Access principals, public access, Personal/Confidential privacy, foreign maxima and field exceptions. Membership and Designer status grant no content by themselves; Administrators retain installation-wide content access. See [PRD section 4](docs/PRD.md#4-permissions) and [ADR 0027](docs/adr/0027-ownership-and-foreign-access.md). Calendar-only operations and notification delivery remain later work.
 
-Projects & Tasks supplies protected base objects and the fixed Contact → Project → Case chain. Structured contact fields support ordered name parts, multiple emails/phones/addresses/websites and birthdays with an optional year, shared whole-field permissions and atomic per-field history. Contacts activation supplies protected Contacts and Distribution lists, fixed Contact kinds, permission-aware derived names, Organization membership, direct Identities and explicit distribution membership. Existing Projects bindings reuse the same Contacts identity. Relationship attributes, both-endpoint rights/history and shared module contributions and a common object form are implemented locally; Projects, Cases and Tasks now have supplied lean profiles and a shared temporal codec; recurrence, calendar parties and later object templates remain pending; Contacts, Distribution lists and the V1 Projects/Cases/Tasks slice are locally accepted; standards exchange remains later work. The current three-entry catalog is visible. V1 targets Contacts & Relations and Projects & Tasks with [five V1 objects](docs/PRD.md#6-supplied-domain-models); 11 additional Contacts objects are deferred without a release assignment; later profiles and migrations from actual released predecessors remain separate. Documents & Communication is planned for V2; the other deferred modules have no release assignment. Record recycling and guarded restoration are implemented locally under [ADR 0029](docs/adr/0029-record-recycle-bin.md). Personal/account management, language/region and shared workspace design are implemented locally. See the [documentation index](docs/README.md) for the applicable decisions and the [development guide](docs/development.md) for setup and the recorded validation status.
+Contacts & Relations supplies Contacts and Distribution lists. Projects & Tasks reuses the same Contacts and adds Projects, Cases and Tasks, including the fixed Contact → Project → Case Primary association. These five supplied object types, user-defined models, record lifecycle, shared forms and workspace settings are part of the released V1 baseline. See the [user guide](docs/user-guide.md) for behavior and the [quality report](docs/quality-acceptance.md) for acceptance evidence and its limits.
+
+Documents & Communication and the other four agreed V2 themes remain planned; additional Contacts/Projects objects and further modules have no release assignment. The [roadmap](ROADMAP.md) owns that public overview.
 
 External clients use user-bound, expiring and revocable API/MCP tokens under their current permissions. The versioned input/output contract, OpenAPI download and typed bearer client are described in [API and MCP access](docs/api.md).
 
-Before the first release, development instances are rebuilt from the current installation definition; older development schemas and APIs are not supported. See [ADR 0028](docs/adr/0028-current-installation-baseline.md).
+Disposable development instances use the current installation definition and can be rebuilt explicitly. Released installations follow the supported backup/upgrade/verification path; development resets do not replace released upgrades. See [ADR 0028](docs/adr/0028-current-installation-baseline.md).
 
 Use the [release downloads](https://github.com/ITextremeDE/xobject/releases) and the [self-hosting guide](docs/self-hosting.md) for installation. The [PRD](docs/PRD.md) defines stable requirements, later product targets and acceptance scenarios; it describes intended behavior, not a declaration that all requirements are delivered. Local verification, Git publication, CI and deployment are separate states.
 
@@ -57,15 +59,17 @@ The agreed V2 scope also includes personal column order/widths, guided Contact-k
 
 PostgreSQL holds application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject does not require a Git account or a user-owned repository.
 
-The backend uses Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Dependency versions are recorded in the package manifests and lockfile. The application uses a current fresh-installation baseline, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Installation and maintenance are described in the [self-hosting guide](docs/self-hosting.md). The [quality report](docs/quality-acceptance.md) records the accepted scope and remaining coverage limits. Supported-source migrations are added when a released predecessor exists.
+The backend uses Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Dependency versions are recorded in the package manifests and lockfile. The application uses a current fresh-installation baseline, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Installation and maintenance are described in the [self-hosting guide](docs/self-hosting.md). The [quality report](docs/quality-acceptance.md) records the accepted scope and remaining coverage limits. The supported same-schema 1.0.0 → 1.0.1 upgrade verifies the target fingerprint and integrity. Future schema-changing released upgrades require dedicated migrations and acceptance.
 
 ## Documentation and development
 
+- [Public documentation](https://docs.xobject.org/)
+- [First steps](docs/first-steps.md)
 - [Using xObject](docs/user-guide.md)
 - [Documentation and architecture index](docs/README.md)
 - [Product requirements](docs/PRD.md)
-- [Draft V1 domain start profiles](docs/domain-profiles.md)
-- [Local development and technical spike](docs/development.md)
+- [Domain starter profiles](docs/domain-profiles.md)
+- [Development guide](docs/development.md)
 - [Self-hosting, backup and recovery](docs/self-hosting.md)
 - [Changelog](CHANGELOG.md)
 - [Roadmap](ROADMAP.md)
@@ -90,4 +94,4 @@ ITextreme design tokens and selective shadcn/ui Base UI components. See the
 [website guide](docs/website.md) for design provenance, development and release checks. The project website is
 separate from the xObject application; install the application using the release package.
 
-Local delivery and acceptance: [self-hosting](docs/self-hosting.md), [quality evidence](docs/quality-acceptance.md), [release preparation](docs/releasing.md), [public documentation](docs/public-documentation.md) and the [optional agent plugin](docs/agent-plugin.md). The quality report records the accepted OpenAI Codex, browser, VoiceOver and native Linux paths with their explicit coverage limits.
+Delivery and acceptance: [self-hosting](docs/self-hosting.md), [quality evidence](docs/quality-acceptance.md), [release preparation](docs/releasing.md), [public documentation](docs/public-documentation.md) and the [optional agent plugin](docs/agent-plugin.md). The quality report records the accepted OpenAI Codex, browser, VoiceOver and native Linux paths with their explicit coverage limits.
