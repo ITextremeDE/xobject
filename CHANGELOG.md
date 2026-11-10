@@ -6,6 +6,10 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Changed
 
+- Align the bilingual website FAQ with the five agreed V2 themes and send documentation references from project pages to the rendered Docs with their section anchors.
+- Place Privacy before Legal notice in the website footer and keep desktop section navigation visible while scrolling, including on short screens.
+- Give the website Changelog and Roadmap a shared editorial layout with a clear introduction, section navigation, readable typography and responsive light/dark surfaces.
+- Order website resource links as Documentation, Changelog, Roadmap, Requirements and Source code; link current documentation directly to the website Changelog/Roadmap and redirect former documentation routes, while retaining historical snapshot pages.
 - Reconcile current release/install/update guidance with published 1.0.1, distinguish pending 1.0.2 OAuth behavior, add dated installation/live-update decision follow-ups and make released documentation versions directly navigable.
 - Align the PRD, module/domain guidance, README and project instructions with the agreed V2 scope while retaining historical decisions and explicit specification gaps.
 - Set V2 roadmap scope to personal column order/widths, Documents & Communication, guided Contact-kind changes, Contact maintenance including duplicate detection/merging and Previous/Next record navigation; defer additional Contacts objects and other extensions without a release assignment.

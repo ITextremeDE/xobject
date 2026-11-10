@@ -1,25 +1,84 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
 import {getEntry,render} from 'astro:content';
+import {ArrowLeft,ArrowRight,ExternalLink} from '@lucide/astro';
+import {buttonVariants} from '../components/ui/button';
 export function getStaticPaths(){return ['changelog','roadmap'].map(page=>({params:{page}}));}
-const entry=await getEntry('project',`generated/${Astro.params.page}`);
+const page=Astro.params.page;
+const entry=await getEntry('project',`generated/${page}`);
 if(!entry)throw new Error('Missing canonical project page');
-const {Content}=await render(entry);
+const {Content,headings}=await render(entry);
+const isChangelog=page==='changelog';
+const description=isChangelog
+  ? 'What’s new in xObject: releases, improvements and fixes, with a clear distinction between delivered and upcoming changes.'
+  : 'Where xObject is heading: the current release, the next milestones and the ideas we want to explore further.';
+const sections=headings.filter(heading=>heading.depth===2);
 ---
-<SiteLayout title={`${entry.data.title} – xObject`} description={`xObject ${entry.data.title.toLowerCase()} from the canonical project source.`} lang="en">
-  <main id="inhalt" tabindex="-1" class="site-container project-document"><article><Content/></article></main>
+<SiteLayout title={`${entry.data.title} – xObject`} description={description} lang="en">
+  <main id="inhalt" tabindex="-1">
+    <header class="document-hero surface-band">
+      <div class="site-container document-container">
+        <a class="document-back" href="/en/"><ArrowLeft aria-hidden="true"/>Back to xObject</a>
+        <p class="eyebrow">{isChangelog?'Project updates':'Product direction'}</p>
+        <h1 id={page}>{entry.data.title}</h1>
+        <p class="document-lead">{description}</p>
+        <div class="document-actions">
+          <a class={buttonVariants({variant:'outline'})} href={isChangelog?'/roadmap/':'/changelog/'}>
+            {isChangelog?'View roadmap':'Read changelog'}<ArrowRight data-icon="inline-end" aria-hidden="true"/>
+          </a>
+          <a class="document-source" href={isChangelog?'https://github.com/ITextremeDE/xobject/releases':'https://docs.xobject.org/prd/'}>
+            {isChangelog?'Release downloads':'Requirements'}<ExternalLink aria-hidden="true"/>
+          </a>
+        </div>
+      </div>
+    </header>
+    <div class="site-container document-container document-layout">
+      <aside class="document-aside">
+        <nav aria-label={isChangelog?'Releases on this page':'Roadmap on this page'}>
+          <h2>{isChangelog?'Releases':'On this page'}</h2>
+          <ul>{sections.map(section=><li><a href={`#${section.slug}`}>{section.text}</a></li>)}</ul>
+        </nav>
+        <p>{isChangelog?'Unreleased changes are in development. Released versions have their own notes and downloads.':'Planned work has no committed delivery dates. Scope and priorities can evolve.'}</p>
+      </aside>
+      <article class="document-content" aria-label={entry.data.title}><Content/></article>
+    </div>
+  </main>
 </SiteLayout>
 <style>
-.project-document{padding-block:3rem 5rem;max-width:76rem}
-.project-document :global(h1){margin-bottom:2rem}
-.project-document :global(h2){margin-top:2.5rem;margin-bottom:1rem}
-.project-document :global(h3){margin-top:2rem;margin-bottom:.75rem}
-.project-document :global(p),.project-document :global(ul),.project-document :global(ol),.project-document :global(table){margin-block:1rem}
-.project-document :global(li){margin-block:.6rem}
-.project-document :global(ul){list-style:disc;padding-left:1.5rem}
-.project-document :global(ol){list-style:decimal;padding-left:1.5rem}
-.project-document :global(a){text-decoration:underline;text-underline-offset:.2em}
-.project-document :global(code){overflow-wrap:anywhere}
-.project-document :global(table){display:block;overflow-x:auto;border-collapse:collapse}
-.project-document :global(th),.project-document :global(td){border:1px solid var(--border);padding:.75rem;vertical-align:top;text-align:left;min-width:10rem}
+.document-container{max-width:82rem}
+.document-hero{padding-block:2.5rem 3.5rem}
+.document-back{display:inline-flex;align-items:center;gap:.5rem;color:var(--foreground-muted);font-size:.875rem;margin-bottom:2.5rem}
+.document-back svg,.document-source svg{width:1rem;height:1rem}
+.document-hero .eyebrow{margin-bottom:.75rem}
+.document-hero h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.2;letter-spacing:-.035em;overflow-wrap:anywhere}
+.document-lead{max-width:56ch;color:var(--foreground-muted);font-size:1.125rem;line-height:1.75;margin-top:1.25rem}
+.document-actions{display:flex;align-items:center;flex-wrap:wrap;gap:1rem 1.5rem;margin-top:2rem}
+.document-source{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;font-size:.875rem;color:var(--foreground-muted)}
+.document-source:hover,.document-back:hover{color:var(--primary)}
+.document-layout{display:grid;grid-template-columns:15rem minmax(0,1fr);align-items:start;gap:3rem;padding-block:3rem 5rem}
+.document-aside{position:sticky;top:6.5rem;max-height:calc(100dvh - 8rem);overflow-y:auto;overscroll-behavior:contain}
+.document-aside h2{font-family:var(--font-sans);font-size:.75rem;line-height:1.5;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--foreground-muted);margin-bottom:1rem}
+.document-aside ul{display:flex;flex-direction:column;gap:.375rem}
+.document-aside a{display:block;padding:.65rem .75rem;border-radius:.5rem;font-size:.875rem;line-height:1.55;overflow-wrap:anywhere}
+.document-aside a:hover{background:var(--surface-muted);color:var(--primary)}
+.document-aside p{border-top:1px solid var(--border);padding-top:1.25rem;margin-top:1.5rem;font-size:.8125rem;color:var(--foreground-muted);line-height:1.7}
+.document-content{min-width:0;padding:clamp(1.25rem,3vw,3rem);border:1px solid var(--border);border-radius:1.25rem;background:var(--surface);font-size:.9375rem;line-height:1.85;overflow-wrap:anywhere}
+.document-content :global(>p:first-child){color:var(--foreground-muted);margin-top:0;font-size:.875rem}
+.document-content :global(h2){font-size:clamp(1.15rem,2vw,1.5rem);line-height:1.5;letter-spacing:-.025em;margin-top:3rem;margin-bottom:1.25rem;padding-top:2rem;border-top:1px solid var(--border);scroll-margin-top:7rem}
+.document-content :global(h2 a){color:inherit;text-decoration:none}
+.document-content :global(h2 a:hover){color:var(--primary);text-decoration:underline}
+.document-content :global(h3){font-family:var(--font-sans);font-size:.8125rem;font-weight:700;line-height:1.5;letter-spacing:.065em;text-transform:uppercase;color:var(--primary);margin-top:2rem;margin-bottom:1rem}
+.document-content :global(h4){font-family:var(--font-sans);font-size:1rem;font-weight:650;line-height:1.5;margin-top:1.75rem;margin-bottom:.75rem}
+.document-content :global(p),.document-content :global(ul),.document-content :global(ol),.document-content :global(table){margin-block:1rem}
+.document-content :global(li){margin-block:.75rem;padding-left:.25rem}
+.document-content :global(li::marker){color:var(--foreground-muted)}
+.document-content :global(ul){list-style:disc;padding-left:1.25rem}
+.document-content :global(ol){list-style:decimal;padding-left:1.25rem}
+.document-content :global(a){color:var(--primary);text-decoration:underline;text-underline-offset:.2em}
+.document-content :global(strong){font-weight:650}
+.document-content :global(code){font-size:.875em;background:var(--surface-muted);padding:.15rem .3rem;border-radius:.25rem}
+.document-content :global(table){display:block;overflow-x:auto;border-collapse:collapse}
+.document-content :global(th),.document-content :global(td){border:1px solid var(--border);padding:.75rem;vertical-align:top;text-align:left;min-width:10rem}
+@media(max-width:60rem){.document-layout{grid-template-columns:1fr;gap:1.75rem}.document-aside{position:static;max-height:none;overflow:visible}.document-aside ul{flex-direction:row;flex-wrap:wrap;gap:.5rem}.document-aside a{border:1px solid var(--border);background:var(--surface)}.document-aside p{border:0;padding:0;margin-top:1rem;max-width:65ch}}
+@media(max-width:40rem){.document-hero{padding-block:1.5rem 2.5rem}.document-back{margin-bottom:1.75rem}.document-lead{font-size:1rem}.document-layout{padding-block:1.75rem 3rem}.document-content{border-radius:.75rem}.document-content :global(h2){margin-top:2rem;padding-top:1.5rem}.document-aside ul{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}.document-aside li{flex-shrink:0;max-width:85vw}.document-aside a{font-size:.8125rem}.document-actions{gap:.5rem 1rem}}
 </style>

@@ -24,9 +24,9 @@ With JavaScript disabled, `/` provides the complete English page. Language and
 color-mode preferences are independent browser settings. Localized pages expose
 canonical, `hreflang` and `x-default` metadata, Open Graph metadata and a share image.
 
-The canonical English Changelog and Roadmap remain at `/changelog/` and `/roadmap/`.
+The canonical English Changelog and Roadmap remain at `/changelog/` and `/roadmap/`. Resource links are ordered Documentation, Changelog, Roadmap, Requirements, Source code in both languages. Legal footer links place Privacy before Legal notice. Current documentation links to the website pages; released documentation snapshots retain their historical copies.
 The build generates them from the root Markdown files; edit those originals,
-not the ignored generated content. The reference documentation currently remains
+not the ignored generated content. Documentation links in these pages resolve to the rendered public Docs, retaining section anchors; code references continue to point to GitHub. The bilingual FAQ reflects the five agreed V2 themes and distinguishes later goals without a version assignment. The reference documentation currently remains
 English at <https://docs.xobject.org/>; both product languages state this clearly.
 
 ## Design and components
@@ -56,6 +56,8 @@ dialog. Product content and action links render at build time. Component/font no
 product copy. The parent website remains the magazine; xObject has product-specific
 navigation, examples and calls to action. No private planning files are runtime or
 build dependencies.
+
+Changelog and Roadmap use a shared editorial page frame: a concise hero, native section-anchor navigation, a readable content surface and the existing site tokens. Section links come from rendered Markdown headings; the root Markdown remains authoritative. Desktop section navigation stays below the sticky header while scrolling and can scroll internally on short screens. Narrow screens place navigation above the article. These pages stay English and use no additional client-side application state.
 
 ## Screenshots
 

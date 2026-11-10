@@ -12,10 +12,10 @@ export function navigation(lang: Language) {
 export function resources(lang: Language) {
   const t = ui[lang];
   return [
-    { label: t.source, href: repositoryURL },
     { label: t.docs, href: "https://docs.xobject.org/" },
     { label: "Changelog", href: "/changelog/" },
-    { label: t.requirements, href: "https://docs.xobject.org/prd/" },
     { label: "Roadmap", href: "/roadmap/" },
+    { label: t.requirements, href: "https://docs.xobject.org/prd/" },
+    { label: t.source, href: repositoryURL },
   ];
 }
