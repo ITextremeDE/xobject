@@ -2,6 +2,8 @@
 
 xObject connects Contacts, Projects, Cases, Tasks and your own object types in workspaces. Version 1 is entirely Community. This guide describes the published Community 1.0.1 baseline. Subsequent unreleased behavior is marked explicitly; [released documentation snapshots](versions.md) retain the exact version context.
 
+For an empty installation, start with [First steps](first-steps.md), including workspace creation and module activation.
+
 ## Sign in and choose a workspace
 
 Your installation Administrator creates accounts. A new ordinary account must change its initial password before using the app. The first Administrator is created by the [installation operator](self-hosting.md#initialize-and-sign-in).

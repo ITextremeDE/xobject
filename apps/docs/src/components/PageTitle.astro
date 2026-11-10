@@ -1,0 +1,16 @@
+---
+import DefaultPageTitle from '@astrojs/starlight/components/PageTitle.astro';
+import {documentationVersion} from '../config/versions';
+import VersionSelect from './VersionSelect.astro';
+const versionDetails=(documentationVersion?`/versions/${documentationVersion}/`:'/')+'versions/';
+---
+<p class="docs-version-note" data-documentation-version={documentationVersion??'current'}>
+  <VersionSelect/>
+  {!documentationVersion&&<span>Unreleased changes</span>}
+  <a href={versionDetails}>Version details</a>
+</p>
+<DefaultPageTitle {...Astro.props}/>
+<style>
+.docs-version-note{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem 1rem;font-size:var(--sl-text-sm);color:var(--sl-color-gray-2);line-height:1.6;margin:0}
+.docs-version-note a{color:var(--sl-color-text-accent);text-underline-offset:.2em}
+</style>

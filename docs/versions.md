@@ -7,3 +7,5 @@ The selected canonical documentation origin is **https://docs.xobject.org**. Cur
 A release must retain its documentation archive with its image/source/installation artifacts. Only published, supported snapshots belong in public version navigation. Preparing a local snapshot does not publish it or declare a supported release.
 
 Explicit absolute links to other published stable snapshots address separately deployed release artifacts. The local build checker validates the current build’s internal pages/assets/anchors and version isolation; it does not claim to validate those remote snapshots. Verify their published targets separately during documentation publication.
+
+The current site shows **Current development** on each page. Its version picker opens the selected documentation start page; exact page paths may differ between versions. Newly built snapshots show their version context. Already published snapshots retain their original interface and sources, including any older navigation.

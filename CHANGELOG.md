@@ -6,6 +6,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Changed
 
+- Give public documentation its own audience-oriented start page, first-workspace walkthrough, clearer navigation, visible version context/selection and page-specific descriptions; remove obsolete pre-release wording from the repository overview.
 - Align the bilingual website FAQ with the five agreed V2 themes and send documentation references from project pages to the rendered Docs with their section anchors.
 - Place Privacy before Legal notice in the website footer and keep desktop section navigation visible while scrolling, including on short screens.
 - Give the website Changelog and Roadmap a shared editorial layout with a clear introduction, section navigation, readable typography and responsive light/dark surfaces.
