@@ -1,6 +1,6 @@
 # Using xObject
 
-xObject connects Contacts, Projects, Cases, Tasks and your own object types in workspaces. Version 1 is entirely Community. This guide describes the current local implementation; published releases and their documentation will identify the exact accepted version.
+xObject connects Contacts, Projects, Cases, Tasks and your own object types in workspaces. Version 1 is entirely Community. This guide describes the published Community 1.0.1 baseline. Subsequent unreleased behavior is marked explicitly; [released documentation snapshots](versions.md) retain the exact version context.
 
 ## Sign in and choose a workspace
 
@@ -63,6 +63,8 @@ A permitted Delete action moves a record to the workspace recycle bin. Its conte
 ## Personal and workspace settings
 
 Personal settings contain Profile, Account & security, Appearance and Language & region. Language, time zone and regional formats can inherit workspace defaults. Light/dark/system selection is personal. Account security manages password/sessions, personal API/MCP tokens and OAuth-authorized applications.
+
+**Unreleased — planned for 1.0.2:** signing out or explicitly revoking a browser session disconnects all OAuth-authorized applications for your account, including offline connections originating in other or expired sessions. Reauthorize those applications to reconnect. Natural browser-session expiry does not disconnect offline access; actively used connections renew automatically, while seven days without successful renewal require authorization again. See [OAuth authorization](api.md#oauth-authorization) for the released baseline and pending correction.
 
 Workspace settings contain shared appearance, language/region, modules, object/field definitions, relationships, forms, members and groups according to your role. A module can contribute to the same object identity as another module; it does not create a duplicate Contacts table. The [API guide](api.md) describes the same application capabilities for integrations and agents.
 

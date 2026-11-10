@@ -28,3 +28,7 @@ The settings page keeps a draft and shows scoped light/dark samples using the ac
 There is one saved design per workspace and no personal color/font override. Existing clients adopt saved changes on workspace refetch (including window focus); realtime push synchronization is not implemented. Light/dark mode is still local to the browser.
 
 Tests cover ordinary-user denial, Designer workspace boundaries, API/MCP read/write parity, all font IDs, invalid inputs, no-op/stale writes, concurrent updates, transactional journal rollback, initialization retention and solid-fill contrast. Web behavior tests also verify that surfaces, accents, chart colors, heading fonts and manual overrides remain independent. Menu tests cover all surface/accent combinations in both modes, isolation from page tokens, initialization retention and journaled API/MCP persistence. Build/typecheck and focused browser checks verify client composition; record any incomplete browser acceptance separately.
+
+## Live-update follow-up — 2026-11-10
+
+The no-push limitation recorded above is superseded by [ADR 0036](0036-browser-presence-and-live-updates.md). Authorized commit signals trigger active-query refresh, including workspace appearance, with reconnect/focus reconciliation. Dirty or busy drafts defer refresh rather than replacing local edits. Appearance previews still remain local until Save; the shared saved design and personal light/dark selection remain unchanged.
