@@ -4,6 +4,10 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-10
+
+Community maintenance release with a supported, transactional authorization-journal migration from 1.0.0 and 1.0.1. Back up the installation and stop all writers before upgrading. Existing credentials, consents, records and history are retained.
+
 ### Changed
 
 - Expand workspace icons from 12 to 48 Lucide symbols, including Skull, with six translated selection groups and consistent validation/rendering through web, API and MCP.

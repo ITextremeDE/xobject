@@ -131,7 +131,7 @@ CONFIG
     replacement=$(mktemp "$(dirname "$ENV_FILE")/.env.xobject-upgrade.XXXXXX")
     while IFS= read -r line; do case "$line" in XOBJECT_IMAGE=*) printf 'XOBJECT_IMAGE=%s\n' "$2";; *) printf '%s\n' "$line";; esac; done < "$ENV_FILE" > "$replacement"
     mv "$replacement" "$ENV_FILE"
-    # Same-schema released updates are verified; unknown source schemas fail closed.
+    # Apply the target's supported released migration, then verify; unknown sources fail closed.
     operator upgrade --backup-verified --writers-stopped
     compose up -d --wait "${START_SERVICES[@]}"
     echo 'Upgrade verified and application started.'
