@@ -5,10 +5,10 @@ import { WorkspaceDesignPreview } from './workspace-design-preview';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RotateCcwIcon, UploadIcon } from 'lucide-react';
-import { workspaceLogoIcons, workspaceBaseColors, workspaceThemes, workspaceChartColors, workspaceRadii, workspaceMenuColors, workspaceMenuAccents, type WorkspaceAppearance,type WorkspaceLogoIcon } from '@xobject/contracts';
+import { workspaceLogoIcons, workspaceLogoIconGroups, workspaceBaseColors, workspaceThemes, workspaceChartColors, workspaceRadii, workspaceMenuColors, workspaceMenuAccents, type WorkspaceAppearance } from '@xobject/contracts';
 import { loadWorkspaceFont, workspaceAppearanceTokens, workspaceFontOptions } from '@/lib/workspace-appearance';
 import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError, FieldSet, FieldLegend } from '@/components/ui/field';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectLabel, SelectItem } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -33,7 +33,7 @@ export function WorkspaceAppearanceFields({ value, disabled, onChange }: { value
   }, [lightPrimary,darkPrimary, value.secondaryColor, value.secondaryColorDark, value.theme, value.baseColor]);
   function select<K extends 'baseColor' | 'theme' | 'chartColor' | 'font' | 'fontHeading' | 'radius' | 'menuColor' | 'menuAccent' | 'logoIcon'>(key: K, options: { value: WorkspaceAppearance[K]; label: string }[]) {
     const id = `workspace-${key}`;
-    return <Field data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(`design_${key}`)}</FieldLabel><Select items={options} value={value[key]} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [key]: next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map(item => <SelectItem key={item.value} value={item.value}>{key==='logoIcon'?<WorkspaceLogo icon={item.value as WorkspaceLogoIcon} className="size-4"/>:null}{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>;
+    return <Field data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(`design_${key}`)}</FieldLabel><Select items={options} value={value[key]} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [key]: next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent>{key==='logoIcon'?workspaceLogoIconGroups.map(group=><SelectGroup key={group.key}><SelectLabel>{t(`workspaceIconGroup_${group.key}`)}</SelectLabel>{group.icons.map(icon=><SelectItem key={icon} value={icon}><WorkspaceLogo icon={icon}/>{t(`workspaceIcon_${icon}`)}</SelectItem>)}</SelectGroup>):<SelectGroup>{options.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup>}</SelectContent></Select></Field>;
   }
   function color(key: 'primaryColor' | 'primaryColorDark' | 'secondaryColor' | 'secondaryColorDark') {
     const id = `workspace-${key}`;

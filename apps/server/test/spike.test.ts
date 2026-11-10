@@ -1471,7 +1471,7 @@ test('workspace appearance is shared, versioned and journaled per property throu
   const ordinary = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
   const ws = await ok('create_workspace', { name: 'Shared appearance', code: 'appearance' });
   const other = await ok('create_workspace', { name: 'Other appearance', code: 'appearanceother' });
-  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'mauve', font: 'inter', primaryColor: '#2563eb', primaryColorDark:'#60a5fa',logoIcon:'network',fontHeading:'orbitron', secondaryColor: '#facc15', secondaryColorDark: '#713f12', radius: 'large' };
+  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'mauve', font: 'inter', primaryColor: '#2563eb', primaryColorDark:'#60a5fa',logoIcon:'skull',fontHeading:'orbitron', secondaryColor: '#facc15', secondaryColorDark: '#713f12', radius: 'large' };
   const payload = { workspaceId: ws.id, version: 1, appearance };
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });
   const own = (await api('list_workspaces', {}, userCookie)).json().find((item: { id: string }) => item.id === ws.id);
@@ -4715,4 +4715,19 @@ test('released OAuth journal upgrade preserves data/history, is repeatable and r
   await assert.rejects(upgradeInstallation(url.href,runtimeURL.href,true,true),/No supported/);
   assert.equal((await inspection.query('SELECT definition_hash FROM sys_schema_version')).rows[0].definition_hash,'unknown');
  }finally{await inspection.end();await operator.query(`DROP DATABASE "${name}" WITH (FORCE)`);await operator.end();}
+});
+
+test('workspace lists use localized names and stable ties instead of technical codes in API and MCP',async()=>{
+ const before=(await sql<{language:string|null}>`SELECT language FROM sys_users WHERE id=${adminId}`.execute(runtime.db)).rows[0].language;
+ await sql`UPDATE sys_users SET language='de' WHERE id=${adminId}`.execute(runtime.db);
+ try{
+  const specs=[{code:'nameordera',name:'Zebra'},{code:'nameorderz',name:'alpha'},{code:'nameorderb',name:'Ähre'},{code:'nameorderc',name:'Workspace 10'},{code:'nameorderd',name:'Workspace 2'},{code:'nameordery',name:'alpha'}];
+  const created=[];for(const spec of specs)created.push({...spec,...await ok('create_workspace',spec)});
+  const ids=new Set(created.map(w=>w.id)),expected=['nameorderb','nameordery','nameorderz','nameorderd','nameorderc','nameordera'];
+  for(const listing of [await ok('list_workspaces',{}),await tool('list_workspaces',{})])assert.deepEqual(listing.filter((w:any)=>ids.has(w.id)).map((w:any)=>w.code),expected);
+  const member=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+  for(const workspace of [created[0],created[2]])await ok('set_workspace_member',{workspaceId:workspace.id,userId:member.id,role:'user',expectedRole:null});
+  const limited=await api('list_workspaces',{},userCookie);assert.equal(limited.statusCode,200);
+  assert.deepEqual(limited.json().filter((w:any)=>ids.has(w.id)).map((w:any)=>w.code),['nameorderb','nameordera']);
+ }finally{await sql`UPDATE sys_users SET language=${before} WHERE id=${adminId}`.execute(runtime.db);}
 });

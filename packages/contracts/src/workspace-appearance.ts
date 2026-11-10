@@ -5,7 +5,15 @@ export const workspaceFonts = ["inter", "noto-sans", "nunito-sans", "figtree", "
 export const workspaceBaseColors = ['neutral', 'stone', 'zinc', 'gray', 'mauve', 'olive', 'mist', 'taupe'] as const;
 export const workspaceThemes = ["neutral", "stone", "zinc", "gray", "amber", "blue", "cyan", "emerald", "fuchsia", "green", "indigo", "lime", "orange", "pink", "purple", "red", "rose", "sky", "teal", "violet", "yellow", "mauve", "olive", "mist", "taupe"] as const;
 export const workspaceChartColors = workspaceThemes;
-export const workspaceLogoIcons=['layers','building','briefcase','blocks','folder','users','network','globe','rocket','code','landmark','wrench'] as const;
+export const workspaceLogoIconGroups=[
+  {key:'general',icons:['layers','blocks','folder','globe','star','heart','flag','bookmark']},
+  {key:'people',icons:['users','user','house','building','briefcase','landmark','graduation-cap','handshake']},
+  {key:'technology',icons:['network','code','laptop','server','database','cpu','shield','key']},
+  {key:'creative',icons:['skull','flame','zap','rocket','lightbulb','palette','pen-tool','camera']},
+  {key:'work',icons:['wrench','hammer','cog','package','truck','car','calendar','clipboard-list']},
+  {key:'nature',icons:['leaf','tree-pine','mountain','sun','moon','paw-print','bird','compass']},
+] as const;
+export const workspaceLogoIcons=workspaceLogoIconGroups.flatMap(group=>[...group.icons]);
 export type WorkspaceLogoIcon=typeof workspaceLogoIcons[number];
 export const workspaceHeadingFonts = ['inherit', ...workspaceFonts] as const;
 export const workspaceMenuColors = ['default', 'inverted', 'default-translucent', 'inverted-translucent'] as const;

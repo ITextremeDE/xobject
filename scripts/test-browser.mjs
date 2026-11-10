@@ -152,6 +152,36 @@ test('rendered application workflows on an isolated current installation',{timeo
   const listPath=`${baseURL}/w/qa/objects/checks`,recordPath=`${listPath}/${editable.id}`;
   async function selectChecks(page){await page.locator('#settings-object').click();await page.getByRole('option',{name:'Checks',exact:true}).click();}
   async function settings(page){await page.locator('[data-user-menu="header"]').click();await page.getByRole('menuitem',{name:'Settings',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();}
+  for(const mobile of [false,true])await scenario(`Workspace icon catalog ${mobile?'mobile':'desktop'}`,'admin',async page=>{
+   const baseline=(await api('list_workspaces',{})).find(w=>w.id===workspace.id).appearance;
+   try{
+    await settings(page);
+    if(mobile)await page.getByRole('combobox',{name:'Settings',exact:true}).selectOption({label:'Workspace · Appearance'});
+    else await page.getByRole('dialog').getByRole('button',{name:'Appearance',exact:true}).nth(1).click();
+    await page.getByRole('tab',{name:'Logo',exact:true}).click();
+    const selector=page.getByRole('combobox',{name:'Workspace icon',exact:true});await selector.click();
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(48);
+    await expect(page.getByRole('group',{name:'Ideas & creativity',exact:true})).toBeAttached();
+    await page.getByRole('option',{name:'Skull',exact:true}).scrollIntoViewIfNeeded();
+    await mkdir(artifacts,{recursive:true,mode:0o700});await page.screenshot({path:path.join(artifacts,`workspace-icons-${mobile?'mobile':'desktop'}.png`)});
+    await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveClass(/dark/);
+    await auditPage(page,`workspace-icon-picker-${mobile?'mobile':'desktop'}-dark`);
+    await page.screenshot({path:path.join(artifacts,`workspace-icons-${mobile?'mobile':'desktop'}-dark.png`),animations:'disabled'});
+    await page.keyboard.press('s');await page.keyboard.press('k');await page.keyboard.press('Enter');
+    await expect(selector.locator('[data-slot="select-value"]')).toHaveText('Skull');
+    await expect(page.getByRole('img',{name:'Skull',exact:true})).toBeVisible();
+    await page.getByRole('dialog').getByRole('button',{name:/^Save/}).click();
+    await expect.poll(async()=>(await api('list_workspaces',{})).find(w=>w.id===workspace.id).appearance.logoIcon).toBe('skull');
+    const dialog=page.getByRole('dialog').filter({has:page.locator('#settings-form')});
+    await dialog.getByRole('button',{name:'Close',exact:true}).first().click();await expect(dialog).not.toBeVisible();
+    if(mobile)await page.getByRole('button',{name:'Navigation',exact:true}).click();
+    await expect(page.locator('[data-definition-trigger="workspace"] .lucide-skull')).toBeVisible();
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'No page horizontal overflow');
+   }finally{
+    const current=(await api('list_workspaces',{})).find(w=>w.id===workspace.id);
+    await api('set_workspace_appearance',{workspaceId:workspace.id,version:current.appearance_version,appearance:baseline});
+   }
+  },mobile?{width:390,height:844}:{width:1440,height:1000});
   await scenario('Administrator saves and discards record drafts','admin',async page=>{
    await page.goto(recordPath);const keyword=page.getByRole('textbox',{name:/^Keyword(?: \*)?$/});await expect(keyword).toHaveValue('Editable sample');
    await keyword.fill('Saved browser sample');await page.getByRole('button',{name:/^Save/}).click();
