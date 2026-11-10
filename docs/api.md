@@ -68,7 +68,7 @@ The read-only resource `xobject://api/v1/openapi` supplies the complete input/ou
 
 ### OAuth authorization
 
-**Version scope:** Community 1.0.1 binds OAuth grants to their originating live browser session. The offline lifetime and account-wide explicit sign-out/session-revocation behavior described below are locally implemented, tested changes planned for 1.0.2, not yet integrated or published. Read the [1.0.1 API snapshot](https://docs.xobject.org/versions/1.0.1/api/) for the released behavior. Discovery, consent, scopes and personal-token access retain their released baseline.
+**Version scope:** Community 1.0.1 binds OAuth grants to their originating live browser session. The offline lifetime and account-wide explicit sign-out/session-revocation behavior described below are locally implemented, tested changes planned for 1.0.2, not yet published. Read the [1.0.1 API snapshot](https://docs.xobject.org/versions/1.0.1/api/) for the released behavior. Discovery, consent, scopes and personal-token access retain their released baseline.
 
 MCP clients can discover `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/api/auth`. The maintained Better Auth 1.7.18 MCP/OAuth/CIMD plugins implement Authorization Code with S256 PKCE and signed, expiring consent continuations. Client identity uses HTTPS Client ID Metadata Documents under the MCP 2026-07-28 profile. The Node transport validates DNS answers, pins the approved public address and refuses redirects/private addresses. Anonymous dynamic registration, client-credentials grants and external SSO are not enabled.
 

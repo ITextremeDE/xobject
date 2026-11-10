@@ -18,7 +18,7 @@ See [release notes](CHANGELOG.md#101---2026-11-09), [downloadable releases](http
 - Keep actively used OAuth MCP connections renewable after the originating browser session naturally expires or is cleaned up. Each successful refresh starts a new seven-day lifetime; explicit revocation and security actions still terminate access.
 - Provide clearer release notes and a concise public roadmap, separating delivered capabilities, current work and later goals.
 
-The OAuth correction is locally implemented and has passed targeted integration/security tests and backend checks. Review, integration, release publication and installation verification remain outstanding. Release scope follows the work assigned in OpenProject.
+The OAuth correction is locally implemented and has passed targeted integration/security tests and backend checks. Release publication and installation verification remain outstanding; OpenProject tracks the review/integration state. Release scope follows the work assigned in OpenProject.
 
 ## Planned — Version 2
 
