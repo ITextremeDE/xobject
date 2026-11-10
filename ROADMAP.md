@@ -1,93 +1,76 @@
 # Roadmap
 
-Version 1.0.1 is the Community maintenance release of the 1.0.0 foundation described below. Available artifacts are listed in [GitHub Releases](https://github.com/ITextremeDE/xobject/releases). This is a curated product overview, not a parallel task tracker. OpenProject owns operational priorities, dependencies and completion evidence; the [PRD](docs/PRD.md) owns requirements and the [changelog](CHANGELOG.md) records source changes. No dates are committed.
+This is xObject's public product direction. OpenProject leads operational planning; the [PRD](docs/PRD.md) defines requirements and the [changelog](CHANGELOG.md) records delivered changes. Future targets have no committed dates, and only explicitly assigned versions are shown as such.
 
-The product foundation below is included in the released Community version 1.0.0. The 1.0.1 maintenance release updates dependencies and contributor resources without changing the database schema. Website/documentation changes are published independently; the changelog assigns delivered changes to their release. Acceptance evidence and coverage limits are recorded in the [quality report](docs/quality-acceptance.md); reserved calendar capabilities and notifications remain later scope.
+## Currently released — Community 1.0.1
 
-## Released — Community 1.0.0 foundation
+- **Connected data:** configurable objects, fields, relationships, forms and journals, with workspace isolation and differentiated user/group permissions.
+- **Contacts and projects:** Contacts & Relations supplies Contacts and Distribution lists; Projects & Tasks adds Projects, Cases and Tasks using the same Contacts.
+- **Web, API and AI:** a responsive web application, shared REST/MCP operations, personal credentials, OAuth and supplied agent skills. Live refresh preserves open drafts.
+- **Self-hosting:** published Linux/AMD64 and Linux/ARM64 containers, Docker Compose setup, first-Administrator provisioning and backup/restore tooling. Version 1.0.1 updates dependencies and contributor resources without changing the 1.0.0 database schema.
 
-- General hierarchical selection fields and single/multiple/tree Category, with common summary/dialog controls, translated parent configuration, ancestor closure, safe conversion and journaled hierarchy updates; differentiated demo examples in all three workspaces.
-- Browser identity with original app/favicons, standalone installation manifest, contextual/neutral titles, generic private link previews and copy/native-share actions. Installations remain online applications; platform-specific OS installation/sharing has limited test coverage.
-- Commit-driven authorized live refresh for web/API/MCP changes, reconnect/focus recovery, visible connection/update status and protected three-way record-draft reconciliation; settings drafts defer background source refresh until save/discard. See ADR 0036.
-- PostgreSQL-backed local accounts, instance Administrators, workspace User/Designer roles and graded user/nested-group memberships; mandatory first password change, reversible user/group activation and own profile/password/session management.
-- Metadata-driven object/typed-field creation, optional Keyword/Type/Status/Category, translated field descriptions/hints, typed creation defaults, supported scalar uniqueness/requiredness, safe field conversion and definition lifecycle, stable UUID identities and atomic per-property journals.
-- Object/field ceilings, explicit Create, graded ownership and nested/transitive foreign-access inheritance, record privacy/maxima and field exceptions. Versioned settings, the quick Access-principals field and tabbed rights drafts expose effective rights and optional own-record delegation. Contents, links and security save atomically with one record version/change ID. Shared UI/API/MCP enforcement protects contents, search/counts, relationships, Dashboard and current-rights history; membership alone grants no contents.
-- User-bound REST/MCP access tokens with one-time secrets, password-confirmed creation, channels/read-only limits, mandatory expiry, owner/Administrator revocation and password/deactivation invalidation. API v1 has generated portable OpenAPI input/output schemas, a typed bearer client, a shared error contract and journal provenance. Responsive management and named, regionally formatted token history use the shared settings/table components.
-- Transactional record numbers with prefix/suffix, exact start/increment, padding and never/yearly/monthly counters; immutable issued values, workspace-zone periods and rollback with failed record/journal writes.
-- Versioned relationship definitions for one custom object pair, General core links, Projects-owned Primary context/tree, final-state cardinalities, endpoint conditions and activation preflight. Linked creation and existing-record linking share source/version/permission checks and atomic journals. Primary levels support cascading draft edits, ancestor-filtered candidate selection before authorized counts/paging and workspace-local object requirements with retained-record/descendant preflight. The compact Primary tree includes authorized status captions, keyboard help and cancellable full expand/collapse with paginated loading. Dossier/Journal use the common data table.
-- Current three-entry module catalog; Projects & Tasks supplies base objects and fixed Primary levels. Structured contact fields support ordered name parts, multiple emails/phones/addresses/websites, communication languages/messenger URIs, independent named contact zones, Nickname and three personal dates with an optional year, shared whole-field permissions, conditional Contact-name requirements, immutable Contact kinds, fixed contact cores with designer extensions and typed atomic per-field history. Contacts activation supplies protected Contacts and Distribution lists, fixed Contact kinds, permission-aware derived names, Organization membership, direct Identities and explicit distribution membership. Existing Projects bindings reuse the same Contacts identity. Direct Contact Job title/Department/Function and generic relationship attributes with both-endpoint rights/history are implemented; Projects, Cases and Tasks have supplied lean profiles and a shared temporal codec; recurrence, calendar parties and later object templates remain pending; Contacts and Distribution lists have passed local functional acceptance; standards exchange remains later scope; release acceptance and its coverage limits are recorded in the quality report. Documents & Communication activation remains planned.
-- Configurable standard forms for actual objects: editable groups, Unassigned elements, scalar/relationship order/width, protected Access-principals placement and width, optional visibility and initial table state. One common form is used across all contributing modules.
-- Consistent shadcn shell, settings, full-width record forms, shared searchable tables/pagination, keyboard navigation, responsive loading/dialogs, bounded long-text inputs, timestamp insertion, page-selection copy/clear actions and account/view-scoped presentation preferences. Duplication opens an editable unsaved draft with source-right/version rechecks on Save. Record tables share permission-aware duplicate/recycle menus; short action results use the common Toast surface. Dashboard table is regular application UI with default standard-object filters and custom objects through Add filter; real statistics/chart content remains exploratory.
-- Shared workspace appearance with independent Light/Dark primary/secondary overrides, scoped menu fonts, locally served interface/heading fonts including Orbitron, selectable workspace icons and a standard-component interactive design preview with advisory custom-color contrast checks. The own-logo upload is prepared but disabled. Installed German/English interface/definition policies, named zones and per-property personal localization overrides, exact regional numeric/money/date/time editing and DST handling.
-- Three optional demo stories: feature laboratory, managed IT company and small family/household, with eight installation accounts and distinct workspace memberships/rights, contextual custom objects and contents, prefixed numbering, relationship-attribute history and recycled examples. Standard, corporate and personal appearance remain editable.
-- One current installation baseline, schema/catalog fingerprint checks, runtime/operator separation, registry integrity, scoped locks/indexes and isolated validation. Fictional seed/fixture data is separate from installation; initialization creates no test accounts or business contents; explicit local resets discard disposable fixtures.
-- Workspace recycle bin with current-rights read-only inspection, confirmed Delete-level recycling and Full-level restoration, optimistic versions and atomic lifecycle history. Contents/edges remain retained, cardinality slots reserved, and unavailable Primary context stays private. Confirmed permanent deletion removes live contents/edges while preserving immutable Administrator history and only authorized, content-free notices for other roles; frozen prior visibility and current rights apply before counts/paging. Administrator history has private frozen captions, search, object filtering and sorting.
+See [release notes](CHANGELOG.md#101---2026-11-09), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
-Contacts & Relations V1 is locally accepted for Contacts and Distribution lists: three Contact kinds, derived names, single Organization, independent Identities, professional fields, explicit membership, typed history and restricted-user checks. Desktop/mobile forms and German/English labels are verified; the development guide records the evidence. Contact-kind conversion, guided reassignment, duplicate detection/merge, media uploads and exchange are later work.
+## Next release — 1.0.2
 
-Field/numbering administration now uses clearer sections, compact previews, direct accessible hints and field-aware validation. Record loading shares the loaded page frame; journals retain time/actor context on mobile, generated fields show read-only effective rights, and relationship definitions edit inside the settings frame with guarded focus return. Group name and graded memberships share one editor and atomic Save. These are locally verified refinements of the existing capabilities. Record loading uses the shared half/full group grid; domain times expose compact date/time inputs and expandable representation/zone options with field-linked errors and focus. Mobile settings tables keep rights controls visible.
+**Status: in progress; not published.**
 
-Module-based navigation now supports shared workspace defaults, personal ordering/visibility, per-module copies of shared destinations and authorized Contact-kind lists. The Resources block is optional and initially visible; the common sidebar, command menu and record lists remain shared. See [ADR 0033](docs/adr/0033-configurable-workspace-navigation.md).
+- Keep actively used OAuth MCP connections renewable after the originating browser session naturally expires or is cleaned up. Each successful refresh starts a new seven-day lifetime; explicit revocation and security actions still terminate access.
+- Provide clearer release notes and a concise public roadmap, separating delivered capabilities, current work and later goals.
 
-The primary OpenAI Codex path has passed [live model-driven acceptance](docs/quality-acceptance.md#provider-acceptance): normal workflows, three roles and field limits, OAuth/personal credentials, expiry/revocation, conflicts, lifecycle and journal provenance. All four supplied workflows were used as MCP resources; Foundation/Projects were also used from an installed portable plugin. Native MCP Skills activation was not exposed/negotiated by the tested client. ChatGPT/API surfaces and other providers retain their explicit untested status.
-
-Object lists now expose shared Type/Status/Category filters with empty-value selection, Category ancestor matching and URL-based state. Counts and pages apply current field visibility. External cookie sessions are revalidated inside business transactions after lock acquisition. Release source archives are commit-bound and private recovery/environment files are excluded from build contexts. A separate isolated Chromium regression covers Administrator/User/Designer workflows and representative desktop/mobile interactions. Targeted tree and principal-selection corrections meet the additional fixed 10,000-record path targets; journal queries already passed. [Measured scope and limitations](docs/quality-acceptance.md#v1-path-performance-and-targeted-query-corrections) remain distinct from full-product assistive-technology and supported-platform acceptance.
-
-## Public project introduction
-
-The Astro product website has English/German pages, browser-language selection, actual ITextreme demo screenshots, a feature overview and self-hosting guidance. The Starlight reference documentation shares the ITextreme typography and semantic light/dark palette and remains English. Changelog/Roadmap use canonical repository sources. Local implementation and acceptance of new presentation changes remain distinct from publication; versioned documentation snapshots correspond to their release source.
-
-Expanded local acceptance now covers every settings section in Light/Dark, the five V1 objects, all three Contact kinds, ordinary-user edits and duplicate/recycle/restore workflows with automated accessibility findings retained. Chromium and Firefox Linux CI have passed the expanded suite. Native Safari read/UI checks, narrow settings interactions and targeted VoiceOver dialog/list traversal have also passed; the [quality report](docs/quality-acceptance.md#direct-voiceover-and-narrow-safari-follow-up--2026-11-09) distinguishes these results from broader assistive-technology, real-device and external-host acceptance. Raw WebKit focus-guard findings remain retained without rule suppressions.
-
-## Published website and contributor resources
-
-- English/German product pages with automatic browser-language selection, remembered manual choice, real demo screenshots, light/dark presentation and accessible screenshot dialogs.
-- ITextreme-branded documentation at [docs.xobject.org](https://docs.xobject.org/), with canonical changelog/roadmap pages, search and retained [1.0.0/1.0.1 snapshots](docs/versions.md).
-- Contributor Covenant, public issue forms, pull request guidance and reviewed Dependabot updates for all npm projects, GitHub Actions and the container base image.
-
-## Delivery and remaining coverage
-
-| Goal | Delivered baseline and remaining outcome |
-| --- | --- |
-| Permissions and identity | Database-backed login limits, explicit session/cookie policy, trusted proxy IPs and response security headers are implemented locally. The representative 10,250-record/20-nested-group profile meets all specified p95 targets; See the quality report for accepted scope and remaining coverage. User-bound API/MCP credentials and the generated versioned contract are implemented locally. The local ownership/foreign-access model and current installation are implemented. |
-| Configurable object platform | Representative query scaling is locally measured; released-source schema/template upgrade migrations follow actual predecessors. Field input rules and record numbers are implemented locally under ADR 0030. |
-| Projects & Tasks | Contacts and Distribution lists are locally accepted. The reduced [five-object V1 scope](docs/PRD.md#6-supplied-domain-models) supplies Projects, Cases and Tasks with editable starter forms, shared temporal values and consistent completion. The V1 Projects/Cases/Tasks slice has passed local functional acceptance, including ordinary-user workflows, rights and module combinations; release acceptance and retained coverage limits are documented in the quality report. Appointments, Vacations and the four other Projects objects are later scope. |
-| Standards-aligned domain profiles | The appendix proposes fields, mappings and acceptance cases for Contacts, Distribution lists, Appointments, Vacations and Tasks. ADR 0032 specifies typed JSONB fields, semantic bindings, edge attributes and sparse recurrence overrides with shared authorization/history; the nine contact codecs and base Contacts/Distribution lists are implemented locally. The common temporal codec is implemented; recurrence, calendar parties and complete versioned exchange-profile coverage remain later work. Synchronization is later scope. |
-| Shared modules/forms | Shared object/field contributions, common object forms, retained activation/deactivation and additive template updates are implemented locally. Migrations from a supported released predecessor are required when that predecessor exists. |
-| Delivery and acceptance | The local image, interactive first-Administrator setup, Linux Compose operator, checksummed backup/restore and maintenance failure/recovery acceptance are implemented. Native Ubuntu/AMD64 execution, privately accessible trusted HTTPS and restoration into a second empty installation are accepted; see the scoped quality report. Community 1.0.0 images and installation/source/documentation archives are published in GitHub Releases. Add supported released-source migrations when predecessors exist; local performance targets are met; retain the documented accessibility, platform and Codex coverage limits without treating them as unimplemented V1 features. |
-| Public documentation | Astro/Starlight source, canonical Markdown/changelog/roadmap generation, Pagefind search, built-link validation and versioned-base builds are implemented locally. Current documentation and the retained released snapshots are published at https://docs.xobject.org/; the website and documentation share the existing website host. |
-
-Every capability must use the same backend authorization, validation and journal rules through web, API and MCP. A passing prototype test is not complete version-1 acceptance. See the [initial acceptance scenarios](docs/PRD.md#11-initial-acceptance-scenarios) and [remaining design decisions](docs/PRD.md#10-remaining-design-decisions).
+The OAuth correction is locally implemented and has passed targeted integration/security tests and backend checks. Review, integration, release publication and installation verification remain outstanding. Release scope follows the work assigned in OpenProject.
 
 ## Planned — Version 2
 
-- Personal table-column order and widths under R-030. V1 retains the implemented personal column-visibility preference and existing searchable/filterable/sortable tables.
+- **Personal table layouts:** remember column order and widths in addition to the column visibility already available in V1 (R-030).
+- **Documents & Communication:** supplied Documents, Emails and Phone calls, together with email handling, uploads, attachments and file versioning.
+- **Guided Contact-kind changes:** form an Organization from an Individual contact, assign it to an existing Organization, continue a Contact person as an Individual contact, or separate all Contact persons from an Organization. Preview, data/identity preservation and atomic history guide the [planned workflows](docs/PRD.md#planned-contact-kind-conversion-workflows).
+- **Contact maintenance:** guided reassignment, duplicate detection and merging, with explicit identity and permission rules.
+- **Previous/Next record:** browse the originating list's complete filtered and sorted result, including across pages, while preserving return context and protecting unsaved changes (R-063).
 
-## Planned — Version not assigned
+## Later — Version not assigned
 
-- Explicit public/anonymous reading, public workspace policy and record-specific public link previews under R-061. Private copy/share does not change permissions.
-- [Connected context and knowledge](docs/PRD.md#94-later-target--connected-context-knowledge-and-agent-work): source-linked working context, exact/semantic/relationship discovery, freshness and permission-aware change retrieval, and distinct knowledge/review states. Later target under R-049–R-051; first workflow and architecture remain to be selected.
-- Versioned agent profiles/rules/user-maintained skills, bounded delegation, resumable jobs/attempts, authorized recurring automations and authenticated runner coordination, with current rights and protection against duplicate effects. Later target under R-052–R-057; supplied V1 MCP skills remain a separate delivered foundation.
-- Full-fidelity portability/export and controlled external model processing for the connected work model under R-058. V1 self-hosting and backup/restore remain the current foundation; import/export and agent execution are not added to V1.
-- Additional explanations of module-related required-field dependencies, only when a concrete module combination needs them. Deferred beyond V1; existing required-field validation remains unchanged.
-- [Conditional field visibility](docs/PRD.md#34-planned-conditional-field-visibility) driven by Type/Status with simple AND/OR conditions, retained hidden values and conditional requiredness. Display conditions remain separate from semantic applicability and permissions; implementation is pending.
+### Contacts and relationships
 
-## Later — Beyond version 1
+- **Additional supplied objects:** Vouchers, External services, Campaigns, Contact reports, Line items, Products, Product usages, Product groups, Expenses, Opportunities and Contracts. These remain later scope without a release assignment; the [domain catalog](docs/PRD.md#6-supplied-domain-models) describes the proposed objects.
 
-- Projects & Tasks: Appointments, Vacations, Resource plans, Risks, Time entries and Goals, including supplied fields/relationships. Recurrence and calendar parties remain extensions; the shared temporal codec is already used by V1 Tasks.
-- Next version: additional Contacts & Relations objects — Vouchers, External services, Campaigns, Contact reports, Line items, Products, Product usages, Product groups, Expenses, Opportunities and Contracts, including their supplied fields and relationships.
-- [Guided Contact-kind conversions](docs/PRD.md#planned-contact-kind-conversion-workflows): form a new/existing Organization assignment from an Individual contact, continue a Contact person as an Individual contact, or separate all Contact persons from an Organization. Preview, identity/data preservation and atomic journals are specified; release assignment and implementation details remain open.
-- Documents & Communication (including supplied Documents, Emails and Phone calls), Operations & Finance, IT Service Management, Configuration Management Database, Events & Registrations and Knowledge & Insights. Their shared V1 objects remain in the V1 catalog; later module membership adds no present delivery claim.
-- [ITSM ticket-model idea](docs/PRD.md#planned-itsm-ticket-model): evaluate shared Cases with Type “Ticket” and conditional form sections as an alternative to the proposed Incidents object. This is an exploration, not an approved catalog replacement; other ITSM objects remain separately assessed.
-- Email handling, file uploads, attachments and versioning.
-- Verified email-address changes and profile-image handling, after their mail/upload dependencies exist.
-- Notification delivery, alarms/subscriptions, calendar availability/time-only rights, calendar and Kanban views.
-- Standards-based CardDAV/CalDAV synchronization with explicit peer capabilities, conflict/deletion handling and preservation of unmapped data; no product-specific domain model.
-- Import/export, external SSO, desktop clients (Electron or Tauri selection pending), separate mobile clients, offline operation/synchronization and hosted cloud service.
-- Creation templates/default-group configuration and other separately specified extensions.
+### Projects and tasks
 
-Computed fields and general undo remain candidates requiring separate specification. V1 is entirely Community under Jürgen Schadek personally/ITextreme; contribution terms are defined. Future Premium allocation, pricing and service terms remain open; the full product including Premium code remains `AGPL-3.0-only`.
+- **Additional supplied objects:** Appointments, Vacations, Resource plans, Risks, Time entries and Goals, with lean initial fields and meaningful relationships.
+- **Scheduling extensions:** recurrence, calendar parties, invitations, notifications, alarms/subscriptions and calendar/availability rights. The existing shared temporal model is their foundation.
+- **Nested work:** evaluate Subprojects, Subcases and Subtasks as records of the existing object types. Their interaction with Primary association, cycles, lifecycle and any progress/date aggregation must be defined first (R-062).
+
+### Forms and navigation
+
+- **Conditional forms:** show fields or groups according to Type/Status, retain hidden values and define conditional requiredness. [Display conditions](docs/PRD.md#34-planned-conditional-field-visibility) remain separate from permissions and semantic applicability.
+- **Additional work views:** calendar and Kanban views. Extend bulk actions only after their behavior is specified.
+- **Creation defaults and configuration help:** define creation templates/default groups and explain module-related required-field dependencies when a concrete module combination needs them.
+
+### Further modules
+
+- **Other planned domains:** Operations & Finance, IT Service Management, Configuration Management Database, Events & Registrations and Knowledge & Insights. Sharing an existing object does not deliver the rest of a module.
+- **ITSM exploration:** evaluate Cases with Type “Ticket” and conditional forms as an alternative to a separate Incidents object. The [ticket-model idea](docs/PRD.md#planned-itsm-ticket-model) is not yet an approved catalog replacement.
+
+### Connected knowledge and AI workflows
+
+- **Connected context and knowledge:** link work to its sources, improve exact/semantic/relationship discovery and expose freshness, changes and knowledge/review states (R-049–R-051).
+- **Configurable agents and resumable work:** versioned agent definitions, rules and user-maintained skills; bounded delegation; jobs with separate execution attempts; recurring automations and authenticated runners (R-052–R-057). Current permissions and protection against duplicate effects apply throughout.
+- **Data portability and model processing:** specify full-fidelity export and controlled external model processing (R-058). The [connected-work target](docs/PRD.md#94-later-target--connected-context-knowledge-and-agent-work) owns these requirements; V1's supplied MCP skills remain a separate delivered capability.
+
+### Interoperability, accounts and clients
+
+- **Standards-based exchange:** complete versioned vCard/iCalendar profiles and CardDAV/CalDAV synchronization, with explicit peer capabilities, conflict/deletion handling and preservation of unmapped values. Import/export remains planned.
+- **Account integrations:** external SSO, verified email-address changes and profile/media uploads, with their mail/storage dependencies.
+- **Additional clients:** desktop applications, separate mobile clients and offline operation/synchronization. Electron or Tauri has not been selected.
+- **Explicit public viewing:** selected anonymous/public workspace content and record-specific link previews, with defined permissions, indexing and cache/revocation rules (R-061). Current private sharing grants no additional access.
+
+### Hosting and commercial offerings
+
+- **Hosted service:** offer a cloud-hosted deployment alongside self-hosting.
+- **Future Premium scope:** decide features, pricing and service terms separately. V1 is entirely Community; the product, including future Premium code, remains `AGPL-3.0-only` under Jürgen Schadek/ITextreme.
+
+Computed fields and general undo remain ideas requiring their own specification and release decision.
 
 ## Keeping this roadmap current
 
-Update this overview when accepted scope or verified capabilities materially change. Put detailed operational work and publication evidence in OpenProject, not a duplicate release checklist here. Keep planned targets distinguishable from released application capabilities and independently published website/documentation changes.
+Update this overview when agreed scope, release assignment or delivery status changes. Keep detailed tasks, dependencies and completion evidence in OpenProject, technical decisions in the PRD/ADRs and test evidence in the quality report. Do not turn this page into a second task tracker or a record of individual development steps.
