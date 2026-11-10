@@ -399,8 +399,15 @@ test("localized product site, theme controls, screenshots and resources under pr
         await sectionLinks.first().focus();
         await page.keyboard.press('Enter');
         assert(new URL(page.url()).hash);
+        // Finish the keyboard scenario before independently testing pointer scrolling.
+        await page.locator('.document-content').click({position:{x:5,y:5}});
         for(const width of [1440,390]){
           await page.setViewportSize({width,height:900});
+          await page.evaluate(async()=>{
+            await document.fonts.ready;
+            await new Promise(requestAnimationFrame);
+            await new Promise(requestAnimationFrame);
+          });
           const target=await sectionLinks.nth(1).getAttribute('href');
           await page.evaluate(id=>{
             const heading=document.getElementById(id);
