@@ -27,3 +27,8 @@ Community 1.0.0 is released; maintenance version 1.0.1 retains its exact schema/
 ## Unreleased authorization-journal upgrade — 2026-11-10
 
 The unreleased 1.0.2 target now includes the dedicated, fingerprint-bound 1.0.0/1.0.1 migration described in [ADR 0034](0034-user-bound-api-mcp-access.md). It replaces token-state triggers with authorization-decision journaling, retaining credentials and existing history. This extends the historical same-schema 1.0.1 path above; it does not change the stopped-writer, verified-backup or matching-image recovery requirements. Focused migration/rollback checks and a verified local development upgrade passed; native released-image CI and installed-server acceptance remain release gates.
+
+
+## Release 1.0.2 — 2026-11-10
+
+Version 1.0.2 uses the dedicated authorization-journal migration above for the exact common released 1.0.0/1.0.1 fingerprint. Native release acceptance targets the immutable 1.0.1 predecessor on AMD64 and ARM64. The earlier unreleased statements record the implementation phase; [release artifacts](../releasing.md) retain the final source/image/acceptance references.

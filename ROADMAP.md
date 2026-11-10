@@ -2,25 +2,15 @@
 
 This is xObject's public product direction. OpenProject leads operational planning; the [PRD](docs/PRD.md) defines requirements and the [changelog](CHANGELOG.md) records delivered changes. Future targets have no committed dates, and only explicitly assigned versions are shown as such.
 
-## Currently released — Community 1.0.1
+## Currently released — Community 1.0.2
 
 - **Connected data:** configurable objects, fields, relationships, forms and journals, with workspace isolation and differentiated user/group permissions.
 - **Contacts and projects:** Contacts & Relations supplies Contacts and Distribution lists; Projects & Tasks adds Projects, Cases and Tasks using the same Contacts.
+- **Maintenance 1.0.2:** renewable offline OAuth access, consent-focused security history, bounded container logs, workspace-name sorting and 48 grouped workspace icons.
 - **Web, API and AI:** a responsive web application, shared REST/MCP operations, personal credentials, OAuth and supplied agent skills. Live refresh preserves open drafts.
-- **Self-hosting:** published Linux/AMD64 and Linux/ARM64 containers, Docker Compose setup, first-Administrator provisioning and backup/restore tooling. Version 1.0.1 updates dependencies and contributor resources without changing the 1.0.0 database schema.
+- **Self-hosting:** published Linux/AMD64 and Linux/ARM64 containers, Docker Compose setup, first-Administrator provisioning and backup/restore tooling. Version 1.0.2 adds a supported authorization-journal migration from 1.0.0/1.0.1 while retaining data, credentials and history.
 
-See [release notes](CHANGELOG.md#101---2026-11-09), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
-
-## Next release — 1.0.2
-
-**Status: in progress; not published.**
-
-- Sort workspace selection by name and expand workspace icons to 48 grouped symbols, including Skull.
-- Keep the permanent Journal focused on application authorization and explicit security changes; omit automatic token rotation, bound container logs and preserve existing installations through a supported schema migration.
-- Keep actively used OAuth MCP connections renewable after the originating browser session naturally expires or is cleaned up. Each successful refresh starts a new seven-day lifetime; explicit revocation and security actions still terminate access.
-- Provide clearer release notes and a concise public roadmap, separating delivered capabilities, current work and later goals.
-
-These corrections are locally implemented and have passed focused integration, security, UI and contract checks. PR integration, release CI, publication and installation verification remain outstanding; OpenProject tracks the review/integration state. Release scope follows the work assigned in OpenProject.
+See [release notes](CHANGELOG.md#102---2026-11-10), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
 ## Planned — Version 2
 

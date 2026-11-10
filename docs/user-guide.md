@@ -1,6 +1,6 @@
 # Using xObject
 
-xObject connects Contacts, Projects, Cases, Tasks and your own object types in workspaces. Version 1 is entirely Community. This guide describes the published Community 1.0.1 baseline. Subsequent unreleased behavior is marked explicitly; [released documentation snapshots](versions.md) retain the exact version context.
+xObject connects Contacts, Projects, Cases, Tasks and your own object types in workspaces. Version 1 is entirely Community. This guide describes the published Community 1.0.2 baseline. [released documentation snapshots](versions.md) retain the exact version context.
 
 For an empty installation, start with [First steps](first-steps.md), including workspace creation and module activation.
 
@@ -78,7 +78,7 @@ Open **Recycle bin** in the workspace sidebar, select an eligible record and use
 
 Personal settings contain Profile, Account & security, Appearance and Language & region. Language, time zone and regional formats can inherit workspace defaults. Light/dark/system selection is personal. Account security manages password/sessions, personal API/MCP tokens and OAuth-authorized applications.
 
-**Unreleased — planned for 1.0.2:** signing out or explicitly revoking a browser session disconnects all OAuth-authorized applications for your account, including offline connections originating in other or expired sessions. Reauthorize those applications to reconnect. Natural browser-session expiry does not disconnect offline access; actively used connections renew automatically, while seven days without successful renewal require authorization again. See [OAuth authorization](api.md#oauth-authorization) for the released baseline and pending correction.
+From 1.0.2, signing out or explicitly revoking a browser session disconnects all OAuth-authorized applications for your account, including offline connections originating in other or expired sessions. Reauthorize those applications to reconnect. Natural browser-session expiry does not disconnect offline access; actively used connections renew automatically, while seven days without successful renewal require authorization again. See [OAuth authorization](api.md#oauth-authorization) for the authorization and renewal rules.
 
 The [Workspace settings guide](workspace-settings.md) explains shared appearance, language/region inheritance, modules and navigation. Follow [model design](model-design.md) and [access administration](access-administration.md) for object/field definitions and security. The [API guide](api.md) describes the same application capabilities for integrations and agents.
 

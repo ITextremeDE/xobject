@@ -50,3 +50,8 @@ This correction is locally implemented and has passed 16 targeted integration/se
 The standard protocol token-revocation endpoint emits a secret-free operational completion event, including its intentionally idempotent handling of unknown tokens; this is not a claim that a token existed. Rejected authentication emits only the bounded action and HTTP status. Successful routine renewals have no additional security diagnostic. The supplied Compose configuration rotates per-container JSON logs at 10 MB with three files. Custom logging backends must provide equivalent retention.
 
 Fresh installation and the released 1.0.0/1.0.1 upgrade share one authorization-trigger fragment. The stopped-writer, backup-confirmed upgrade accepts only the exact released fingerprint or the current target, changes triggers and fingerprint in one transaction, and preserves tokens, consent, users, records and existing Journal entries. It neither deletes old token history nor synthesizes consent events for old grants. Recovery uses the pre-update backup and its matching image.
+
+
+## Release 1.0.2 — 2026-11-10
+
+Version 1.0.2 ships the offline-lifetime and authorization-journal refinements described above. The earlier unreleased/local statements record their implementation phase. Existing consents and credentials survive the supported installation upgrade; explicit security revocation retains its normal effect.

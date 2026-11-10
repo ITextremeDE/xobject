@@ -1,8 +1,8 @@
 # Self-hosting and recovery
 
-Install the published **Community 1.0.1** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
+Install the published **Community 1.0.2** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
 
-Use the [1.0.1 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.0.1) and its matching installer/image, not an unreleased source checkout. [Documentation versions](versions.md) separates the released baseline from later source changes.
+Use the [1.0.2 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.0.2) and its matching installer/image, not an unreleased source checkout. [Documentation versions](versions.md) separates the released baseline from later source changes.
 
 ## Prepare an installation
 
@@ -11,18 +11,18 @@ Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, Open
 In a new working directory on that host, download the matching installer, checksum list and image references:
 
 ```sh
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.1/xobject-1.0.1-selfhost.tar.gz
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.1/SHA256SUMS
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.1/IMAGE_DIGESTS.txt
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.2/xobject-1.0.2-selfhost.tar.gz
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.2/SHA256SUMS
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.2/IMAGE_DIGESTS.txt
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 Continue only when the installer reports **OK**. The check ignores other release artifacts that were not downloaded; obtain the checksums from the same trusted release. Inspect `IMAGE_DIGESTS.txt` and use its **Multi-platform** image reference. Extract into a new installation directory:
 
 ```sh
-mkdir xobject-1.0.1
-tar -xzf xobject-1.0.1-selfhost.tar.gz -C xobject-1.0.1
-cd xobject-1.0.1
+mkdir xobject-1.0.2
+tar -xzf xobject-1.0.2-selfhost.tar.gz -C xobject-1.0.2
+cd xobject-1.0.2
 ```
 
 Configure the installation, replacing the example origin, digest and TLS contact address:
@@ -84,11 +84,15 @@ For a private local image, exact image identity is required. A published immutab
 
 The command requires an immutable target digest, stops writers, makes a verified private backup, selects the target image and runs its maintenance-only upgrade/verification command before starting services. On failure, retain the stopped state and restore the backup with its matching image. Old and new application versions do not serve concurrently.
 
-Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint. The 1.0.1 runner verifies this unchanged model without SQL conversion; the unreleased 1.0.2 target adds a dedicated supported-source migration for authorization journaling. Unknown fingerprints remain rejected. A release without its required supported-source tests cannot be published.
+Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint. The 1.0.1 runner verifies this unchanged model without SQL conversion; the 1.0.2 target adds a dedicated supported-source migration for authorization journaling. Unknown fingerprints remain rejected. A release without its required supported-source tests cannot be published.
 
-### Upgrade from 1.0.0 to 1.0.1
+<span id="upgrade-from-100-to-101"></span>
 
-Use `scripts/xobject upgrade IMMUTABLE_1_0_1_IMAGE NEW_BACKUP_DIRECTORY` with the digest from the 1.0.1 release. The operator stops writers, preserves a verified database/configuration backup, switches the image and verifies the complete target schema and integrity before restarting. Both versions share the schema/catalog/auth fingerprint; no SQL conversion or content rewrite is required. Native AMD64/ARM64 release checks cover fresh installation and this upgrade, including unchanged record versions and journal entries. Unknown schemas are rejected and remain stopped. For rollback, use the retained backup and its matching 1.0.0 image through the existing restore procedure.
+### Upgrade from 1.0.0 or 1.0.1 to 1.0.2
+
+Download and verify the 1.0.2 installer, extract it into a new directory and retain the previous installer for recovery. Use the new package's operator with the existing private environment file, Compose project and any proxy override; preserve all credentials and volume identities. Do not run first-time configuration or development reset against the installation.
+
+Run `scripts/xobject upgrade IMMUTABLE_1_0_2_IMAGE NEW_BACKUP_DIRECTORY` using the published 1.0.2 digest. The operator stops writers, preserves a checksummed database/configuration backup and the actual previous image, switches the image and runs the dedicated schema migration before target/integrity verification and restart. The migration replaces per-token history triggers with consent-decision journaling. Existing users, tokens, consents, records, versions and Journal entries are retained. Unknown fingerprints fail closed. On failure, keep writers stopped and restore the verified backup with its matching previous image; the target application does not serve an older model.
 
 ## Use an existing reverse proxy
 
@@ -111,9 +115,9 @@ This uses a random Compose project, loopback port, isolated fictional account/da
 
 `/healthz` checks database availability after startup fingerprint validation. Operator output reports aggregate verification results. Request logs exclude cookies, authorization, query strings and bodies. Authentication diagnostics retain only severity and a bounded SQLSTATE/code, excluding vendor messages/arguments; never paste private configuration, archives or diagnostic payloads into a public issue.
 
-**Unreleased target, planned for 1.0.2:** `upgrade` replaces token-state journaling with consent-decision journaling for the exact released 1.0.0/1.0.1 schema. Stop all writers and verify a consistent backup first; use the future published target image when available. The migration is transactional and preserves credentials, consents and existing history. The 1.0.1 image does not apply this migration. Do not edit the schema fingerprint or run development reset against an installed database.
+From 1.0.2, `upgrade` replaces token-state journaling with consent-decision journaling for the exact released 1.0.0/1.0.1 schema. Stop all writers and verify a consistent backup first; use the published immutable 1.0.2 image. The migration is transactional and preserves credentials, consents and existing history. The 1.0.1 image does not apply this migration. Do not edit the schema fingerprint or run development reset against an installed database.
 
-The supplied unreleased Compose target bounds each container's `json-file` logs to three files of 10 MB (approximately 30 MB per container). Recreate containers through the normal update procedure to apply logging changes; restarting an old container does not change its logging driver configuration. Existing installations or custom Compose/logging overrides must explicitly adopt an equivalent bound. Routine successful token rotation is absent from the permanent Journal; application consent and explicit application/security changes remain visible. Existing Journal history is retained.
+The supplied Compose package bounds each container's `json-file` logs to three files of 10 MB (approximately 30 MB per container). Recreate containers through the normal update procedure to apply logging changes; restarting an old container does not change its logging driver configuration. Existing installations or custom Compose/logging overrides must explicitly adopt an equivalent bound. Routine successful token rotation is absent from the permanent Journal; application consent and explicit application/security changes remain visible. Existing Journal history is retained.
 
 `XOBJECT_ENV_FILE`, `XOBJECT_PROJECT_NAME` and an optional `XOBJECT_COMPOSE_OVERRIDE` explicitly select an installation. `XOBJECT_RECOVERY_DIR` overrides the private pre-restore configuration recovery location. `XOBJECT_START_SERVICES=app` supports isolated loopback acceptance without Caddy. Stop/start/restore/upgrade always act on that selected Compose project. Backups and existing volumes are retained unless an operator deliberately removes them.
 
