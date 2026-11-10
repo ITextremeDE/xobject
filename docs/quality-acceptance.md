@@ -227,3 +227,10 @@ The Journal labels/details retain the common component layout and translated aut
 The shared appearance contract now supplies 48 icons in six groups, including Skull and all released icon identities. Nine focused rendering/appearance tests and the existing role/version/atomic-Journal API/MCP scenario passed. Root build/typecheck and generated API-contract checks passed. Vite reports its advisory size warning for the existing approximately 500 kB shared chunk; no warning threshold was changed.
 
 Two isolated Chromium workflows passed at 1440 × 1000 and 390 × 844: all 48 choices and named groups, keyboard type-ahead selection of Skull, visible preview, normal Save, persisted API readback and the actual workspace-switcher icon. Light/dark popup screenshots were inspected; Axe checks covered the open dark picker and final views without findings. Test changes were restored within the disposable fixture; live workspace designs were unchanged. Release/deployment and native assistive-technology acceptance remain separate.
+
+
+### Closeout CI: field-save readiness
+
+The first PR Chromium run passed all twelve functional workflows but reported 3.62:1 contrast on eight sorting buttons at the end of the Designer field-creation workflow (`#808080` over `#f5f5f5`). Backend, Firefox, documentation, artifact transfer, website and container checks passed. The same Designer workflow and complete Chromium sequence passed locally; the original CI result is retained, and the precise timing cause is not claimed as proven.
+
+The Designer test now explicitly waits for sorting controls to be enabled and fully opaque after the successful save/refetch before the unchanged full-page Axe audit. A visible new field alone is insufficient readiness for that view. Future Axe failures retain a screenshot and control/dialog/busy/opacity diagnostics alongside the original findings. No application styles, upstream components, contrast thresholds or accessibility rules were changed.

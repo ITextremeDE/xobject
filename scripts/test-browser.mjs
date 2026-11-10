@@ -114,6 +114,13 @@ test('rendered application workflows on an isolated current installation',{timeo
      const accessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
      await mkdir(artifacts,{recursive:true,mode:0o700});
      await writeFile(path.join(artifacts,`${engineName}-${name.replace(/[^a-z0-9]+/gi,'-')}-axe.json`),JSON.stringify(accessibility.violations,null,2));
+     if(accessibility.violations.length){
+      const selectors=accessibility.violations.flatMap(finding=>finding.nodes.flatMap(node=>node.target.filter(item=>typeof item==='string')));
+      const diagnostics=await page.evaluate(selectors=>({dialogs:[...document.querySelectorAll('[role="dialog"]')].map(el=>({label:el.getAttribute('aria-labelledby'),modal:el.getAttribute('aria-modal')})),targets:selectors.map(selector=>{const el=document.querySelector(selector);if(!el)return {selector,missing:true};const style=getComputedStyle(el);return {selector,disabled:el.disabled,opacity:style.opacity,color:style.color,background:style.backgroundColor,ariaHidden:!!el.closest('[aria-hidden="true"]'),inert:!!el.closest('[inert]'),busy:!!el.closest('[aria-busy="true"]'),ancestors:[...function*(node){while(node){yield {tag:node.tagName,slot:node.getAttribute('data-slot'),opacity:getComputedStyle(node).opacity};node=node.parentElement;}}(el)].filter(n=>n.opacity!=='1')};})}),selectors);
+      await writeFile(path.join(artifacts,`${engineName}-${name.replace(/[^a-z0-9]+/gi,'-')}-diagnostics.json`),JSON.stringify(diagnostics,null,2));
+      await page.screenshot({path:path.join(artifacts,`${engineName}-${name.replace(/[^a-z0-9]+/gi,'-')}-axe.png`),fullPage:true});
+     }
+
      if(name.endsWith('-Details'))await page.screenshot({path:path.join(artifacts,`${engineName}-${name}.png`),fullPage:true});
      accessibilityFindings.push(...accessibility.violations.map(item=>({view:name,id:item.id,impact:item.impact,nodes:item.nodes.map(node=>node.target)})));
   }
@@ -262,6 +269,10 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.getByRole('dialog').getByRole('button',{name:'Object types',exact:true}).click();await selectChecks(page);await page.getByRole('button',{name:'Add field',exact:true}).click();
    const field=page.getByRole('dialog',{name:'Add field',exact:true});await expect(field).toBeVisible();await field.getByRole('textbox',{name:'Name',exact:true}).fill('Designer note');await field.getByRole('textbox',{name:'Technical name',exact:true}).fill('designer_note');
    await field.getByRole('button',{name:/^Create/}).click();await expect(field).toHaveCount(0);await expect(page.getByRole('button',{name:'Designer note',exact:true})).toBeVisible();
+   // A visible new field does not yet mean that definition/record refetch and
+   // disabled-button opacity transitions have finished. Audit the settled view.
+   await expect.poll(()=>page.locator('thead [data-slot="button"]').evaluateAll(buttons=>buttons.length>0&&buttons.every(button=>!button.disabled&&getComputedStyle(button).opacity==='1'))).toBe(true);
+
   });
   await scenario('Ordinary user follows all five V1 objects and their Primary chain','user',async page=>{
    for(const [key,{model,record}] of Object.entries(domain)){
