@@ -1,5 +1,13 @@
+# Per-container disk bound for secret-free operational logs (about 30 MB each).
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *bounded-logging
     image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
     environment:
       POSTGRES_DB: xobject
@@ -15,6 +23,7 @@ services:
       retries: 30
     restart: unless-stopped
   app:
+    logging: *bounded-logging
     image: ${XOBJECT_IMAGE:?Set an immutable release image or a local acceptance image}
     environment: &application
       DATABASE_URL: postgres://xobject_app:${RUNTIME_DATABASE_PASSWORD:?Set RUNTIME_DATABASE_PASSWORD}@db:5432/xobject
@@ -38,6 +47,7 @@ services:
     security_opt: [no-new-privileges:true]
     restart: unless-stopped
   operator:
+    logging: *bounded-logging
     image: ${XOBJECT_IMAGE:?Set XOBJECT_IMAGE}
     profiles: [tools]
     environment:
@@ -53,6 +63,7 @@ services:
     entrypoint: [node, apps/server/dist/cli.js]
     command: [verify-installation]
   proxy:
+    logging: *bounded-logging
     image: caddy:2-alpine@sha256:8652f54d3ef21e120f78f3c6b396bcf7d3fc8f999cece30cd35490430da89430
     environment:
       XOBJECT_HOST: ${XOBJECT_HOST:?Set XOBJECT_HOST}

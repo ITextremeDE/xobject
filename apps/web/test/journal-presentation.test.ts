@@ -96,3 +96,9 @@ test('relationship attribute history uses its field label rather than the struct
  const t=((key:string)=>key) as any;
  assert.equal(journalEntryTitle({entity_kind:'relationship',field_id:'attribute',field_label:'Position',field_key:'job_title',old_value:'Director',new_value:'Chair'},t,'de'),'Position');
 });
+
+
+test('OAuth consent uses an authorization label instead of a token creation label',async()=>{
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{oauthAuthorization:'Application authorization'}}}});
+ assert.equal(journalEntryTitle({entity_kind:'oauth_credential',field_key:'authorization',old_value:null,new_value:{scopes:['xobject:read']}},i18n.t.bind(i18n)),'Application authorization');
+});

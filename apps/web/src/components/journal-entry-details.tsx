@@ -16,9 +16,9 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
   const { t, i18n } = useTranslation();
   const regional = useRegional(), timeZone = useTimeZone();
   function value(item: unknown, key = entry.field_key, depth = 0): ReactNode {
-    if(entry.entity_kind==='oauth_credential'&&entry.field_key==='created'&&item&&typeof item==='object'&&!Array.isArray(item)){
-      const token=item as {name?:string;userId?:string;scopes?:string[];expiresAt?:string};
-      const fields=[[t('oauthApplication'),token.name],[t('tokenOwner'),entry.credential_context?.userName??token.userId],[t('tokenAccess'),t(token.scopes?.includes('xobject:write')?'oauthWrite':'oauthRead')],[t('tokenExpires'),token.expiresAt?formatRegionalDate(token.expiresAt,regional,timeZone,true):undefined]];
+    if(entry.entity_kind==='oauth_credential'&&['created','authorization'].includes(entry.field_key)&&item&&typeof item==='object'&&!Array.isArray(item)){
+      const token=item as {name?:string;userId?:string;scopes?:string[];resources?:string[];claims?:string[];expiresAt?:string};
+      const fields=[[t('oauthApplication'),token.name],[t('tokenOwner'),entry.credential_context?.userName??token.userId],[t('tokenAccess'),t(token.scopes?.includes('xobject:write')?'oauthWrite':'oauthRead')],...(entry.field_key==='authorization'?[[t('oauthScopes'),token.scopes?.join(', ')],[t('oauthResources'),token.resources?.join(', ')||undefined],[t('oauthClaims'),token.claims?.join(', ')||undefined]]:[[t('tokenExpires'),token.expiresAt?formatRegionalDate(token.expiresAt,regional,timeZone,true):undefined]])];
       return <dl className="flex flex-col gap-3">{fields.map(([label,text])=><div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd>{text??t('journalNotSet')}</dd></div>)}</dl>;
     }
     if(entry.entity_kind==='api_credential'&&entry.field_key==='created'&&item&&typeof item==='object'&&!Array.isArray(item)){

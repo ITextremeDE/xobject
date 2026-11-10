@@ -1,5 +1,5 @@
 import {sql} from 'kysely';
-import {connect,assertCurrentSchema} from './database.js';
+import {connect,assertCurrentSchema,schemaDefinition} from './database.js';
 
 /** Maintenance-only verification of the current target; never adapts an older development schema. */
 export async function verifyInstallation(databaseURL:string,requireAdministrator=true){
@@ -31,10 +31,20 @@ export async function upgradeInstallation(operatorURL:string,runtimeURL:string,b
     const role=decodeURIComponent(new URL(runtimeURL).username);
     const writers=await pool.query('SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND usename=$1 AND pid<>pg_backend_pid() LIMIT 1',[role]);
     if(writers.rowCount)throw new Error('Stop all application writers before upgrading.');
-    // Released 1.0.0 and 1.0.1 share the exact schema/catalog/auth fingerprint.
-    // Same-schema upgrades require verification only. Future schema-changing
-    // migrations belong here, followed by complete target verification.
-    try{await assertCurrentSchema(pool);}catch{throw new Error('No supported released upgrade path exists for this source installation. Use its matching application and recovery backup.');}
+    const target=await schemaDefinition();
+    await db.transaction().execute(async tx=>{
+      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:installation'))`.execute(tx);
+      await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
+      const source=(await sql<{version:number;definition_hash:string}>`SELECT version,definition_hash FROM sys_schema_version WHERE singleton FOR UPDATE`.execute(tx)).rows[0];
+      if(source?.version===1&&source.definition_hash===target.hash)return;
+      // Exact released 1.0.0/1.0.1 fingerprint; no adoption of development schemas.
+      if(source?.version!==1||source.definition_hash!=='37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d')throw new Error('No supported released upgrade path exists for this source installation. Use its matching application and recovery backup.');
+      await sql.raw('DROP TRIGGER sys_oauth_access_token_journal ON public.sys_oauth_access_token; DROP TRIGGER sys_oauth_refresh_token_journal ON public.sys_oauth_refresh_token; DROP FUNCTION public.journal_oauth_token_state();').execute(tx);
+      await sql.raw(target.oauthJournal).execute(tx);
+      await sql`UPDATE sys_schema_version SET definition_hash=${target.hash} WHERE singleton`.execute(tx);
+      // Token hashes, consents, sessions and existing audit history are preserved.
+    });
+    await assertCurrentSchema(pool);
   }finally{await db.destroy();if(!pool.ended)await pool.end();}
   return verifyInstallation(operatorURL);
 }
