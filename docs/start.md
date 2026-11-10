@@ -1,13 +1,23 @@
 # Documentation
 
-Learn to use, install and extend xObject. Start with the path that matches what you want to do.
+Use xObject to connect Contacts, Projects, Cases, Tasks and your own data objects in configurable workspaces. Start with the path that matches what you want to do.
 
 ## Use xObject
 
+- [How xObject fits together](concepts.md): object types, fields, records, modules and access in one example.
 - [First steps](first-steps.md): set up a workspace, enable modules and connect your first records.
-- [User guide](user-guide.md): records, relationships, access, the recycle bin and personal settings.
+- [Records, lists and history](user-guide.md): find, edit, duplicate, link and recover records.
+- [Contacts and distribution lists](contacts.md) or [Projects, Cases and Tasks](projects-and-tasks.md): work with the supplied modules.
 
-## Install and administer
+## Configure a workspace
+
+- [Workspace settings](workspace-settings.md): modules, shared design, languages, region and navigation.
+- [Objects and fields](model-design.md), [field types](field-types.md), [relationships](relationships.md) and [forms](forms.md): build a connected Devices and Service contracts example.
+- [Users and content access](access-administration.md): set up a team, distinguish assignment from foreign access and verify rights.
+
+<span id="install-and-administer"></span>
+
+## Install and operate
 
 - [Self-hosting and recovery](self-hosting.md): installation, first Administrator, updates, backups and restoration.
 - [Documentation versions](versions.md): choose the documentation matching your installed release.

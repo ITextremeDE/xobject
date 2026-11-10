@@ -4,6 +4,10 @@
 - Date: 2026-11-05
 - Refines: [ADR 0004](0004-first-web-interface.md), [ADR 0025](0025-modules-and-form-views.md) and PRD R-048
 
+## Current reading — 2026-11-10
+
+The local/release-acceptance wording records this decision's original phase. Configurable workspace/personal navigation is part of the published Community baseline; the [workspace guide](../workspace-settings.md#arrange-navigation) owns current usage. This note does not extend the original scoped tests or change their evidence.
+
 ## Decision
 
 Compose the application sidebar from the installed shadcn Base UI primitives: Sidebar 07 for workspace/user controls and object submenus, Sidebar 02 for the header search field and collapsible sections, Sidebar 08 for the secondary Resources links above the user menu. Reuse the existing command dialog for search/navigation and its Command/Ctrl+K shortcut. Native text entry or activation of the search field opens that dialog; focus restoration must not reopen it. Whole-sidebar icon collapse and the mobile drawer remain supported.

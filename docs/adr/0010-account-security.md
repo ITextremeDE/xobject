@@ -2,6 +2,10 @@
 
 Status: Accepted for the local experiment
 
+## Current reading — 2026-11-10
+
+The initial account-security slice below predates instance user administration and published installation setup. [ADR 0015](0015-instance-administration-and-journal.md) supplies account provisioning, and [ADR 0035](0035-container-delivery-and-maintenance.md) supplies the first-Administrator and released maintenance path. [Account setup](../access-administration.md#add-accounts-and-workspace-members) is the current UI workflow; earlier deferred provisioning statements remain implementation history.
+
 ## Decision
 
 Personal settings expose Account & security for every signed-in user, including Users without workspace membership. The page changes the current user's local password and lists/revokes their own active sessions. Workspace roles and Administrator status confer no authority over another user's credentials or sessions. SSO linking and email changes remain outside this slice. The adjacent Profile page changes only the own display name through `set_user_profile`, with an atomic user-name journal; email and administrative flags are not accepted as profile input.

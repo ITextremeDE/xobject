@@ -66,6 +66,8 @@ The backend uses Fastify, Kysely with `pg`, Better Auth and the official TypeScr
 - [Public documentation](https://docs.xobject.org/)
 - [First steps](docs/first-steps.md)
 - [Using xObject](docs/user-guide.md)
+- [How xObject fits together](docs/concepts.md)
+- [Workspace configuration](docs/workspace-settings.md), [model design](docs/model-design.md) and [team permissions](docs/access-administration.md)
 - [Documentation and architecture index](docs/README.md)
 - [Product requirements](docs/PRD.md)
 - [Domain starter profiles](docs/domain-profiles.md)

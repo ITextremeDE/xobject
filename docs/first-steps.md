@@ -48,7 +48,8 @@ Save. xObject stores the deepest direct Primary parent and derives its ancestors
 
 - Use [lists, filters and normal record editing](user-guide.md) for daily work.
 - Add users, workspace memberships and content rights before handing the workspace to a team. Membership alone does not grant business contents.
-- As an Administrator or permitted Designer, configure custom objects, fields, relationships and forms in workspace Settings.
+- As an Administrator or permitted Designer, follow [object design](model-design.md), [relationship configuration](relationships.md) and the [Form designer](forms.md) to extend your workspace.
+- Use [Contacts](contacts.md) and [Projects, Cases and Tasks](projects-and-tasks.md) for the supplied domain workflows; [Users and access](access-administration.md) walks through the team setup.
 - Connect an external tool through [API and MCP access](api.md).
 - Set up regular [backups](self-hosting.md#back-up) and retain the matching release documentation before changing a real installation.
 

@@ -4,6 +4,10 @@
 - Date: 2026-11-04
 - Refines: [ADR 0007](0007-custom-field-types.md), [ADR 0019](0019-record-relationships.md) and [ADR 0031](0031-standards-aligned-groupware-models.md)
 
+## Current reading — 2026-11-10
+
+This staged ADR retains both proposals and later implemented refinements. The [Professional-details ownership refinement](#professional-details-ownership-refinement--2026-11-05) supersedes earlier membership-edge placement: Job title, Department and Function are direct Contact fields. The [V1 Projects refinement](#v1-projects-refinement-2026-11-05) adds the temporal codec and current Task semantics. Recurrence, calendar parties and structured Contact-reference integrity remain planned; original future-tense architecture is not a delivery claim.
+
 ## Current implementation boundary
 
 Implemented locally: `structured` fields with `name_components`, `email_entries`, `phone_entries`, `address_entries`, `url_entries` and `partial_date`; schema inventory through `list_field_schemas`; typed controls/summary rendering, normalization, byte/entry limits, safe conversion, whole-field rights and atomic field events with component-path/order context. Entry IDs accept normalized UUIDs; application-created entries use UUIDv7. There is no subcomponent ACL or structured Contact-reference codec yet.

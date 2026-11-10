@@ -6,6 +6,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Changed
 
+- Explain daily work and workspace administration with practical guides for Contacts/Projects, custom models/forms, field types, relationships, numbering, shared settings and team rights. Add full-size fictional illustrations, a discovery/write/conflict API walkthrough and explicit installation/checksum and source-client prerequisites. Preserve existing reader URLs and historical release snapshots.
 - Give public documentation its own audience-oriented start page, first-workspace walkthrough, clearer navigation, visible version context/selection and page-specific descriptions; remove obsolete pre-release wording from the repository overview.
 - Align the bilingual website FAQ with the five agreed V2 themes and send documentation references from project pages to the rendered Docs with their section anchors.
 - Place Privacy before Legal notice in the website footer and keep desktop section navigation visible while scrolling, including on short screens.
@@ -19,6 +20,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Fixed
 
+- Correct obsolete API application-version/unreleased claims and temporal-feature status; identify superseded implementation statements in historical ADRs without rewriting their original decisions.
 - Update active website section links while scrolling, including Changelog/Roadmap navigation and the mobile section strip, without rewriting URL history or moving keyboard focus. Bundle the script under a content-hashed asset URL to prevent stale browser caches after deployment.
 - Keep explicit links to separately published documentation snapshots usable without treating them as missing files in the current build; retain internal link and version-isolation checks.
 - Keep delegated MCP offline access renewable after natural browser-session expiry or cleanup, with a new seven-day lifetime on each successful refresh. Explicit sign-out and session revocation invalidate the user's OAuth connections alongside password changes, account deactivation and application revocation.

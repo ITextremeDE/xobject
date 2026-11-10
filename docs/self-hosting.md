@@ -1,26 +1,39 @@
 # Self-hosting and recovery
 
-Version 1.0.0 is the first Community installation baseline. It has passed local Linux/ARM64 container acceptance and the AMD64 application/operator path under emulation; native Ubuntu/AMD64 acceptance with a publicly trusted HTTPS certificate and an existing reverse proxy has also passed. See the scoped [acceptance evidence](quality-acceptance.md#native-linux-host-and-recovery--2026-11-09). Get the matching installer and image digests from [GitHub Releases](https://github.com/ITextremeDE/xobject/releases). The source [Dockerfile](../Dockerfile), [Compose definition](../deploy/compose.selfhost.yaml) and [operator](../scripts/xobject) are authoritative. [ADR 0035](adr/0035-container-delivery-and-maintenance.md) explains the delivery boundary.
+Install the published **Community 1.0.1** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
+
+Use the [1.0.1 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.0.1) and its matching installer/image, not an unreleased source checkout. [Documentation versions](versions.md) separates the released baseline from later source changes.
 
 ## Prepare an installation
 
-Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, OpenSSL and a SHA-256 utility. Give xObject a dedicated PostgreSQL service/volume. The supplied installation exposes only Caddy on ports 80/443; the database and application have no public port mappings. Point your chosen DNS name to the host before starting Caddy. Caddy obtains certificates using the supplied TLS contact address.
+Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, OpenSSL, curl, tar and GNU `sha256sum`. Give xObject a dedicated PostgreSQL service/volume. The supplied installation exposes only Caddy on ports 80/443; the database and application have no public port mappings. Point your chosen DNS name to the host before starting Caddy. Caddy obtains certificates using the supplied TLS contact address.
 
-Install Docker on the target host, download the installer and verify its SHA-256 against the release checksums. Extract the archive and run from its root. Select the immutable multi-platform image reference from the release's image-digests file:
+In a new working directory on that host, download the matching installer, checksum list and image references:
+
+```sh
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.1/xobject-1.0.1-selfhost.tar.gz
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.1/SHA256SUMS
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.0.1/IMAGE_DIGESTS.txt
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+Continue only when the installer reports **OK**. The check ignores other release artifacts that were not downloaded; obtain the checksums from the same trusted release. Inspect `IMAGE_DIGESTS.txt` and use its **Multi-platform** image reference. Extract into a new installation directory:
+
+```sh
+mkdir xobject-1.0.1
+tar -xzf xobject-1.0.1-selfhost.tar.gz -C xobject-1.0.1
+cd xobject-1.0.1
+```
+
+Configure the installation, replacing the example origin, digest and TLS contact address:
 
 ```sh
 ./scripts/xobject configure https://xobject.example ghcr.io/itextremede/xobject@sha256:RELEASE_DIGEST admin@example.com
 ```
 
-The digest selects the reviewed Linux/AMD64 or Linux/ARM64 image for your host. `configure` writes `deploy/selfhost.env` with independent random database/runtime passwords and auth secret, mode `0600`. It refuses to overwrite an existing file. Keep that file with your private recovery material. Never place it in source control. The example uses hex passwords; manually supplied URL passwords must be URL-encoded.
+The multi-platform reference selects the matching Linux/AMD64 or Linux/ARM64 image. `configure` writes `deploy/selfhost.env` with independent random database/runtime passwords and auth secret, mode `0600`. It refuses to overwrite an existing file. Keep that file with your private recovery material. Never place it in source control. Generated passwords use hex; manually supplied URL passwords must be URL-encoded.
 
 The default private subnet is `172.30.61.0/24`, its dynamic container pool is `172.30.61.128/25`, and Caddy is fixed at `172.30.61.2` outside that pool. If it conflicts with another network, change `BACKEND_SUBNET`, `BACKEND_IP_RANGE` and `PROXY_ADDRESS` together before setup: the dynamic pool and proxy must lie inside the subnet, and the proxy must stay outside the dynamic pool. Only that explicit proxy address is trusted for client IPs. The app can reach public HTTPS client-metadata documents; the database stays on the internal network.
-
-## Use an existing reverse proxy
-
-Keep the dedicated application/database project and use `XOBJECT_START_SERVICES=app` to leave the supplied proxy stopped. Select a private Compose override with `XOBJECT_COMPOSE_OVERRIDE`: connect `app` to the existing proxy network, assign a unique network alias and override its `TRUSTED_PROXIES` environment variable with the proxy's actual fixed address/CIDR. Avoid broad trust ranges. Keep PostgreSQL unpublished and on its internal network; the app needs no public port mapping.
-
-Configure the existing proxy to serve `BASE_URL` with a valid certificate and forward to the application alias on port 4100. Preserve canonical Host/Origin, replace forwarded client headers and permit the streaming transport described below. The existing proxy's configuration, certificate recovery and access restrictions remain the operator's responsibility. Retain the override and required network configuration with private recovery material; the database backup includes `install.env`, not external proxy configuration or custom Compose overrides. Use distinct project names and nonoverlapping backend subnets for a second recovery installation.
 
 ## Initialize and sign in
 
@@ -31,6 +44,8 @@ Configure the existing proxy to serve `BASE_URL` with a valid certificate and fo
 ```
 
 Setup creates the current schema atomically and provisions a separate runtime role. It then asks for the first Administrator's name, email and password in the application container; password entry is masked. The user/account/Administrator flag and first journal entry commit together. Repeating setup cannot claim an existing installation. Subsequent accounts are managed by an Administrator in the app. Initial installation creates no demo accounts, workspaces or business records.
+
+After `verify` succeeds, open your configured HTTPS origin and sign in with the Administrator you just created. Follow [First steps](first-steps.md) to create a workspace and enable modules, then [set up team access](access-administration.md). Schedule regular backups and test recovery before relying on the installation.
 
 For controlled automation, supply all three `ADMIN_NAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD` variables to `setup` through a protected process environment; their values are not command arguments or printed results. Use interactive input for ordinary installation.
 
@@ -75,7 +90,15 @@ Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint. The
 
 Use `scripts/xobject upgrade IMMUTABLE_1_0_1_IMAGE NEW_BACKUP_DIRECTORY` with the digest from the 1.0.1 release. The operator stops writers, preserves a verified database/configuration backup, switches the image and verifies the complete target schema and integrity before restarting. Both versions share the schema/catalog/auth fingerprint; no SQL conversion or content rewrite is required. Native AMD64/ARM64 release checks cover fresh installation and this upgrade, including unchanged record versions and journal entries. Unknown schemas are rejected and remain stopped. For rollback, use the retained backup and its matching 1.0.0 image through the existing restore procedure.
 
+## Use an existing reverse proxy
+
+Keep the dedicated application/database project and use `XOBJECT_START_SERVICES=app` to leave the supplied proxy stopped. Select a private Compose override with `XOBJECT_COMPOSE_OVERRIDE`: connect `app` to the existing proxy network, assign a unique network alias and override its `TRUSTED_PROXIES` environment variable with the proxy's actual fixed address/CIDR. Avoid broad trust ranges. Keep PostgreSQL unpublished and on its internal network; the app needs no public port mapping.
+
+Configure the existing proxy to serve `BASE_URL` with a valid certificate and forward to the application alias on port 4100. Preserve canonical Host/Origin, replace forwarded client headers and permit the streaming transport described below. The existing proxy's configuration, certificate recovery and access restrictions remain the operator's responsibility. Retain the override and required network configuration with private recovery material; the database backup includes `install.env`, not external proxy configuration or custom Compose overrides. Use distinct project names and nonoverlapping backend subnets for a second recovery installation.
+
 ## Local acceptance and diagnostics
+
+Published acceptance includes local Linux/ARM64, the AMD64 application/operator path under emulation and native Ubuntu/AMD64 with publicly trusted HTTPS and an existing reverse proxy. See the scoped [acceptance evidence](quality-acceptance.md#native-linux-host-and-recovery--2026-11-09). This is recorded test coverage, not a capacity or support guarantee. The [Dockerfile](../Dockerfile), [Compose definition](../deploy/compose.selfhost.yaml) and [operator](../scripts/xobject) own implementation; [ADR 0035](adr/0035-container-delivery-and-maintenance.md) owns the delivery decision.
 
 After building `xobject:local-acceptance`, run:
 

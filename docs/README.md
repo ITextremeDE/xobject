@@ -6,7 +6,7 @@ The [domain-profile appendix](domain-profiles.md) owns detailed proposed startin
 
 The root [changelog](../CHANGELOG.md) records notable source changes; the [roadmap](../ROADMAP.md) is a curated product overview. OpenProject owns detailed work, priorities and publication evidence. Release or deployment status must not be inferred from a local ADR or passing source build.
 
-[Using xObject](user-guide.md) introduces the current UI workflows. [Self-hosting and recovery](self-hosting.md) owns installation/maintenance commands. [Public documentation](public-documentation.md) describes the generated Starlight source and checks.
+[How xObject fits together](concepts.md) introduces the model and vocabulary. [Using xObject](user-guide.md), [Contacts](contacts.md) and [Projects and Tasks](projects-and-tasks.md) own daily UI workflows. [Workspace settings](workspace-settings.md), [object and field design](model-design.md), [field types](field-types.md), [relationships](relationships.md), [forms](forms.md) and [access administration](access-administration.md) own configuration guidance. [Self-hosting and recovery](self-hosting.md) owns installation/maintenance commands. [Public documentation](public-documentation.md) describes the generated Starlight source and checks.
 
 [API and MCP access](api.md) describes user-owned tokens, management, transport/version/error contracts, the typed client and retained-history access.
 
