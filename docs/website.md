@@ -57,7 +57,7 @@ product copy. The parent website remains the magazine; xObject has product-speci
 navigation, examples and calls to action. No private planning files are runtime or
 build dependencies.
 
-Changelog and Roadmap use a shared editorial page frame: a concise hero, native section-anchor navigation, a readable content surface and the existing site tokens. Section links come from rendered Markdown headings; the root Markdown remains authoritative. Desktop section navigation stays below the sticky header while scrolling and can scroll internally on short screens. Narrow screens place navigation above the article. These pages stay English and use no additional client-side application state.
+Changelog and Roadmap use a shared editorial page frame: a concise hero, native section-anchor navigation, a readable content surface and the existing site tokens. The shared section-navigation script follows the visible section while scrolling and marks the active link with `aria-current="location"`, on both product and project pages. Mobile section strips reveal the active item horizontally without changing page position or URL history. Section links come from rendered Markdown headings; the root Markdown remains authoritative. Desktop section navigation stays below the sticky header while scrolling and can scroll internally on short screens. Narrow screens place navigation above the article. These pages stay English and use no additional client-side application state.
 
 ## Screenshots
 

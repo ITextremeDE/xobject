@@ -127,6 +127,15 @@ test("localized product site, theme controls, screenshots and resources under pr
         'https://itextreme.de/datenschutzerklaerung','https://itextreme.de/impressum',
       ]);
       await page.evaluate(() => document.fonts.ready);
+      await page.evaluate(()=>{
+        const section=document.getElementById('features');
+        window.scrollTo({top:section.getBoundingClientRect().top+scrollY-80,behavior:'instant'});
+      });
+      for(const link of await page.locator('[data-section-navigation] a[href$="#features"]').all())
+        await expect(link).toHaveAttribute('aria-current','location');
+      await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+      for(const link of await page.locator('[data-section-navigation] a[href$="#overview"]').all())
+        await expect(link).toHaveAttribute('aria-current','location');
       assert.equal(
         await page
           .locator('script:not([src]):not([type="application/ld+json"])')
@@ -365,6 +374,18 @@ test("localized product site, theme controls, screenshots and resources under pr
           const target=await link.getAttribute('href');
           assert(await page.evaluate(id=>document.getElementById(id)!==null,decodeURIComponent(target.slice(1))),`section target ${target}`);
         }
+        await expect(sectionLinks.first()).toHaveAttribute('aria-current','location');
+        const originalHash=new URL(page.url()).hash;
+        for(const index of [1,0]){
+          const target=await sectionLinks.nth(index).getAttribute('href');
+          await page.evaluate(id=>{
+            const heading=document.getElementById(id);
+            window.scrollTo({top:heading.getBoundingClientRect().top+scrollY-100,behavior:'instant'});
+          },decodeURIComponent(target.slice(1)));
+          await expect(sectionLinks.nth(index)).toHaveAttribute('aria-current','location');
+          assert.equal(new URL(page.url()).hash,originalHash,'scroll tracking does not rewrite history');
+          assert.equal(await page.locator('.document-aside a[aria-current]').count(),1);
+        }
         const aside=page.locator('.document-aside');
         await page.evaluate(()=>window.scrollTo({top:1100,behavior:'instant'}));
         const firstTop=(await aside.boundingBox()).y;
@@ -377,6 +398,18 @@ test("localized product site, theme controls, screenshots and resources under pr
         assert(new URL(page.url()).hash);
         for(const width of [1440,390]){
           await page.setViewportSize({width,height:900});
+          const target=await sectionLinks.nth(1).getAttribute('href');
+          await page.evaluate(id=>{
+            const heading=document.getElementById(id);
+            window.scrollTo({top:heading.getBoundingClientRect().top+scrollY-100,behavior:'instant'});
+          },decodeURIComponent(target.slice(1)));
+          await expect(sectionLinks.nth(1)).toHaveAttribute('aria-current','location');
+          if(width===390){
+            await expect.poll(()=>sectionLinks.nth(1).evaluate(link=>{
+              const item=link.getBoundingClientRect(),strip=link.closest('ul').getBoundingClientRect();
+              return item.left>=strip.left-1&&item.right<=strip.right+1;
+            })).toBe(true);
+          }
           await accessible(page);
           assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
         }
