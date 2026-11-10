@@ -26,7 +26,7 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0008](adr/0008-workspace-roles.md) | Administrator/User/Designer | Configuration roles; content rights remain separate. |
 | [0009](adr/0009-definition-lifecycle.md) | Definition lifecycle | Implemented; record recycling/restoration is separate under ADR 0029. |
 | [0010](adr/0010-account-security.md) | Own password/sessions | Instance provisioning refined by 0015. |
-| [0011](adr/0011-workspace-appearance.md) | Shared appearance | Workspace tokens/previews; browser mode remains personal. |
+| [0011](adr/0011-workspace-appearance.md) | Shared appearance | Workspace tokens/previews; browser mode remains personal; live-refresh refinement in 0036. |
 | [0012](adr/0012-workspace-languages.md) | Installed/available languages | Interface and definition policy, retained preferences. |
 | [0013](adr/0013-workspace-groups.md) | Direct group membership/lifecycle | Graded/nested membership extends this in 0027. |
 | [0014](adr/0014-time-zones-and-regional-display.md) | Time zones/regions/input | Exact values and guarded format transitions. |
@@ -37,20 +37,20 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0019](adr/0019-record-relationships.md) | Record edges and linked creation | One custom pair, cardinality fields/tables and atomic creation. |
 | [0020](adr/0020-relationship-tree.md) | Primary tree/context | Projects-only read model; General/custom links stay in Dossier. |
 | [0021](adr/0021-relationship-scope-and-projects-module.md) | Scope and activation | Fixed roles refined by 0024, catalog/base installation by 0025. |
-| [0022](adr/0022-database-integrity-and-concurrency.md) | Versions/locks/installation/roles | Local storage safeguards; release packaging remains open. |
+| [0022](adr/0022-database-integrity-and-concurrency.md) | Versions/locks/installation/roles | Storage safeguards; released container delivery and maintenance are covered by 0035. |
 | [0023](adr/0023-record-journal-and-conditional-fields.md) | Journal/applicability | Current-rights projections refined by 0026 and 0027. |
 | [0024](adr/0024-primary-levels-and-relationship-conditions.md) | Fixed Primary roles/conditions | Protected supplied UUID roles, conditional endpoints. |
-| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Standard forms/base installation implemented; PRD defines the expanded V1 target, with shared contributions, retained lifecycle and one common object form implemented; released upgrades remain open. |
+| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Five V1 objects, shared contributions, retained lifecycle and one common object form implemented; PRD section 1.3 assigns V2 scope. Released installation updates follow 0035; future schema/template migrations need dedicated acceptance. |
 | [0026](adr/0026-content-permissions.md) | Object/field ceilings | Current object/field grants; record policy in 0027. |
 | [0027](adr/0027-ownership-and-foreign-access.md) | Ownership and foreign access | Local graded ownership/membership, privacy, foreign paths, Create and record security UI; calendar/notifications later. |
-| [0028](adr/0028-current-installation-baseline.md) | Current unreleased installation | One empty installation definition, explicit local reset, schema fingerprint and current contracts without compatibility paths. |
+| [0028](adr/0028-current-installation-baseline.md) | Current installation and development resets | One runtime model, explicit disposable development resets and schema fingerprint; released upgrades use dedicated maintenance tooling under 0035. |
 | [0029](adr/0029-record-recycle-bin.md) | Record recycle bin | Versioned recycling/restoration, retained edges and current-rights inspection; controlled permanent deletion retains Administrator-only history. |
 | [0030](adr/0030-field-input-rules-and-record-numbers.md) | Input rules and numbering | Translated field explanations, typed creation defaults, scalar uniqueness and transactional record numbers. |
 | [0031](adr/0031-standards-aligned-groupware-models.md) | Standards-aligned groupware models | Vendor-neutral profile direction; storage architecture in 0032, runtime and later DAV delivery remain open. |
 | [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Staged architecture: nine typed contact codecs and locally accepted Contacts/Distribution lists; relationship attributes and both-endpoint rights/history implemented; shared temporal codec and lean Projects/Cases/Tasks templates implemented; calendar parties and sparse exceptions pending. |
 | [0033](adr/0033-configurable-workspace-navigation.md) | Configurable navigation | Module sections, repeated object entries, Contact filters, shared defaults/personal layouts and optional Resources; versioned API/MCP persistence. |
-| [0034](adr/0034-user-bound-api-mcp-access.md) | User-bound API/MCP access | One-time tokens, current-rights enforcement, scopes/expiry/revocation, audit provenance and generated OpenAPI/typed client. |
-| [0035](adr/0035-container-delivery-and-maintenance.md) | Container delivery and maintenance | Local Linux container candidate, atomic first setup, verified backup/restore and fail-closed upgrade direction. |
+| [0034](adr/0034-user-bound-api-mcp-access.md) | User-bound API/MCP access | Released tokens/OAuth, current-rights enforcement and generated contracts; dated offline-lifetime correction planned for 1.0.2. |
+| [0035](adr/0035-container-delivery-and-maintenance.md) | Container delivery and maintenance | Published Linux containers, atomic first setup, verified backup/restore and fail-closed same-schema 1.0.0 → 1.0.1 upgrades; future schema-changing upgrades require migrations. |
 | [0036](adr/0036-browser-presence-and-live-updates.md) | Browser identity/PWA/live updates | Private previews, authorized commit signals, reconnect and draft reconciliation; public reading later. |
 | [0037](adr/0037-selection-trees-and-choice-dialogs.md) | Selection trees and choice dialogs | General hierarchical fields, Category modes, ancestor closure, atomic history and shared picker UI. |
 
@@ -58,7 +58,7 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 
 Requirements and permission precedence belong in the PRD, concrete implemented architecture in the applicable ADR, operation schemas/types in [shared contracts](../packages/contracts/src/index.ts), and operator commands in the [self-hosting](self-hosting.md), development and website guides. Summaries should link those authorities rather than introduce competing rules. Tests and their code are evidence for behavior; source changes are not proof of a production release.
 
-The full application, including Premium code, remains `AGPL-3.0-only`; [licensing](../README.md#licensing-and-commercial-model) and [LICENSE](../LICENSE) govern that statement. Planned documents, release images, email/upload facilities and hosted/native clients must not be presented as already delivered.
+The full application, including Premium code, remains `AGPL-3.0-only`; [licensing](../README.md#licensing-and-commercial-model) and [LICENSE](../LICENSE) govern that statement. Release images are published. Documents, email/upload facilities and hosted/native clients remain planned; see the [roadmap](../ROADMAP.md) for assigned and unassigned scope.
 
 - [Local quality acceptance](quality-acceptance.md): measured profile, targets, accessibility and remaining release gates.
 - [Optional agent plugin](agent-plugin.md): canonical workflows, packaging and actual-client acceptance.

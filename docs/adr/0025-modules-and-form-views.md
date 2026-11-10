@@ -56,6 +56,10 @@ All technical object names in the module catalog are reserved for module definit
 
 Scope refinement, 2026-11-05: Contacts & Relations delivers Contacts and Distribution lists in V1. Its 11 additional catalog objects and their supplied relationships move to the next version. Projects & Tasks delivers Contacts, Projects, Cases and Tasks in V1; its six additional planned objects remain beyond V1. Shared Contacts counts once. The PRD Delivery column owns the release assignment.
 
+## Delivery refinement — 2026-11-10
+
+This supersedes the next-version assignment in the 2026-11-05 scope refinement above. The 11 additional Contacts objects and six additional Projects objects remain later scope without a release assignment. V2 targets personal table-column order/widths, Documents & Communication, guided Contact-kind changes, Contact maintenance including duplicate detection/merge and Previous/Next record navigation. Documents, Emails and Phone calls form the planned V2 module; detailed storage/mail/domain contracts and acceptance remain to be specified. Current V1 activation, protected definitions and shared-form behavior are unchanged. [PRD section 1.3](../PRD.md#13-agreed-v2-scope) owns the current delivery scope; this refinement does not claim implementation or change the module architecture.
+
 ## Shared contributions and lifecycle — 2026-11-05
 
 `sys_module_contributions` binds each contributing module to the shared object identity and installed template version. `sys_module_field_contributions` records its object-owned field selection with composite scope foreign keys. Supplied field recipes reuse canonical bindings; conflicting shared structures fail atomically, and matching custom technical names are never adopted. Projects provisions the same complete Contact core while Contacts activation additionally makes Distribution lists available. Activation order does not create copies.

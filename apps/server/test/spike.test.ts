@@ -277,8 +277,9 @@ test('MCP 2026 discovery, typed results and Skills use current permissions witho
   } finally { await ordinary.close(); }
 });
 
-test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, refresh and revocation share application rights',async()=>{
-  const headers={host:'127.0.0.1:4100',cookie:adminCookie,'x-xobject-request':'1',origin:baseURL};
+async function issueOAuthGrant(regularUser=false){
+  const oauthCookie=await login(regularUser?'user@example.test':'admin@example.test',regularUser?'test-password-regular-user':'test-password-administrator');
+  const headers={host:'127.0.0.1:4100',cookie:oauthCookie,'x-xobject-request':'1',origin:baseURL};
   const resource=`${baseURL}/mcp`;
   const metadata=await runtime.app.inject({method:'GET',url:'/.well-known/oauth-protected-resource/mcp',headers:{host:headers.host}});
   assert.equal(metadata.statusCode,200,metadata.body);assert.equal(metadata.json().resource,resource);
@@ -303,8 +304,14 @@ test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, ref
   const tokenCall=(body:Record<string,string>)=>runtime.app.inject({method:'POST',url:'/api/auth/oauth2/token',headers:{host:headers.host,'content-type':'application/x-www-form-urlencoded'},payload:new URLSearchParams(body).toString()});
   const token=await tokenCall({grant_type:'authorization_code',client_id:clientId,redirect_uri:'http://127.0.0.1:49152/callback',code,code_verifier:verifier,resource});
   assert.equal(token.statusCode,200,token.body);const issued=token.json();assert.ok(issued.access_token);assert.ok(issued.refresh_token);assert.equal(issued.token_type,'Bearer');
+  return {headers,resource,clientId,issued,tokenCall};
+}
+
+test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, refresh and revocation share application rights',async()=>{
+  const {headers,resource,clientId,issued,tokenCall}=await issueOAuthGrant();
+  let bearer=issued.access_token;
   const external=new Client({name:'OAuth SDK acceptance',version:'1'},{versionNegotiation:{mode:'auto'}});
-  await external.connect(new StreamableHTTPClientTransport(new URL('/mcp',baseURL),{requestInit:{headers:{authorization:`Bearer ${issued.access_token}`}},fetch:async(url,init)=>{const req=new Request(url,init),response=await runtime.app.inject({method:req.method as 'POST',url:new URL(req.url).pathname,headers:{...Object.fromEntries(req.headers),host:headers.host},...(req.method==='POST'?{payload:await req.text()}:{})});return new Response(response.body||null,{status:response.statusCode,headers:response.headers as HeadersInit});}}));
+  await external.connect(new StreamableHTTPClientTransport(new URL('/mcp',baseURL),{requestInit:{headers:{authorization:`Bearer ${issued.access_token}`}},fetch:async(url,init)=>{const req=new Request(url,init),response=await runtime.app.inject({method:req.method as 'POST',url:new URL(req.url).pathname,headers:{...Object.fromEntries(req.headers),authorization:`Bearer ${bearer}`,host:headers.host},...(req.method==='POST'?{payload:await req.text()}:{})});return new Response(response.body||null,{status:response.statusCode,headers:response.headers as HeadersInit});}}));
   try{
     assert.equal(external.getNegotiatedProtocolVersion(),'2026-07-28');
     assert.ok(!(await external.callTool({name:'list_workspaces',arguments:{}})).isError);
@@ -319,14 +326,78 @@ test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, ref
     await assert.rejects(()=>external.callTool({name:'list_workspaces',arguments:{}}));
     await sql`UPDATE sys_oauth_access_token SET resources=${JSON.stringify([resource])}::jsonb,scopes='["xobject:read","xobject:write","offline_access"]'::jsonb WHERE id=${tokenId}`.execute(runtime.db);
     assert.equal((await external.callTool({name:'list_oauth_authorizations',arguments:{}})).isError,true);
+    // Natural web expiry must not force an active offline client to reconnect.
+    const session=(await sql<{session_id:string}>`SELECT session_id FROM sys_oauth_access_token WHERE id=${tokenId}`.execute(runtime.db)).rows[0];
+    await sql`UPDATE sys_sessions SET expires_at=now()-interval '1 minute' WHERE id=${session.session_id}`.execute(runtime.db);
+    assert.ok(!(await external.callTool({name:'list_workspaces',arguments:{}})).isError);
+    // Simulate an old (still valid) refresh token: the rotated expiry must start now.
+    await sql`UPDATE sys_oauth_refresh_token SET expires_at=now()+interval '1 hour' WHERE token=${createHash('sha256').update(issued.refresh_token).digest('hex')}`.execute(runtime.db);
     const refreshed=await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:issued.refresh_token,resource});assert.equal(refreshed.statusCode,200,refreshed.body);
+    const freshExpiry=(await sql<{remaining:number}>`SELECT extract(epoch FROM expires_at-clock_timestamp())::integer AS remaining FROM sys_oauth_refresh_token WHERE token=${createHash('sha256').update(refreshed.json().refresh_token).digest('hex')}`.execute(runtime.db)).rows[0].remaining;
+    assert.ok(freshExpiry>604700&&freshExpiry<=604800);
+    // Better Auth removes expired sessions when the browser next checks its login.
+    const expiredSession=await runtime.app.inject({method:'GET',url:'/api/auth/get-session',headers});
+    assert.equal(expiredSession.json(),null);
+    assert.equal((await sql`SELECT id FROM sys_sessions WHERE id=${session.session_id}`.execute(runtime.db)).rows.length,0);
+    const renewed=await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:refreshed.json().refresh_token,resource});assert.equal(renewed.statusCode,200,renewed.body);
+    bearer=renewed.json().access_token;
+    assert.ok(!(await external.callTool({name:'list_workspaces',arguments:{}})).isError);
+    assert.ok(!(await external.callTool({name:'create_workspace',arguments:{name:'Offline renewal',code:'offlinerenewal'}})).isError);
     await ok('revoke_oauth_authorization',{clientId});
     await assert.rejects(()=>external.callTool({name:'list_workspaces',arguments:{}}));
-    assert.notEqual((await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:refreshed.json().refresh_token,resource})).statusCode,200);
+    assert.notEqual((await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:renewed.json().refresh_token,resource})).statusCode,200);
     assert.ok(!(await ok('list_oauth_authorizations',{})).some((app:any)=>app.clientId===clientId));
     const history=(await sql<{old_value:unknown;new_value:unknown}>`SELECT old_value,new_value FROM sys_journal WHERE entity_kind='oauth_credential'`.execute(runtime.db)).rows;
     assert.ok(history.length>=4);assert.ok(!JSON.stringify(history).includes(issued.access_token));assert.ok(!JSON.stringify(history).includes(issued.refresh_token));
   }finally{await external.close();}
+});
+
+test('OAuth offline grants retain security boundaries after natural session expiry',async(t)=>{
+  const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
+  const mcpRead=(access:string)=>runtime.app.inject({method:'POST',url:'/mcp',headers:{host:'127.0.0.1:4100',authorization:`Bearer ${access}`,'content-type':'application/json',accept:'application/json, text/event-stream'},payload:{jsonrpc:'2.0',id:1,method:'tools/list'}});
+  for(const action of ['sign-out','sign-out-after-expiry','revoke_session','revoke_other_sessions','change_password','deactivate','disable-client','expired-refresh','online-only'] as const)await t.test(action,async()=>{
+    const {headers,resource,clientId,issued,tokenCall}=await issueOAuthGrant(true);
+    const refresh=()=>tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:issued.refresh_token,resource});
+    const sessionId=(await sql<{session_id:string}>`SELECT session_id FROM sys_oauth_access_token WHERE token=${hash(issued.access_token)}`.execute(runtime.db)).rows[0].session_id;
+    const targetId=(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0].id;
+    const userAction=async(operation:Operation,input:unknown)=>{const response=await api(operation,input,userCookie);assert.equal(response.statusCode,200,response.body);return response.json();};
+    const original=(await sql<{password:string}>`SELECT password FROM sys_accounts WHERE user_id=${targetId} AND provider_id='credential'`.execute(runtime.db)).rows[0].password;
+    try{
+      if(action==='sign-out-after-expiry'){
+        await sql`UPDATE sys_sessions SET expires_at=now()-interval '1 minute' WHERE id=${sessionId}`.execute(runtime.db);
+        await runtime.app.inject({method:'GET',url:'/api/auth/get-session',headers});
+        assert.equal((await refresh()).statusCode,200);
+        assert.equal((await runtime.app.inject({method:'POST',url:'/api/auth/sign-out',headers:{...headers,cookie:userCookie},payload:{}})).statusCode,200);
+        const live=(await sql`SELECT id FROM sys_oauth_refresh_token WHERE user_id=${targetId} AND revoked IS NULL`.execute(runtime.db)).rows;assert.equal(live.length,0);
+      }else if(action==='sign-out'){
+        // A rejected cross-origin logout must not revoke a valid offline grant.
+        const denied=await runtime.app.inject({method:'POST',url:'/api/auth/sign-out',headers:{...headers,origin:'https://untrusted.example'},payload:{}});
+        assert.equal(denied.statusCode,403);
+        assert.equal((await mcpRead(issued.access_token)).statusCode,200);
+        assert.equal((await runtime.app.inject({method:'POST',url:'/api/auth/sign-out',headers,payload:{}})).statusCode,200);
+      }else if(action==='revoke_session')await userAction('revoke_session',{sessionId});
+      else if(action==='revoke_other_sessions')await userAction('revoke_other_sessions',{});
+      else if(action==='change_password')await userAction('change_password',{currentPassword:'test-password-regular-user',newPassword:'test-password-regular-user-changed',revokeOtherSessions:false});
+      else if(action==='deactivate'){
+        // Deactivation goes through the normal, journaled Administrator operation.
+        const user=(await ok('list_managed_users',{})).find((row:any)=>row.id===targetId);
+        await ok('configure_user',{userId:targetId,version:user.version,name:user.name,active:false,isAdmin:false});
+      }else if(action==='disable-client')await sql`UPDATE sys_oauth_client SET disabled=true WHERE client_id=${clientId}`.execute(runtime.db);
+      else if(action==='expired-refresh')await sql`UPDATE sys_oauth_refresh_token SET expires_at=now()-interval '1 minute' WHERE token=${hash(issued.refresh_token)}`.execute(runtime.db);
+      else{
+        await sql`UPDATE sys_oauth_access_token SET scopes='["xobject:read"]'::jsonb WHERE token=${hash(issued.access_token)}`.execute(runtime.db);
+        await sql`UPDATE sys_sessions SET expires_at=now()-interval '1 minute' WHERE id=${sessionId}`.execute(runtime.db);
+      }
+      if(action!=='expired-refresh')assert.equal((await mcpRead(issued.access_token)).statusCode,401);
+      if(action!=='online-only')assert.notEqual((await refresh()).statusCode,200);
+    }finally{
+      await sql`UPDATE sys_users SET active=true WHERE id=${targetId}`.execute(runtime.db);
+      await sql`UPDATE sys_accounts SET password=${original} WHERE user_id=${targetId} AND provider_id='credential'`.execute(runtime.db);
+      // Restore only disposable fixtures for subsequent independent scenarios.
+      userCookie=await login('user@example.test','test-password-regular-user');
+      await ok('revoke_oauth_authorization',{clientId});
+    }
+  });
 });
 
 test('names are validated and same object names in different workspaces remain separate', async () => {

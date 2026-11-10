@@ -33,3 +33,11 @@ An optional OpenAI plugin may package the same skill sources with the MCP connec
 ## Verification boundaries
 
 Integration scenarios cover one-time secrets, owner isolation, password confirmation, channels/read-only restrictions, expiry, revocation/revoke-all/password rotation, current rights, API/MCP parity, audit provenance, transaction rollback and contract reference/response validation. Browser acceptance covers account/user management, creation drafts, lifecycle controls and retained-history views; real token generation is additionally exercised through isolated backend sessions. The [development guide](../development.md) records actual results. The current implementation remains unreleased. The quality report records accepted local Codex OAuth/skill paths; cloud-hosted integrations, external SSO and distributed rate limiting retain their separate scope.
+
+## Release and offline-lifetime follow-up — 2026-11-10
+
+Community 1.0.1 publishes the personal-token, OAuth and supplied-skills baseline above; the earlier local/unreleased descriptions record the original implementation phase. Released installation maintenance follows [ADR 0035](0035-container-delivery-and-maintenance.md).
+
+**Unreleased — planned for 1.0.2:** offline grants survive natural browser-session expiry and cleanup; each successful refresh rotates the token and starts a new seven-day validity period. Online-only grants still require their attached live session. Successful explicit sign-out or session revocation revokes all OAuth access/refresh tokens for that user, including detached offline grants. Password changes, account deactivation and application revocation remain effective. Provider cleanup may revoke an old access token; a valid offline refresh token can replace it. Issuance/refresh and security mutations remain serialized with atomic secret-free journals.
+
+This correction is locally implemented and has passed 16 targeted integration/security tests plus backend typecheck/build. It is not yet published or verified on the installed application. The [API guide](../api.md#oauth-authorization) and [user guide](../user-guide.md#personal-and-workspace-settings) mark the same boundary.

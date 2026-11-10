@@ -1,7 +1,7 @@
 import {liveUpdates} from './live-updates.js';
 import {browserDefaults,browserShell,webManifest} from './browser-shell.js';
 import {Pool} from 'pg';
-import {authenticateOAuth} from './oauth.js';
+import {authenticateOAuth,revokeUserOAuth} from './oauth.js';
 import {verifyOAuthQueryParams} from '@better-auth/oauth-provider';
 import {apiError} from './errors.js';
 import {readFileSync} from 'node:fs';
@@ -74,19 +74,26 @@ export function buildServer(config: Config) {
       // Security/profile mutations use the common journaled API/MCP operations, not alternate auth routes.
       const authPath = new URL(request.url, base).pathname.replace(/\/+$/, '');
       if (!['/api/auth/sign-in/email', '/api/auth/sign-out', '/api/auth/get-session', '/api/auth/oauth2/authorize', '/api/auth/oauth2/token', '/api/auth/oauth2/revoke', '/api/auth/oauth2/consent', '/api/auth/oauth2/continue'].includes(authPath)) throw new AppError(404, 'Not found');
-      const gate=authPath==='/api/auth/oauth2/token'?await oauthGate.connect():undefined;
+      const signingOut=authPath==='/api/auth/sign-out';
+      const gate=authPath==='/api/auth/oauth2/token'||signingOut?await oauthGate.connect():undefined;
+      const lock=signingOut?'pg_advisory_lock':'pg_advisory_lock_shared';
+      const unlock=signingOut?'pg_advisory_unlock':'pg_advisory_unlock_shared';
       try {
-      if(gate)await gate.query("SELECT pg_advisory_lock_shared(hashtext('xobject:model'))");
+      if(gate)await gate.query(`SELECT ${lock}(hashtext('xobject:model'))`);
+      const signOutSession=signingOut?await auth.api.getSession({headers:fromNodeHeaders(request.headers)}):null;
       const response = await auth.handler(new Request(new URL(request.url, base), {
         method: request.method, headers: new Headers({...Object.fromEntries(fromNodeHeaders(request.headers)), 'x-xobject-client-ip':request.ip}),
         ...(request.body !== undefined ? { body: typeof request.body === 'string' ? request.body : JSON.stringify(request.body) } : {}),
       }));
+      // Only a successful, vendor-CSRF-validated sign-out revokes offline grants.
+      // The exclusive model barrier prevents a concurrent refresh escaping revocation.
+      if(signOutSession&&response.ok)await db.transaction().execute(tx=>revokeUserOAuth(tx,signOutSession.user.id));
       reply.code(response.status);
       response.headers.forEach((value, key) => { if (key !== 'set-cookie') reply.header(key, value); });
       const cookies = response.headers.getSetCookie();
       if (cookies.length) reply.header('set-cookie', cookies);
       return reply.send(await response.text());
-      } finally {if(gate){try{await gate.query("SELECT pg_advisory_unlock_shared(hashtext('xobject:model'))");}finally{gate.release();}}}
+      } finally {if(gate){try{await gate.query(`SELECT ${unlock}(hashtext('xobject:model'))`);}finally{gate.release();}}}
     },
   });
 
