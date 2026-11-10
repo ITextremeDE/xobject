@@ -64,6 +64,7 @@ export class AccountSecurityService {
 
   private async revoke(tx: Executor, actor: string, currentId: string, change: string, journal: Journal, target?: string) {
     const rows = (await sql<{ id: string }>`DELETE FROM sys_sessions WHERE user_id = ${actor} AND id <> ${currentId} AND expires_at > now() ${target ? sql`AND id = ${target}` : sql``} RETURNING id`.execute(tx)).rows;
+    if(rows.length)await revokeUserOAuth(tx,actor);
     for (const row of rows) await journal('session', row.id, change, 'revoked', false, true);
     return rows.length;
   }

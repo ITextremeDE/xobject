@@ -28,18 +28,19 @@ export function oauthPlugins(baseURL:string) {
   return [mcp({...options,schema}),cimd({metadataProfile:'mcp-2026-07-28',fetchClientMetadataResource})];
 }
 
-type OAuthRow={id:string;user_id:string;session_id:string;client_id:string;scopes:string[];resources:string[];confirmation:unknown;name:string|null};
-/** Only provider-issued, resource-bound opaque Bearer tokens reach business operations. */
+type OAuthRow={id:string;user_id:string;session_id:string|null;client_id:string;scopes:string[];resources:string[];confirmation:unknown;name:string|null};
+/** Offline consent survives natural web-session expiry/deletion. Online-only grants
+ * still require a live session. Explicit security actions revoke both token kinds. */
 export async function authenticateOAuth(tx:Executor,authorization:string,resource:string) {
   const match=/^Bearer ([A-Za-z0-9_-]{20,512})$/.exec(authorization);
   if(!match)throw new AppError(401,'Invalid access token');
-  const row=(await sql<OAuthRow>`SELECT t.*,c.name FROM sys_oauth_access_token t JOIN sys_oauth_client c ON c.client_id=t.client_id JOIN sys_users u ON u.id=t.user_id JOIN sys_sessions s ON s.id=t.session_id AND s.user_id=t.user_id WHERE t.token=${oauthHash(match[1])} AND t.revoked IS NULL AND t.expires_at>clock_timestamp() AND NOT COALESCE(c.disabled,false) AND u.active AND NOT u.must_change_password AND s.expires_at>clock_timestamp()`.execute(tx)).rows[0];
+  const row=(await sql<OAuthRow>`SELECT t.*,c.name FROM sys_oauth_access_token t JOIN sys_oauth_client c ON c.client_id=t.client_id JOIN sys_users u ON u.id=t.user_id LEFT JOIN sys_sessions s ON s.id=t.session_id AND s.user_id=t.user_id WHERE t.token=${oauthHash(match[1])} AND t.revoked IS NULL AND t.expires_at>clock_timestamp() AND NOT COALESCE(c.disabled,false) AND u.active AND NOT u.must_change_password AND (t.scopes ? 'offline_access' OR s.expires_at>clock_timestamp())`.execute(tx)).rows[0];
   if(!row || !row.resources?.includes(resource) || row.confirmation || !row.scopes?.some(scope=>scope==='xobject:read'||scope==='xobject:write'))throw new AppError(401,'Invalid access token');
   return {userId:row.user_id,channel:'mcp' as const,oauthTokenId:row.id,oauthResource:resource,agentName:row.name??'OAuth client'};
 }
 export async function validateOAuthContext(tx:Executor,actor:string,operation:Operation,context?:RequestContext){
   if(!context?.oauthTokenId)return;
-  const row=(await sql<OAuthRow>`SELECT t.*,c.name FROM sys_oauth_access_token t JOIN sys_oauth_client c ON c.client_id=t.client_id JOIN sys_users u ON u.id=t.user_id JOIN sys_sessions s ON s.id=t.session_id AND s.user_id=t.user_id WHERE t.id=${context.oauthTokenId} AND t.user_id=${actor} AND t.revoked IS NULL AND t.expires_at>clock_timestamp() AND NOT COALESCE(c.disabled,false) AND u.active AND NOT u.must_change_password AND s.expires_at>clock_timestamp() FOR UPDATE OF t`.execute(tx)).rows[0];
+  const row=(await sql<OAuthRow>`SELECT t.*,c.name FROM sys_oauth_access_token t JOIN sys_oauth_client c ON c.client_id=t.client_id JOIN sys_users u ON u.id=t.user_id LEFT JOIN sys_sessions s ON s.id=t.session_id AND s.user_id=t.user_id WHERE t.id=${context.oauthTokenId} AND t.user_id=${actor} AND t.revoked IS NULL AND t.expires_at>clock_timestamp() AND NOT COALESCE(c.disabled,false) AND u.active AND NOT u.must_change_password AND (t.scopes ? 'offline_access' OR s.expires_at>clock_timestamp()) FOR UPDATE OF t`.execute(tx)).rows[0];
   if(!row||!row.resources?.includes(context.oauthResource??'')||row.confirmation||!row.scopes.some(scope=>scope==='xobject:read'||scope==='xobject:write'))throw new AppError(401,'OAuth access expired or revoked');
   if(operation.includes('api_credential')||operation.includes('oauth_authorization')||['change_password','get_account_security','revoke_session','revoke_other_sessions'].includes(operation))throw new AppError(403,'Interactive session required');
   if(!isReadOperation(operation)&&!row.scopes.includes('xobject:write'))throw new AppError(403,'OAuth access is read-only');
