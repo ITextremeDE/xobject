@@ -219,7 +219,12 @@ export class Application {
             if (!(await sql`SELECT 1 FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows.length) throw new AppError(404, 'Workspace not found');
             return (await sql`SELECT id, name, 'user' AS kind, active FROM sys_users WHERE ${access.isAdmin} OR is_admin OR id IN (SELECT user_id FROM sys_workspace_members WHERE workspace_id = ${args.workspaceId}::uuid) UNION ALL SELECT id::text, name, 'group' AS kind, active FROM sys_groups WHERE workspace_id = ${args.workspaceId}::uuid ORDER BY name, id`.execute(tx)).rows;
           }
-          case 'list_workspaces': return (await sql`SELECT w.id, w.code, w.name, w.default_language, w.available_languages, w.label_languages, w.language_version, w.time_zone, w.regional, w.created_by, u.name AS created_by_name, w.created_at, w.appearance, w.appearance_version, CASE WHEN ${access.isAdmin} THEN 'administrator' ELSE m.role END AS role FROM sys_workspaces w JOIN sys_users u ON u.id = w.created_by LEFT JOIN sys_workspace_members m ON m.workspace_id = w.id AND m.user_id = ${userId} WHERE ${access.isAdmin} OR m.user_id IS NOT NULL ORDER BY w.code`.execute(tx)).rows;
+          case 'list_workspaces': {
+            const locale=(await sql<{language:string|null}>`SELECT language FROM sys_users WHERE id=${userId}`.execute(tx)).rows[0]?.language??'en';
+            const collator=new Intl.Collator(locale,{sensitivity:'base',numeric:true});
+            const workspaces=(await sql<{id:string;name:string;code:string}>`SELECT w.id, w.code, w.name, w.default_language, w.available_languages, w.label_languages, w.language_version, w.time_zone, w.regional, w.created_by, u.name AS created_by_name, w.created_at, w.appearance, w.appearance_version, CASE WHEN ${access.isAdmin} THEN 'administrator' ELSE m.role END AS role FROM sys_workspaces w JOIN sys_users u ON u.id = w.created_by LEFT JOIN sys_workspace_members m ON m.workspace_id = w.id AND m.user_id = ${userId} WHERE ${access.isAdmin} OR m.user_id IS NOT NULL `.execute(tx)).rows;
+            return workspaces.sort((a,b)=>collator.compare(a.name,b.name)||a.code.localeCompare(b.code));
+          }
           case 'list_object_types': {
             const args = schemas.list_object_types.parse(parsed);
             const workspace = (await sql<{ default_language: Language; available_languages: Language[] }>`SELECT default_language, available_languages FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid`.execute(tx)).rows[0];

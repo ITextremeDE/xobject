@@ -18,6 +18,7 @@ import { Client as PgClient } from 'pg';
 import { SkillsClient } from '@modelcontextprotocol/client/ext/skills';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildServer } from '../src/server.js';
+import {upgradeInstallation} from '../src/installation.js';
 import { initializeDatabase } from '../src/database.js';
 import { createAuth } from '../src/auth.js';
 import { defaultRecordSecurity,defaultRegionalSettings, defaultWorkspaceAppearance, moveClassificationOption, type ClassificationRules } from '@xobject/contracts';
@@ -304,6 +305,8 @@ async function issueOAuthGrant(regularUser=false){
   const tokenCall=(body:Record<string,string>)=>runtime.app.inject({method:'POST',url:'/api/auth/oauth2/token',headers:{host:headers.host,'content-type':'application/x-www-form-urlencoded'},payload:new URLSearchParams(body).toString()});
   const token=await tokenCall({grant_type:'authorization_code',client_id:clientId,redirect_uri:'http://127.0.0.1:49152/callback',code,code_verifier:verifier,resource});
   assert.equal(token.statusCode,200,token.body);const issued=token.json();assert.ok(issued.access_token);assert.ok(issued.refresh_token);assert.equal(issued.token_type,'Bearer');
+  const grants=(await sql<any>`SELECT * FROM sys_journal WHERE entity_kind='oauth_credential' AND new_value->>'clientId'=${clientId}`.execute(runtime.db)).rows;
+  assert.equal(grants.length,1);assert.equal(grants[0].field_key,'authorization');
   return {headers,resource,clientId,issued,tokenCall};
 }
 
@@ -332,6 +335,7 @@ test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, ref
     assert.ok(!(await external.callTool({name:'list_workspaces',arguments:{}})).isError);
     // Simulate an old (still valid) refresh token: the rotated expiry must start now.
     await sql`UPDATE sys_oauth_refresh_token SET expires_at=now()+interval '1 hour' WHERE token=${createHash('sha256').update(issued.refresh_token).digest('hex')}`.execute(runtime.db);
+    const journalBeforeRefresh=(await sql`SELECT id FROM sys_journal`.execute(runtime.db)).rows.length;
     const refreshed=await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:issued.refresh_token,resource});assert.equal(refreshed.statusCode,200,refreshed.body);
     const freshExpiry=(await sql<{remaining:number}>`SELECT extract(epoch FROM expires_at-clock_timestamp())::integer AS remaining FROM sys_oauth_refresh_token WHERE token=${createHash('sha256').update(refreshed.json().refresh_token).digest('hex')}`.execute(runtime.db)).rows[0].remaining;
     assert.ok(freshExpiry>604700&&freshExpiry<=604800);
@@ -340,6 +344,7 @@ test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, ref
     assert.equal(expiredSession.json(),null);
     assert.equal((await sql`SELECT id FROM sys_sessions WHERE id=${session.session_id}`.execute(runtime.db)).rows.length,0);
     const renewed=await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:refreshed.json().refresh_token,resource});assert.equal(renewed.statusCode,200,renewed.body);
+    assert.equal((await sql`SELECT id FROM sys_journal`.execute(runtime.db)).rows.length,journalBeforeRefresh,'Two rotations and natural session cleanup must not journal routine token state');
     bearer=renewed.json().access_token;
     assert.ok(!(await external.callTool({name:'list_workspaces',arguments:{}})).isError);
     assert.ok(!(await external.callTool({name:'create_workspace',arguments:{name:'Offline renewal',code:'offlinerenewal'}})).isError);
@@ -347,9 +352,37 @@ test('OAuth discovery, PKCE, explicit consent, resource-bound opaque tokens, ref
     await assert.rejects(()=>external.callTool({name:'list_workspaces',arguments:{}}));
     assert.notEqual((await tokenCall({grant_type:'refresh_token',client_id:clientId,refresh_token:renewed.json().refresh_token,resource})).statusCode,200);
     assert.ok(!(await ok('list_oauth_authorizations',{})).some((app:any)=>app.clientId===clientId));
-    const history=(await sql<{old_value:unknown;new_value:unknown}>`SELECT old_value,new_value FROM sys_journal WHERE entity_kind='oauth_credential'`.execute(runtime.db)).rows;
-    assert.ok(history.length>=4);assert.ok(!JSON.stringify(history).includes(issued.access_token));assert.ok(!JSON.stringify(history).includes(issued.refresh_token));
+    const history=(await sql<{old_value:unknown;new_value:unknown}>`SELECT old_value,new_value FROM sys_journal WHERE entity_kind='oauth_credential' AND new_value->>'clientId'=${clientId}`.execute(runtime.db)).rows;
+    assert.equal(history.length,1);
+    assert.ok((await sql`SELECT id FROM sys_journal WHERE entity_kind='account_security' AND field_key='oauth_revoked' AND old_value->>'clientId'=${clientId}`.execute(runtime.db)).rows.length===1);
+    const displayed=await ok('list_system_journal',{entityKind:'oauth_credential',limit:100});
+    assert.ok(displayed.entries.some((entry:any)=>entry.entity_name==='Local acceptance client · Test Administrator'));
+    assert.ok(!JSON.stringify(history).includes(issued.access_token));assert.ok(!JSON.stringify(history).includes(issued.refresh_token));assert.ok(!JSON.stringify(history).includes(createHash('sha256').update(issued.access_token).digest('hex')));assert.ok(!JSON.stringify(history).includes(createHash('sha256').update(issued.refresh_token).digest('hex')));
   }finally{await external.close();}
+});
+
+test('OAuth protocol token revocation and replay protection work without token-inventory journals',async()=>{
+ const {clientId,resource,issued,headers,tokenCall}=await issueOAuthGrant();
+ const count=async()=>Number((await sql<{n:string}>`SELECT count(*) AS n FROM sys_journal WHERE entity_kind='oauth_credential' AND new_value->>'clientId'=${clientId}`.execute(runtime.db)).rows[0].n);
+ const revoke=await runtime.app.inject({method:'POST',url:'/api/auth/oauth2/revoke',headers:{host:headers.host,'content-type':'application/x-www-form-urlencoded'},payload:new URLSearchParams({client_id:clientId,token:issued.access_token,token_type_hint:'access_token'}).toString()});assert.equal(revoke.statusCode,200,revoke.body);
+ assert.equal((await sql`SELECT id FROM sys_oauth_access_token WHERE token=${createHash('sha256').update(issued.access_token).digest('hex')}`.execute(runtime.db)).rows.length,0);
+ assert.equal(await count(),1);
+ const refreshed=await tokenCall({grant_type:'refresh_token',client_id:clientId,resource,refresh_token:issued.refresh_token});assert.equal(refreshed.statusCode,200,refreshed.body);
+ const replay=await tokenCall({grant_type:'refresh_token',client_id:clientId,resource,refresh_token:issued.refresh_token});assert.notEqual(replay.statusCode,200);
+ assert.notEqual((await tokenCall({grant_type:'refresh_token',client_id:clientId,resource,refresh_token:refreshed.json().refresh_token})).statusCode,200,'Reusing a consumed refresh token must invalidate its family');
+ assert.equal(await count(),1);
+ await ok('revoke_oauth_authorization',{clientId});
+});
+
+test('OAuth consent changes are atomic and routine timestamps are not journaled',async()=>{
+ const {clientId}=await issueOAuthGrant();
+ const count=async()=>Number((await sql<{n:string}>`SELECT count(*) AS n FROM sys_journal WHERE entity_kind='oauth_credential' AND new_value->>'clientId'=${clientId}`.execute(runtime.db)).rows[0].n);
+ await sql`UPDATE sys_oauth_consent SET updated_at=clock_timestamp() WHERE client_id=${clientId}`.execute(runtime.db);assert.equal(await count(),1);
+ await sql`UPDATE sys_oauth_consent SET scopes='["xobject:read"]'::jsonb WHERE client_id=${clientId}`.execute(runtime.db);assert.equal(await count(),2);
+ await sql`CREATE TRIGGER reject_oauth_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_test_journal()`.execute(runtime.db);
+ try{await assert.rejects(sql`UPDATE sys_oauth_consent SET scopes='["xobject:read","xobject:write"]'::jsonb WHERE client_id=${clientId}`.execute(runtime.db));}
+ finally{await sql`DROP TRIGGER reject_oauth_journal ON sys_journal`.execute(runtime.db);}
+ assert.deepEqual((await sql<{scopes:string[]}>`SELECT scopes FROM sys_oauth_consent WHERE client_id=${clientId}`.execute(runtime.db)).rows[0].scopes,['xobject:read']);assert.equal(await count(),2);
 });
 
 test('OAuth offline grants retain security boundaries after natural session expiry',async(t)=>{
@@ -1438,7 +1471,7 @@ test('workspace appearance is shared, versioned and journaled per property throu
   const ordinary = (await sql<{ id: string }>`SELECT id FROM sys_users WHERE email = 'user@example.test'`.execute(runtime.db)).rows[0];
   const ws = await ok('create_workspace', { name: 'Shared appearance', code: 'appearance' });
   const other = await ok('create_workspace', { name: 'Other appearance', code: 'appearanceother' });
-  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'mauve', font: 'inter', primaryColor: '#2563eb', primaryColorDark:'#60a5fa',logoIcon:'network',fontHeading:'orbitron', secondaryColor: '#facc15', secondaryColorDark: '#713f12', radius: 'large' };
+  const appearance = { ...defaultWorkspaceAppearance, baseColor: 'mauve', font: 'inter', primaryColor: '#2563eb', primaryColorDark:'#60a5fa',logoIcon:'skull',fontHeading:'orbitron', secondaryColor: '#facc15', secondaryColorDark: '#713f12', radius: 'large' };
   const payload = { workspaceId: ws.id, version: 1, appearance };
   await ok('set_workspace_member', { workspaceId: ws.id, userId: ordinary.id, role: 'user', expectedRole: null });
   const own = (await api('list_workspaces', {}, userCookie)).json().find((item: { id: string }) => item.id === ws.id);
@@ -4643,4 +4676,58 @@ test('fresh supplied forms reserve Primary before Classification and preserve au
   const classification=groups.findIndex((g:any)=>g.fields.some((e:any)=>definition.fields.some((f:any)=>f.id===e.fieldId&&f.technicalName==='type')));
   assert.ok(primary>=0&&primary<classification,model.technicalName);
  }
+});
+
+test('released OAuth journal upgrade preserves data/history, is repeatable and rejects unknown sources',async()=>{
+ const {Pool}=await import('pg'),operator=new Pool({connectionString:databaseURL});
+ const name=`upgrade_${randomUUID().replaceAll('-','')}`,url=new URL(databaseURL);url.pathname='/'+name;
+ await operator.query(`CREATE DATABASE "${name}"`);const inspection=new Pool({connectionString:url.href});
+ const runtimeURL=new URL(url);runtimeURL.username='unused_upgrade_runtime';
+ try{
+  await initializeDatabase(url.href,secret,baseURL);
+  await inspection.query("INSERT INTO sys_users(id,name,email,email_verified,created_at,updated_at,is_admin,must_change_password) VALUES($1,'Upgrade administrator','upgrade@example.test',true,now(),now(),true,false)",[adminId]);
+  await inspection.query("INSERT INTO sys_journal(id,change_id,entity_kind,entity_id,field_key,actor_id,access_channel,new_value) VALUES($1,$2,'user',$3::uuid,'created',$3::text,'internal','true')",[randomUUID(),randomUUID(),adminId]);
+  // Restore the actual released trigger fixture; source fingerprints are pinned.
+  await inspection.query(`DROP TRIGGER sys_oauth_consent_journal ON sys_oauth_consent; DROP FUNCTION journal_oauth_authorization_state();
+    UPDATE sys_schema_version SET definition_hash='37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d' WHERE singleton;`);
+  await inspection.query(readFileSync(new URL('./fixtures/released-oauth-token-journal.sql',import.meta.url),'utf8'));
+  await assert.rejects(upgradeInstallation(url.href,runtimeURL.href,false,true),/verified backup/);
+  const {clientId}=await issueOAuthGrant();
+  const preserved=new Map<string,unknown[]>();
+  for(const table of ['sys_oauth_client','sys_oauth_consent','sys_oauth_refresh_token','sys_oauth_access_token']){
+   const rows=(await sql<any>`SELECT * FROM ${sql.table(table)} WHERE client_id=${clientId}`.execute(runtime.db)).rows;
+   for(const row of rows){if('session_id' in row)row.session_id=null;await inspection.query(`INSERT INTO ${table} SELECT * FROM json_populate_record(NULL::${table},$1::json)`,[JSON.stringify(row)]);}
+   preserved.set(table,(await inspection.query(`SELECT * FROM ${table} ORDER BY id`)).rows);
+  }
+  const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;
+  await inspection.query('CREATE FUNCTION journal_oauth_authorization_state() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$');
+  await assert.rejects(upgradeInstallation(url.href,runtimeURL.href,true,true));
+  assert.equal((await inspection.query('SELECT definition_hash FROM sys_schema_version')).rows[0].definition_hash,'37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d');
+  assert.equal((await inspection.query("SELECT 1 FROM pg_trigger WHERE tgname='sys_oauth_access_token_journal'")).rowCount,1);
+  await inspection.query('DROP FUNCTION journal_oauth_authorization_state()');
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);
+  assert.deepEqual((await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows,history);
+  for(const [table,rows] of preserved)assert.deepEqual((await inspection.query(`SELECT * FROM ${table} ORDER BY id`)).rows,rows);
+  const triggers=(await inspection.query("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname LIKE 'sys_oauth_%_journal' ORDER BY tgname")).rows.map(row=>row.tgname);
+  assert.deepEqual(triggers,['sys_oauth_consent_journal']);
+  await inspection.query("UPDATE sys_schema_version SET definition_hash='unknown' WHERE singleton");
+  await assert.rejects(upgradeInstallation(url.href,runtimeURL.href,true,true),/No supported/);
+  assert.equal((await inspection.query('SELECT definition_hash FROM sys_schema_version')).rows[0].definition_hash,'unknown');
+ }finally{await inspection.end();await operator.query(`DROP DATABASE "${name}" WITH (FORCE)`);await operator.end();}
+});
+
+test('workspace lists use localized names and stable ties instead of technical codes in API and MCP',async()=>{
+ const before=(await sql<{language:string|null}>`SELECT language FROM sys_users WHERE id=${adminId}`.execute(runtime.db)).rows[0].language;
+ await sql`UPDATE sys_users SET language='de' WHERE id=${adminId}`.execute(runtime.db);
+ try{
+  const specs=[{code:'nameordera',name:'Zebra'},{code:'nameorderz',name:'alpha'},{code:'nameorderb',name:'Ähre'},{code:'nameorderc',name:'Workspace 10'},{code:'nameorderd',name:'Workspace 2'},{code:'nameordery',name:'alpha'}];
+  const created=[];for(const spec of specs)created.push({...spec,...await ok('create_workspace',spec)});
+  const ids=new Set(created.map(w=>w.id)),expected=['nameorderb','nameordery','nameorderz','nameorderd','nameorderc','nameordera'];
+  for(const listing of [await ok('list_workspaces',{}),await tool('list_workspaces',{})])assert.deepEqual(listing.filter((w:any)=>ids.has(w.id)).map((w:any)=>w.code),expected);
+  const member=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+  for(const workspace of [created[0],created[2]])await ok('set_workspace_member',{workspaceId:workspace.id,userId:member.id,role:'user',expectedRole:null});
+  const limited=await api('list_workspaces',{},userCookie);assert.equal(limited.statusCode,200);
+  assert.deepEqual(limited.json().filter((w:any)=>ids.has(w.id)).map((w:any)=>w.code),['nameorderb','nameordera']);
+ }finally{await sql`UPDATE sys_users SET language=${before} WHERE id=${adminId}`.execute(runtime.db);}
 });

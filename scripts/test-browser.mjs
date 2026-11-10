@@ -114,6 +114,13 @@ test('rendered application workflows on an isolated current installation',{timeo
      const accessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
      await mkdir(artifacts,{recursive:true,mode:0o700});
      await writeFile(path.join(artifacts,`${engineName}-${name.replace(/[^a-z0-9]+/gi,'-')}-axe.json`),JSON.stringify(accessibility.violations,null,2));
+     if(accessibility.violations.length){
+      const selectors=accessibility.violations.flatMap(finding=>finding.nodes.flatMap(node=>node.target.filter(item=>typeof item==='string')));
+      const diagnostics=await page.evaluate(selectors=>({dialogs:[...document.querySelectorAll('[role="dialog"]')].map(el=>({label:el.getAttribute('aria-labelledby'),modal:el.getAttribute('aria-modal')})),targets:selectors.map(selector=>{const el=document.querySelector(selector);if(!el)return {selector,missing:true};const style=getComputedStyle(el);return {selector,disabled:el.disabled,opacity:style.opacity,color:style.color,background:style.backgroundColor,ariaHidden:!!el.closest('[aria-hidden="true"]'),inert:!!el.closest('[inert]'),busy:!!el.closest('[aria-busy="true"]'),ancestors:[...function*(node){while(node){yield {tag:node.tagName,slot:node.getAttribute('data-slot'),opacity:getComputedStyle(node).opacity};node=node.parentElement;}}(el)].filter(n=>n.opacity!=='1')};})}),selectors);
+      await writeFile(path.join(artifacts,`${engineName}-${name.replace(/[^a-z0-9]+/gi,'-')}-diagnostics.json`),JSON.stringify(diagnostics,null,2));
+      await page.screenshot({path:path.join(artifacts,`${engineName}-${name.replace(/[^a-z0-9]+/gi,'-')}-axe.png`),fullPage:true});
+     }
+
      if(name.endsWith('-Details'))await page.screenshot({path:path.join(artifacts,`${engineName}-${name}.png`),fullPage:true});
      accessibilityFindings.push(...accessibility.violations.map(item=>({view:name,id:item.id,impact:item.impact,nodes:item.nodes.map(node=>node.target)})));
   }
@@ -152,6 +159,36 @@ test('rendered application workflows on an isolated current installation',{timeo
   const listPath=`${baseURL}/w/qa/objects/checks`,recordPath=`${listPath}/${editable.id}`;
   async function selectChecks(page){await page.locator('#settings-object').click();await page.getByRole('option',{name:'Checks',exact:true}).click();}
   async function settings(page){await page.locator('[data-user-menu="header"]').click();await page.getByRole('menuitem',{name:'Settings',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();}
+  for(const mobile of [false,true])await scenario(`Workspace icon catalog ${mobile?'mobile':'desktop'}`,'admin',async page=>{
+   const baseline=(await api('list_workspaces',{})).find(w=>w.id===workspace.id).appearance;
+   try{
+    await settings(page);
+    if(mobile)await page.getByRole('combobox',{name:'Settings',exact:true}).selectOption({label:'Workspace · Appearance'});
+    else await page.getByRole('dialog').getByRole('button',{name:'Appearance',exact:true}).nth(1).click();
+    await page.getByRole('tab',{name:'Logo',exact:true}).click();
+    const selector=page.getByRole('combobox',{name:'Workspace icon',exact:true});await selector.click();
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(48);
+    await expect(page.getByRole('group',{name:'Ideas & creativity',exact:true})).toBeAttached();
+    await page.getByRole('option',{name:'Skull',exact:true}).scrollIntoViewIfNeeded();
+    await mkdir(artifacts,{recursive:true,mode:0o700});await page.screenshot({path:path.join(artifacts,`workspace-icons-${mobile?'mobile':'desktop'}.png`)});
+    await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveClass(/dark/);
+    await auditPage(page,`workspace-icon-picker-${mobile?'mobile':'desktop'}-dark`);
+    await page.screenshot({path:path.join(artifacts,`workspace-icons-${mobile?'mobile':'desktop'}-dark.png`),animations:'disabled'});
+    await page.keyboard.press('s');await page.keyboard.press('k');await page.keyboard.press('Enter');
+    await expect(selector.locator('[data-slot="select-value"]')).toHaveText('Skull');
+    await expect(page.getByRole('img',{name:'Skull',exact:true})).toBeVisible();
+    await page.getByRole('dialog').getByRole('button',{name:/^Save/}).click();
+    await expect.poll(async()=>(await api('list_workspaces',{})).find(w=>w.id===workspace.id).appearance.logoIcon).toBe('skull');
+    const dialog=page.getByRole('dialog').filter({has:page.locator('#settings-form')});
+    await dialog.getByRole('button',{name:'Close',exact:true}).first().click();await expect(dialog).not.toBeVisible();
+    if(mobile)await page.getByRole('button',{name:'Navigation',exact:true}).click();
+    await expect(page.locator('[data-definition-trigger="workspace"] .lucide-skull')).toBeVisible();
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'No page horizontal overflow');
+   }finally{
+    const current=(await api('list_workspaces',{})).find(w=>w.id===workspace.id);
+    await api('set_workspace_appearance',{workspaceId:workspace.id,version:current.appearance_version,appearance:baseline});
+   }
+  },mobile?{width:390,height:844}:{width:1440,height:1000});
   await scenario('Administrator saves and discards record drafts','admin',async page=>{
    await page.goto(recordPath);const keyword=page.getByRole('textbox',{name:/^Keyword(?: \*)?$/});await expect(keyword).toHaveValue('Editable sample');
    await keyword.fill('Saved browser sample');await page.getByRole('button',{name:/^Save/}).click();
@@ -232,6 +269,10 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.getByRole('dialog').getByRole('button',{name:'Object types',exact:true}).click();await selectChecks(page);await page.getByRole('button',{name:'Add field',exact:true}).click();
    const field=page.getByRole('dialog',{name:'Add field',exact:true});await expect(field).toBeVisible();await field.getByRole('textbox',{name:'Name',exact:true}).fill('Designer note');await field.getByRole('textbox',{name:'Technical name',exact:true}).fill('designer_note');
    await field.getByRole('button',{name:/^Create/}).click();await expect(field).toHaveCount(0);await expect(page.getByRole('button',{name:'Designer note',exact:true})).toBeVisible();
+   // A visible new field does not yet mean that definition/record refetch and
+   // disabled-button opacity transitions have finished. Audit the settled view.
+   await expect.poll(()=>page.locator('thead [data-slot="button"]').evaluateAll(buttons=>buttons.length>0&&buttons.every(button=>!button.disabled&&getComputedStyle(button).opacity==='1'))).toBe(true);
+
   });
   await scenario('Ordinary user follows all five V1 objects and their Primary chain','user',async page=>{
    for(const [key,{model,record}] of Object.entries(domain)){

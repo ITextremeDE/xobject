@@ -28,7 +28,7 @@ Date-only values stay dates. Instants display in the effective viewer zone. Cont
 
 Use **Workspace → Appearance** to choose the supplied palette/font settings and review their preview before saving. Base Color controls neutral surfaces; Theme and Primary/Secondary choices configure accent roles. Light and dark Primary/Secondary overrides are independent. Chart colors, heading/body fonts and menu/accent settings use the supplied catalogs rather than arbitrary CSS or font uploads.
 
-Choose a workspace icon from the icon catalog. Own-logo upload is a disabled preparation placeholder; the same is true of Contact photo/logo uploading. The shared style/component preset is not a workspace-editable template system.
+Choose a workspace icon from 48 Lucide symbols in six translated groups, including Skull. The same icon appears in the workspace switcher and design preview. Own-logo upload is a disabled preparation placeholder; the same is true of Contact photo/logo uploading. The shared style/component preset is not a workspace-editable template system.
 
 **Personal → Appearance** and the header theme menu choose Light, Dark or System for that browser. They do not replace shared workspace design. Switching workspaces applies the destination's tokens and fonts. Preview changes remain a draft until Save; Reset returns to the saved values.
 

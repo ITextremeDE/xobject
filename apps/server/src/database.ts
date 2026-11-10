@@ -19,7 +19,11 @@ export function connect(connectionString: string) {
 }
 
 const schemaFile=new URL('./schema.sql',import.meta.url);
-async function schemaDefinition(){const [source,catalog]=await Promise.all([readFile(schemaFile,'utf8'),readFile(moduleCatalogFile,'utf8')]);return {source,hash:createHash('sha256').update(source).update(catalog).update(authSchemaRevision).digest('hex')};}
+export async function schemaDefinition(){
+ const [base,oauthJournal,catalog]=await Promise.all([readFile(schemaFile,'utf8'),readFile(new URL('./oauth-journal.sql',import.meta.url),'utf8'),readFile(moduleCatalogFile,'utf8')]);
+ const source=base+oauthJournal;
+ return {source,oauthJournal,hash:createHash('sha256').update(source).update(catalog).update(authSchemaRevision).digest('hex')};
+}
 export async function assertCurrentSchema(pool:Pool){
  const {hash}=await schemaDefinition();
  const exists=(await pool.query("SELECT to_regclass('public.sys_schema_version') AS name")).rows[0]?.name;

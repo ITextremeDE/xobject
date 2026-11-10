@@ -85,6 +85,10 @@ export function buildServer(config: Config) {
         method: request.method, headers: new Headers({...Object.fromEntries(fromNodeHeaders(request.headers)), 'x-xobject-client-ip':request.ip}),
         ...(request.body !== undefined ? { body: typeof request.body === 'string' ? request.body : JSON.stringify(request.body) } : {}),
       }));
+      // Routine successful token renewal has no extra diagnostic. Bound security
+      // diagnostics to action/status; request bodies, credentials and IDs stay out.
+      if(response.status>=400&&authPath!=='/api/auth/get-session')request.log.warn({event:'authentication_rejected',action:authPath.split('/').at(-1),status:response.status},'Authentication request rejected');
+      if(response.ok&&authPath==='/api/auth/oauth2/revoke')request.log.info({event:'oauth_token_revocation_processed'},'OAuth token revocation processed');
       // Only a successful, vendor-CSRF-validated sign-out revokes offline grants.
       // The exclusive model barrier prevents a concurrent refresh escaping revocation.
       if(signOutSession&&response.ok)await db.transaction().execute(tx=>revokeUserOAuth(tx,signOutSession.user.id));
