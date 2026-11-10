@@ -408,10 +408,16 @@ test("localized product site, theme controls, screenshots and resources under pr
           },decodeURIComponent(target.slice(1)));
           await expect(sectionLinks.nth(1)).toHaveAttribute('aria-current','location');
           if(width===390){
+            let geometry;
+            try {
             await expect.poll(()=>sectionLinks.nth(1).evaluate(link=>{
               const item=link.getBoundingClientRect(),strip=link.closest('ul').getBoundingClientRect();
               return {visible:item.left>=strip.left-1&&item.right<=strip.right+1,itemLeft:item.left,itemRight:item.right,stripLeft:strip.left,stripRight:strip.right};
-            })).toMatchObject({visible:true});
+            }).then(result=>{geometry=result;return result.visible;})).toBe(true);
+            } catch(error) {
+              console.error('Mobile section geometry',page.url(),geometry);
+              throw error;
+            }
           }
           await accessible(page);
           assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
