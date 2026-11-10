@@ -54,7 +54,7 @@ async function accessible(page) {
     [],
   );
 }
-async function capture(page, name) {
+async function capture(page, name, fullPage = true) {
   if (process.env.QA_SCREENSHOT_DIR) {
     await mkdir(process.env.QA_SCREENSHOT_DIR, { recursive: true });
     for (const img of await page.locator("img:visible").all()) {
@@ -65,7 +65,7 @@ async function capture(page, name) {
     await page.evaluate(() => scrollTo(0, 0));
     await page.screenshot({
       path: join(process.env.QA_SCREENSHOT_DIR, name),
-      fullPage: true,
+      fullPage,
     });
   }
 }
@@ -114,6 +114,18 @@ test("localized product site, theme controls, screenshots and resources under pr
       await expect(page).toHaveURL(new URL(lang + "/", base).href);
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
       assert.match(await page.title(), /xObject by ITextreme/);
+      await expect(page.locator('.faq-item').last()).toContainText(lang==='de'?'Für V2':'Version 2');
+      const resourceLinks=page.locator('.footer-columns > div').nth(1).locator('a');
+      await expect(resourceLinks).toHaveText(lang==='de'
+        ? ['Dokumentation','Changelog','Roadmap','Anforderungen','Quellcode']
+        : ['Documentation','Changelog','Roadmap','Requirements','Source code']);
+      assert.deepEqual(await resourceLinks.evaluateAll(links=>links.map(link=>link.getAttribute('href'))),[
+        'https://docs.xobject.org/','/changelog/','/roadmap/',
+        'https://docs.xobject.org/prd/','https://github.com/ITextremeDE/xobject',
+      ]);
+      assert.deepEqual(await page.locator('.footer-columns > div').nth(2).locator('a').evaluateAll(links=>links.map(link=>link.getAttribute('href'))),[
+        'https://itextreme.de/datenschutzerklaerung','https://itextreme.de/impressum',
+      ]);
       await page.evaluate(() => document.fonts.ready);
       assert.equal(
         await page
@@ -341,7 +353,34 @@ test("localized product site, theme controls, screenshots and resources under pr
         });
         await expect(page.locator("html")).toHaveAttribute("lang", "en");
         await accessible(page);
-        assert(await page.getByRole("heading", { level: 1 }).count());
+        assert.equal(await page.getByRole("heading", { level: 1 }).count(),1);
+        await capture(page, `${path}-${lang}.png`, false);
+        assert.equal(await page.locator('article a[href^="https://github.com/ITextremeDE/xobject/blob/main/docs/"]').count(),0);
+        for(const link of await page.locator('article a[href^="https://docs.xobject.org/"]').all()){
+          const target=new URL(await link.getAttribute('href'));
+          assert(!target.pathname.endsWith('.md'),'documentation links use rendered routes');
+        }
+        const sectionLinks=page.locator('.document-aside nav a');
+        for(const link of await sectionLinks.all()){
+          const target=await link.getAttribute('href');
+          assert(await page.evaluate(id=>document.getElementById(id)!==null,decodeURIComponent(target.slice(1))),`section target ${target}`);
+        }
+        const aside=page.locator('.document-aside');
+        await page.evaluate(()=>window.scrollTo({top:1100,behavior:'instant'}));
+        const firstTop=(await aside.boundingBox()).y;
+        await page.evaluate(()=>window.scrollTo({top:1600,behavior:'instant'}));
+        const secondTop=(await aside.boundingBox()).y;
+        assert(Math.abs(firstTop-secondTop)<2,'desktop section navigation stays pinned while scrolling');
+        assert(firstTop>=72&&firstTop<=120,'section navigation stays below the sticky header');
+        await sectionLinks.first().focus();
+        await page.keyboard.press('Enter');
+        assert(new URL(page.url()).hash);
+        for(const width of [1440,390]){
+          await page.setViewportSize({width,height:900});
+          await accessible(page);
+          assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+        }
+        await page.setViewportSize({width:1440,height:1000});
       }
       await context.close();
     }
