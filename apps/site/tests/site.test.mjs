@@ -127,6 +127,9 @@ test("localized product site, theme controls, screenshots and resources under pr
         'https://itextreme.de/datenschutzerklaerung','https://itextreme.de/impressum',
       ]);
       await page.evaluate(() => document.fonts.ready);
+      const navigationAsset = await page.locator('script[src*="/_astro/SiteLayout."]').getAttribute('src');
+      assert.match(navigationAsset, /\/_astro\/SiteLayout\.[\w.-]+\.[\w-]+\.js$/);
+      assert.equal(await page.locator('script[src="/navigation.js"]').count(), 0);
       await page.evaluate(()=>{
         const section=document.getElementById('features');
         window.scrollTo({top:section.getBoundingClientRect().top+scrollY-80,behavior:'instant'});
