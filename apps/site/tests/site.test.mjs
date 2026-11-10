@@ -410,8 +410,8 @@ test("localized product site, theme controls, screenshots and resources under pr
           if(width===390){
             await expect.poll(()=>sectionLinks.nth(1).evaluate(link=>{
               const item=link.getBoundingClientRect(),strip=link.closest('ul').getBoundingClientRect();
-              return item.left>=strip.left-1&&item.right<=strip.right+1;
-            })).toBe(true);
+              return {visible:item.left>=strip.left-1&&item.right<=strip.right+1,itemLeft:item.left,itemRight:item.right,stripLeft:strip.left,stripRight:strip.right};
+            })).toMatchObject({visible:true});
           }
           await accessible(page);
           assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

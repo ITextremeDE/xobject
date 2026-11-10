@@ -29,11 +29,12 @@
     }
     if (scrollY + innerHeight >= document.documentElement.scrollHeight - 2)
       current = targets.at(-1);
-    if (active === current) return;
-    active = current;
-    for (const link of links) link.removeAttribute('aria-current');
+    if (active !== current) {
+      active = current;
+      for (const link of links) link.removeAttribute('aria-current');
+      for (const link of sections.get(current)) link.setAttribute('aria-current', 'location');
+    }
     for (const link of sections.get(current)) {
-      link.setAttribute('aria-current', 'location');
       // Reveal the active item inside the mobile strip without moving the page.
       const strip = link.closest('.document-aside ul');
       if (strip && strip.scrollWidth > strip.clientWidth) {
