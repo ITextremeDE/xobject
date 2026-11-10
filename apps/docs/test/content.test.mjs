@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,access} from 'node:fs/promises';
+import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../../../',import.meta.url));
@@ -25,6 +26,28 @@ test('generated public pages match canonical sources and keep changelog/roadmap 
   const index=await readFile(new URL('../src/content/docs/documentation-index.md',import.meta.url),'utf8');
   assert.ok(index.includes(process.env.XOBJECT_DOCS_VERSION?`/versions/${process.env.XOBJECT_DOCS_VERSION}/changelog/`:'https://xobject.org/changelog/'));
   assert.ok(index.includes(process.env.XOBJECT_DOCS_VERSION?`/versions/${process.env.XOBJECT_DOCS_VERSION}/roadmap/`:'https://xobject.org/roadmap/'));
+});
+
+test('shared guide illustrations resolve to local Astro assets with unchanged source bytes',async()=>{
+  const output=fileURLToPath(new URL('../src/content/docs/',import.meta.url));
+  for(const name of ['user-guide','projects-and-tasks']){
+    const source=await readFile(root+`docs/${name}.md`,'utf8');
+    const generated=await readFile(path.join(output,`${name}.md`),'utf8');
+    const originals=[...source.matchAll(/!\[([^\]]+)\]\(([^)]+)\)/g)];
+    const copies=[...generated.matchAll(/!\[([^\]]+)\]\(([^)]+)\)/g)];
+    assert(originals.length>0&&originals.length===copies.length,name);
+    for(let i=0;i<originals.length;i++){
+      assert.equal(copies[i][1],originals[i][1],'accessible alternative text is retained');
+      assert(copies[i][2].startsWith('../../assets/generated-guides/'),'image is a build-local Astro asset');
+      const original=await readFile(path.resolve(root,'docs',originals[i][2]));
+      const copy=await readFile(path.resolve(output,copies[i][2]));
+      assert.deepEqual(copy,original,'shared capture is not modified or replaced by a GitHub page URL');
+      const name=path.basename(copies[i][2]);
+      const base=process.env.XOBJECT_DOCS_VERSION?`/versions/${process.env.XOBJECT_DOCS_VERSION}/`:'/';
+      assert(generated.includes(`](${base}guide-images/${name})`),'full-size link stays inside this documentation version');
+      assert.deepEqual(await readFile(new URL(`../public/guide-images/${name}`,import.meta.url)),original,'full-size source remains unchanged');
+    }
+  }
 });
 
 test('version choices identify one current build and link only to supported documentation origins',async()=>{

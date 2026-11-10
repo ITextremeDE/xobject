@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026-10-30
 
+## Current reading — 2026-11-10
+
+The initial Dashboard/table action boundary below is historical. [ADR 0033](0033-configurable-workspace-navigation.md) defines current configurable navigation; the [record guide](../user-guide.md) describes delivered duplicate drafts and permitted recycle/actions. The original absence of a Delete action does not describe the released record menus.
+
 ## Decision
 
 Use the official shadcn `base-nova` dashboard-01 composition for the workspace Dashboard: four summary cards, an interactive area chart and a mixed-object record table. Adopt official Chart/Badge primitives and Recharts; keep workspace chart colors and regional formatting. Preserve dashboard-01's semantic card gradients and SVG area gradients, using unique IDs per chart instance. Follow its responsive card number sizes/two-line footers and wide-screen period ToggleGroup with a small Select on narrower cards. Chart spacing and the dotted tooltip follow the reference; preserve regional value/date formatting. Keep monotone curves because natural interpolation can show negative intermediate counts around sparse spikes. Creation and edit counts can overlap, so their areas remain independent instead of being summed into a stack. Series names are exposed by the standard tooltip rather than an additional legend. Dashboard and object-list local search both expose `/` and a visible keyboard hint. Dashboard code loads separately from the application shell.

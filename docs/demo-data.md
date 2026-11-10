@@ -94,7 +94,7 @@ The laboratory keeps `expected_result` and `sample_amount` as explicitly named t
 
 | Capability | Fixture / manual acceptance |
 | --- | --- |
-| All 15 custom field kinds | Every scenario’s four custom examples; exact decimal/money, booleans, date/time, choices, User/Group references and structured emails |
+| All 16 custom field kinds | Every scenario’s four custom examples; exact decimal/money, booleans, date/time, choices including selection trees, User/Group references and structured emails |
 | CRM cores | Organization, Contact person and Individual; structured channels/addresses, languages, messenger URI, time zone and personal dates; deceased Contact example stays in the laboratory |
 | Main assignment | Complete and partial chains, internal contexts, direct Contact/Project parents and an intentionally unassigned equipment record; links grant no permissions |
 | Custom relationship cardinalities | One plan per item, multiple covered items; one dedicated device per vehicle and vice versa |

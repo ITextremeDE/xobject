@@ -24,6 +24,53 @@ curl --request POST 'https://your-xobject.example/api/v1/list_workspaces' \
   --data '{}'
 ```
 
+### Discover, create and update a record
+
+For a first integration, use a test workspace and the custom Devices object from [Object design](model-design.md). This example assumes Keyword and an optional Text field `serial_number`, with Create and the necessary content permissions. Do not use supplied Contacts for this first write: their protected kind/name rules require additional discovered inputs.
+
+Keep `XOBJECT_TOKEN` in your process environment using your secret manager. The following Bash helper uses a recent curl with `--fail-with-body`, so HTTP errors are visible rather than mistaken for successful results:
+
+```sh
+export XOBJECT_BASE_URL='https://your-xobject.example'
+xobject() {
+  curl --fail-with-body --silent --show-error \
+    --request POST "$XOBJECT_BASE_URL/api/v1/$1" \
+    --header "Authorization: Bearer $XOBJECT_TOKEN" \
+    --header 'X-XObject-API-Version: 1' \
+    --header 'Content-Type: application/json' --data "$2"
+}
+xobject get_access_context '{}'
+xobject list_workspaces '{}'
+```
+
+Copy an accessible workspace ID from the result. Replace the uppercase UUID placeholders below with the actual discovered identities before executing each request:
+
+```sh
+xobject list_object_types '{"workspaceId":"WORKSPACE_UUID"}'
+xobject get_object_type '{"objectTypeId":"OBJECT_UUID"}'
+xobject list_records '{"objectTypeId":"OBJECT_UUID","query":"Example laptop","limit":10}'
+```
+
+Check the definition's fields, requiredness, input rules, permissions and classification before writing. Search first to avoid an unintended duplicate. A readable list is a paginated result, not proof that every record is visible to the caller.
+
+```sh
+xobject create_record '{"objectTypeId":"OBJECT_UUID","keyword":"Example laptop","values":{"serial_number":"EXAMPLE-1042"}}'
+xobject get_record '{"objectTypeId":"OBJECT_UUID","recordId":"RECORD_UUID"}'
+```
+
+Take `RECORD_UUID` and the positive integer `version` from the returned record. The following update illustrates version `1`; replace it with the **actual freshly read version**. For this new example record, no classification or relationships were selected:
+
+```sh
+xobject update_record '{"objectTypeId":"OBJECT_UUID","recordId":"RECORD_UUID","version":1,"keyword":"Example laptop — reviewed"}'
+xobject get_record '{"objectTypeId":"OBJECT_UUID","recordId":"RECORD_UUID"}'
+```
+
+The readback should show the new Keyword and increased version. With general records, follow the discovered update schema and explicitly preserve any classification values you intend to retain; never replay a full read response as writable input. Object field values use technical names, whereas relationship attribute maps use field UUIDs. A Create-only caller may receive an identity/version receipt without readable contents; that is not a failed creation.
+
+On `409`, read the current record and compare it with your original baseline. Reapply only the intended compatible changes using its current version, or ask the user to resolve a conflict. Do not silently replace the version and retry an old payload. After an uncertain network outcome, inspect before creating again. Verify the resulting record and Journal in the app as well as the API response.
+
+### Requests, errors and identities
+
 Every named operation is a JSON `POST /api/v1/<operation>`. Inputs reject unknown properties and share validation with MCP. Successful responses contain the operation's direct result; errors have `error` (human-readable), `code` (machine-readable), and optional `details`/validation `issues`. Clients should branch on HTTP status and machine code rather than wording. Common statuses are 400 invalid input, 401 invalid/missing/expired access, 403 forbidden, 404 unavailable target, 409 version/dependency/uniqueness conflict, 429 rate limit and 500 internal failure. Authentication failures for a bearer request include a Bearer challenge. Secrets and request bodies are excluded from application logs; logged request URLs omit query strings.
 
 Cookie-authenticated browser `POST` requests additionally require `X-XObject-Request: 1`; Host and any supplied Origin must match the configured application origin. Read-only contract GETs can use the authenticated browser cookie directly. Token-only calls do not require the browser's CSRF header. No cross-origin browser access or alternate authorization bypass is enabled by these endpoints.
@@ -42,9 +89,15 @@ Category arrays select at least one matching value. Tree records already retain 
 - `GET /api/v1/contract`: authenticated operation manifest with the same schemas and references.
 - [Generated contract](../packages/contracts/api-v1.openapi.json): the versioned source artifact; [shared contracts](../packages/contracts/src/index.ts) own its types/validation. `npm run api:generate` regenerates it and `npm run api:check` rejects drift. The TypeScript schema generator is a build dependency, not part of the running HTTP server.
 
-The API contract is `1.0.0`, independent of application version `0.0.0`. Requests can pin major version `1` with `X-XObject-API-Version`; another major is rejected before execution. Responses identify their contract through `X-XObject-API-Version: 1.0.0`. External clients should pin the major and reject incompatible successful responses. Compatible additions may add optional fields/operations; callers should tolerate additional response fields. Breaking changes require a new explicit major contract/endpoint and documented client changes rather than silent reinterpretation. The application remains unreleased; current-installation rebuild policy is [ADR 0028](adr/0028-current-installation-baseline.md). This document does not declare a software release or historical-schema compatibility.
+The latest published application is Community `1.0.1`. The API contract is versioned independently as `1.0.0`; the MCP protocol revision is a third, separate version. Unreleased behavior is marked explicitly, including the OAuth lifetime correction planned for 1.0.2 below. [Documentation versions](versions.md) identifies the released snapshots; [ADR 0035](adr/0035-container-delivery-and-maintenance.md) defines supported installation updates.
 
-The typed bearer client is exported as `@xobject/contracts/client` within the shared package:
+Requests can pin API major version `1` with `X-XObject-API-Version`; another major is rejected before execution. Responses identify their contract through `X-XObject-API-Version: 1.0.0`. External clients should pin the major and reject incompatible successful responses. Compatible additions may add optional fields/operations; callers should tolerate additional response fields. Breaking changes require a new explicit major contract/endpoint and documented client changes rather than silent reinterpretation.
+
+### TypeScript client from a source checkout
+
+`@xobject/contracts` is a private npm-workspace package in this repository, not a published npm dependency. Its `@xobject/contracts/client` export is useful for source-checkout integrations. For a standalone integration, use the HTTP example above and the downloaded OpenAPI contract; no npm package is required.
+
+To try the helper from the repository root, use the supported Node.js version from [Development](development.md#requirements), run `npm ci`, then `npm run build --workspace @xobject/contracts`. Save the following as an ignored `.local/api-example.mjs` below that root, set `XOBJECT_TOKEN` through your secret manager and run `node .local/api-example.mjs`:
 
 ```ts
 import { createApiClient } from '@xobject/contracts/client';
@@ -61,6 +114,19 @@ It sends versioned JSON without cookies, redirects, token persistence or automat
 ## MCP
 
 Use the stateless Streamable HTTP endpoint `/mcp`, with the same Bearer header and preferably `X-XObject-API-Version: 1`. A token must permit the MCP channel. The MCP server advertises `xobject` version `1.0.0`; the SDK-negotiated MCP protocol version is separate from this application contract.
+
+### Connect a client
+
+Choose a client that supports Streamable HTTP and one of these authentication paths:
+
+- **OAuth:** enter your installation's complete endpoint, such as `https://your-xobject.example/mcp`, in the client's remote MCP setup. If it supports this server's authorization profile, follow discovery, sign in to xObject and review the requested read/write/offline access before consenting. This is delegated application access, not external SSO for xObject login.
+- **Personal token:** create a token with the MCP channel, then configure the same endpoint and `Authorization: Bearer …` using the client's secret/environment mechanism. Use read-only for an initial discovery exercise. Do not put the token in the endpoint URL or a committed configuration file.
+
+Ask the connected client to call `get_access_context` and `list_workspaces`, then inspect the permitted model before requesting changes. An empty workspace list can be correct for that user. If the cloud client cannot reach your endpoint or does not support the required authorization profile, changing xObject content permissions will not fix the connection. See the compatibility table for tested paths and limits.
+
+Manage personal tokens and OAuth applications separately in Account & security; revoking one does not mean the other credential type was revoked. See [OAuth authorization](#oauth-authorization) for release-specific renewal behavior, and [supplied skills](#supplied-skills) for what the client actually loads.
+
+### Tools and resources
 
 All operation names and input/output schemas are exposed as tools. Output schemas reuse the generated REST contract and contain only reachable definitions. Read-only/destructive annotations assist clients but grant no authority. Successful tools return schema-validated `structuredContent` and JSON text; the official SDK projects non-object results for negotiated older revisions. Modern requests use MCP 2026-07-28 discovery, per-request metadata and result envelopes; the SDK also serves stateless 2025-era clients. Tool reads are marked read-only/idempotent, writes conservatively destructive/non-idempotent, and all operations closed-world. Hints do not authorize automatic retries. Successful tool text contains the operation's JSON result; application tool failures use `isError` with the shared JSON error envelope. SDK argument-validation failures can instead return its standard `isError` text result before the application callback runs; clients must not assume every failed result contains JSON. Transport authentication can fail before tool execution. A long-lived client cannot outlive revocation: each HTTP request authenticates, and every operation rechecks the credential in its application transaction. Token-management and password/session operations require an interactive session rather than bearer access.
 

@@ -4,6 +4,10 @@
 - Date: 2026-11-03
 - Extends: [ADR 0017](0017-record-pages-and-local-demo-data.md) and [ADR 0021](0021-relationship-scope-and-projects-module.md)
 
+## Current reading — 2026-11-10
+
+Read the dated refinements together: the later [delivery refinement](#delivery-refinement--2026-11-10) owns release assignments, while [ADR 0033](0033-configurable-workspace-navigation.md) supersedes earlier pending full-navigation wording. The shared-contribution and Contact refinements below define one common form with a fixed Contact core and configurable extensions. [Form guidance](../forms.md) describes the current UI without requiring the reader to reconstruct this sequence.
+
 ## Modules
 
 Scope refinement, 2026-11-04: V1 supplies Contacts & Relations and Projects & Tasks with the [release-scoped target catalog and domain-profile specification process](../PRD.md#6-supplied-domain-models). Documents & Communication and the five other target modules are later scope under [PRD section 3](../PRD.md#module-catalog-and-shared-forms). The initial selections below describe the current prototype seed; they do not limit the agreed catalog or establish complete domain delivery. Shared-definition/view/lifecycle architecture must support future contributors without duplicating records.

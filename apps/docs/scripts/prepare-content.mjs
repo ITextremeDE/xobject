@@ -1,4 +1,4 @@
-import {readFile,writeFile,mkdir,readdir,rm,stat} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,readdir,rm,stat,copyFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,6 +12,12 @@ const roots={'CHANGELOG.md':'changelog','ROADMAP.md':'roadmap','CONTRIBUTING.md'
 const pages=new Map(Object.entries(roots).map(([file,slug])=>[path.join(root,file),slug]));
 for(const file of await markdownFiles(path.join(root,'docs'))){const relative=path.relative(path.join(root,'docs'),file).replaceAll(path.sep,'/');pages.set(file,relative==='start.md'?'index':relative==='README.md'?'documentation-index':relative.replace(/\.md$/,'').toLowerCase());}
 const target=path.join(app,'src/content/docs');await rm(target,{recursive:true,force:true});await mkdir(target,{recursive:true});
+// Canonical illustrations may be shared with the website. Astro processes local
+// Markdown images into this build's assets, including versioned documentation.
+const imageTarget=path.join(app,'src/assets/generated-guides');
+await rm(imageTarget,{recursive:true,force:true});await mkdir(imageTarget,{recursive:true});
+const originalsTarget=path.join(app,'public/guide-images');
+await rm(originalsTarget,{recursive:true,force:true});await mkdir(originalsTarget,{recursive:true});
 async function rewrite(body,file){
   const chunks=body.split(/(```[\s\S]*?```)/g);
   for(let i=0;i<chunks.length;i+=2){
@@ -23,7 +29,20 @@ async function rewrite(body,file){
       const [link,...fragment]=raw.split('#'),absolute=path.resolve(path.dirname(file),decodeURIComponent(link));
       const hash=fragment.length?'#'+fragment.join('#'):'';
       let replacement;
-      if(!version&&['changelog','roadmap'].includes(pages.get(absolute)))replacement='https://xobject.org/'+pages.get(absolute)+'/'+hash;
+      if(match[1].startsWith('!')||/\.(png|webp|jpe?g|svg)$/i.test(absolute)){
+        const relative=path.relative(root,absolute);
+        if(relative.startsWith('../')||path.isAbsolute(relative))throw Error('Illustration leaves repository');
+        if(!/\.(png|webp|jpe?g|svg)$/i.test(absolute))throw Error('Unsupported documentation illustration');
+        const digest=createHash('sha256').update(await readFile(absolute)).digest('hex').slice(0,16);
+        const name=`${digest}-${path.basename(absolute)}`;
+        await copyFile(absolute,path.join(originalsTarget,name));
+        if(match[1].startsWith('!')){
+          const copied=path.join(imageTarget,name);
+          await copyFile(absolute,copied);
+          replacement=path.relative(path.dirname(path.join(target,`${pages.get(file)}.md`)),copied).replaceAll(path.sep,'/');
+        }else replacement=base+'guide-images/'+name+hash;
+      }
+      else if(!version&&['changelog','roadmap'].includes(pages.get(absolute)))replacement='https://xobject.org/'+pages.get(absolute)+'/'+hash;
       else if(pages.has(absolute))replacement=base+(pages.get(absolute)==='index'?'':pages.get(absolute)+'/')+hash;
       else{
         const relative=path.relative(root,absolute).replaceAll(path.sep,'/');

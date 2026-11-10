@@ -4,6 +4,10 @@
 - Date: 2026-11-03
 - Updates: [ADR 0018](0018-relationship-type-definitions.md), [ADR 0019](0019-record-relationships.md)
 
+## Current reading — 2026-11-10
+
+The prototype catalog and planned module/template statements below record an earlier slice. Contacts/Distribution lists, shared module contributions and the lean Projects/Cases/Tasks profiles are implemented under [ADR 0025](0025-modules-and-form-views.md) and [ADR 0032](0032-structured-fields-temporal-values-and-edge-attributes.md). Documents & Communication remains planned for V2. [Workspace modules](../workspace-settings.md#modules-and-shared-objects) describes current activation; PRD section 1.3 owns delivery assignments.
+
 ## Scope
 
 General relationship is always available and active for every object type. Primary association belongs to the Projects module and is available on all object types whenever that module is enabled in the workspace, including object types created later. Both system types use unrestricted object scope and have no explicit pair rows. Primary remains directed, optional and limited to one direct parent per record; existing cycle and transactional validation still apply. A globally mandatory parent would be incompatible with a finite acyclic hierarchy, so independently required chain sections remain a separate object-level design.

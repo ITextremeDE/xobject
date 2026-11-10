@@ -2,6 +2,10 @@
 
 Status: Accepted
 
+## Current reading — 2026-11-10
+
+This ADR records definition lifecycle. The later [ADR 0029](0029-record-recycle-bin.md) and [record guide](../user-guide.md#recycle-and-restore) describe implemented recycling, restoration and confirmed permanent deletion with Administrator-only retained history. The earlier pending-deletion statement below is historical, not the current delivery boundary.
+
 ## States and permissions
 
 Definition state is `active`, `inactive` or `deleted`. Administrators and the workspace's Designers manage the lifecycle through the shared API/MCP application layer; ordinary workspace members can inspect definitions and their configuration journal. Module-protected definitions cannot be deactivated or deleted. Type and Status fields form one lifecycle unit.

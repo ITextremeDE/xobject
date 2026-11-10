@@ -20,27 +20,23 @@ The Dashboard starts with **All records**, **Contacts**, **Projects**, **Cases**
 
 Choose **Create record**, fill the available fields and save. The object definition determines types, choices, requiredness and initial values. The optional **Number** (German: **Nummer**) is a configurable record number stored as `record_number` and assigned transactionally; record IDs identify records independently of display names/numbers.
 
-Record groups are arranged in the Form designer where the supplied module permits customization. Required fields remain reachable. Markdown-enabled fields provide a preview; timestamp insertion uses your current display zone/region and name, then starts the next line. Unsaved changes remain a draft until Save.
+Record groups are arranged in the [Form designer](forms.md) where the supplied module permits customization. Required fields remain reachable. Markdown-enabled fields provide a preview; timestamp insertion uses your current display zone/region and name, then starts the next line. Unsaved changes remain a draft until Save.
+
+![Custom record form with grouped fields and Markdown input](../apps/site/src/assets/screenshots/custom-en-light.png)
+
+*An existing fictional Managed service plan illustrates a custom layout. Your own groups and fields can differ; the [Devices tutorial](model-design.md) starts with a smaller model.*
+
+[Open the full-size form image](../apps/site/src/assets/screenshots/custom-en-light.png).
 
 **Duplicate** opens an unsaved creation draft. Edit it before saving normally. Unique/system values, ownership and relationships are not blindly copied. Cancel leaves no new record. The normal record actions also include an ID-copy menu.
 
 ## Contacts and distribution lists
 
-Select **Organization**, **Contact person** or **Individual contact** when creating a Contact. Normal editing retains that kind. The fixed core form shows the applicable personal/company fields; additional custom fields can be arranged separately by a Designer.
-
-Contact Keyword is calculated. An Individual contact uses Company name when filled, otherwise Last name and First name. Organizations use Company name. A Contact person can have at most one Organization. Job title, Department and Function describe that Contact record and remain when its Organization changes.
-
-Telephone numbers, email addresses, websites, messenger addresses and postal addresses are ordered structured entries. Choose Usage/Type where provided, add/remove entries and reorder them to change preference. Postal previews derive from components. Personal dates can omit the year; a Contact's zone/languages are independent of your own display settings.
-
-**Identities** links Individual-contact/Contact-person records belonging to the same person. It preserves separate records and permissions. Distribution-list membership is explicit; inspect the Members relationship rather than assuming every Contact is included. Photo/Logo currently has presentation preparation; uploading is later scope.
+Choose the Contact kind before creation; normal edits retain it. The [Contacts guide](contacts.md) covers Organization membership, professional details, ordered contact channels/addresses, personal dates, Identities and Distribution-list membership. It also explains fixed core forms and the current Photo/Logo placeholder.
 
 ## Projects, Cases and Tasks
 
-Activate **Projects & Tasks** to use its supplied objects and Primary association. Responsible coordinates work. **Access principals** is the single participation/work-assignment list for activities, including Task assignees. Foreign access lets other people use permitted contents without assigning them that work or sending notifications.
-
-Use dates and scheduling/progress controls according to their field labels. Date-only values remain dates; instants use the effective time zone. Ambiguous daylight-saving times require an explicit occurrence; nonexistent local times are rejected.
-
-Administrators configure Type/Status options and their task-completion meaning. Selecting the configured completion status proposes 100% and a completion time, saved with the record. Reopening clears completion consistently. The application uses the configured semantic meaning rather than a particular translated status name.
+The [Projects guide](projects-and-tasks.md) explains which object to use, a complete Contact/Project/Case/Task example, assignment through Access principals, temporal inputs and completion/reopening. Responsible coordinates work; it is not an alternative assignment field.
 
 ## Connect records
 
@@ -56,11 +52,27 @@ An Administrator has installation-wide access. Workspace Designers configure mod
 
 Sensitive records use **Access principals**. An empty owner list with confirmed public access makes the record available to workspace users within their existing object/field ceilings. Personal and Confidential modes impose additional restrictions. The detail area shows the applicable rights and permitted exceptions. See [the permission specification](PRD.md#4-permissions) for exact precedence.
 
+For configuration and a worked example with two users and a group, follow [Users and content access](access-administration.md). It distinguishes object/Create grants, graded memberships, ownership and foreign access and shows how to check the resulting rights.
+
 Only explicitly authorized changes to security can widen visibility. Hidden fields, retained links and history stay protected across search, counts, lists, APIs and agent operations.
+
+## Inspect the Journal
+
+Open a saved record's **Journal** tab. Its header shows Created at/by and Last changed/by. Filter by change and field to investigate a particular value or relationship; related rows from one save share a change identity. Each changed field has its own event. Use a row's details for the before/after values and historical context; Technical details contains identities rather than an alternate editable record.
+
+![Record Journal showing per-field before and after values](../apps/site/src/assets/screenshots/journal-en-light.png)
+
+*Fictional Project history: an ownership change and link changes are separate rows. Filters and page controls let you narrow the result.*
+
+[Open the full-size Journal image](../apps/site/src/assets/screenshots/journal-en-light.png).
+
+The Journal shows saved history, not unsaved form edits. Current rights still filter values and results, so two readers may see different history. Definition journals in Settings track model changes, and Administrators have a separate global Instance Journal. Notes and their timestamp helper remain editable business text, not immutable audit history.
 
 ## Recycle and restore
 
 A permitted Delete action moves a record to the workspace recycle bin. Its contents, links and history remain retained. Full access is required for restoration, which revalidates current definitions/dependencies. Permanent deletion requires confirmation and Full access; Administrators retain the complete immutable history, while other eligible users receive only content-free deletion notices. [Installation backups](self-hosting.md#back-up) provide separate recovery for the whole system.
+
+Open **Recycle bin** in the workspace sidebar, select an eligible record and use Restore record. A validation/dependency failure leaves it recycled so you can resolve the cause. Recycled links still occupy cardinality slots. Permanent deletion cannot be undone through the bin and can be rejected when surviving records require the deleted context. Deactivating a field/object in Settings is a separate [definition lifecycle](model-design.md#place-fields-link-objects-and-manage-lifecycle).
 
 ## Personal and workspace settings
 
@@ -68,7 +80,7 @@ Personal settings contain Profile, Account & security, Appearance and Language &
 
 **Unreleased — planned for 1.0.2:** signing out or explicitly revoking a browser session disconnects all OAuth-authorized applications for your account, including offline connections originating in other or expired sessions. Reauthorize those applications to reconnect. Natural browser-session expiry does not disconnect offline access; actively used connections renew automatically, while seven days without successful renewal require authorization again. See [OAuth authorization](api.md#oauth-authorization) for the released baseline and pending correction.
 
-Workspace settings contain shared appearance, language/region, modules, object/field definitions, relationships, forms, members and groups according to your role. A module can contribute to the same object identity as another module; it does not create a duplicate Contacts table. The [API guide](api.md) describes the same application capabilities for integrations and agents.
+The [Workspace settings guide](workspace-settings.md) explains shared appearance, language/region inheritance, modules and navigation. Follow [model design](model-design.md) and [access administration](access-administration.md) for object/field definitions and security. The [API guide](api.md) describes the same application capabilities for integrations and agents.
 
 ## Browser installation, links and live changes
 
