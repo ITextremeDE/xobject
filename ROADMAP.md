@@ -15,10 +15,12 @@ See [release notes](CHANGELOG.md#101---2026-11-09), [downloadable releases](http
 
 **Status: in progress; not published.**
 
+- Sort workspace selection by name and expand workspace icons to 48 grouped symbols, including Skull.
+- Keep the permanent Journal focused on application authorization and explicit security changes; omit automatic token rotation, bound container logs and preserve existing installations through a supported schema migration.
 - Keep actively used OAuth MCP connections renewable after the originating browser session naturally expires or is cleaned up. Each successful refresh starts a new seven-day lifetime; explicit revocation and security actions still terminate access.
 - Provide clearer release notes and a concise public roadmap, separating delivered capabilities, current work and later goals.
 
-The OAuth correction is locally implemented and has passed targeted integration/security tests and backend checks. Release publication and installation verification remain outstanding; OpenProject tracks the review/integration state. Release scope follows the work assigned in OpenProject.
+These corrections are locally implemented and have passed focused integration, security, UI and contract checks. PR integration, release CI, publication and installation verification remain outstanding; OpenProject tracks the review/integration state. Release scope follows the work assigned in OpenProject.
 
 ## Planned — Version 2
 

@@ -25,6 +25,8 @@ Enabling both modules uses one Contacts object and the same records. Module memb
 
 Documents & Communication and additional supplied objects are planned. The [roadmap](../ROADMAP.md) distinguishes V2 from work without a release assignment.
 
+Workspace selection is ordered alphabetically by name using your configured user language (English by default), with natural number ordering. Technical codes break ties between equivalent names.
+
 ## Relationships and context
 
 **General** links are available independently of modules. Custom relationship types connect a particular pair of object types, for example Devices and Contracts. Their labels and cardinality explain what each side means and how many records may be connected.

@@ -6,6 +6,8 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Changed
 
+- Expand workspace icons from 12 to 48 Lucide symbols, including Skull, with six translated selection groups and consistent validation/rendering through web, API and MCP.
+- Record OAuth application consent and permission changes instead of automatic token issuance/rotation in the permanent Journal. Keep explicit application/security revocation events, add bounded secret-free authentication diagnostics and rotate supplied container logs at 10 MB with three files. Provide a transactional upgrade from the released 1.0.0/1.0.1 schema that preserves credentials and existing history.
 - Explain daily work and workspace administration with practical guides for Contacts/Projects, custom models/forms, field types, relationships, numbering, shared settings and team rights. Add full-size fictional illustrations, a discovery/write/conflict API walkthrough and explicit installation/checksum and source-client prerequisites. Preserve existing reader URLs and historical release snapshots.
 - Give public documentation its own audience-oriented start page, first-workspace walkthrough, clearer navigation, visible version context/selection and page-specific descriptions; remove obsolete pre-release wording from the repository overview.
 - Align the bilingual website FAQ with the five agreed V2 themes and send documentation references from project pages to the rendered Docs with their section anchors.
@@ -20,6 +22,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Fixed
 
+- Sort workspace selection consistently by localized workspace name, with natural number ordering and stable technical-code ties, across the web application, REST API and MCP.
 - Correct obsolete API application-version/unreleased claims and temporal-feature status; identify superseded implementation statements in historical ADRs without rewriting their original decisions.
 - Update active website section links while scrolling, including Changelog/Roadmap navigation and the mobile section strip, without rewriting URL history or moving keyboard focus. Bundle the script under a content-hashed asset URL to prevent stale browser caches after deployment.
 - Keep explicit links to separately published documentation snapshots usable without treating them as missing files in the current build; retain internal link and version-isolation checks.

@@ -84,7 +84,7 @@ For a private local image, exact image identity is required. A published immutab
 
 The command requires an immutable target digest, stops writers, makes a verified private backup, selects the target image and runs its maintenance-only upgrade/verification command before starting services. On failure, retain the stopped state and restore the backup with its matching image. Old and new application versions do not serve concurrently.
 
-Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint. The 1.0.1 runner verifies this unchanged model without SQL conversion; future schema-changing releases require dedicated supported-source migrations. Unknown fingerprints remain rejected. A release without its required supported-source tests cannot be published.
+Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint. The 1.0.1 runner verifies this unchanged model without SQL conversion; the unreleased 1.0.2 target adds a dedicated supported-source migration for authorization journaling. Unknown fingerprints remain rejected. A release without its required supported-source tests cannot be published.
 
 ### Upgrade from 1.0.0 to 1.0.1
 
@@ -110,6 +110,10 @@ node scripts/test-selfhost-proxy.mjs
 This uses a random Compose project, loopback port, isolated fictional account/data and private artifacts under `.local/selfhost-acceptance/`. It exercises initialization, first Administrator, runtime writes, backup/restore, record versions/history, stopped restore, same-target upgrade, unknown-source rejection and recovery. It removes only its own disposable containers/volumes; backups and diagnostic receipts remain local. It does not start Caddy, request public certificates or publish an image.
 
 `/healthz` checks database availability after startup fingerprint validation. Operator output reports aggregate verification results. Request logs exclude cookies, authorization, query strings and bodies. Authentication diagnostics retain only severity and a bounded SQLSTATE/code, excluding vendor messages/arguments; never paste private configuration, archives or diagnostic payloads into a public issue.
+
+**Unreleased target, planned for 1.0.2:** `upgrade` replaces token-state journaling with consent-decision journaling for the exact released 1.0.0/1.0.1 schema. Stop all writers and verify a consistent backup first; use the future published target image when available. The migration is transactional and preserves credentials, consents and existing history. The 1.0.1 image does not apply this migration. Do not edit the schema fingerprint or run development reset against an installed database.
+
+The supplied unreleased Compose target bounds each container's `json-file` logs to three files of 10 MB (approximately 30 MB per container). Recreate containers through the normal update procedure to apply logging changes; restarting an old container does not change its logging driver configuration. Existing installations or custom Compose/logging overrides must explicitly adopt an equivalent bound. Routine successful token rotation is absent from the permanent Journal; application consent and explicit application/security changes remain visible. Existing Journal history is retained.
 
 `XOBJECT_ENV_FILE`, `XOBJECT_PROJECT_NAME` and an optional `XOBJECT_COMPOSE_OVERRIDE` explicitly select an installation. `XOBJECT_RECOVERY_DIR` overrides the private pre-restore configuration recovery location. `XOBJECT_START_SERVICES=app` supports isolated loopback acceptance without Caddy. Stop/start/restore/upgrade always act on that selected Compose project. Backups and existing volumes are retained unless an operator deliberately removes them.
 
