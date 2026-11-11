@@ -4876,7 +4876,8 @@ test('released 1.0.2 Contact catalog upgrade is additive, atomic, repeatable and
   const count=(await inspection.query('SELECT count(*) FROM sys_journal')).rows[0].count;
   await upgradeInstallation(url.href,runtimeURL.href,true,true);
   assert.equal((await inspection.query('SELECT count(*) FROM sys_journal')).rows[0].count,count);
- }finally{await connection.db.destroy();if(!connection.pool.ended)await connection.pool.end();await inspection.end();await operator.query(`DROP DATABASE "${name}" WITH (FORCE)`);await operator.end();}
+ // Normal DROP waits for closing sockets and fails if a connection was genuinely leaked.
+ }finally{await connection.db.destroy();if(!connection.pool.ended)await connection.pool.end();await inspection.end();await operator.query(`DROP DATABASE "${name}"`);await operator.end();}
 });
 
 test('record-number backfill previews without writes, preserves issued numbers and includes recycled records through API/MCP',async()=>{
