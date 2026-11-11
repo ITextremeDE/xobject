@@ -1,3 +1,5 @@
+import {contactInheritanceWriteSchema,contactConversionSchema,type ContactInheritanceField,type ContactInheritanceWrite,type ContactConversionPreview,type ContactConversionResult} from './contact-workflows.js';
+export * from './contact-workflows.js';
 export * from './choice-tree.js';
 export {objectIconKey,type RecordIconKey} from './record-icons.js';
 import {navigationLayoutSchema,type NavigationSettings} from './navigation.js';
@@ -133,8 +135,10 @@ export const schemas = {
   set_workspace_appearance: z.object({ workspaceId: uuid, version: z.number().int().positive(), appearance: workspaceAppearanceSchema }).strict(),
   set_user_profile: z.object({ name: label }).strict(),
   configure_classification: z.object({ fieldInputRules:z.array(z.object({fieldId:uuid,version:z.number().int().positive(),inputRules:fieldInputRulesSchema}).strict()).max(3).refine(items=>new Set(items.map(item=>item.fieldId)).size===items.length,'Field IDs must be unique').optional(),objectTypeId: uuid, version: z.number().int().positive(), config: classificationRulesSchema }).strict(),
-  create_record: z.object({ objectTypeId: uuid, duplicateFrom:z.object({recordId:uuid,version:z.number().int().positive()}).strict().optional(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationshipAttributes:relationshipAttributeWritesSchema.optional(),relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional(),security:recordSecurityWrite.optional() }).strict(),
-  update_record: z.object({ security:recordSecurityWrite.optional(), objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional(),relationshipAttributes:relationshipAttributeWritesSchema.optional() }).strict(),
+  get_contact_conversion_preview:contactConversionSchema,
+  convert_contact:contactConversionSchema.extend({previewToken:z.string().regex(/^[a-f0-9]{64}$/),confirm:z.literal(true)}).strict(),
+  create_record: z.object({contactInheritance:contactInheritanceWriteSchema.optional(), objectTypeId: uuid, duplicateFrom:z.object({recordId:uuid,version:z.number().int().positive()}).strict().optional(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationshipAttributes:relationshipAttributeWritesSchema.optional(),relationships: relationshipWritesSchema.optional(),linkFrom:linkedRecordSourceSchema.optional(),security:recordSecurityWrite.optional() }).strict(),
+  update_record: z.object({contactInheritance:contactInheritanceWriteSchema.optional(), security:recordSecurityWrite.optional(), objectTypeId: uuid, recordId: uuid, version: z.number().int().positive(), keyword: z.string().trim().max(200).optional(), values: values.default({}), classification: classificationValuesSchema.default({}), relationships: relationshipWritesSchema.optional(),relationshipAttributes:relationshipAttributeWritesSchema.optional() }).strict(),
   get_record: z.object({ objectTypeId: uuid, recordId: uuid }).strict(),
   list_record_journal: z.object({includeDeleted:z.boolean().default(false),includeRecycled:z.boolean().default(false),objectTypeId:uuid,recordId:uuid,fieldId:uuid.optional(),entityKind:z.enum(['record','relationship']).optional(),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).max(1000000).default(0)}).strict(),
 };
@@ -147,7 +151,7 @@ export interface ObjectSummary { iconKey?:import('./record-icons.js').RecordIcon
 export interface FieldDefinition extends ObjectSummary {relationshipTypeId?:string; isDerived?:boolean; inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
 export interface ObjectDefinition extends ObjectSummary {primaryRequirements:PrimaryRequirements;primaryChain:PrimaryChain|null;activity?:boolean;moduleKeys?:string[];moduleFieldIds?:Record<string,string[]>;relationshipFields?:FieldDefinition[];workProfile?:import('./work-profile.js').WorkProfile; contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
 export interface NumberingBackfillPreview {objectTypeId:string;version:number;previewToken:string;eligibleCount:number;preservedCount:number;recycledCount:number;period:string;firstNumber:string|null;lastNumber:string|null;samples:{recordId:string;number:string}[]}
-export interface DataRecord {suggestedLetterSalutation?:string|null; effectiveLetterSalutation?:string|null; iconKey?:import('./record-icons.js').RecordIconKey; fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
+export interface DataRecord {contactInheritance?:ContactInheritanceField[];suggestedLetterSalutation?:string|null; effectiveLetterSalutation?:string|null; iconKey?:import('./record-icons.js').RecordIconKey; fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: ContactInheritanceField[] | FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
 /** A successful write may retain only this receipt if the actor cannot read the resulting record. */
 export interface HiddenRecordReceipt {id:string;version:number;keyword:string;permissions:ContentCapabilities & {read:false}}
 export type RecordWriteResult=DataRecord|HiddenRecordReceipt;
@@ -187,7 +191,7 @@ export interface Outputs {
   restore_record:{id:string;version:number};
   get_recycled_record:DataRecord;
   list_recycled_records:{records:RecycledRecord[];total:number;limit:number;offset:number};
-  get_record_duplicate:{sourceVersion:number;keyword?:string;values:Record<string,FieldValue>;classification:{type?:string|null;status?:string|null;category?:string[]}};
+  get_record_duplicate:{contactInheritance?:ContactInheritanceWrite;sourceVersion:number;keyword?:string;values:Record<string,FieldValue>;classification:{type?:string|null;status?:string|null;category?:string[]}};
   duplicate_record:RecordWriteResult;
   get_numbering_backfill_preview:NumberingBackfillPreview;
   backfill_record_numbers:{assigned:number;preserved:number;firstNumber:string|null;lastNumber:string|null};
@@ -250,6 +254,8 @@ export interface Outputs {
   set_user_profile: { name: string };
   configure_classification: ObjectDefinition;
   configure_form_layout: ObjectDefinition;
+  get_contact_conversion_preview:ContactConversionPreview;
+  convert_contact:ContactConversionResult;
   create_record: RecordWriteResult;
   update_record: RecordWriteResult;
   get_record: DataRecord;

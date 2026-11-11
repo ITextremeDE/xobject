@@ -602,3 +602,15 @@ CREATE TABLE public.sys_navigation_preferences (
     layout jsonb CHECK (layout IS NULL OR jsonb_typeof(layout)='object'),
     UNIQUE NULLS NOT DISTINCT (workspace_id,user_id)
 );
+
+-- Sparse exceptions: absence means inherit; JSON null is an explicit own empty value.
+CREATE TABLE public.sys_contact_field_overrides (
+    workspace_id uuid NOT NULL,
+    object_type_id uuid NOT NULL,
+    record_id uuid NOT NULL,
+    field_id uuid NOT NULL,
+    value jsonb NOT NULL CHECK (jsonb_typeof(value) IN ('string','null')),
+    PRIMARY KEY (object_type_id,record_id,field_id),
+    FOREIGN KEY (field_id,object_type_id) REFERENCES public.sys_fields(id,object_type_id) ON DELETE RESTRICT,
+    FOREIGN KEY (workspace_id,object_type_id,record_id) REFERENCES public.sys_record_identities(workspace_id,object_type_id,record_id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+);

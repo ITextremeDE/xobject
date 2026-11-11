@@ -62,3 +62,9 @@ export function resolveChoices(config: ClassificationRules, input: Partial<Choic
   validateChoices(config, result, previous);
   return result;
 }
+
+/** One installed-field view for creation, conversion previews and ordinary edits. */
+export function effectiveClassification<T extends {type:ClassificationConfig['type'];status:ClassificationConfig['status'];category:ClassificationConfig['category'];options:ClassificationConfig['options']}>(config:T,fields:{technical_name:string;state:string}[]):T{
+ const active=(kind:string)=>fields.some(field=>field.technical_name===kind&&field.state==='active');
+ return {...config,type:active('type')?config.type:{required:false,defaultId:null},status:active('status')?config.status:{required:false,defaults:[]},category:active('category')?config.category:{required:false,multiple:true,defaultIds:[]}};
+}

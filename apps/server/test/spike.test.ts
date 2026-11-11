@@ -4744,7 +4744,7 @@ test('released OAuth journal upgrade preserves data/history, is repeatable and r
   await inspection.query("INSERT INTO sys_users(id,name,email,email_verified,created_at,updated_at,is_admin,must_change_password) VALUES($1,'Upgrade administrator','upgrade@example.test',true,now(),now(),true,false)",[adminId]);
   await inspection.query("INSERT INTO sys_journal(id,change_id,entity_kind,entity_id,field_key,actor_id,access_channel,new_value) VALUES($1,$2,'user',$3::uuid,'created',$3::text,'internal','true')",[randomUUID(),randomUUID(),adminId]);
   // Restore the actual released trigger fixture; source fingerprints are pinned.
-  await inspection.query(`DROP TRIGGER sys_oauth_consent_journal ON sys_oauth_consent; DROP FUNCTION journal_oauth_authorization_state();
+  await inspection.query(`DROP TABLE sys_contact_field_overrides; DROP TRIGGER sys_oauth_consent_journal ON sys_oauth_consent; DROP FUNCTION journal_oauth_authorization_state();
     UPDATE sys_schema_version SET definition_hash='37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d' WHERE singleton;`);
   await inspection.query(readFileSync(new URL('./fixtures/released-oauth-token-journal.sql',import.meta.url),'utf8'));
   await assert.rejects(upgradeInstallation(url.href,runtimeURL.href,false,true),/verified backup/);
@@ -4797,7 +4797,7 @@ test('Contact correspondence, pronouns, Other usage and family links share API/M
  const field=(key:string)=>definition.fields.find((f:any)=>f.id===profile.fields[key]);
  const name=(text:string)=>[{id:randomUUID(),text}];
  for(const key of ['phones','emails','websites','addresses','messenger_addresses'])assert.ok(field(key).config.options.some((o:any)=>o.labels.en==='Other'),key);
- assert.ok(definition.classification.options.some((o:any)=>o.kind==='type'&&o.labels.de==='Verein'));
+ assert.deepEqual(definition.classification.options,[]);
  const row=await ok('create_record',{objectTypeId:object.id,values:{contact_kind:profile.kinds.individual,first_name:name('Jane'),last_name:name('Doe'),salutation:profile.choiceKeys.salutation.ms,address_form:profile.choiceKeys.address_form.formal,languages:[{id:randomUUID(),value:'de-DE',contexts:[],preference:1}],pronouns:[{id:randomUUID(),language:'en',value:'they/them'},{id:randomUUID(),language:'de',value:'sie/ihr'}]}});
  assert.equal(row.suggestedLetterSalutation,'Sehr geehrte Frau Doe,');assert.equal(row.effectiveLetterSalutation,row.suggestedLetterSalutation);
  let updated=await tool('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{letter_salutation:'Hello dear Jane,'}});
@@ -4853,9 +4853,9 @@ test('released 1.0.2 Contact catalog upgrade is additive, atomic, repeatable and
    await inspection.query('DELETE FROM sys_relationship_type_pairs WHERE relationship_type_id=$1',[relation.relationship_type_id]);
    await inspection.query('DELETE FROM sys_relationship_types WHERE id=$1',[relation.relationship_type_id]);
   }
-  await inspection.query("DELETE FROM sys_module_field_bindings WHERE workspace_id=$1 AND field_key='contact_type'",[ws.id]);
   await inspection.query("UPDATE sys_object_types SET classification=jsonb_set(classification,'{options}','[]'::jsonb) WHERE id=$1",[object.id]);
   await execute('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:false,version:2});
+  await inspection.query("DROP TABLE sys_contact_field_overrides");
   await inspection.query("UPDATE sys_schema_version SET definition_hash='1258a98cca87240c1f600ef414567b84be738731044cac929412bc81f1c16e86' WHERE singleton");
   const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;
   const retained=(await inspection.query('SELECT config FROM sys_fields WHERE id=$1',[email.id])).rows[0].config;
@@ -4960,4 +4960,186 @@ test('record-number backfill checks reserved-number collisions and exhaustion be
  assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:issued.id})).record_number,'RES-1');assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:blank.id})).record_number,null);
  await sql`UPDATE sys_number_counters SET next_value=1000000000000000000000000000000 WHERE object_type_id=${object.id}::uuid`.execute(runtime.db);
  assert.equal((await api('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version})).statusCode,409);
+});
+
+test('Contact inheritance and four conversions preserve identities, exceptions and atomic history',async()=>{
+ const ws=await ok('create_workspace',{name:'Contact conversion acceptance',code:'conversion'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');
+ const definition=await ok('get_object_type',{objectTypeId:object.id}),p=definition.contactProfile;
+ const named=(text:string)=>[{id:randomUUID(),text}],args={objectTypeId:object.id};
+ const currentDefinition=await ok('get_object_type',args);await ok('configure_object_settings',{...args,version:currentDefinition.version,labels:currentDefinition.labels,numbering:{enabled:true,prefix:'CON-',suffix:'',start:'1',increment:'1',padding:1,restart:'never'}});
+ let person=await ok('create_record',{...args,values:{contact_kind:p.kinds.individual,company_name:'New company',commercial_register:'HR 12',first_name:named('Jane'),last_name:named('Doe')}});
+ const originalId=person.id;
+ const proposal={...args,recordId:person.id,version:person.version,action:'new_organization'};
+ const preview=await ok('get_contact_conversion_preview',proposal);assert.equal(preview.canExecute,true);
+ const credential=await ok('create_api_credential',{name:'Read-only Contact preview',expiresAt:new Date(Date.now()+86400000).toISOString(),channels:['api'],readOnly:true,currentPassword:'test-password-administrator'});
+ const bearer=async(operation:string,input:unknown)=>runtime.app.inject({method:'POST',url:`/api/v1/${operation}`,headers:{host:'127.0.0.1:4100',authorization:`Bearer ${credential.token}`,'content-type':'application/json'},payload:JSON.stringify(input)});
+ assert.equal((await bearer('get_contact_conversion_preview',proposal)).statusCode,200);assert.equal((await bearer('convert_contact',{...proposal,previewToken:preview.previewToken,confirm:true})).statusCode,403);
+ const journalCount=(await journalEntries({...args,recordId:person.id})).length;
+ await sql.raw(`CREATE FUNCTION fail_contact_conversion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_id='${p.fields.contact_kind}'::uuid AND NEW.new_value='"${p.kinds.person}"'::jsonb THEN RAISE EXCEPTION 'conversion journal unavailable'; END IF; RETURN NEW; END $$`).execute(runtime.db);
+ await sql`CREATE TRIGGER fail_contact_conversion BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_contact_conversion()`.execute(runtime.db);
+ try{assert.equal((await api('convert_contact',{...proposal,previewToken:preview.previewToken,confirm:true})).statusCode,500);}finally{await sql`DROP TRIGGER fail_contact_conversion ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_contact_conversion()`.execute(runtime.db);}
+ assert.equal((await ok('list_records',args)).total,1);assert.equal((await journalEntries({...args,recordId:person.id})).length,journalCount);
+ const converted=await ok('convert_contact',{...proposal,previewToken:preview.previewToken,confirm:true});
+ person=converted.records[0];assert.equal(person.keyword,preview.changes[0].targetKeyword);const organization=converted.organization;assert.equal(person.id,originalId);assert.equal(person.contact_kind,p.kinds.person);assert.equal(person.organization_name,'New company');assert.equal(person.organization_commercial_register,'HR 12');
+ assert.equal(organization.record_number,'CON-2');assert.equal(person.record_number,'CON-1');assert.equal(organization.contact_kind,p.kinds.organization);assert.notEqual(organization.id,person.id);
+ person=await tool('update_record',{...args,recordId:person.id,version:person.version,contactInheritance:[{fieldId:p.fields.organization_name,mode:'own',value:''}]});
+ assert.equal(person.organization_name,'');assert.equal(person.contactInheritance.find((f:any)=>f.fieldId===p.fields.organization_name).mode,'own');
+ const updatedOrg=await ok('update_record',{...args,recordId:organization.id,version:(await ok('get_record',{...args,recordId:organization.id})).version,values:{company_name:'Renamed company',commercial_register:'HR 99'}});
+ person=await ok('get_record',{...args,recordId:person.id});assert.equal(person.organization_name,'');assert.equal(person.organization_commercial_register,'HR 99');assert.match(person.keyword,/Renamed company/);
+ assert.equal((await api('update_record',{...args,recordId:person.id,version:person.version,contactInheritance:[{fieldId:p.fields.organization_name,mode:'inherit'}]})).statusCode,400);
+ person=await ok('update_record',{...args,recordId:person.id,version:person.version,contactInheritance:[{fieldId:p.fields.organization_name,mode:'inherit',confirmReset:true}]});assert.equal(person.organization_name,'Renamed company');
+ const detach={...args,recordId:person.id,version:person.version,action:'individual'},detachPreview=await ok('get_contact_conversion_preview',detach);
+ const detachBeforeName=person.keyword;person=(await ok('convert_contact',{...detach,previewToken:detachPreview.previewToken,confirm:true})).records[0];assert.equal(person.keyword,detachPreview.changes[0].targetKeyword);
+ const detachEvents=await journalEntries({...args,recordId:person.id});assert.ok(detachEvents.some((e:any)=>e.old_value?.right?.keyword===detachBeforeName&&e.new_value===null));assert.equal(person.id,originalId);assert.equal(person.company_name,'Renamed company');assert.equal(person.commercial_register,'HR 99');assert.equal(person.contact_kind,p.kinds.individual);
+ const attach={...args,recordId:person.id,version:person.version,action:'existing_organization',organizationId:updatedOrg.id},attachPreview=await tool('get_contact_conversion_preview',attach);
+ person=(await tool('convert_contact',{...attach,previewToken:attachPreview.previewToken,confirm:true})).records[0];assert.equal(person.contact_kind,p.kinds.person);
+ await ok('create_record',{...args,values:{contact_kind:p.kinds.person,last_name:named('Second person')},relationships:[{relationshipTypeId:p.relationships.contact_person,version:(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===p.relationships.contact_person).version,side:'right',targets:[{objectTypeId:object.id,recordId:organization.id}]}]});
+ let org=await ok('get_record',{...args,recordId:organization.id});
+ let dissolve={...args,recordId:org.id,version:org.version,action:'dissolve_organization'},dissolvePreview=await ok('get_contact_conversion_preview',dissolve);
+ await ok('create_record',{...args,values:{contact_kind:p.kinds.person,last_name:named('Late member')},relationships:[{relationshipTypeId:p.relationships.contact_person,version:(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===p.relationships.contact_person).version,side:'right',targets:[{objectTypeId:object.id,recordId:organization.id}]}]});
+ assert.equal((await api('convert_contact',{...dissolve,previewToken:dissolvePreview.previewToken,confirm:true})).statusCode,409);
+ org=await ok('get_record',{...args,recordId:organization.id});dissolve={...dissolve,version:org.version};dissolvePreview=await ok('get_contact_conversion_preview',dissolve);assert.equal(dissolvePreview.changes.length,3);
+ const result=await ok('convert_contact',{...dissolve,previewToken:dissolvePreview.previewToken,confirm:true});assert.equal(result.records.length,3);assert.ok(result.records.every((r:any)=>r.contact_kind===p.kinds.individual));assert.equal((await ok('get_record',{...args,recordId:organization.id})).contact_kind,p.kinds.organization);
+ assert.equal((await api('convert_contact',{...dissolve,previewToken:dissolvePreview.previewToken,confirm:true})).statusCode,409);
+ const history=await journalEntries({...args,recordId:person.id});assert.ok(history.some(e=>e.field_id===p.fields.organization_name&&e.new_value?.mode==='own'));assert.ok(history.some(e=>e.field_id===p.fields.contact_kind));
+});
+
+test('Contact conversion conflicts and field restrictions never partially write or disclose values',async()=>{
+ const ws=await ok('create_workspace',{name:'Conversion boundaries',code:'convbounds'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),args={objectTypeId:object.id};
+ let definition=await ok('get_object_type',args);const p=definition.contactProfile;
+ const row=await ok('create_record',{...args,values:{contact_kind:p.kinds.individual,company_name:'Private firm',last_name:[{id:randomUUID(),text:'Doe'}],commercial_register:'Secret register'}});
+ const proposal={...args,recordId:row.id,version:row.version,action:'new_organization'};
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ let rights=await ok('get_content_permissions',args);await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{[p.fields.commercial_register]:'none'}}]});
+ const denied=await api('get_contact_conversion_preview',proposal,userCookie);assert.equal(denied.statusCode,403);assert.ok(!denied.body.includes('Secret register'));
+ rights=await ok('get_content_permissions',args);await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ let preview=await ok('get_contact_conversion_preview',proposal);
+ const custom=await ok('create_field',{...args,technicalName:'individual_only',labels:{en:'Individual only'},kind:'text',applicability:{fieldId:p.fields.contact_kind,optionIds:[p.kinds.individual]}});
+ let current=await ok('update_record',{...args,recordId:row.id,version:row.version,values:{individual_only:'Keep this'}});
+ const stale=await api('convert_contact',{...proposal,previewToken:preview.previewToken,confirm:true});assert.equal(stale.statusCode,409);
+ const blocked={...proposal,version:current.version};preview=await ok('get_contact_conversion_preview',blocked);assert.equal(preview.canExecute,false);assert.ok(preview.issues.some((i:any)=>i.fieldId===custom.id));
+ const count=(await ok('list_records',args)).total,events=(await journalEntries({...args,recordId:row.id})).length;
+ assert.equal((await api('convert_contact',{...blocked,previewToken:preview.previewToken,confirm:true})).statusCode,409);assert.equal((await ok('list_records',args)).total,count);assert.equal((await journalEntries({...args,recordId:row.id})).length,events);
+ // A late invalid supplied Organization value rolls back allocation, insertion and journal together.
+ current=await ok('update_record',{...args,recordId:row.id,version:current.version,values:{individual_only:null}});
+ const invalid={...proposal,version:current.version,organizationValues:{company_name:'Valid',birthday:{year:2000,month:1,day:1}}};
+ const invalidPreview=await api('get_contact_conversion_preview',invalid);assert.ok([200,400].includes(invalidPreview.statusCode));
+ if(invalidPreview.statusCode===200)assert.notEqual((await api('convert_contact',{...invalid,previewToken:invalidPreview.json().previewToken,confirm:true})).statusCode,200);
+ assert.equal((await ok('list_records',args)).total,count);assert.equal((await ok('get_record',{...args,recordId:row.id})).contact_kind,p.kinds.individual);
+});
+
+test('Contact inheritance respects source/target field rights, own empty and Organization reassignment',async()=>{
+ const ws=await ok('create_workspace',{name:'Inheritance boundaries',code:'inheritbounds'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),args={objectTypeId:object.id};
+ const definition=await ok('get_object_type',args),p=definition.contactProfile,types=await ok('list_relationship_types',{workspaceId:ws.id}),membership=types.find((t:any)=>t.id===p.relationships.contact_person);
+ const org1=await ok('create_record',{...args,values:{contact_kind:p.kinds.organization,company_name:'First secret Organization',commercial_register:'SECRET register'}}),org2=await ok('create_record',{...args,values:{contact_kind:p.kinds.organization,company_name:'Second Organization',commercial_register:'SECOND register'}});
+ let person=await ok('create_record',{...args,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Reader'}]},relationships:[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:object.id,recordId:org1.id}]}]});
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ let rights=await ok('get_content_permissions',args);await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{[p.fields.commercial_register]:'none'}}]});
+ let projected=(await api('get_record',{...args,recordId:person.id},userCookie)).json();assert.equal(projected.organization_commercial_register,null);assert.equal(projected.contactInheritance.find((f:any)=>f.fieldId===p.fields.organization_commercial_register).inheritedValue,null);assert.ok(!JSON.stringify(projected).includes('SECRET register'));
+ projected=(await api('update_record',{...args,recordId:person.id,version:person.version,contactInheritance:[{fieldId:p.fields.organization_commercial_register,mode:'own',value:'Own register'}]},userCookie)).json();assert.equal(projected.organization_commercial_register,'Own register');
+ person=await ok('update_record',{...args,recordId:person.id,version:projected.version,relationships:[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:object.id,recordId:org2.id}]}]});assert.equal(person.organization_name,'Second Organization');assert.equal(person.organization_commercial_register,'Own register');
+ person=await ok('update_record',{...args,recordId:person.id,version:person.version,relationships:[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[]}]});assert.equal(person.organization_name,null);assert.equal(person.organization_commercial_register,'Own register');
+ rights=await ok('get_content_permissions',args);await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{[p.fields.organization_commercial_register]:'none'}}]});
+ projected=(await api('get_record',{...args,recordId:person.id},userCookie)).json();assert.ok(!JSON.stringify(projected).includes('Own register'));
+ const beforeBatch=await ok('get_record',{...args,recordId:person.id});
+ assert.equal((await api('update_record',{...args,recordId:person.id,version:person.version,contactInheritance:[{fieldId:p.fields.organization_name,mode:'own',value:'Must roll back'},{fieldId:p.fields.organization_commercial_register,mode:'own',value:'Denied'}]},userCookie)).statusCode,403);
+ assert.equal((await ok('get_record',{...args,recordId:person.id})).version,beforeBatch.version);assert.equal((await ok('get_record',{...args,recordId:person.id})).organization_name,null);
+assert.equal((await api('update_record',{...args,recordId:person.id,version:person.version,contactInheritance:[{fieldId:p.fields.organization_commercial_register,mode:'own',value:'Changed'}]},userCookie)).statusCode,403);
+});
+
+test('released 1.1.0 upgrade installs inheritance atomically and preserves authored Contact data',async()=>{
+ const {connect}=await import('../src/database.js'),{Pool}=await import('pg'),operator=new Pool({connectionString:databaseURL});
+ const name=`inherit_upgrade_${randomUUID().replaceAll('-','')}`,url=new URL(databaseURL);url.pathname='/'+name;await operator.query(`CREATE DATABASE "${name}"`);
+ const inspection=new Pool({connectionString:url.href}),connection=connect(url.href),app=new Application(connection.db),runtimeURL=new URL(url);const runtimeRole=`inherit_runtime_${randomUUID().replaceAll('-','')}`;runtimeURL.username=runtimeRole;runtimeURL.password=randomBytes(24).toString('hex');
+ try{
+  await initializeDatabase(url.href,secret,baseURL);await inspection.query("INSERT INTO sys_users(id,name,email,email_verified,created_at,updated_at,is_admin,must_change_password) VALUES($1,'Upgrade admin','inherit-upgrade@example.test',true,now(),now(),true,false)",[adminId]);
+  const released=JSON.parse(readFileSync(new URL('./fixtures/released-1.1.0-module-catalog.json',import.meta.url),'utf8'));
+  for(const module of released)await inspection.query('UPDATE sys_modules SET objects=$1::jsonb,template_version=$2 WHERE key=$3',[JSON.stringify(module.objects),module.templateVersion,module.key]);
+  const execute=async(operation:Operation,input:unknown)=>app.execute(operation,input,adminId) as Promise<any>;
+  const ws=await execute('create_workspace',{name:'Released contacts',code:'releasedcontacts'});await execute('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+  const object=(await execute('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');
+  const before=await execute('get_object_type',{objectTypeId:object.id}),row=await execute('create_record',{objectTypeId:object.id,values:{contact_kind:before.contactProfile.kinds.individual,last_name:[{id:randomUUID(),text:'Retained'}],commercial_register:'Keep register'}});
+  // The released 1.1.0 installer also bound its seeded classification field as contact_type.
+  const {version:classificationVersion,...classificationRules}=before.classification;
+  const classificationField=before.fields.find((f:any)=>f.technicalName==='type'),association=randomUUID();
+  await execute('configure_classification',{objectTypeId:object.id,version:before.classification.version,config:{...classificationRules,options:[...before.classification.options,{id:association,kind:'type',typeId:null,active:true,labels:{en:'Association',de:'Verein'}}]}});
+  await inspection.query("INSERT INTO sys_module_field_bindings(workspace_id,object_key,field_key,field_id,option_keys) VALUES($1,'contact','contact_type',$2,'{}')",[ws.id,classificationField.id]);
+  const {provisionRuntimeRole}=await import('../src/database-roles.js');await provisionRuntimeRole(url.href,runtimeURL.href);
+  await inspection.query('DROP TABLE sys_contact_field_overrides');await inspection.query("UPDATE sys_schema_version SET definition_hash='c90239c3007922f096bd22cd4dadeeed35ea94c61182853f05f1883dd17a6b21'");
+  const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);
+  const runtimePool=new Pool({connectionString:runtimeURL.href});try{assert.equal((await runtimePool.query('SELECT count(*)::int AS n FROM sys_contact_field_overrides')).rows[0].n,0);}finally{await runtimePool.end();}
+  const after=await execute('get_object_type',{objectTypeId:object.id});assert.ok(after.contactProfile.fields.organization_commercial_register);assert.equal(after.contactProfile.fields.contact_type,undefined);assert.ok(after.classification.options.some((o:any)=>o.id===association));assert.equal(after.contactProfile.fields.commercial_register,before.contactProfile.fields.commercial_register);
+  assert.equal((await execute('get_record',{objectTypeId:object.id,recordId:row.id})).commercial_register,'Keep register');
+  assert.deepEqual((await inspection.query('SELECT * FROM sys_journal WHERE id=ANY($1::uuid[]) ORDER BY id',[history.map(r=>r.id)])).rows,history);
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);assert.equal((await inspection.query('SELECT count(*)::int AS n FROM sys_contact_field_overrides')).rows[0].n,0);
+ }finally{await connection.db.destroy();if(!connection.pool.ended)await connection.pool.end();await inspection.end();await operator.query(`DROP DATABASE "${name}"`);await operator.query(`DROP ROLE IF EXISTS "${runtimeRole}"`);await operator.end();}
+});
+
+test('Contact own exceptions support creation, duplication, recycle and restricted retained history',async()=>{
+ const ws=await ok('create_workspace',{name:'Inheritance lifecycle',code:'inheritlife'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),args={objectTypeId:object.id},definition=await ok('get_object_type',args),p=definition.contactProfile;
+ let row=await ok('create_record',{...args,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Lifecycle'}]},contactInheritance:[{fieldId:p.fields.organization_name,mode:'own',value:'Own company'},{fieldId:p.fields.organization_commercial_register,mode:'own',value:null}]});
+ assert.equal(row.organization_name,'Own company');assert.equal(row.organization_commercial_register,null);
+ const draft=await ok('get_record_duplicate',{...args,recordId:row.id});assert.equal(draft.contactInheritance.length,2);assert.equal(draft.contactInheritance.find((w:any)=>w.fieldId===p.fields.organization_commercial_register).value,null);
+ const clone=await ok('duplicate_record',{...args,recordId:row.id,version:row.version});assert.notEqual(clone.id,row.id);assert.equal(clone.organization_name,'Own company');
+ const recycled=await ok('recycle_record',{...args,recordId:row.id,version:row.version});await ok('restore_record',{...args,recordId:row.id,version:recycled.version});row=await ok('get_record',{...args,recordId:row.id});assert.equal(row.organization_name,'Own company');
+ const recycledAgain=await ok('recycle_record',{...args,recordId:row.id,version:row.version});await ok('permanently_delete_record',{...args,recordId:row.id,version:recycledAgain.version,confirm:true});
+ assert.equal((await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_contact_field_overrides WHERE object_type_id=${object.id}::uuid AND record_id=${row.id}::uuid`.execute(runtime.db)).rows[0].n,0);
+ const journal=await ok('list_record_journal',{...args,recordId:row.id,includeDeleted:true});assert.ok(journal.entries.some((e:any)=>e.field_id===p.fields.organization_name&&e.new_value?.value==='Own company'));
+});
+
+test('multi-Contact conversion blocks hidden members and preserves the complete ownership policy',async()=>{
+ const ws=await ok('create_workspace',{name:'Private conversion members',code:'privconversion'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),args={objectTypeId:object.id},definition=await ok('get_object_type',args),p=definition.contactProfile;
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',args);await ok('configure_content_permissions',{...rights,sensitive:true,grants:[{kind:'user',id:user.id,level:'full',create:false,fields:{}}]});
+ const policy=defaultRecordSecurity([{kind:'user',id:user.id,level:'full'}]),organization=await ok('create_record',{...args,values:{contact_kind:p.kinds.organization,company_name:'Private organization',commercial_register:'Private registry'},security:{policy,confirmPublic:false}});
+ const membership=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===p.relationships.contact_person),link=[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:object.id,recordId:organization.id}]}];
+ const visible=await ok('create_record',{...args,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Visible member'}]},relationships:link,security:{policy,confirmPublic:false}}),hidden=await ok('create_record',{...args,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Hidden member'}]},relationships:link});
+ let org=await ok('get_record',{...args,recordId:organization.id}),input={...args,recordId:org.id,version:org.version,action:'dissolve_organization'};
+ const denied=await api('get_contact_conversion_preview',input,userCookie);assert.equal(denied.statusCode,403);assert.ok(!denied.body.includes('Hidden member'));assert.equal((await ok('get_record',{...args,recordId:visible.id})).version,visible.version);
+ await ok('configure_record_security',{...args,recordId:hidden.id,version:hidden.version,policy,confirmPublic:false});
+ org=await ok('get_record',{...args,recordId:organization.id});input={...input,version:org.version};
+ const previewResponse=await api('get_contact_conversion_preview',input,userCookie);assert.equal(previewResponse.statusCode,200,previewResponse.body);const preview=previewResponse.json();assert.equal(preview.changes.length,2);assert.equal(preview.canExecute,true);
+ const result=await api('convert_contact',{...input,previewToken:preview.previewToken,confirm:true},userCookie);assert.equal(result.statusCode,200,result.body);
+ for(const row of result.json().records){assert.equal(row.contact_kind,p.kinds.individual);assert.deepEqual((await ok('get_record_security',{...args,recordId:row.id})).policy,policy);}
+ const changes=(await sql<{change_id:string}>`SELECT change_id FROM sys_journal WHERE entity_id=ANY(${[visible.id,hidden.id]}::uuid[]) AND field_id=${p.fields.contact_kind}::uuid AND old_value=${JSON.stringify(p.kinds.person)}::jsonb AND new_value=${JSON.stringify(p.kinds.individual)}::jsonb`.execute(runtime.db)).rows;assert.equal(changes.length,2);assert.equal(new Set(changes.map(c=>c.change_id)).size,1);
+});
+
+test('new Organization conversion collects custom required fields and its own required classification',async()=>{
+ const ws=await ok('create_workspace',{name:'Required Organization conversion',code:'orgrequired'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),args={objectTypeId:object.id};
+ let definition=await ok('get_object_type',args);const p=definition.contactProfile,option=randomUUID(),category=randomUUID();const {version:classificationVersion,...classificationRules}=definition.classification;
+ await ok('configure_classification',{...args,version:definition.classification.version,config:{...classificationRules,type:{required:true,defaultId:null},category:{required:true,multiple:true,defaultIds:[]},options:[{id:option,kind:'type',active:true,typeId:null,labels:{en:'Customer'}},{id:category,kind:'category',active:true,typeId:null,labels:{en:'External'}}]}});
+ const field=await ok('create_field',{...args,technicalName:'organization_reference',labels:{en:'Organization reference'},kind:'text',required:true,applicability:{fieldId:p.fields.contact_kind,optionIds:[p.kinds.organization]}});
+ const row=await ok('create_record',{...args,values:{contact_kind:p.kinds.individual,company_name:'Sole business',last_name:[{id:randomUUID(),text:'Doe'}]},classification:{type:option,category:[category]}}),input={...args,recordId:row.id,version:row.version,action:'new_organization'};
+ const blocked=await ok('get_contact_conversion_preview',input);assert.equal(blocked.canExecute,false);assert.ok(blocked.issues.some((i:any)=>i.code==='invalid_classification'));assert.ok(blocked.issues.some((i:any)=>i.fieldId===field.id));
+ const complete={...input,organizationValues:{organization_reference:'ORG-42'},organizationClassification:{type:option,category:[category]}},preview=await ok('get_contact_conversion_preview',complete);assert.equal(preview.canExecute,true);assert.equal(preview.organizationClassification.type,option);
+ const result=await ok('convert_contact',{...complete,previewToken:preview.previewToken,confirm:true});assert.equal(result.organization.organization_reference,'ORG-42');assert.equal(result.organization.type,option);assert.deepEqual(result.organization.category,[category]);assert.equal(result.records[0].type,option);assert.equal(result.records[0].id,row.id);
+});
+
+
+test('relationship picker searches permitted numbers and carries Contact-kind icons without field leaks',async()=>{
+ const ws=await ok('create_workspace',{name:'Picker audit',code:'pickeraudit'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');
+ let d=await ok('get_object_type',{objectTypeId:object.id});const p=d.contactProfile,args={objectTypeId:object.id};
+ await ok('configure_object_settings',{...args,version:d.version,labels:d.labels,numbering:{enabled:true,prefix:'CON-',suffix:'',start:'1',increment:'1',padding:1,restart:'never'}});
+ const org=await ok('create_record',{...args,values:{contact_kind:p.kinds.organization,company_name:'Picker Organization'}});
+ const source=await ok('create_record',{...args,values:{contact_kind:p.kinds.organization,company_name:'Picker source'}});
+ const relationship=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.kind==='general');
+ const input={...args,recordId:source.id,relationshipTypeId:relationship.id,side:'left',query:'CON-1'};
+ const found=await ok('search_relationship_candidates',input);assert.equal(found.total,1);assert.equal(found.records[0].recordId,org.id);assert.equal(found.records[0].iconKey,'organization');assert.equal(found.records[0].recordNumber,'CON-1');
+ const linked=await ok('update_record',{...args,recordId:source.id,version:source.version,relationships:[{relationshipTypeId:relationship.id,version:relationship.version,side:'left',targets:[{objectTypeId:object.id,recordId:org.id}]}]});
+ await ok('update_record',{...args,recordId:source.id,version:linked.version,values:{company_name:'After unlink'},relationships:[{relationshipTypeId:relationship.id,version:relationship.version,side:'left',targets:[]}]});
+ const unlink=(await journalEntries({...args,recordId:source.id})).find((e:any)=>e.old_value?.relationshipTypeId===relationship.id&&e.new_value===null);
+ assert.ok(unlink);assert.equal((unlink.old_value.left.recordId===source.id?unlink.old_value.left:unlink.old_value.right).keyword,'Picker source');
+ d=await ok('get_object_type',args);const permissions=await ok('get_content_permissions',args);const number=d.fields.find((f:any)=>f.technicalName==='record_number');
+ const ordinary=(await sql<{id:string}>`SELECT id FROM sys_users WHERE email='user@example.test'`.execute(runtime.db)).rows[0].id;await ok('set_workspace_member',{workspaceId:ws.id,userId:ordinary,role:'user',expectedRole:null});
+ await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:ordinary,level:'read',create:false,fields:{[number.id]:'none',[p.fields.contact_kind]:'none'}}]});
+ const hidden=await api('search_relationship_candidates',input,userCookie);assert.equal(hidden.statusCode,200,hidden.body);assert.equal(hidden.json().total,0);
+ const named=await api('search_relationship_candidates',{...input,query:org.id},userCookie);assert.equal(named.statusCode,200,named.body);assert.equal(named.json().records[0].iconKey,'contact');assert.equal(named.json().records[0].recordNumber,null);
 });

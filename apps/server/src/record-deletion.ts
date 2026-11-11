@@ -30,6 +30,7 @@ export async function permanentlyDeleteRecord(tx:Executor,input:unknown,actor:st
  const policy=(await sql<{policy:unknown}>`SELECT policy FROM sys_record_security WHERE object_type_id=${model.id}::uuid AND record_id=${args.recordId}::uuid`.execute(tx)).rows[0]?.policy??defaultRecordSecurity();
  const change=v7();await removeDeletedRecordRelationships(tx,model.id,args.recordId,actor,change);
  await sql`UPDATE sys_record_identities SET deleted_keyword=${keyword},deleted_at=clock_timestamp(),deleted_by=${actor},deleted_policy=${JSON.stringify(policy)}::jsonb,deleted_readers=${JSON.stringify(readers)}::jsonb WHERE object_type_id=${model.id}::uuid AND record_id=${args.recordId}::uuid`.execute(tx);
+ await sql`DELETE FROM sys_contact_field_overrides WHERE object_type_id=${model.id}::uuid AND record_id=${args.recordId}::uuid`.execute(tx);
  await sql`DELETE FROM sys_record_security WHERE object_type_id=${model.id}::uuid AND record_id=${args.recordId}::uuid`.execute(tx);
  await sql`DELETE FROM ${sql.table(table)} WHERE id=${args.recordId}::uuid`.execute(tx);
  await validatePrimaryRequirements(tx,model.workspace_id);

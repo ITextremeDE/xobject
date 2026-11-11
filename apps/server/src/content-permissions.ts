@@ -1,3 +1,4 @@
+import {contactInheritance} from './contact-inheritance.js';
 import {isActivityObject} from './activity.js';
 import {incidentFields} from './relationship-fields.js';
 import {contactProfile,contactDerivedValue} from './contact-domain.js';
@@ -127,7 +128,7 @@ export class ContentAccess {
    result.allowedStatusIds=config.options.filter(option=>option.kind==='status'&&option.typeId===(row.type??null)&&(option.active||option.id===row.status)).map(option=>option.id);
   }
   const metadata=await this.contact(id),contact=metadata.profile;
-  if(contact){const letter=fields.find(f=>f.id===contact.fields.letter_salutation);if(letter&&policy.field(letter.id,recordId).read){result.suggestedLetterSalutation=contactLetterSalutation(contact,metadata.fields,result);result.effectiveLetterSalutation=typeof result[letter.technical_name]==='string'&&String(result[letter.technical_name]).trim()?String(result[letter.technical_name]):result.suggestedLetterSalutation;}}
+  if(contact){result.contactInheritance=await contactInheritance(this.tx,id,recordId);const letter=fields.find(f=>f.id===contact.fields.letter_salutation);if(letter&&policy.field(letter.id,recordId).read){result.suggestedLetterSalutation=contactLetterSalutation(contact,metadata.fields,result);result.effectiveLetterSalutation=typeof result[letter.technical_name]==='string'&&String(result[letter.technical_name]).trim()?String(result[letter.technical_name]):result.suggestedLetterSalutation;}}
   if(policy.sensitive)result.access_principals=policy.records.get(recordId)!.policy.owners;if(!Object.hasOwn(result,'keyword'))result.keyword=recordId;
   return {...result,fieldAccess:Object.fromEntries(fields.map(f=>[f.id,{...policy.field(f.id,recordId),edit:f.value_mode!=='derived'&&policy.field(f.id,recordId).edit}])),access:policy.records.has(recordId)?{...policy.records.get(recordId)!.access,level:contentLevels[policy.recordLevel(recordId)]}:undefined,permissions:policy.recordCapabilities(recordId)};
  }

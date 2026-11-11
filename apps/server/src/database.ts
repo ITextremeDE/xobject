@@ -22,7 +22,9 @@ const schemaFile=new URL('./schema.sql',import.meta.url);
 export async function schemaDefinition(){
  const [base,oauthJournal,catalog]=await Promise.all([readFile(schemaFile,'utf8'),readFile(new URL('./oauth-journal.sql',import.meta.url),'utf8'),readFile(moduleCatalogFile,'utf8')]);
  const source=base+oauthJournal;
- return {source,oauthJournal,hash:createHash('sha256').update(source).update(catalog).update(authSchemaRevision).digest('hex')};
+ const inheritanceStart=base.indexOf('-- Sparse exceptions:'),inheritanceEnd=base.indexOf('\n);',inheritanceStart);
+ if(inheritanceStart<0||inheritanceEnd<0)throw new Error('Contact inheritance installation DDL is missing');
+ return {source,oauthJournal,contactInheritance:base.slice(inheritanceStart,inheritanceEnd+4),hash:createHash('sha256').update(source).update(catalog).update(authSchemaRevision).digest('hex')};
 }
 export async function assertCurrentSchema(pool:Pool){
  const {hash}=await schemaDefinition();
