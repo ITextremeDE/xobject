@@ -3586,7 +3586,7 @@ test('unique input errors identify only the field and context while global searc
 });
 
 test('structured contact fields share API/MCP, field permissions, safe conversion, versions and atomic history',async()=>{
- const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,10);
+ const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,11);
  const ws=await ok('create_workspace',{name:'Structured contacts',code:'structuredcontacts'});
  const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'people',labels:{en:'People',de:'Personen'},standardFields:['keyword']});
  const names=await ok('create_field',{objectTypeId:object.id,technicalName:'given_names',labels:{en:'Given names',de:'Vornamen'},kind:'structured',config:{schema:'name_components'}});
@@ -3706,7 +3706,7 @@ test('Contact salutations and academic titles are configurable independent choic
  const title=field('academic_title'),salutation=field('salutation'),gender=field('gender');
  for(const [purpose,schema] of [['emails','email_entries'],['phones','phone_entries'],['addresses','address_entries'],['websites','url_entries']]){
   const collection=field(purpose);assert.equal(collection.config.schema,schema);assert.notEqual(collection.config.fixedOptions,true);
-  assert.deepEqual(collection.config.options.map((o:any)=>o.labels.en),purpose==='phones'?['Work','Home','Mobile','Voice calls','Fax','SMS / text','Video','Pager','Textphone']:['Work','Home']);
+  assert.deepEqual(collection.config.options.map((o:any)=>o.labels.en),purpose==='phones'?['Work','Home','Other','Mobile','Voice calls','Fax','SMS / text','Video','Pager','Textphone']:['Work','Home','Other']);
   assert.ok(collection.config.options.every((o:any)=>o.labels.de&&o.id));
  }
  assert.equal(gender.kind,'single_choice');assert.equal(gender.required,false);assert.equal(gender.labels.de,'Geschlecht');assert.equal(gender.config.fixedOptions,false);
@@ -3869,17 +3869,17 @@ test('shared module template additions retain authored views and configurable va
  const row=await createOrganization(id,'Preserved'),extra=await ok('create_field',{objectTypeId:id,technicalName:'my_field',labels:{en:'My field'}}),layout={groups:[{id:'personal',labels:{en:'Our view'},fields:[{fieldId:extra.id,width:'full'}]}]};
  definition=await ok('configure_form_layout',{objectTypeId:id,version:definition.version,layout});
  await ok('configure_workspace_languages',{workspaceId:ws.id,version:1,availableLanguages:['de'],defaultLanguage:'de',labelLanguages:['de']});
- const catalog=(await sql<any>`SELECT objects FROM sys_modules WHERE key='contacts'`.execute(runtime.db)).rows[0].objects;
+ const original=(await sql<any>`SELECT objects,template_version FROM sys_modules WHERE key='contacts'`.execute(runtime.db)).rows[0],catalog=original.objects,baseVersion=original.template_version;
  const revised=structuredClone(catalog);revised.find((o:any)=>o.key==='contact').fields.push({key:'crm_segment',technicalName:'crm_segment',labels:{en:'CRM segment',de:'CRM-Segment'},kind:'text'});
  try{
-  await sql`UPDATE sys_modules SET objects=${JSON.stringify(revised)}::jsonb,template_version=2 WHERE key='contacts'`.execute(runtime.db);
-  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');assert.equal(module.installedVersion,1);assert.equal(module.templateVersion,2);
-  const updated=await tool('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:module.version});assert.equal(updated.installedVersion,2);
+  await sql`UPDATE sys_modules SET objects=${JSON.stringify(revised)}::jsonb,template_version=${baseVersion+1} WHERE key='contacts'`.execute(runtime.db);
+  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');assert.equal(module.installedVersion,baseVersion);assert.equal(module.templateVersion,baseVersion+1);
+  const updated=await tool('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:module.version});assert.equal(updated.installedVersion,baseVersion+1);
   const next=await ok('get_object_type',{objectTypeId:id});assert.deepEqual(next.formLayouts.default,layout);assert.equal(next.fields.find((f:any)=>f.technicalName==='my_field').id,extra.id);assert.ok(next.moduleFieldIds.contacts.includes(next.fields.find((f:any)=>f.technicalName==='crm_segment').id));assert.deepEqual(next.fields.find((f:any)=>f.technicalName==='crm_segment').labels,{en:'CRM segment',de:'CRM-Segment'});assert.equal((await ok('get_record',{objectTypeId:id,recordId:row.id})).keyword,'Preserved');
-  const conflict=structuredClone(revised);conflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='crm_segment').kind='boolean';await sql`UPDATE sys_modules SET objects=${JSON.stringify(conflict)}::jsonb,template_version=3 WHERE key='contacts'`.execute(runtime.db);
+  const conflict=structuredClone(revised);conflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='crm_segment').kind='boolean';await sql`UPDATE sys_modules SET objects=${JSON.stringify(conflict)}::jsonb,template_version=${baseVersion+2} WHERE key='contacts'`.execute(runtime.db);
   assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);assert.equal((await ok('get_object_type',{objectTypeId:id})).fields.find((f:any)=>f.technicalName==='crm_segment').kind,'text');
   const codecConflict=structuredClone(revised);codecConflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='birthday').config={schema:'url_entries'};await sql`UPDATE sys_modules SET objects=${JSON.stringify(codecConflict)}::jsonb WHERE key='contacts'`.execute(runtime.db);assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);
- }finally{await sql`UPDATE sys_modules SET objects=${JSON.stringify(catalog)}::jsonb,template_version=1 WHERE key='contacts'`.execute(runtime.db);}
+ }finally{await sql`UPDATE sys_modules SET objects=${JSON.stringify(catalog)}::jsonb,template_version=${baseVersion} WHERE key='contacts'`.execute(runtime.db);}
 });
 
 test('custom relationship fields have scoped configuration, preflighted requiredness and a retained definition lifecycle',async()=>{
