@@ -72,6 +72,8 @@ export const schemas = {
   list_recycled_records:z.object({workspaceId:uuid,objectTypeId:uuid.optional(),query:z.string().max(200).default(''),sortBy:z.enum(['record_number','keyword','objectLabel','recycled_at']).default('recycled_at'),sortDirection:z.enum(['asc','desc']).default('desc'),limit:z.number().int().min(1).max(100).default(25),offset:z.number().int().min(0).max(100000).default(0)}).strict(),
   get_record_duplicate:z.object({objectTypeId:uuid,recordId:uuid}).strict(),
   duplicate_record:z.object({objectTypeId:uuid,recordId:uuid,version:z.number().int().positive(),keyword:z.string().trim().max(200).optional()}).strict(),
+  get_numbering_backfill_preview:z.object({objectTypeId:uuid,version:z.number().int().positive()}).strict(),
+  backfill_record_numbers:z.object({objectTypeId:uuid,version:z.number().int().positive(),previewToken:z.string().regex(/^[a-f0-9]{64}$/),confirm:z.literal(true)}).strict(),
   configure_object_settings:z.object({objectTypeId:uuid,version:z.number().int().positive(),labels,numbering:numberingSchema.optional(),primaryRequirements:primaryRequirementsSchema.optional(),security:z.object({version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false)}).strict().optional()}).strict(),
   get_content_permissions:z.object({objectTypeId:uuid}).strict(),
   configure_content_permissions:z.object({objectTypeId:uuid,version:z.number().int().positive(),sensitive:z.boolean(),confirmWidening:z.boolean().default(false),grants:z.array(contentGrantSchema).max(1000)}).strict(),
@@ -144,7 +146,8 @@ export type DefinitionState = 'active' | 'inactive' | 'deleted';
 export interface ObjectSummary { iconKey?:import('./record-icons.js').RecordIconKey; permissions?:ContentCapabilities; state?: DefinitionState; isProtected?: boolean; canDelete?: boolean; id: string; technicalName: string; labels: Labels; label: string }
 export interface FieldDefinition extends ObjectSummary {relationshipTypeId?:string; isDerived?:boolean; inputRules?:FieldInputRules;description?:string;helpText?:string; fieldPermissions?:FieldCapabilities; applicability?: FieldApplicability; version: number; kind: CustomFieldKind | 'type' | 'status' | 'category'; required: boolean; config: FieldConfig }
 export interface ObjectDefinition extends ObjectSummary {primaryRequirements:PrimaryRequirements;primaryChain:PrimaryChain|null;activity?:boolean;moduleKeys?:string[];moduleFieldIds?:Record<string,string[]>;relationshipFields?:FieldDefinition[];workProfile?:import('./work-profile.js').WorkProfile; contactProfile?:import('./contact-profile.js').ContactProfile;numbering?:Numbering; permissionsVersion?:number;sensitive?:boolean; formLayouts?: FormLayouts; formRelationships?:FormRelationship[]; version: number; workspaceId: string; classification: ClassificationConfig; fields: FieldDefinition[]; historicalFields?: FieldDefinition[]; columns: string[] }
-export interface DataRecord { iconKey?:import('./record-icons.js').RecordIconKey; fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
+export interface NumberingBackfillPreview {objectTypeId:string;version:number;previewToken:string;eligibleCount:number;preservedCount:number;recycledCount:number;period:string;firstNumber:string|null;lastNumber:string|null;samples:{recordId:string;number:string}[]}
+export interface DataRecord {suggestedLetterSalutation?:string|null; effectiveLetterSalutation?:string|null; iconKey?:import('./record-icons.js').RecordIconKey; fieldAccess?:Record<string,FieldCapabilities>; access?:AccessExplanation; applicableFieldIds?:string[];allowedStatusIds?:string[]; permissions?:ContentCapabilities; id: string; keyword: string; version: number; created_at: string; created_by: string; updated_at: string; updated_by: string; type?: string | null; status?: string | null; category?: string[]; [field: string]: FieldValue | number | ContentCapabilities | Record<string,FieldCapabilities> | AccessExplanation | undefined }
 /** A successful write may retain only this receipt if the actor cannot read the resulting record. */
 export interface HiddenRecordReceipt {id:string;version:number;keyword:string;permissions:ContentCapabilities & {read:false}}
 export type RecordWriteResult=DataRecord|HiddenRecordReceipt;
@@ -186,6 +189,8 @@ export interface Outputs {
   list_recycled_records:{records:RecycledRecord[];total:number;limit:number;offset:number};
   get_record_duplicate:{sourceVersion:number;keyword?:string;values:Record<string,FieldValue>;classification:{type?:string|null;status?:string|null;category?:string[]}};
   duplicate_record:RecordWriteResult;
+  get_numbering_backfill_preview:NumberingBackfillPreview;
+  backfill_record_numbers:{assigned:number;preserved:number;firstNumber:string|null;lastNumber:string|null};
   configure_object_settings:ObjectDefinition;
   get_content_permissions:ContentPermissions;
   configure_content_permissions:ContentPermissions;

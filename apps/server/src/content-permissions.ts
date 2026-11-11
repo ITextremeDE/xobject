@@ -1,8 +1,8 @@
 import {isActivityObject} from './activity.js';
 import {incidentFields} from './relationship-fields.js';
-import {contactDerivedValue} from './contact-domain.js';
+import {contactProfile,contactDerivedValue} from './contact-domain.js';
 import {securityGraph} from './ownership-settings.js';
-import {accessRank,membershipRights,resolveRecordAccess,defaultRecordSecurity,type RecordSecurity,type AccessExplanation,type Principal} from '@xobject/contracts';
+import {contactLetterSalutation,accessRank,membershipRights,resolveRecordAccess,defaultRecordSecurity,type RecordSecurity,type AccessExplanation,type Principal} from '@xobject/contracts';
 import {applies} from './field-applicability.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {sql,type RawBuilder} from 'kysely';
@@ -61,8 +61,10 @@ export class ObjectAccess {
 export class ContentAccess {
  private policies=new Map<string,Promise<ObjectAccess>>();
  private fieldMetadata=new Map<string,Promise<{id:string;technical_name:string;value_mode:'stored'|'derived';applicability?:import('@xobject/contracts').FieldApplicability}[]>>();
+ private contactMetadata=new Map<string,Promise<{profile:Awaited<ReturnType<typeof contactProfile>>;fields:{id:string;technicalName:string;config:import('@xobject/contracts').FieldConfig}[]}>>();
+ private contact(id:string){let value=this.contactMetadata.get(id);if(!value){value=(async()=>{const profile=await contactProfile(this.tx,id);return {profile,fields:profile?(await sql<{id:string;technicalName:string;config:import('@xobject/contracts').FieldConfig}>`SELECT id,technical_name AS "technicalName",config FROM sys_fields WHERE object_type_id=${id}::uuid`.execute(this.tx)).rows:[]};})();this.contactMetadata.set(id,value);}return value;}
  constructor(readonly tx:Executor,readonly actor:string){}
- clear(){this.policies.clear();this.fieldMetadata.clear();}
+ clear(){this.policies.clear();this.fieldMetadata.clear();this.contactMetadata.clear();}
  policy(id:string):Promise<ObjectAccess>{id=id.toLowerCase();let result=this.policies.get(id);if(!result){result=this.resolve(id);this.policies.set(id,result);}return result;}
  private async resolve(id:string){
   const model=(await sql<{workspace_id:string;is_sensitive:boolean;name:string;state:string}>`SELECT o.workspace_id,o.is_sensitive,o.state,w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid`.execute(this.tx)).rows[0];if(!model)throw new AppError(404,'Object type not found');
@@ -124,6 +126,8 @@ export class ContentAccess {
    const config=(await sql<{classification:import('@xobject/contracts').ClassificationConfig}>`SELECT classification FROM sys_object_types WHERE id=${id}::uuid`.execute(this.tx)).rows[0].classification;
    result.allowedStatusIds=config.options.filter(option=>option.kind==='status'&&option.typeId===(row.type??null)&&(option.active||option.id===row.status)).map(option=>option.id);
   }
+  const metadata=await this.contact(id),contact=metadata.profile;
+  if(contact){const letter=fields.find(f=>f.id===contact.fields.letter_salutation);if(letter&&policy.field(letter.id,recordId).read){result.suggestedLetterSalutation=contactLetterSalutation(contact,metadata.fields,result);result.effectiveLetterSalutation=typeof result[letter.technical_name]==='string'&&String(result[letter.technical_name]).trim()?String(result[letter.technical_name]):result.suggestedLetterSalutation;}}
   if(policy.sensitive)result.access_principals=policy.records.get(recordId)!.policy.owners;if(!Object.hasOwn(result,'keyword'))result.keyword=recordId;
   return {...result,fieldAccess:Object.fromEntries(fields.map(f=>[f.id,{...policy.field(f.id,recordId),edit:f.value_mode!=='derived'&&policy.field(f.id,recordId).edit}])),access:policy.records.has(recordId)?{...policy.records.get(recordId)!.access,level:contentLevels[policy.recordLevel(recordId)]}:undefined,permissions:policy.recordCapabilities(recordId)};
  }

@@ -301,6 +301,13 @@
                   "en": "Home",
                   "de": "Privat"
                 }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
+                }
               }
             ]
           },
@@ -329,6 +336,14 @@
                 "labels": {
                   "en": "Home",
                   "de": "Privat"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
                 },
                 "group": "usage"
               },
@@ -415,6 +430,13 @@
                   "en": "Home",
                   "de": "Privat"
                 }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
+                }
               }
             ]
           },
@@ -442,6 +464,13 @@
                 "labels": {
                   "en": "Home",
                   "de": "Privat"
+                }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
                 }
               }
             ]
@@ -737,6 +766,66 @@
               "individual",
               "person"
             ]
+          },
+          {
+            "key": "address_form",
+            "technicalName": "address_form",
+            "labels": {
+              "en": "Form of address",
+              "de": "Anredeform"
+            },
+            "kind": "single_choice",
+            "appliesTo": [
+              "individual",
+              "person"
+            ],
+            "choices": [
+              {
+                "key": "informal",
+                "labels": {
+                  "en": "Informal (Du)",
+                  "de": "Persönlich (Du)"
+                }
+              },
+              {
+                "key": "formal",
+                "labels": {
+                  "en": "Formal (Sie)",
+                  "de": "Formal (Sie)"
+                }
+              }
+            ]
+          },
+          {
+            "key": "letter_salutation",
+            "technicalName": "letter_salutation",
+            "labels": {
+              "en": "Letter salutation",
+              "de": "Briefanrede"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person",
+              "organization"
+            ]
+          },
+          {
+            "key": "pronouns",
+            "technicalName": "pronouns",
+            "labels": {
+              "en": "Pronouns",
+              "de": "Pronomen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "pronoun_entries",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
           }
         ],
         "navigationPriority": 100
@@ -782,7 +871,7 @@
         "navigationPriority": 90
       }
     ],
-    "templateVersion": 1
+    "templateVersion": 2
   },
   {
     "key": "projects",
@@ -1081,7 +1170,7 @@
         "navigationPriority": 80
       }
     ],
-    "templateVersion": 1
+    "templateVersion": 2
   },
   {
     "key": "documents",

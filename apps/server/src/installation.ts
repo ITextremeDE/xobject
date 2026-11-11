@@ -1,3 +1,5 @@
+import {Application} from './domain.js';
+import {seedModuleCatalog} from './module-catalog.js';
 import {sql} from 'kysely';
 import {connect,assertCurrentSchema,schemaDefinition} from './database.js';
 
@@ -37,10 +39,14 @@ export async function upgradeInstallation(operatorURL:string,runtimeURL:string,b
       await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
       const source=(await sql<{version:number;definition_hash:string}>`SELECT version,definition_hash FROM sys_schema_version WHERE singleton FOR UPDATE`.execute(tx)).rows[0];
       if(source?.version===1&&source.definition_hash===target.hash)return;
-      // Exact released 1.0.0/1.0.1 fingerprint; no adoption of development schemas.
-      if(source?.version!==1||source.definition_hash!=='37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d')throw new Error('No supported released upgrade path exists for this source installation. Use its matching application and recovery backup.');
+      // Exact released 1.0.0/1.0.1 and 1.0.2 fingerprints; no development-schema adoption.
+      if(source?.version!==1||!['37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d','1258a98cca87240c1f600ef414567b84be738731044cac929412bc81f1c16e86'].includes(source.definition_hash))throw new Error('No supported released upgrade path exists for this source installation. Use its matching application and recovery backup.');
+      if(source.definition_hash==='37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d'){
       await sql.raw('DROP TRIGGER sys_oauth_access_token_journal ON public.sys_oauth_access_token; DROP TRIGGER sys_oauth_refresh_token_journal ON public.sys_oauth_refresh_token; DROP FUNCTION public.journal_oauth_token_state();').execute(tx);
       await sql.raw(target.oauthJournal).execute(tx);
+      }
+      await seedModuleCatalog(tx,true);
+      await new Application(db).refreshInstalledModuleTemplates(tx);
       await sql`UPDATE sys_schema_version SET definition_hash=${target.hash} WHERE singleton`.execute(tx);
       // Token hashes, consents, sessions and existing audit history are preserved.
     });

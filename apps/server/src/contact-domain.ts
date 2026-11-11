@@ -8,7 +8,8 @@ export async function contactProfile(tx:Executor,objectId:string):Promise<Contac
  const bindings=await contactFields(tx,objectId),kind=bindings.find(field=>field.field_key==='contact_kind');
  if(!kind)return undefined;
  const relationships=(await sql<{relationship_key:string;relationship_type_id:string}>`SELECT relationship_key,relationship_type_id FROM sys_module_relationship_bindings WHERE workspace_id=(SELECT workspace_id FROM sys_object_types WHERE id=${objectId}::uuid) AND module_key='contacts'`.execute(tx)).rows;
- return {fields:Object.fromEntries(bindings.map(field=>[field.field_key,field.id])),relationships:Object.fromEntries(relationships.map(r=>[r.relationship_key,r.relationship_type_id])),kinds:kind.option_keys as ContactProfile['kinds']};
+ const language=(await sql<{default_language:string}>`SELECT w.default_language FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${objectId}::uuid`.execute(tx)).rows[0].default_language;
+ return {defaultLanguage:language,choiceKeys:Object.fromEntries(bindings.map(f=>[f.field_key,f.option_keys])),fields:Object.fromEntries(bindings.map(field=>[field.field_key,field.id])),relationships:Object.fromEntries(relationships.map(r=>[r.relationship_key,r.relationship_type_id])),kinds:kind.option_keys as ContactProfile['kinds']};
 }
 /** The UI and application writer evaluate the same UUID-bound requirements. */
 export async function validateContact(tx:Executor,objectId:string,values:Record<string,unknown>){

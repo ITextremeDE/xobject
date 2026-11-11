@@ -60,6 +60,8 @@ const purposes: Record<Operation, string> = {
   list_recycled_records: 'List authorized recycled records with filters, sorting and paging.',
   get_record_duplicate: 'Prepare an unsaved duplicate draft without allocating an ID, number or journal event.',
   duplicate_record: 'Immediately create a duplicate; prefer get_record_duplicate when the user wants to edit before saving.',
+  get_numbering_backfill_preview: 'Preview missing record numbers without reserving them; Administrator-only, including recycled records, ordered by creation time and ID.',
+  backfill_record_numbers: 'Assign only missing record numbers atomically from a confirmed current preview. Preserve all issued numbers; Administrator-only.',
   configure_object_settings: 'Atomically edit object labels, sensitivity and supported settings using current model/security versions.',
   get_content_permissions: 'Inspect the administrative object/field permission ceilings and their version.',
   configure_content_permissions: 'Configure administrative permission ceilings; this does not assign record ownership.',

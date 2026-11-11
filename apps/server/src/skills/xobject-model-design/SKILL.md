@@ -15,3 +15,5 @@ Inspect workspace role, object metadata, available languages and existing defini
 5. Use current definition/security versions. Reread after conflicts and verify the result and definition journal.
 
 Designers configure models within their workspace. Administrative base rights and sensitivity require an Administrator. Never claim that showing a control authorizes its mutation.
+
+For missing record numbers, an Administrator first saves enabled numbering, reads `get_numbering_backfill_preview` with the current object version, reviews the proposed counts/range and then calls `backfill_record_numbers` with that exact preview token/version and `confirm: true`. Preserve all issued numbers. A conflict requires rereading and a newly reviewed preview; never retry an obsolete plan automatically. This includes recycled records and does not grant model/content rights to Designers.
