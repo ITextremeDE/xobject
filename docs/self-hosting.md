@@ -86,6 +86,7 @@ The command requires an immutable target digest, stops writers, makes a verified
 
 Versions 1.0.0 and 1.0.1 share a schema/catalog/auth fingerprint. Version 1.0.2 changes authorization journaling. Version 1.1.0 accepts both exact predecessor fingerprints, migrates authorization journaling where needed and adds the current Contact catalog transactionally. Unknown fingerprints remain rejected. Stop all writers and verify a backup before upgrade.
 <span id="upgrade-from-100-to-101"></span>
+<span id="upgrade-from-100-or-101-to-102"></span>
 
 ### Upgrade from 1.0.0, 1.0.1 or 1.0.2 to 1.1.0
 
