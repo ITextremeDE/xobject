@@ -17,3 +17,11 @@ test('all journal surfaces format structured historical names and yearless birth
  assert.equal(journalFieldValue(entry,{invalid:true},'after','en',i18n.t,'UTC',defaultRegionalSettings),undefined);
  assert.deepEqual(value,{month:2,day:29,year:null});
 });
+
+test('Contact inheritance history distinguishes own empty, own text and inherited mode',async()=>{
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{contactInherit:'Inherit from Organization',contactOwn:'Own value',journalNotSet:'Not set'}}}});
+ const entry={value_context:{after:{kind:'text',config:{}}}} as JournalEntry;
+ assert.equal(journalFieldValue(entry,{mode:'inherit'},'after','en',i18n.t,'UTC',defaultRegionalSettings),'Inherit from Organization');
+ assert.equal(journalFieldValue(entry,{mode:'own',value:null},'after','en',i18n.t,'UTC',defaultRegionalSettings),'Own value · Not set');
+ assert.equal(journalFieldValue(entry,{mode:'own',value:'Branch office'},'after','en',i18n.t,'UTC',defaultRegionalSettings),'Own value · Branch office');
+});

@@ -549,6 +549,19 @@
             ]
           },
           {
+            "key": "organization_commercial_register",
+            "technicalName": "organization_commercial_register",
+            "labels": {
+              "en": "Commercial register",
+              "de": "Handelsregister"
+            },
+            "kind": "text",
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          },
+          {
             "key": "notes",
             "technicalName": "notes",
             "labels": {
@@ -871,7 +884,7 @@
         "navigationPriority": 90
       }
     ],
-    "templateVersion": 2
+    "templateVersion": 3
   },
   {
     "key": "projects",

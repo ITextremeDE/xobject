@@ -47,7 +47,7 @@ Uploads, attachments, import/export, SSO, desktop and mobile clients, offline sy
 
 Documents & Communication is planned for V2, including supplied Emails, Documents and Phone calls. No email handling or uploads are implemented. Modules may contribute different fields to one shared object and record. Each object has one common form that combines its applicable contributions. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
 
-The agreed V2 scope also includes personal column order/widths, guided Contact-kind changes, Contact maintenance with duplicate detection/merging and Previous/Next record navigation. These are planned targets; [delivery boundaries](docs/PRD.md#13-agreed-v2-scope) distinguish them from the released features.
+The unreleased Community 1.2.0 worktree implements guided Contact-kind changes and Contact-person inheritance with per-field exceptions under ADR 0038. The agreed V2 scope also includes personal column order/widths, Contact maintenance with duplicate detection/merging and Previous/Next record navigation. These are planned targets; [delivery boundaries](docs/PRD.md#13-agreed-v2-scope) distinguish them from the released features.
 
 ## Technology
 

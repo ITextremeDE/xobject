@@ -40,6 +40,8 @@ export function mcpOutputSchemas(document: Record<string, any>): Record<Operatio
 }
 
 const purposes: Record<Operation, string> = {
+  get_contact_conversion_preview:'Preview one of four Contact-kind conversions with source versions, field mappings and blocking conflicts. No changes are written.',
+  convert_contact:'Atomically confirm a current Contact conversion preview. Preserves IDs, numbers, security and compatible contents; requires Full and field edit rights.',
   list_oauth_authorizations:'List the current user’s authorized OAuth applications without tokens or secrets.',
   revoke_oauth_authorization:'Revoke the current user’s OAuth access/refresh tokens and consent for one application.',
   list_api_credentials: 'Inspect personal access-token metadata without revealing secrets.',

@@ -70,3 +70,14 @@ test('outer Contact creation fallback uses the known route kind and renders the 
  const organization=render('org');assert.match(organization,/Company name/);assert.doesNotMatch(organization,/Job title/);assert.match(organization,/xl:grid-cols-3/);
  const person=render('ap');assert.match(person,/Job title/);assert.doesNotMatch(person,/Company name/);
 });
+
+test('classification controls in a conversion dialog keep distinct labels beside the record form',async()=>{
+ const {ClassificationFields}=await import('../src/components/classification-values.js');
+ const config:import('@xobject/contracts').ClassificationConfig={version:1,type:{required:false,defaultId:null},status:{required:false,defaults:[]},category:{required:false,multiple:false,defaultIds:[]},options:[]};
+ const field:import('@xobject/contracts').FieldDefinition={id:'classification-field',technicalName:'type',labels:{en:'Type'},label:'Type',kind:'type',required:false,config:{},version:1,description:'Choose a Type',helpText:'Optional classification'};
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{classificationType:'Type',noSelection:'No selection'}}}});
+ const props={config,fields:[field],value:{type:null,status:null,category:[]},onChange:()=>{},disabled:false};
+ const html=renderToStaticMarkup(createElement(I18nextProvider,{i18n},createElement('div',null,createElement(ClassificationFields,props),createElement(ClassificationFields,{...props,idPrefix:'conversion-organization-'}))));
+ assert.ok(html.includes('id="record-type"'));assert.ok(html.includes('id="conversion-organization-record-type"'));assert.ok(html.includes('for="conversion-organization-record-type"'));
+ const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);assert.equal(new Set(ids).size,ids.length);
+});

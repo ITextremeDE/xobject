@@ -26,3 +26,20 @@ test('effective permission explanations follow additive groups, user overrides a
  own.level=null;own.fields[field]='none';assert.deepEqual(resolveContentRule(grants,'user',['reader','editor'],field),{level:'none',sources:[own]});
  assert.deepEqual(resolveContentRule(grants,'different',[],field),{level:'none',sources:[]});
 });
+
+
+import {fieldContextLabel} from '../src/lib/field-context-label.js';
+test('cross-kind field labels distinguish inherited and own register fields by bound identity',()=>{
+ const definition={contactProfile:{fields:{commercial_register:'own',organization_commercial_register:'inherited'}}} as any;
+ const t=((key:string)=>({'contactKind_person':'Contact person','contactKind_organization':'Organization','contactKind_individual':'Individual contact'}[key])) as any;
+ const labels=['own','inherited'].map(id=>fieldContextLabel({id,label:'Commercial register'},definition,t));
+ assert.equal(new Set(labels).size,2);assert.match(labels[0],/Organization \/ Individual contact/);assert.match(labels[1],/Contact person/);
+ assert.equal(fieldContextLabel({id:'custom',label:'Own register'},definition,t),'Own register');
+});
+
+test('inherited Contact fields may have editable own exceptions while generated fields stay read-only',()=>{
+ const profile={fields:{organization_name:'name',organization_commercial_register:'register'}} as any;
+ assert.equal(displayedFieldLevel('edit',{id:'register',technicalName:'renamed',isDerived:true},profile),'edit');
+ assert.equal(displayedFieldLevel('none',{id:'register',technicalName:'renamed',isDerived:true},profile),'none');
+ assert.equal(displayedFieldLevel('edit',{id:'keyword',technicalName:'keyword',isDerived:true},profile),'read');
+});

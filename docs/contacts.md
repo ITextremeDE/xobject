@@ -12,7 +12,7 @@ Open **Contacts → Create record** and choose one kind:
 | Contact person | A person in the context of one organization | Derived personal/organization name |
 | Individual contact | A person or sole business maintained independently | Company name when filled, otherwise Last name, First name |
 
-Contact kind is separate from configurable **Type**. An organization might have Type Supplier; that does not make Supplier another contact kind. Normal editing cannot change the kind. Guided conversions are [planned for V2](../ROADMAP.md#planned--version-2).
+Contact kind is separate from configurable **Type**. An organization might have Type Supplier; that does not make Supplier another contact kind. Normal editing cannot change the kind. The unreleased Community 1.2.0 implementation adds guided conversions and per-field Organization inheritance; Community 1.1.0 remains the published baseline.
 
 The form shows the applicable fixed core. Keyword is derived, so there is no separate editable Keyword input. Additional fields and custom relationships can be arranged in the [Form designer](forms.md#supplied-contact-forms).
 
@@ -59,3 +59,27 @@ Choose **Link with…**, select Contacts and the Identities relationship, then c
 Membership is explicit; no organization, category or group automatically adds all its contacts. Removing a membership keeps the Contact. A distribution list is a business record, not a login group and not a permission grant. V1 stores the list; it does not send mail or invitations.
 
 Use Notes for working observations and the Journal for recorded changes. [Record actions and recovery](user-guide.md) apply to Contacts and Distribution lists as to other records. Standards-oriented storage is a foundation for later exchange; vCard import/export and CardDAV synchronization are not available in V1.
+
+
+## Organization inheritance (unreleased 1.2.0)
+
+On a Contact person, Organization name and Commercial register initially show the readable main Organization value. Choose **Own value** beside either field to edit a local exception. An own empty value stays empty. **Inherit from Organization** asks before discarding an exception. **Use own values for all Organization fields** prepares both fields together; the ordinary Save applies the draft. Reset discards the unsaved edits.
+
+Changing Organization keeps own exceptions and refreshes inherited fields. Removing the Organization leaves inherited fields empty. Personal communication/address entries never acquire an Organization fallback. The Contact Keyword still names the actual linked Organization, even when the displayed Organization-name field has an own exception.
+
+## Change a Contact kind (unreleased 1.2.0)
+
+Save or reset edits first. Open the record's **More actions → Change Contact kind**, choose the workflow and complete missing required values. For a new Organization, enter its name, classification and applicable required fields; for an existing Organization, search and choose it. **Preview changes** lists the affected Contacts, kinds, Organization assignment and field/exception mappings. Confirm only after reviewing them.
+
+- An Individual can become the Contact person of a new or existing Organization.
+- A Contact person can continue as an Individual; its effective company/register values become owned fields.
+- From an Organization, all current Contact persons can continue as Individuals together; the Organization remains.
+
+Existing Contact IDs, numbers, access rights and compatible contents/links remain. A new Organization gets its own ID/number. Company/register differences are preserved as exceptions instead of overwriting the target Organization. Incompatible custom fields or links must be resolved first; a conflict, missing right or stale preview leaves the entire operation unchanged. Full access to every affected Contact and the relevant field rights are required; creating an Organization also needs Create. API/MCP clients use `get_contact_conversion_preview` and `convert_contact`; normal `update_record` cannot change Contact kind. [ADR 0038](adr/0038-contact-inheritance-and-conversions.md) records the exact mapping and permission rules.
+
+
+### Reading conversion previews and field permissions
+
+The conversion preview shows the Contact kind and Keyword before and after the operation. Removing an Organization association explains which effective company details become owned values. Review the preview before confirming; cancelling leaves the Contact unchanged.
+
+In cross-kind settings, column selection and field-rights controls, Commercial register is qualified by its Contact kinds. Organization/Individual values and Contact-person inheritance remain separate field identities. The Contact-person fields permit editable own exceptions within current rights; generated Keywords and record numbers remain read-only.

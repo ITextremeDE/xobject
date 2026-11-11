@@ -1,3 +1,5 @@
+import {fieldContextLabel} from '@/lib/field-context-label';
+import {journalFieldValue} from '@/lib/journal-field-value';
 import {useState} from 'react';
 import {useQuery,keepPreviousData} from '@tanstack/react-query';
 import {useTranslation} from 'react-i18next';
@@ -16,7 +18,7 @@ export function Journal({ definition, recordId, user, record, workspaceName,incl
   const regional=useRegional(),timeZone=useTimeZone();
   const principals = useQuery({ queryKey: ['field-principals', definition.workspaceId], queryFn: () => api('list_field_principals', { workspaceId: definition.workspaceId }) });
   const [fieldId,setFieldId]=useState('all'),[kind,setKind]=useState('all'),[page,setPage]=useState(1),[pageSize,setPageSize]=useState(10);
-  const allFields=[...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[]).map(field=>({...field,label:`${t('relationshipAttributes')} · ${field.label}`}))];
+  const allFields=[...definition.fields,...(definition.historicalFields??[]),...(definition.relationshipFields??[]).map(field=>({...field,label:`${t('relationshipAttributes')} · ${field.label}`}))].map(field=>({...field,label:fieldContextLabel(field,definition,t)}));
   const result = useQuery({ placeholderData:keepPreviousData, queryKey: ['journal', definition.id, recordId,includeRecycled,includeDeleted,fieldId,kind,page,pageSize], queryFn: () => api('list_record_journal', {includeRecycled,includeDeleted, objectTypeId: definition.id, recordId,fieldId:fieldId==='all'?undefined:fieldId,entityKind:kind==='all'?undefined:kind as 'record'|'relationship',offset:(page-1)*pageSize,limit:pageSize }) });
   const fields=[{value:'all',label:t('journalAllFields')},...allFields.map(field=>({value:field.id,label:field.label})).sort((a,b)=>a.label.localeCompare(b.label,i18n.language))];
   const kinds=[{value:'all',label:t('journalAllChanges')},{value:'record',label:t('journalFieldChanges')},{value:'relationship',label:t('recordRelationships')}];
@@ -27,6 +29,7 @@ export function Journal({ definition, recordId, user, record, workspaceName,incl
     return {...entry,entity_kind:entry.entity_kind??'record',entity_id:entry.entity_id??recordId,workspace_id:definition.workspaceId,workspace_name:workspaceName,object_type_name:definition.label,actor_name:entry.actor_name??(user&&entry.actor_id===user.id?user.name:entry.actor_id),entity_name:record.keyword||record.id,field_label:field?.label??entry.field_label??null};
   });
   function renderValue(entry:JournalEntry,value:unknown,side:'before'|'after') {
+    if(value&&typeof value==='object'&&'mode' in value)return journalFieldValue(entry,value,side,i18n.language,t,timeZone,regional);
     const field=allFields.find(field=>field.id===entry.field_id);
     if(!field)return undefined;
     if(value===null||value===undefined)return t('journalNotSet');

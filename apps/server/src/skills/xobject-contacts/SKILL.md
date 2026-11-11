@@ -19,3 +19,11 @@ Start with the foundation workflow and inspect the Contact profile in `get_objec
 - Distribution membership is explicit. Inspect its current relationship definition and read permissions before adding members.
 
 Discover active module contributions and current fields rather than assuming fixed technical names. Exchange/synchronization is not performed by these workflows.
+
+## Organization inheritance and kind conversions
+
+Discover the profile field UUIDs. Contact persons expose `contactInheritance` alongside their permitted effective values. Update an own exception through `update_record.contactInheritance` with fieldId, mode=own and an explicit value (null means own empty). Use mode=inherit plus confirmReset=true after confirming the own value may be discarded. Never assign a derived field through values. Source rights still apply to inherited values; an own Organization name does not change the relationship or Keyword suffix.
+
+Use `get_contact_conversion_preview` before changing Contact kind. Actions are new_organization, existing_organization, individual and dissolve_organization. Supply required target values using technical names; the preview explains incompatible fields/links. Show the mappings to the user, then call `convert_contact` with the same input, previewToken and confirm=true. Refresh stale previews. Full and relevant field rights apply to every affected Contact; a new Organization additionally needs Create. Preserve identities, numbers, security and compatible relationships; never approximate a blocked specialist mapping or modify Contact kind through normal update_record.
+
+A newly formed Organization uses its own `organizationValues` for applicable required fields and `organizationClassification` for Type/Status/Category. Configured defaults apply; source classification and personal communication are not silently copied. Resolve the preview issues before confirmation.

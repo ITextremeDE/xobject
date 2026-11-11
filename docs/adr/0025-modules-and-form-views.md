@@ -84,3 +84,7 @@ Project, Case and Task starter forms place Record number, Responsible and Access
 Tasks use the same paired Details/Schedule arrangement. Their Schedule & progress group contains Start, Due, Priority, Progress and Completed at, with Priority directly before Progress. Task assignment uses the protected Access principals element below Responsible, without a separate assignment input. These are editable common starter layouts.
 
 Fresh supplied forms reserve the module-gated Primary association group before Classification, even when Projects is not yet enabled during template installation. Normal layout resolution hides unavailable elements and empty groups. Activating Projects preserves an already authored common form; it does not rebuild it.
+
+## Contact workflow scope refinement — 2026-11-11 (planned 1.2.0)
+
+The four guided Contact-kind conversions move from V2 to planned Community 1.2.0. The same release adds main-Organization field inheritance for Contact persons with explicit per-field own-value exceptions and a combined disable action. PRD sections 1.4 and 6.1 own the requirements (R-064/R-065); ADR 0038 now specifies the resolved field mappings, sparse storage and permission-aware effective-value contracts for the unreleased implementation. The fixed Contact-kind form cores and shared business-logic architecture remain. Contact maintenance and duplicate detection/merge stay in V2. This supersedes only the conversion release assignment above and makes no delivery claim.

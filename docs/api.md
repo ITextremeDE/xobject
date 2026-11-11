@@ -179,7 +179,7 @@ Installation Administrators can use `list_deleted_records` and `list_record_jour
 
 ## Duplicate drafts
 
-`get_record_duplicate` reads an authorized creation draft without allocating an identity, record number or journal event. It requires Duplicate on the source and Create on its object; only readable, initially writable, active values are copied. Unique values, derived values, record numbers, ownership and relationships are omitted. The response includes the source version.
+`get_record_duplicate` reads an authorized creation draft without allocating an identity, record number or journal event. It requires Duplicate on the source and Create on its object; only readable, initially writable, active values are copied. Unique values, derived values, record numbers, ownership and relationships are omitted. The response includes the source version. In the unreleased 1.2.0 implementation it additionally retains readable own Contact-inheritance exceptions in `contactInheritance`; inherited projections themselves remain omitted.
 
 The web client opens the ordinary new-record form with those values. Saving calls `create_record` with `duplicateFrom` (source ID/version), so Duplicate/Create and the current source version are checked again atomically. The user can edit fields and add relationships before saving; ordinary validation and creation defaults apply. Canceling leaves no new record. `duplicate_record` remains the immediate server-side copy operation for clients that deliberately need one-step duplication.
 
@@ -190,3 +190,19 @@ The interactive web client uses same-origin cookie-authenticated POST `/api/even
 ## Selection trees
 
 Use custom `kind: "tree_choice"` with normal choice options plus optional `parentId` UUIDs. Category uses `category: {required, multiple: true, tree: true, defaultIds}` and Category options with optional same-object Category `parentId`. Create/update/default values may name leaves; the shared backend stores their complete ancestor-closed UUID set. To deselect a parent, submit a set excluding both it and its descendants; submitting a descendant selects that parent again. Flat multiple choice remains `multiple_choice` with no parent assignments. All definitions, conversions, rights and journal operations use the existing versioned endpoints/tools; see ADR 0037 for limits and configuration behavior.
+
+## Contact inheritance and conversions (unreleased 1.2.0)
+
+Discover `contactProfile.fields` in `get_object_type`; field names are not semantic identifiers. Contact-person responses add `contactInheritance`, containing permitted field UUIDs, mode, effective value, inherited proposal, edit capability and readable Organization provenance. Continue to read the effective value under the corresponding technical field name.
+
+Save exceptions together with ordinary record edits using `create_record.contactInheritance` or versioned `update_record.contactInheritance`:
+
+```json
+{"fieldId":"DISCOVERED_FIELD_UUID","mode":"own","value":null}
+```
+
+Own null is explicitly empty. To resume inheritance, send `{"fieldId":"DISCOVERED_FIELD_UUID","mode":"inherit","confirmReset":true}` after confirming that the own value may be discarded. A combined own-value action is one array with both independent field writes. Derived values cannot be assigned through the ordinary `values` map. Source and target rights apply separately.
+
+For a Contact-kind change, call `get_contact_conversion_preview` with objectTypeId, recordId, current version and action: `new_organization`, `existing_organization`, `individual` or `dissolve_organization`. Supply organizationId only for an existing target; `organizationValues` and `organizationClassification` apply only to a newly created Organization. Supply applicable custom required fields and explicit classification choices when configured defaults are insufficient. Optional `contactValues` maps affected Contact UUIDs to patches whose keys are technical field names. The preview lists actual mappings, inherited source modes, affected identities and conflicts. It allocates no identity or number.
+
+After the user reviews the preview, repeat its input in `convert_contact`, adding the previewToken and `confirm: true`. A conflict requires a fresh preview; never retry with a guessed kind update. Full access and relevant field rights apply to every affected Contact. Creating an Organization also needs Create; joining an existing one never overwrites its values. The result contains projected changed Contacts and, where applicable, the new/existing Organization. All changes and journals are atomic. Read-only credentials can preview but cannot convert. [ADR 0038](adr/0038-contact-inheritance-and-conversions.md) defines exact mapping and preservation rules.

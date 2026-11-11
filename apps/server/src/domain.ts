@@ -1,3 +1,5 @@
+import {contactConversionPlan} from './contact-conversion.js';
+import {contactInheritance,inheritedContactFields,writeContactInheritance} from './contact-inheritance.js';
 import {classificationFilterPredicate} from './record-filters.js';
 import {closeChoiceSelection} from '@xobject/contracts';
 import {withChangeNotifications} from './change-notifications.js';
@@ -27,7 +29,7 @@ import { applies, validateApplicability, applicabilityDependents } from './field
 import { journalValueContexts } from './record-journal.js';
 import { lockOperation } from './operation-locks.js';
 import { installObjectIntegrity } from './storage-integrity.js';
-import {validateRestoredRelationships,recordLinkOptions,linkedRecordWrites, primaryChainContext, relationshipTreeBranch, recordRelationships, searchRelationshipCandidates, activateRelationship, writeRecordRelationships } from './record-relationships.js';
+import {captureRelationshipJournalBefore,type RelationshipJournalSnapshots,validateRestoredRelationships,recordLinkOptions,linkedRecordWrites, primaryChainContext, relationshipTreeBranch, recordRelationships, searchRelationshipCandidates, activateRelationship, writeRecordRelationships } from './record-relationships.js';
 import { workspaceModules, configureWorkspaceModule, installSystemRelationships, relationshipTypes, configureRelationship } from './relationship-types.js';
 import { enrichJournalContext } from './journal-context.js';
 import { listWorkspaceRecords, workspaceDashboard } from './dashboard.js';
@@ -43,7 +45,7 @@ import { fieldConfig, fieldStorage, normalizeFieldValue, validateReferences, con
 import { AppError } from './errors.js';
 export { AppError } from './errors.js';
 import { addClassificationFields } from './database.js';
-import { resolveChoices, validateChoices, validateRules, type Choices } from './classification.js';
+import { effectiveClassification, resolveChoices, validateChoices, validateRules, type Choices } from './classification.js';
 import { schemas, hasReservedStandardFieldLabel, isReservedStandardFieldName, isCustomFieldKind, type FieldConfig, type FieldValue, type ClassificationConfig, type WorkspaceAppearance, type Operation,type Inputs } from '@xobject/contracts';
 export { schemas, type Operation,type Inputs } from '@xobject/contracts';
 import type { Database, Executor } from './database.js';
@@ -317,6 +319,33 @@ export class Application {
           }
 
           case 'configure_classification': return this.configureClassification(tx, schemas.configure_classification.parse(parsed), userId);
+          case 'get_contact_conversion_preview':return (await contactConversionPlan(tx,schemas.get_contact_conversion_preview.parse(parsed))).preview;
+          case 'convert_contact':{
+            const args=schemas.convert_contact.parse(parsed),input=schemas.get_contact_conversion_preview.parse(Object.fromEntries(Object.entries(args).filter(([key])=>!['confirm','previewToken'].includes(key))));
+            const plan=await contactConversionPlan(tx,input);
+            if(args.previewToken!==plan.preview.previewToken)throw new AppError(409,'Contact conversion preview is stale');
+            if(!plan.preview.canExecute)throw new AppError(409,'Resolve Contact conversion conflicts before confirming');
+            const changeId=v7();let organization=plan.organization;
+            if(args.action==='new_organization'){
+              const policy=(await sql<{policy:import('@xobject/contracts').RecordSecurity}>`SELECT policy FROM sys_record_security WHERE object_type_id=${args.objectTypeId}::uuid AND record_id=${args.recordId}::uuid`.execute(tx)).rows[0]?.policy;
+              const created=await this.createRecord(tx,schemas.create_record.parse({objectTypeId:args.objectTypeId,values:plan.preview.organizationValues,classification:args.organizationClassification,...(policy?{security:{policy,confirmPublic:true}}:{})}),userId,changeId);
+              organization=created as unknown as {id:string;version:number};
+            }
+            const relationshipBefore:RelationshipJournalSnapshots=new Map();
+            for(const item of plan.plans)for(const [id,snapshot] of await captureRelationshipJournalBefore(tx,args.objectTypeId,item.row.id,item.relationships))relationshipBefore.set(id,snapshot);
+            const records=[];
+            for(const item of plan.plans){
+              const relationships=[...item.relationships];
+              if(organization)relationships.push({relationshipTypeId:plan.membership.id,version:plan.membership.version,side:'right',targets:[{objectTypeId:args.objectTypeId,recordId:organization.id}]});
+              if(args.action==='individual'||args.action==='dissolve_organization'){
+                const overrides=(await sql<{field_id:string;value:unknown;technical_name:string}>`SELECT o.field_id,o.value,f.technical_name FROM sys_contact_field_overrides o JOIN sys_fields f ON f.id=o.field_id WHERE o.object_type_id=${args.objectTypeId}::uuid AND o.record_id=${item.row.id}::uuid`.execute(tx)).rows;
+                for(const own of overrides)await this.journal(tx,userId,plan.model.workspace_id,args.objectTypeId,'record',item.row.id,changeId,own.technical_name,{mode:'own',value:own.value},null,own.field_id);
+                await sql`DELETE FROM sys_contact_field_overrides WHERE object_type_id=${args.objectTypeId}::uuid AND record_id=${item.row.id}::uuid`.execute(tx);
+              }
+              records.push(await this.updateRecord(tx,schemas.update_record.parse({objectTypeId:args.objectTypeId,recordId:item.row.id,version:item.row.version,values:item.values,relationships,contactInheritance:item.inheritance}),userId,{changeId,relationshipBefore}));
+            }
+            return {records,...(organization?{organization:await contentAccess().project(args.objectTypeId,await this.record(tx,await this.objectType(tx,args.objectTypeId),organization.id))}:{})};
+          }
           case 'create_record': return this.createRecord(tx, schemas.create_record.parse(parsed), userId);
           case 'update_record': return this.updateRecord(tx, schemas.update_record.parse(parsed), userId);
           case 'get_record': {
@@ -369,8 +398,8 @@ export class Application {
     if (['list_field_schemas','get_time_zone_catalog', 'configure_user_localization', 'get_language_catalog', 'get_access_context', 'list_workspaces',  'set_user_profile'].includes(operation)) return { isAdmin: false };
     if(['get_foreign_access','configure_foreign_access'].includes(operation)){await foreignAccessView(tx,String(args.workspaceId),actor);return {isAdmin:false};}
     if(['get_foreign_access','configure_foreign_access','configure_group_inheritance','get_content_permissions','configure_content_permissions'].includes(operation))throw new AppError(403,'Only Administrators manage content permissions');
-    const contentOperations=['get_record_duplicate','duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
-    if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||(['get_record_relationships','get_primary_chain_context','search_relationship_candidates'].includes(operation)&&!args.recordId)?'create':operation==='update_record'?'edit':operation==='configure_record_security'?'full':['duplicate_record','get_record_duplicate'].includes(operation)?'duplicate':'read');return {isAdmin:false};}
+    const contentOperations=['get_contact_conversion_preview','convert_contact','get_record_duplicate','duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
+    if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||(['get_record_relationships','get_primary_chain_context','search_relationship_candidates'].includes(operation)&&!args.recordId)?'create':operation==='update_record'?'edit':['configure_record_security','get_contact_conversion_preview','convert_contact'].includes(operation)?'full':['duplicate_record','get_record_duplicate'].includes(operation)?'duplicate':'read');return {isAdmin:false};}
     if(['list_recycled_records','get_workspace_dashboard','list_workspace_records','search_workspace'].includes(operation)){if(!(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${args.workspaceId}::uuid AND user_id=${actor}`.execute(tx)).rows.length)throw new AppError(403,'Access denied');return {isAdmin:false};}
     // Other instance operations remain Administrator-only.
     if (['get_primary_chain_context', 'get_relationship_tree_branch', 'get_record_relationships', 'search_relationship_candidates', 'list_record_journal', 'get_workspace_dashboard', 'list_workspace_records', 'list_managed_users', 'create_user', 'configure_user', 'list_system_journal',  'set_group_active', 'create_workspace', 'list_users', 'set_workspace_member', 'search_workspace', 'list_records', 'get_record',  'create_record', 'update_record'].includes(operation)) throw new AppError(403, 'Access denied');
@@ -432,11 +461,6 @@ export class Application {
     return left.id === right.id || (['type', 'status'].includes(left.technical_name) && ['type', 'status'].includes(right.technical_name));
   }
 
-  private effectiveClassification<T extends { type: ClassificationConfig['type']; status: ClassificationConfig['status']; category: ClassificationConfig['category']; options: ClassificationConfig['options'] }>(config: T, fields: Pick<Field, 'technical_name' | 'state'>[]): T {
-    const active = (kind: string) => fields.some(field => field.technical_name === kind && field.state === 'active');
-    return { ...config, type: active('type') ? config.type : { required: false, defaultId: null }, status: active('status') ? config.status : { required: false, defaults: [] }, category: active('category') ? config.category : { required: false, multiple: true, defaultIds: [] } };
-  }
-
   private async objectUsed(tx: Executor, type: ObjectType) {
     if ((await sql`SELECT 1 FROM ${sql.table(tableName(type))} LIMIT 1`.execute(tx)).rows.length) return true;
     return Boolean((await sql`SELECT 1 FROM sys_journal WHERE object_type_id = ${type.id}::uuid AND entity_kind = 'record' LIMIT 1`.execute(tx)).rows.length);
@@ -462,7 +486,7 @@ export class Application {
         await validateReferences(tx, field, value, type.workspace_id, record[field.technical_name]);
       }
       const choices: Choices = { type: (record.type??null) as string|null, status: (record.status??null) as string|null, category: (record.category??[]) as string[] };
-      validateChoices(this.effectiveClassification(type.classification, fields), choices, choices);
+      validateChoices(effectiveClassification(type.classification, fields), choices, choices);
     }
   }
 
@@ -688,13 +712,6 @@ export class Application {
           await this.journal(tx,actor,workspaceId,type.id,'field',keyword.id,v7(),'value_mode','stored','derived',keyword.id);
         }
       }
-      if(proposal.key==='contact'&&!(await sql`SELECT 1 FROM sys_module_field_bindings WHERE workspace_id=${workspaceId}::uuid AND object_key='contact' AND field_key='contact_type'`.execute(tx)).rows.length){
-        const field=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${type.id}::uuid AND technical_name='type' AND state<>'deleted'`.execute(tx)).rows[0];
-        if(field){const latest=await this.objectType(tx,type.id),association=v7();
-          await this.configureClassification(tx,{objectTypeId:type.id,version:latest.classification.version,config:{...latest.classification,options:[...latest.classification.options,{id:association,kind:'type',typeId:null,active:true,labels:{en:'Association',de:'Verein'}}]}},actor);
-          await sql`INSERT INTO sys_module_field_bindings VALUES(${workspaceId}::uuid,'contact','contact_type',${field.id}::uuid,'{}'::jsonb)`.execute(tx);
-        }
-      }
       if(freshObjects.has(type.id)&&['project','case','task'].includes(proposal.key)){
         const meanings=['open','in_progress','done','canceled'] as const,english=['Open','In progress','Done','Canceled'],german=['Offen','In Arbeit','Erledigt','Abgebrochen'];
         await this.configureClassification(tx,{objectTypeId:type.id,version:type.classification.version,config:{type:{required:false,defaultId:null},status:{required:false,defaults:[]},category:{required:false,multiple:true,defaultIds:[]},options:meanings.map((meaning,index)=>({id:v7(),kind:'status' as const,typeId:null,active:true,labels:{en:english[index],de:german[index]},...(proposal.key==='task'?{meaning}:{})}))}},actor);
@@ -839,7 +856,7 @@ export class Application {
       activity:await isActivityObject(tx,type.id),
       classification: { ...type.classification, options: type.classification.options.map(option => ({ ...option, label: localizedLabel(option.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language), canDelete: option.kind !== 'category' && !used.has(option.id) })) },
       labels: type.labels, label: localizedLabel(type.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language),
-      fields: await Promise.all(fields.filter(f => f.state !== 'deleted'&&(f.technical_name!=='access_principals'||(type as ObjectType & {is_sensitive:boolean}).is_sensitive)).map(async f => ({ isDerived:f.value_mode==='derived',fieldPermissions:f.value_mode==='derived'?{...(await contentAccess().policy(type.id)).field(f.id),edit:false,create:false}:f.technical_name==='access_principals'?{read:(await contentAccess().policy(type.id)).capabilities.read,edit:(await contentAccess().policy(type.id)).capabilities.full}:{...(await contentAccess().policy(type.id)).field(f.id),create:(await contentAccess().policy(type.id)).creationField(f.id)},description:localizedLabel(f.input_rules.description,effectiveWorkspaceLanguage(user.language as Language,type.available_languages,type.default_language as Language),type.default_language)??'',helpText:localizedLabel(f.input_rules.helpText,effectiveWorkspaceLanguage(user.language as Language,type.available_languages,type.default_language as Language),type.default_language)??'',inputRules:f.input_rules,applicability: f.applicability??null, version: f.version, id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, isProtected: f.is_protected || fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected),
+      fields: await Promise.all(fields.filter(f => f.state !== 'deleted'&&(f.technical_name!=='access_principals'||(type as ObjectType & {is_sensitive:boolean}).is_sensitive)).map(async f => ({ isDerived:f.value_mode==='derived',fieldPermissions:f.value_mode==='derived'?{...(await contentAccess().policy(type.id)).field(f.id),edit:false,create:inheritedContactFields.includes(f.technical_name as typeof inheritedContactFields[number])&&(await contentAccess().policy(type.id)).creationField(f.id)}:f.technical_name==='access_principals'?{read:(await contentAccess().policy(type.id)).capabilities.read,edit:(await contentAccess().policy(type.id)).capabilities.full}:{...(await contentAccess().policy(type.id)).field(f.id),create:(await contentAccess().policy(type.id)).creationField(f.id)},description:localizedLabel(f.input_rules.description,effectiveWorkspaceLanguage(user.language as Language,type.available_languages,type.default_language as Language),type.default_language)??'',helpText:localizedLabel(f.input_rules.helpText,effectiveWorkspaceLanguage(user.language as Language,type.available_languages,type.default_language as Language),type.default_language)??'',inputRules:f.input_rules,applicability: f.applicability??null, version: f.version, id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, isProtected: f.is_protected || fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected),
         canDelete: !fields.some(item => item.state !== 'deleted' && this.sameFieldGroup(f, item) && item.is_protected) && !(await this.fieldGroupUsed(tx, type, fields.filter(item => item.state !== 'deleted' && this.sameFieldGroup(f, item)))),
         required: isCustomFieldKind(f.kind) ? f.required : type.classification[f.kind as 'type' | 'status' | 'category'].required, labels: f.labels, label: localizedLabel(f.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language) }))),
       historicalFields: fields.filter(f => f.state === 'deleted').map(f => ({ description:localizedLabel(f.input_rules.description,effectiveWorkspaceLanguage(user.language as Language,type.available_languages,type.default_language as Language),type.default_language)??'',helpText:localizedLabel(f.input_rules.helpText,effectiveWorkspaceLanguage(user.language as Language,type.available_languages,type.default_language as Language),type.default_language)??'',inputRules:f.input_rules,applicability: f.applicability??null, version: f.version, id: f.id, technicalName: f.technical_name, kind: f.kind, config: f.config, state: f.state, required: f.required, labels: f.labels, label: localizedLabel(f.labels, effectiveWorkspaceLanguage(user.language as Language, type.available_languages, type.default_language as Language), type.default_language) })),
@@ -945,7 +962,7 @@ export class Application {
     if (newIds.length && (await sql`SELECT 1 FROM sys_journal WHERE entity_kind = 'classification_option' AND entity_id = ANY(${newIds}::uuid[]) LIMIT 1`.execute(tx)).rows.length) throw new AppError(400, 'Option identity was already used');
     const records = (await sql<Choices&{id:string}>`SELECT id, ${available.some(field => field.technical_name === 'type') ? sql`type` : sql`NULL::uuid`} AS type, ${available.some(field => field.technical_name === 'status') ? sql`status` : sql`NULL::uuid`} AS status, ${available.some(field => field.technical_name === 'category') ? sql`category` : sql`'{}'::uuid[]`} AS category FROM ${sql.table(tableName(type))}`.execute(tx)).rows;
     for (const record of records){
-      const next=resolveChoices(this.effectiveClassification(args.config,available),record,record);
+      const next=resolveChoices(effectiveClassification(args.config,available),record,record);
       if(!isDeepStrictEqual(next.category,record.category)){
         await sql`UPDATE ${sql.table(tableName(type))} SET category=${next.category}::uuid[],version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${record.id}::uuid`.execute(tx);
         await this.journal(tx,actor,type.workspace_id,type.id,'record',record.id,changeId,'category',record.category,next.category,available.find(field=>field.technical_name==='category')!.id);
@@ -1110,10 +1127,10 @@ export class Application {
   private async duplicateDraft(tx:Executor,type:ObjectType,source:DataRecord,recordId:string) {
             const policy=await contentAccess().policy(type.id),fields=await this.fields(tx,type,{});const values:Record<string,FieldValue>={};for(const f of fields)if(f.state==='active'&&f.value_mode!=='derived'&&isCustomFieldKind(f.kind)&&!['keyword','access_principals','record_number'].includes(f.technical_name)&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))values[f.technical_name]=source[f.technical_name] as FieldValue;
             const classification=Object.fromEntries(['type','status','category'].filter(key=>fields.some(f=>f.technical_name===key&&policy.field(f.id,recordId).read&&policy.creationField(f.id))).map(key=>[key,source[key]]));
-    return {sourceVersion:source.version,values,classification,...(fields.some(f=>f.technical_name==='keyword'&&f.value_mode!=='derived'&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))?{keyword:source.keyword}:{})};
+    return {contactInheritance:(await contactInheritance(tx,type.id,recordId)).filter(f=>f.mode==='own'&&policy.creationField(f.fieldId)).map(f=>({fieldId:f.fieldId,mode:'own' as const,value:f.value})),sourceVersion:source.version,values,classification,...(fields.some(f=>f.technical_name==='keyword'&&f.value_mode!=='derived'&&!f.input_rules?.unique&&policy.field(f.id,recordId).read&&policy.creationField(f.id))?{keyword:source.keyword}:{})};
   }
 
-  private async createRecord(tx: Executor, args: z.infer<typeof schemas.create_record>, actor: string) {
+  private async createRecord(tx: Executor, args: z.infer<typeof schemas.create_record>, actor: string, changeId?:string) {
     const type = await this.objectType(tx, args.objectTypeId);
     if(args.duplicateFrom){await contentAccess().require(type.id,args.duplicateFrom.recordId,'duplicate');const source=await this.record(tx,type,args.duplicateFrom.recordId);if(source.version!==args.duplicateFrom.version)throw new AppError(409,'Record version conflict');}
     const fields = await this.fields(tx, type, args.values);
@@ -1121,7 +1138,7 @@ export class Application {
     const policy=await contentAccess().require(type.id,undefined,'create');
     await contentAccess().checkWrites(type.id,{...args.values,...args.classification,...(args.keyword!==undefined?{keyword:args.keyword}:{})});
     const id = v7();
-    const choices = resolveChoices(this.effectiveClassification(type.classification, fields), args.classification);
+    const choices = resolveChoices(effectiveClassification(type.classification, fields), args.classification);
     const data: Record<string, FieldValue> = { ...args.values, ...Object.fromEntries(Object.entries(choices).filter(([key]) => fields.some(field => field.state === 'active' && field.technical_name === key))), ...(fields.some(field => field.state === 'active' && field.technical_name === 'keyword') ? { keyword: args.keyword ?? '' } : {}) };
     for(const field of fields.filter(f=>f.state==='active'&&!f.applicability&&isCustomFieldKind(f.kind)&&Object.hasOwn(data,f.technical_name)))data[field.technical_name]=normalizeFieldValue({...field,required:false},data[field.technical_name]);
     const suppliedNames=new Set([...Object.keys(args.values),...Object.keys(args.classification),...(args.keyword===undefined?[]:['keyword'])]);
@@ -1142,13 +1159,14 @@ export class Application {
     const params = [id, actor, actor, ...Object.entries(data).map(([key, value]) => storedParameter(fields.find(field => field.technical_name === key)!, value))];
     await sql`INSERT INTO ${sql.table(tableName(type))} (${sql.join(columns.map(n => sql.ref(n)))})
       VALUES (${sql.join(params)})`.execute(tx);
-    const change = v7();
+    const change = changeId ?? v7();
     const journalFields = Object.entries(data).filter(([key, value]) => !['type', 'status', 'category'].includes(key) || (value !== null && (!Array.isArray(value) || value.length)));
     if (!journalFields.length) await this.journal(tx, actor, type.workspace_id, type.id, 'record', id, change, 'created', null, true);
     for (const [key, value] of journalFields) await this.journal(tx, actor, type.workspace_id, type.id, 'record', id, change, key, null, value, fields.find(f => f.technical_name === key)!.id);
     await initializeRecordSecurity(tx,type.id,id,actor,args.security,(_change,key,before,after,field)=>this.journal(tx,actor,type.workspace_id,type.id,'record',id,change,key,before,after,field));
     const relationships=args.linkFrom?await linkedRecordWrites(tx,type.id,args.linkFrom,args.relationships):args.relationships;
     await writeRecordRelationships(tx,type.id,id,relationships,actor,change,true,true,args.relationshipAttributes);
+    await writeContactInheritance(tx,type.id,id,args.contactInheritance,(key,before,after,field)=>this.journal(tx,actor,type.workspace_id,type.id,'record',id,change,key,before,after,field),true);
     return contentAccess().project(type.id,await this.record(tx, type, id));
   }
 
@@ -1163,7 +1181,7 @@ export class Application {
     if(restore){
       const fields=await this.fields(tx,type,{});
       await this.normalizeRecordFields(tx,type,fields.filter(f=>f.technical_name!=='access_principals'),{},row);
-      resolveChoices(this.effectiveClassification(type.classification,fields),{},row as unknown as Choices);
+      resolveChoices(effectiveClassification(type.classification,fields),{},row as unknown as Choices);
       await validateContact(tx,type.id,row);
       await validateWork(tx,type.id,row,type.classification);
       await validateRestoredRelationships(tx,type.id,args.recordId);
@@ -1175,7 +1193,7 @@ export class Application {
     return {id:args.recordId,version:row.version+1};
   }
 
-  private async updateRecord(tx: Executor, args: z.infer<typeof schemas.update_record>, actor: string) {
+  private async updateRecord(tx: Executor, args: z.infer<typeof schemas.update_record>, actor: string, conversion?:{changeId:string;relationshipBefore?:RelationshipJournalSnapshots}) {
     const type = await this.objectType(tx, args.objectTypeId);
     const fields = await this.fields(tx, type, args.values);
     this.checkStandardValues(fields, args.keyword, args.classification);
@@ -1184,18 +1202,19 @@ export class Application {
     await contentAccess().checkWrites(type.id,{...args.values,...args.classification,...(args.keyword!==undefined?{keyword:args.keyword}:{})},previous);
     if (previous.version !== args.version) throw new AppError(409, 'Record version conflict');
     if(args.security)await contentAccess().require(type.id,args.recordId,'full');
-    const choices = resolveChoices(this.effectiveClassification(type.classification, fields), args.classification, previous as unknown as Choices);
+    const choices = resolveChoices(effectiveClassification(type.classification, fields), args.classification, previous as unknown as Choices);
     const data: Record<string, FieldValue> = { ...args.values, ...Object.fromEntries(Object.entries(choices).filter(([key]) => fields.some(field => field.state === 'active' && field.technical_name === key))) };
     if (args.keyword !== undefined) data.keyword = args.keyword;
     await this.checkRequiredPermissions(type,fields,data,previous);
     await this.normalizeRecordFields(tx, type, fields, data, previous);
     const profile=await contactProfile(tx,type.id),kind=fields.find(f=>f.id===profile?.fields.contact_kind);
-    if(kind&&data[kind.technical_name]!==undefined&&!isDeepStrictEqual(data[kind.technical_name],previous[kind.technical_name]))throw new AppError(400,'Contact kind cannot be changed after creation',{code:'contactKindImmutable',fieldId:kind.id});
+    if(!conversion&&kind&&data[kind.technical_name]!==undefined&&!isDeepStrictEqual(data[kind.technical_name],previous[kind.technical_name]))throw new AppError(400,'Contact kind cannot be changed after creation',{code:'contactKindImmutable',fieldId:kind.id});
     await validateContact(tx,type.id,{...previous,...data});
     await validateWork(tx,type.id,{...previous,...data},type.classification);
     const changed = Object.entries(data).filter(([key, value]) => !isDeepStrictEqual(previous[key], value));
     await contentAccess().checkWrites(type.id,Object.fromEntries(changed),previous);
-    const change = v7();
+    const relationshipBefore=conversion?.relationshipBefore??await captureRelationshipJournalBefore(tx,type.id,args.recordId,args.relationships);
+    const change = conversion?.changeId ?? v7();
     if(changed.length){
     const assignments = changed.map(([key, value]) => sql`${sql.ref(key)} = ${storedParameter(fields.find(field => field.technical_name === key)!, value)}`);
     await sql`UPDATE ${sql.table(tableName(type))} SET ${sql.join(assignments)},
@@ -1204,10 +1223,12 @@ export class Application {
     contentAccess().clear();
     for (const [key, value] of changed) await this.journal(tx, actor, type.workspace_id, type.id, 'record', args.recordId, change, key, previous[key], value, fields.find(f => f.technical_name === key)!.id);
     }
-    const linksChanged=await writeRecordRelationships(tx,type.id,args.recordId,args.relationships,actor,change,changed.length>0,false,args.relationshipAttributes);
+    const linksChanged=await writeRecordRelationships(tx,type.id,args.recordId,args.relationships,actor,change,changed.length>0,false,args.relationshipAttributes,relationshipBefore);
+    const inheritanceChanged=await writeContactInheritance(tx,type.id,args.recordId,args.contactInheritance,(key,before,after,field)=>this.journal(tx,actor,type.workspace_id,type.id,'record',args.recordId,change,key,before,after,field));
+    if(inheritanceChanged&&!changed.length&&!linksChanged)await sql`UPDATE ${sql.table(tableName(type))} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${args.recordId}::uuid`.execute(tx);
     if(args.security){
       const policyChanged=await writeRecordSecurity(tx,{objectTypeId:type.id,recordId:args.recordId,...args.security},(_change,key,before,after,field)=>this.journal(tx,actor,type.workspace_id,type.id,'record',args.recordId,change,key,before,after,field));
-      if(policyChanged&&!changed.length&&!linksChanged)await sql`UPDATE ${sql.table(tableName(type))} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${args.recordId}::uuid`.execute(tx);
+      if(policyChanged&&!changed.length&&!linksChanged&&!inheritanceChanged)await sql`UPDATE ${sql.table(tableName(type))} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${args.recordId}::uuid`.execute(tx);
     }
     return contentAccess().project(type.id,await this.record(tx, type, args.recordId));
   }

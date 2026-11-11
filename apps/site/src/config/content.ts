@@ -96,7 +96,7 @@ export const content = {
       ],
       [
         "What is planned next?",
-        "Version 2 is planned to add personal column order and widths; Documents & Communication with documents, emails, phone calls, uploads, attachments and file versioning; guided contact-kind changes; contact reassignment, duplicate detection and merging; and Previous/Next record navigation. Standards-based synchronization, SSO and native clients remain later goals without a version assignment. The roadmap has no committed delivery dates.",
+        "Community 1.2.0 is planned to add guided contact-kind changes and Contact-person field inheritance with individual exceptions. Version 2 is planned to add personal column order and widths; Documents & Communication with documents, emails, phone calls, uploads, attachments and file versioning; contact reassignment, duplicate detection and merging; and Previous/Next record navigation. Standards-based synchronization, SSO and native clients remain later goals without a version assignment. The roadmap has no committed delivery dates.",
       ],
     ],
     screenshots:
@@ -210,7 +210,7 @@ export const content = {
       ],
       [
         "Was kommt später?",
-        "Für V2 sind persönliche Spaltenreihenfolge und -breiten, Dokumente & Kommunikation mit Dokumenten, E-Mails, Telefonaten, Uploads, Anhängen und Dateiversionierung, geführte Kontaktart-Änderungen, Kontaktpflege mit Neuzuordnung, Dublettenerkennung und Zusammenführen sowie Vor-/Zurückblättern zwischen Datensätzen vorgesehen. Standardbasierte Synchronisation, SSO und native Clients bleiben spätere Ziele ohne Versionszuordnung. Es gibt keine zugesagten Liefertermine.",
+        "Für Community 1.2.0 sind geführte Kontaktart-Änderungen und die Feldvererbung bei Ansprechpartnern mit individuellen Ausnahmen vorgesehen. Für V2 sind persönliche Spaltenreihenfolge und -breiten, Dokumente & Kommunikation mit Dokumenten, E-Mails, Telefonaten, Uploads, Anhängen und Dateiversionierung, Kontaktpflege mit Neuzuordnung, Dublettenerkennung und Zusammenführen sowie Vor-/Zurückblättern zwischen Datensätzen vorgesehen. Standardbasierte Synchronisation, SSO und native Clients bleiben spätere Ziele ohne Versionszuordnung. Es gibt keine zugesagten Liefertermine.",
       ],
     ],
     screenshots:

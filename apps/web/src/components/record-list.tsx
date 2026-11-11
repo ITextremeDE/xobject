@@ -1,3 +1,4 @@
+import {fieldContextLabel} from '@/lib/field-context-label';
 import {ClassificationFiltersBar} from './classification-filters';
 import {readClassificationFilters,classificationFilterQuery} from '@/lib/classification-filters';
 import {RecordIcon} from './record-icon';
@@ -59,7 +60,7 @@ export function RecordList({ definition, selectedRecord, basePath, disabled }: {
     ...classifications.map(kind => ({ key: kind, label: t(kind === 'type' ? 'classificationType' : kind === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: DataRecord) => displayClassification(definition.classification, kind, row[kind]) })),
     { key: 'created_at', label: t('createdAt'), cell: row => formatRegionalDate(row.created_at, regional, timeZone) },
     { key: 'updated_at', label: t('updated'), cell: row => formatRegionalDate(row.updated_at, regional, timeZone) },
-    ...fields.map(field => ({ key: field.technicalName, label: field.label, sortable: field.kind!=='structured'&&field.technicalName !== 'access_principals', cell: (row: DataRecord) => field.technicalName === 'access_principals' && Array.isArray(row.access_principals) && !row.access_principals.length ? t('workspacePublic') : displayFieldValue(field, row[field.technicalName], i18n.language, t, principals.data, timeZone, regional) })),
+    ...fields.map(field => ({ key: field.technicalName, label: fieldContextLabel(field,definition,t), sortable: field.kind!=='structured'&&field.technicalName !== 'access_principals', cell: (row: DataRecord) => field.technicalName === 'access_principals' && Array.isArray(row.access_principals) && !row.access_principals.length ? t('workspacePublic') : displayFieldValue(field, row[field.technicalName], i18n.language, t, principals.data, timeZone, regional) })),
   ];
   const {hidden,toggle}=useColumnPreferences(`objects:${definition.workspaceId}:${definition.id}`,columns,fields.map(field=>field.technicalName));
   const inactive = Boolean(definition.state && definition.state !== 'active');

@@ -2706,6 +2706,19 @@
                       },
                       "type": "object"
                     },
+                    "contactInheritance": {
+                      "items": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/_fieldId_string_mode_own_value_string_null_"
+                          },
+                          {
+                            "$ref": "#/components/schemas/_fieldId_string_mode_inherit_confirmReset_boolean_undefined_"
+                          }
+                        ]
+                      },
+                      "type": "array"
+                    },
                     "keyword": {
                       "type": "string"
                     },
@@ -11269,7 +11282,7 @@
                 "schema": {
                   "properties": {
                     "appearance": {
-                      "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_"
+                      "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inherit_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_"
                     },
                     "version": {
                       "type": "number"
@@ -11562,6 +11575,276 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ObjectDefinition"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/get_contact_conversion_preview": {
+      "post": {
+        "operationId": "get_contact_conversion_preview",
+        "summary": "get contact conversion preview",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-XObject-API-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "name": "X-XObject-Request",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for cookie-authenticated requests."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input_get_contact_conversion_preview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation-specific result. Additional response fields may be introduced.",
+            "headers": {
+              "X-XObject-API-Version": {
+                "schema": {
+                  "type": "string",
+                  "const": "1.0.0"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/contact-workflows.ContactConversionPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/convert_contact": {
+      "post": {
+        "operationId": "convert_contact",
+        "summary": "convert contact",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-XObject-API-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "name": "X-XObject-Request",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for cookie-authenticated requests."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input_convert_contact"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation-specific result. Additional response fields may be introduced.",
+            "headers": {
+              "X-XObject-API-Version": {
+                "schema": {
+                  "type": "string",
+                  "const": "1.0.0"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/contact-workflows.ContactConversionResult"
                 }
               }
             }
@@ -12396,6 +12679,261 @@
         ],
         "type": "object"
       },
+      "contact-workflows.ContactConversionChange": {
+        "properties": {
+          "beforeValues": {
+            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+          },
+          "from": {
+            "type": "string"
+          },
+          "inheritance": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/_fieldId_string_mode_own_value_string_null_"
+                },
+                {
+                  "$ref": "#/components/schemas/_fieldId_string_mode_inherit_confirmReset_boolean_undefined_"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "keyword": {
+            "type": "string"
+          },
+          "organizationLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "sourceInheritance": {
+            "items": {
+              "$ref": "#/components/schemas/contact-workflows.ContactInheritanceField"
+            },
+            "type": "array"
+          },
+          "targetInheritance": {
+            "items": {
+              "properties": {
+                "fieldId": {
+                  "type": "string"
+                },
+                "mode": {
+                  "enum": [
+                    "inherit",
+                    "own"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "fieldId",
+                "mode",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "targetKeyword": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "values": {
+            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+          },
+          "version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "beforeValues",
+          "from",
+          "inheritance",
+          "keyword",
+          "organizationLabel",
+          "recordId",
+          "sourceInheritance",
+          "targetInheritance",
+          "targetKeyword",
+          "to",
+          "values",
+          "version"
+        ],
+        "type": "object"
+      },
+      "contact-workflows.ContactConversionPreview": {
+        "properties": {
+          "action": {
+            "enum": [
+              "dissolve_organization",
+              "existing_organization",
+              "individual",
+              "new_organization"
+            ],
+            "type": "string"
+          },
+          "canExecute": {
+            "type": "boolean"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/contact-workflows.ContactConversionChange"
+            },
+            "type": "array"
+          },
+          "issues": {
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "fieldId": {
+                  "type": "string"
+                },
+                "recordId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "organizationClassification": {
+            "properties": {
+              "category": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "status": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "type": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "category",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "organizationValues": {
+            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+          },
+          "previewToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "canExecute",
+          "changes",
+          "issues",
+          "organizationValues",
+          "previewToken"
+        ],
+        "type": "object"
+      },
+      "contact-workflows.ContactConversionResult": {
+        "properties": {
+          "organization": {
+            "$ref": "#/components/schemas/DataRecord"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/DataRecord"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "type": "object"
+      },
+      "contact-workflows.ContactInheritanceField": {
+        "properties": {
+          "canEdit": {
+            "type": "boolean"
+          },
+          "fieldId": {
+            "type": "string"
+          },
+          "inheritedValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mode": {
+            "enum": [
+              "inherit",
+              "own"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "properties": {
+              "keyword": {
+                "type": "string"
+              },
+              "recordId": {
+                "type": "string"
+              },
+              "version": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "keyword",
+              "recordId",
+              "version"
+            ],
+            "type": "object"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "canEdit",
+          "fieldId",
+          "inheritedValue",
+          "mode",
+          "value"
+        ],
+        "type": "object"
+      },
       "content-permissions.ContentCapabilities": {
         "properties": {
           "create": {
@@ -12721,6 +13259,12 @@
               "type": "array"
             },
             {
+              "items": {
+                "$ref": "#/components/schemas/contact-workflows.ContactInheritanceField"
+              },
+              "type": "array"
+            },
+            {
               "$ref": "#/components/schemas/ownership.AccessExplanation"
             },
             {
@@ -12758,6 +13302,12 @@
           "category": {
             "items": {
               "type": "string"
+            },
+            "type": "array"
+          },
+          "contactInheritance": {
+            "items": {
+              "$ref": "#/components/schemas/contact-workflows.ContactInheritanceField"
             },
             "type": "array"
           },
@@ -14022,7 +14572,7 @@
       "Workspace": {
         "properties": {
           "appearance": {
-            "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_"
+            "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inherit_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_"
           },
           "appearance_version": {
             "type": "number"
@@ -14800,6 +15350,12 @@
           "recordId": {
             "type": "string"
           },
+          "recordNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "state": {
             "enum": [
               "active",
@@ -14974,6 +15530,12 @@
           },
           "recordId": {
             "type": "string"
+          },
+          "recordNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "state": {
             "enum": [
@@ -15364,7 +15926,7 @@
         ],
         "type": "object"
       },
-      "_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_": {
+      "_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inherit_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_": {
         "properties": {
           "baseColor": {
             "enum": [
@@ -15807,6 +16369,48 @@
           "restart",
           "start",
           "suffix"
+        ],
+        "type": "object"
+      },
+      "_fieldId_string_mode_inherit_confirmReset_boolean_undefined_": {
+        "properties": {
+          "confirmReset": {
+            "type": "boolean"
+          },
+          "fieldId": {
+            "type": "string"
+          },
+          "mode": {
+            "const": "inherit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldId",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "_fieldId_string_mode_own_value_string_null_": {
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "mode": {
+            "const": "own",
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "fieldId",
+          "mode",
+          "value"
         ],
         "type": "object"
       },
@@ -25525,9 +26129,2714 @@
         ],
         "additionalProperties": false
       },
+      "Input_get_contact_conversion_preview": {
+        "type": "object",
+        "properties": {
+          "objectTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "new_organization",
+              "existing_organization",
+              "individual",
+              "dissolve_organization"
+            ]
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationValues": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "currency": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{3}$"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "group"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "date"
+                            },
+                            "date": {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "date"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "instant"
+                            },
+                            "instant": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "instant"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "zoned"
+                            },
+                            "local": {
+                              "type": "string",
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
+                            },
+                            "timeZone": {
+                              "type": "string",
+                              "maxLength": 100
+                            },
+                            "occurrence": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "earlier",
+                                    "later"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "local",
+                            "timeZone",
+                            "occurrence"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "language": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "language",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "text": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "text"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "format": "email",
+                            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 100,
+                            "pattern": "^\\+[\\d ()-]+$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 2000,
+                            "format": "uri"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "address": {
+                            "type": "object",
+                            "properties": {
+                              "poBox": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "extended": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "streetLines": {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                }
+                              },
+                              "houseNumber": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "postalCode": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "locality": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "region": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "country": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "formatted": {
+                                "type": "string",
+                                "maxLength": 2000
+                              }
+                            },
+                            "required": [
+                              "poBox",
+                              "extended",
+                              "streetLines",
+                              "houseNumber",
+                              "postalCode",
+                              "locality",
+                              "region",
+                              "country",
+                              "formatted"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "address"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        },
+                        "day": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        },
+                        "year": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9999
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "month",
+                        "day",
+                        "year"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "timeZone": {
+                          "type": "string",
+                          "maxLength": 100
+                        }
+                      },
+                      "required": [
+                        "timeZone"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "group"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "organizationClassification": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "category": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "contactValues": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "currency"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "group"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "date"
+                              },
+                              "date": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "date"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "instant"
+                              },
+                              "instant": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "instant"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "zoned"
+                              },
+                              "local": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
+                              },
+                              "timeZone": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "occurrence": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "earlier",
+                                      "later"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "local",
+                              "timeZone",
+                              "occurrence"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "language": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "language",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "text"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 1000,
+                              "format": "email",
+                              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 100,
+                              "pattern": "^\\+[\\d ()-]+$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 2000,
+                              "format": "uri"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "address": {
+                              "type": "object",
+                              "properties": {
+                                "poBox": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "extended": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "streetLines": {
+                                  "maxItems": 20,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  }
+                                },
+                                "houseNumber": {
+                                  "type": "string",
+                                  "maxLength": 100
+                                },
+                                "postalCode": {
+                                  "type": "string",
+                                  "maxLength": 100
+                                },
+                                "locality": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "region": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "country": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "formatted": {
+                                  "type": "string",
+                                  "maxLength": 2000
+                                }
+                              },
+                              "required": [
+                                "poBox",
+                                "extended",
+                                "streetLines",
+                                "houseNumber",
+                                "postalCode",
+                                "locality",
+                                "region",
+                                "country",
+                                "formatted"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "address"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "month": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 12
+                          },
+                          "day": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 31
+                          },
+                          "year": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9999
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "month",
+                          "day",
+                          "year"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "timeZone": {
+                            "type": "string",
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "timeZone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "group"
+                              ]
+                            },
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "objectTypeId",
+          "recordId",
+          "version",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "Input_convert_contact": {
+        "type": "object",
+        "properties": {
+          "objectTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "new_organization",
+              "existing_organization",
+              "individual",
+              "dissolve_organization"
+            ]
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationValues": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "currency": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{3}$"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "group"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "date"
+                            },
+                            "date": {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "date"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "instant"
+                            },
+                            "instant": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "instant"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "zoned"
+                            },
+                            "local": {
+                              "type": "string",
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
+                            },
+                            "timeZone": {
+                              "type": "string",
+                              "maxLength": 100
+                            },
+                            "occurrence": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "earlier",
+                                    "later"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "local",
+                            "timeZone",
+                            "occurrence"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "language": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "language",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "text": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "text"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "format": "email",
+                            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 100,
+                            "pattern": "^\\+[\\d ()-]+$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 2000,
+                            "format": "uri"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "address": {
+                            "type": "object",
+                            "properties": {
+                              "poBox": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "extended": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "streetLines": {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                }
+                              },
+                              "houseNumber": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "postalCode": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "locality": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "region": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "country": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "formatted": {
+                                "type": "string",
+                                "maxLength": 2000
+                              }
+                            },
+                            "required": [
+                              "poBox",
+                              "extended",
+                              "streetLines",
+                              "houseNumber",
+                              "postalCode",
+                              "locality",
+                              "region",
+                              "country",
+                              "formatted"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "address"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        },
+                        "day": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        },
+                        "year": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9999
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "month",
+                        "day",
+                        "year"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "contexts": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "preference": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contexts",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "timeZone": {
+                          "type": "string",
+                          "maxLength": 100
+                        }
+                      },
+                      "required": [
+                        "timeZone"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "group"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "organizationClassification": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "category": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "contactValues": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "currency"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "group"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "date"
+                              },
+                              "date": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "date"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "instant"
+                              },
+                              "instant": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "instant"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "zoned"
+                              },
+                              "local": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
+                              },
+                              "timeZone": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "occurrence": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "earlier",
+                                      "later"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "local",
+                              "timeZone",
+                              "occurrence"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "language": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "language",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "text"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 1000,
+                              "format": "email",
+                              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 100,
+                              "pattern": "^\\+[\\d ()-]+$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 2000,
+                              "format": "uri"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "address": {
+                              "type": "object",
+                              "properties": {
+                                "poBox": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "extended": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "streetLines": {
+                                  "maxItems": 20,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  }
+                                },
+                                "houseNumber": {
+                                  "type": "string",
+                                  "maxLength": 100
+                                },
+                                "postalCode": {
+                                  "type": "string",
+                                  "maxLength": 100
+                                },
+                                "locality": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "region": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "country": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "formatted": {
+                                  "type": "string",
+                                  "maxLength": 2000
+                                }
+                              },
+                              "required": [
+                                "poBox",
+                                "extended",
+                                "streetLines",
+                                "houseNumber",
+                                "postalCode",
+                                "locality",
+                                "region",
+                                "country",
+                                "formatted"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "address"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "month": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 12
+                          },
+                          "day": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 31
+                          },
+                          "year": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9999
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "month",
+                          "day",
+                          "year"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "contexts": {
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "preference": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "contexts",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "timeZone": {
+                            "type": "string",
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "timeZone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "group"
+                              ]
+                            },
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "objectTypeId",
+          "recordId",
+          "version",
+          "action",
+          "previewToken",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
       "Input_create_record": {
         "type": "object",
         "properties": {
+          "contactInheritance": {
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "fieldId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "const": "own"
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "fieldId",
+                    "mode",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fieldId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "const": "inherit"
+                    },
+                    "confirmReset": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "fieldId",
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
           "objectTypeId": {
             "type": "string",
             "format": "uuid",
@@ -27146,6 +30455,67 @@
       "Input_update_record": {
         "type": "object",
         "properties": {
+          "contactInheritance": {
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "fieldId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "const": "own"
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "fieldId",
+                    "mode",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fieldId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "const": "inherit"
+                    },
+                    "confirmReset": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "fieldId",
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
           "security": {
             "type": "object",
             "properties": {
