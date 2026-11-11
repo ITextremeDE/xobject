@@ -30,7 +30,9 @@ export function emptyCustomValue(value: unknown): boolean {
 }
 const optionName = (labels: Record<string, string>, language: string) => labels[language] ?? labels.en ?? labels.de ?? Object.values(labels)[0] ?? '—';
 export {displayFieldValue} from '@/lib/field-display';
-export function CustomFieldControl({ field, value, workspaceId, objectTypeId, disabled, onChange,error,legendVariant,labelHidden=false,inline=false,unit }: { inline?:boolean;unit?:string;labelHidden?:boolean;legendVariant?:'legend'|'label';error?:string;field: FieldDefinition; value: FieldValue; workspaceId: string; objectTypeId?:string; disabled: boolean; onChange: (value: FieldValue) => void }) {
+export function CustomFieldControl({ field, value, workspaceId, objectTypeId, disabled, onChange,error,legendVariant,labelHidden=false,inline=false,unit,idPrefix }: { idPrefix?:string;inline?:boolean;unit?:string;labelHidden?:boolean;legendVariant?:'legend'|'label';error?:string;field: FieldDefinition; value: FieldValue; workspaceId: string; objectTypeId?:string; disabled: boolean; onChange: (value: FieldValue) => void }) {
+  // A dialog can render the same field alongside its inert record form. Namespace presentation IDs only.
+  if(idPrefix)field={...field,id:`${idPrefix}${field.id}`};
   const { t, i18n } = useTranslation();
   const regional=useRegional();
   const numericError=numericDraftError(field,value,regional);

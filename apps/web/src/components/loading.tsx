@@ -70,6 +70,7 @@ export function RecordPageLoading({definition,values,contactKind,applicableField
     const relation='relationshipTypeId' in entry?definition?.formRelationships?.find(item=>item.definition.id===entry.relationshipTypeId&&item.side===entry.side):undefined;
     const names=relation?(relation.side==='left'?relation.definition.leftLabels:relation.definition.rightLabels) as Record<string,string>:undefined;
     const label=field?.label??('primary' in entry?t('primaryChainTitle'):names?.[i18n.language]??names?.en??names?.de);
+    if(field&&[definition?.contactProfile?.fields.organization_name,definition?.contactProfile?.fields.organization_commercial_register].includes(field.id))return <Field><Skeleton className="h-4 w-36"/><div className="flex gap-2"><Skeleton className="h-7 w-36"/><Skeleton className="h-7 w-24"/></div><Skeleton className="h-8 w-full"/><Skeleton className="h-4 w-full"/></Field>;
     if(field?.kind==='structured'&&field.config.schema==='temporal'){
       const value=values?.[field.technicalName],kind=value&&typeof value==='object'&&!Array.isArray(value)&&'kind' in value?value.kind:undefined;
       return <TemporalFieldSkeleton label={label} datetime={kind!=='date'} showZone={kind!=='date'}/>;
