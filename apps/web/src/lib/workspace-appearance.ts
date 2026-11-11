@@ -3,9 +3,10 @@ import { colorForeground, defaultWorkspaceAppearance, type WorkspaceAppearance }
 import { workspaceThemes, workspaceChartPalettes } from './workspace-theme-palettes';
 import { workspacePalettes } from './workspace-palettes';
 
-// shadcn 4.23.0 fixed font catalog plus the approved locally served Orbitron display font.
+// shadcn 4.23.0 fixed font catalog plus approved locally served Orbitron and Source Serif 4.
 export const workspaceFontOptions = [
   {value:'orbitron',label:'Orbitron',family:"'Orbitron Variable', sans-serif"},
+  {value:'source-serif-4',label:'Source Serif 4',family:"'Source Serif 4 Variable', serif"},
   {
     "value": "inter",
     "label": "Inter",
@@ -139,6 +140,7 @@ export const workspaceFontOptions = [
 ] as const;
 const fontImports = {
   'orbitron': () => import('@fontsource-variable/orbitron'),
+  'source-serif-4': () => import('@fontsource-variable/source-serif-4'),
   'inter': () => import('@fontsource-variable/inter'),
   'noto-sans': () => import('@fontsource-variable/noto-sans'),
   'nunito-sans': () => import('@fontsource-variable/nunito-sans'),

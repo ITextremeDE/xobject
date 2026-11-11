@@ -10972,7 +10972,7 @@
                 "schema": {
                   "properties": {
                     "appearance": {
-                      "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_"
+                      "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_"
                     },
                     "version": {
                       "type": "number"
@@ -13630,7 +13630,7 @@
       "Workspace": {
         "properties": {
           "appearance": {
-            "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_"
+            "$ref": "#/components/schemas/_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_"
           },
           "appearance_version": {
             "type": "number"
@@ -14972,7 +14972,7 @@
         ],
         "type": "object"
       },
-      "_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_": {
+      "_baseColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_menuColor_default_inverted_default-translucent_inverted-translucent_menuAccent_subtle_bold_theme_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_chartColor_neutral_stone_zinc_gray_mauve_olive_mist_taupe_amber_blue_cyan_emerald_fuchsia_green_indigo_lime_orange_pink_purple_red_rose_sky_teal_violet_yellow_fontHeading_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_inherit_logoIcon_calendar_code_key_user_layers_blocks_folder_globe_star_heart_flag_bookmark_users_house_building_briefcase_landmark_graduation-cap_handshake_network_laptop_server_database_cpu_shield_skull_flame_zap_rocket_lightbulb_palette_pen-tool_camera_wrench_hammer_cog_package_truck_car_clipboard-list_leaf_tree-pine_mountain_sun_moon_paw-print_bird_compass_primaryColorDark_string_null_primaryColor_string_null_secondaryColorDark_string_null_secondaryColor_string_null_radius_default_none_small_medium_large_font_inter_noto-sans_nunito-sans_figtree_roboto_raleway_dm-sans_public-sans_outfit_jetbrains-mono_geist_geist-mono_lora_merriweather_playfair-display_noto-serif_roboto-slab_oxanium_manrope_space-grotesk_montserrat_ibm-plex-sans_source-sans-3_instrument-sans_eb-garamond_instrument-serif_orbitron_source-serif-4_": {
         "properties": {
           "baseColor": {
             "enum": [
@@ -15045,6 +15045,7 @@
               "roboto",
               "roboto-slab",
               "source-sans-3",
+              "source-serif-4",
               "space-grotesk"
             ],
             "type": "string"
@@ -15078,6 +15079,7 @@
               "roboto",
               "roboto-slab",
               "source-sans-3",
+              "source-serif-4",
               "space-grotesk"
             ],
             "type": "string"
@@ -23832,7 +23834,8 @@
                   "instrument-sans",
                   "eb-garamond",
                   "instrument-serif",
-                  "orbitron"
+                  "orbitron",
+                  "source-serif-4"
                 ]
               },
               "logoIcon": {
@@ -23971,7 +23974,8 @@
                   "instrument-sans",
                   "eb-garamond",
                   "instrument-serif",
-                  "orbitron"
+                  "orbitron",
+                  "source-serif-4"
                 ]
               }
             },

@@ -32,3 +32,7 @@ Tests cover ordinary-user denial, Designer workspace boundaries, API/MCP read/wr
 ## Live-update follow-up — 2026-11-10
 
 The no-push limitation recorded above is superseded by [ADR 0036](0036-browser-presence-and-live-updates.md). Authorized commit signals trigger active-query refresh, including workspace appearance, with reconnect/focus reconciliation. Dirty or busy drafts defer refresh rather than replacing local edits. Appearance previews still remain local until Save; the shared saved design and personal light/dark selection remain unchanged.
+
+## Approved font-catalog extension — 2026-11-11
+
+Source Serif 4 joins Orbitron as an explicitly approved, locally served extension to the pinned shadcn font catalog. The same `source-serif-4` identity is available for both interface and heading fonts through UI, API and MCP. Its variable-weight Fontsource package loads on demand through the existing font loader, with its SIL Open Font License included in the bundled notices. Workspace defaults and existing saved font choices remain unchanged. This adds a fixed catalog choice, preserving the restriction against arbitrary font uploads or external font services. This extension is prepared for a subsequent application release; Community 1.0.2 does not include it.

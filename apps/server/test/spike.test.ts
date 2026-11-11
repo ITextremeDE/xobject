@@ -1496,7 +1496,7 @@ test('workspace appearance is shared, versioned and journaled per property throu
   assert.equal((await api('set_workspace_appearance', payload)).statusCode, 409);
   assert.equal((await tool('set_workspace_appearance', { ...payload, version: 2 })).version, 2);
   assert.equal((await sql<{ count: number }>`SELECT count(*)::int AS count FROM sys_journal WHERE workspace_id = ${ws.id}::uuid AND field_key LIKE 'appearance.%'`.execute(runtime.db)).rows[0].count, 9);
-  assert.equal(workspaceFonts.length, 27);
+  assert.equal(workspaceFonts.length, 28);
   for (const font of workspaceFonts) {
     const result = await tool('set_workspace_appearance', { workspaceId: other.id, version: (await tool('list_workspaces', {})).find((w: { id: string }) => w.id === other.id).appearance_version, appearance: { ...defaultWorkspaceAppearance, font } });
     assert.equal(result.appearance.font, font);

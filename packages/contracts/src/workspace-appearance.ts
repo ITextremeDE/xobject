@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// Pinned to shadcn 4.23.0 PRESET_FONTS / PRESET_BASE_COLORS. No arbitrary font or CSS input.
-export const workspaceFonts = ["inter", "noto-sans", "nunito-sans", "figtree", "roboto", "raleway", "dm-sans", "public-sans", "outfit", "jetbrains-mono", "geist", "geist-mono", "lora", "merriweather", "playfair-display", "noto-serif", "roboto-slab", "oxanium", "manrope", "space-grotesk", "montserrat", "ibm-plex-sans", "source-sans-3", "instrument-sans", "eb-garamond", "instrument-serif", "orbitron"] as const;
+// Pinned shadcn 4.23.0 presets plus approved locally served fonts. No arbitrary font or CSS input.
+export const workspaceFonts = ["inter", "noto-sans", "nunito-sans", "figtree", "roboto", "raleway", "dm-sans", "public-sans", "outfit", "jetbrains-mono", "geist", "geist-mono", "lora", "merriweather", "playfair-display", "noto-serif", "roboto-slab", "oxanium", "manrope", "space-grotesk", "montserrat", "ibm-plex-sans", "source-sans-3", "instrument-sans", "eb-garamond", "instrument-serif", "orbitron", "source-serif-4"] as const;
 export const workspaceBaseColors = ['neutral', 'stone', 'zinc', 'gray', 'mauve', 'olive', 'mist', 'taupe'] as const;
 export const workspaceThemes = ["neutral", "stone", "zinc", "gray", "amber", "blue", "cyan", "emerald", "fuchsia", "green", "indigo", "lime", "orange", "pink", "purple", "red", "rose", "sky", "teal", "violet", "yellow", "mauve", "olive", "mist", "taupe"] as const;
 export const workspaceChartColors = workspaceThemes;
