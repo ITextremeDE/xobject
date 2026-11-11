@@ -195,3 +195,7 @@ The supplied Contact profile now binds optional `address_form`, `letter_salutati
 Catalog template version 2 adds Other usage and new correspondence fields additively, together with the supplied family/affiliation relationships and Association Type described in the domain appendix. The stopped-writer upgrade accepts only exact released 1.0.0/1.0.1 and 1.0.2 fingerprints, refreshes the catalog and reuses the shared installer in one model-locked transaction. It preserves existing option IDs/labels/order/activation, authored forms, inactive modules/objects, records and history; conflicting field structures/names roll back the complete upgrade. Bound option keys prevent repeated installation from restoring or duplicating user-customized input aids. This is an upgrade-tool concern, not a second runtime model.
 
 The Contact correspondence and catalog-upgrade follow-up ships in [Community 1.1.0](../../CHANGELOG.md#110---2026-11-11).
+
+## Contact classification correction — 2026-11-11 (unreleased)
+
+Contact module installation and upgrades no longer add Association / Verein as a Type or Category. These dictionaries belong to workspace configuration. The 1.1.0 behavior described above is the released baseline; existing installations retain their configured choices and record values. Administrators can remove an unused Type and configure a Category through the ordinary versioned classification operations. No label-based deletion or conversion of existing customer definitions is performed.

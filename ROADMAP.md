@@ -13,11 +13,17 @@ This is xObject's public product direction. OpenProject leads operational planni
 
 See [release notes](CHANGELOG.md#110---2026-11-11), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
+## Planned — Community 1.2.0
+
+- **Guided Contact-kind changes:** bring the four [conversion workflows](docs/PRD.md#planned-contact-kind-conversion-workflows) forward from V2: form a new Organization and Contact person, join an existing Organization, continue one Contact person as an Individual contact, or continue all Contact persons as Individual contacts while keeping their Organization. Preview mappings and preserve identities, rights, numbers, links and atomic history (R-065).
+- **Contact-person inheritance:** inherit Organization name and Commercial register from the main Organization, with independent own-value exceptions, explicit empty values, confirmed reset and a combined own-value action. Keep personal communication fields independent and enforce source/target field rights throughout (R-064).
+
+These are planned V1 extensions; Community 1.1.0 remains the released baseline. The unreleased implementation follows ADR 0038, with explicit mappings, effective-value contracts and dedicated upgrade tooling. Release acceptance and publication remain separate. Contact maintenance and duplicate detection/merging remain in V2.
+
 ## Planned — Version 2
 
 - **Personal table layouts:** remember column order and widths in addition to the column visibility already available in V1 (R-030).
 - **Documents & Communication:** supplied Documents, Emails and Phone calls, together with email handling, uploads, attachments and file versioning.
-- **Guided Contact-kind changes:** form an Organization from an Individual contact, assign it to an existing Organization, continue a Contact person as an Individual contact, or separate all Contact persons from an Organization. Preview, data/identity preservation and atomic history guide the [planned workflows](docs/PRD.md#planned-contact-kind-conversion-workflows).
 - **Contact maintenance:** guided reassignment, duplicate detection and merging, with explicit identity and permission rules.
 - **Previous/Next record:** browse the originating list's complete filtered and sorted result, including across pages, while preserving return context and protecting unsaved changes (R-063).
 

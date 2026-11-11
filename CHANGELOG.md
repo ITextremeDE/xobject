@@ -4,6 +4,19 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+
+- Add Contact-person Organization-name and Commercial-register inheritance with independent own-value exceptions, explicit empty values, confirmed reset and a combined own-value draft. Apply current source/target field rights to effective values, search and history; retain source provenance without copied shadows.
+- Add four guided Contact-kind conversions with version-bound previews, explicit confirmation, editable target required fields/classification, retained identities/numbers/security and atomic field/link history across web, API and MCP. Block incompatible custom fields/links and migrate supported released installations through the current schema.
+
+### Fixed
+
+- Search relationship candidates by permitted record numbers as well as Keywords and retain Contact-kind icons. Preserve pre-change endpoint names in relationship history during combined edits, Contact conversions and permanent deletion.
+- Distinguish Contact Commercial-register fields by applicable Contact kinds in column selection, definition administration, journals and permissions. Explain editable own exceptions correctly instead of marking inherited Contact fields read-only.
+- Show resulting Keywords and removed Organization context in Contact conversion previews, and keep member identities, roles and actions readable on narrow screens.
+- Stop supplying Association / Verein as a Contact Type during module installation or upgrades. Contact Type and Category choices are configured per workspace; existing classifications remain unchanged.
+- Align the English and German website FAQ with the planned 1.2.0 Contact workflows and the remaining V2 scope.
+
 ## [1.1.0] - 2026-11-11
 
 Back up the installation and stop all writers before upgrading. The additive catalog upgrade from 1.0.0–1.0.2 preserves records, existing numbers, history and authored definitions.
