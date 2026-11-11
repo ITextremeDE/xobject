@@ -8,6 +8,10 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 - Offer locally served Source Serif 4 for workspace interface and heading fonts, including the shared API/MCP appearance catalog and font license notices.
 
+### Fixed
+
+- Allow Contacts/Projects module activation in workspaces with only German or only English enabled for interface and definition labels, retaining supplied translations without changing workspace language settings. Manual edits still respect the configured definition languages.
+
 ## [1.0.2] - 2026-11-10
 
 Community maintenance release with a supported, transactional authorization-journal migration from 1.0.0 and 1.0.1. Back up the installation and stop all writers before upgrading. Existing credentials, consents, records and history are retained.

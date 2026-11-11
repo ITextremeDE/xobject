@@ -4,7 +4,7 @@ import { validateRelationshipGraph } from './record-relationships.js';
 import { sql } from 'kysely';
 import { v7 } from 'uuid';
 import { isDeepStrictEqual } from 'node:util';
-import type { RelationshipConfiguration, RelationshipType, WorkspaceModule } from '@xobject/contracts';
+import { languageCodes, type RelationshipConfiguration, type RelationshipType, type WorkspaceModule } from '@xobject/contracts';
 import type { Executor } from './database.js';
 import { AppError } from './errors.js';
 
@@ -28,7 +28,7 @@ export async function relationshipTypes(tx: Executor, workspaceId: string): Prom
   const used=new Set((await sql<{id:string}>`SELECT DISTINCT COALESCE(new_value->>'relationshipTypeId',old_value->>'relationshipTypeId') AS id FROM sys_journal WHERE workspace_id=${workspaceId}::uuid AND entity_kind='relationship'`.execute(tx)).rows.map(row=>row.id));
   return Promise.all(rows.map(async row=>({...row,fields:await relationshipFieldDefinitions(tx,row.id),...(row.kind==='custom'?{pairLocked:used.has(row.id)}:{}),pairs:pairs.filter(pair=>pair.relationship_type_id===row.id).map(({leftObjectTypeId,rightObjectTypeId})=>({leftObjectTypeId,rightObjectTypeId}))})));
 }
-export async function configureRelationship(tx: Executor, args: {workspaceId:string;technicalName?:string;relationshipTypeId?:string;version?:number;configuration:RelationshipConfiguration}, journal: Journal) {
+export async function configureRelationship(tx: Executor, args: {workspaceId:string;technicalName?:string;relationshipTypeId?:string;version?:number;configuration:RelationshipConfiguration}, journal: Journal, definitionSource: 'workspace'|'module' = 'workspace') {
   const previous = args.relationshipTypeId ? (await relationshipTypes(tx,args.workspaceId)).find(row=>row.id===args.relationshipTypeId) : undefined;
   if (args.relationshipTypeId && !previous) throw new AppError(404,'Relationship type not found');
   if (previous && previous.version!==args.version) throw new AppError(409,'Relationship version conflict');
@@ -43,7 +43,10 @@ export async function configureRelationship(tx: Executor, args: {workspaceId:str
   if ((!previous || previous.kind==='custom') && Object.values(next.labels).some(label=>protectedLabels.has(label.trim().toLowerCase()))) throw new AppError(400,'Reserved relationship name');
   const workspace = (await sql<{label_languages:string[]}>`SELECT label_languages FROM sys_workspaces WHERE id=${args.workspaceId}::uuid`.execute(tx)).rows[0];
   if (!workspace) throw new AppError(404,'Workspace not found');
-  for (const key of ['labels','leftLabels','rightLabels'] as const) for (const language of new Set([...Object.keys(next[key]),...Object.keys(previous?.[key]??{})])) if (!workspace.label_languages.includes(language) && next[key][language as 'de'|'en']!==previous?.[key][language as 'de'|'en']) throw new AppError(400,'Definition language is unavailable');
+  // Module templates retain all installed translations, just like supplied objects/fields.
+  // This internal origin is never accepted from API/MCP; authored changes use workspace policy.
+  const definitionLanguages: readonly string[] = definitionSource === 'module' ? languageCodes : workspace.label_languages;
+  for (const key of ['labels','leftLabels','rightLabels'] as const) for (const language of new Set([...Object.keys(next[key]),...Object.keys(previous?.[key]??{})])) if (!definitionLanguages.includes(language) && next[key][language as 'de'|'en']!==previous?.[key][language as 'de'|'en']) throw new AppError(400,'Definition language is unavailable');
   for (const pair of next.pairs) for (const id of [pair.leftObjectTypeId,pair.rightObjectTypeId]) {
     const type=(await sql<{state:string}>`SELECT state FROM sys_object_types WHERE id=${id}::uuid AND workspace_id=${args.workspaceId}::uuid`.execute(tx)).rows[0];
     const retained=previous?.pairs.some(old=>old.leftObjectTypeId===pair.leftObjectTypeId&&old.rightObjectTypeId===pair.rightObjectTypeId);
