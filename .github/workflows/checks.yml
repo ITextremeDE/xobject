@@ -31,7 +31,7 @@ jobs:
         browser: [chromium, firefox]
     env:
       XOBJECT_TEST_BROWSER: ${{ matrix.browser }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,10 +43,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Use Ubuntu archive for browser dependencies
-        # The hosted runner's Azure mirror repeatedly stalled during font downloads.
-        run: sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      # Hosted LTS runners already provide browser libraries; launch/tests verify them.
+      - run: npx playwright install ${{ matrix.browser }}
+        timeout-minutes: 4
       - run: npm run test:browser
       - name: Retain browser failure evidence
         if: failure()
