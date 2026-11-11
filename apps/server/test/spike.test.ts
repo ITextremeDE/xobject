@@ -2749,6 +2749,58 @@ test('new objects start with editable General, while added elements remain unass
  const result=await ok('configure_form_layout',{objectTypeId:type.id,version:saved.version,layout:placed});assert.deepEqual(result.formLayouts.default,placed);
 });
 
+test('module installation retains supplied translations without enabling unavailable definition languages through API/MCP',async()=>{
+  for(const language of ['de','en'] as const)for(const first of ['contacts','projects'] as const){
+    const ws=await ok('create_workspace',{code:`module${language}${first}`,name:`${language} ${first}`});
+    await ok('configure_workspace_languages',{workspaceId:ws.id,version:1,availableLanguages:[language],defaultLanguage:language,labelLanguages:[language]});
+    const languageState=async()=> (await sql`SELECT available_languages,default_language,label_languages,language_version FROM sys_workspaces WHERE id=${ws.id}::uuid`.execute(runtime.db)).rows[0];
+    const languageHistory=async()=> (await sql`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid AND entity_kind='workspace' AND field_key IN ('available_languages','default_language','label_languages') ORDER BY id`.execute(runtime.db)).rows;
+    const before=await languageState(),history=await languageHistory();
+    const activate=async(key:'contacts'|'projects',enabled=true)=>{
+      const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((item:any)=>item.key===key);
+      return (first==='contacts'?ok:tool)('configure_workspace_module',{workspaceId:ws.id,key,version:module.version,enabled});
+    };
+    await activate(first);
+    await activate(first==='contacts'?'projects':'contacts');
+    const objects=await ok('list_object_types',{workspaceId:ws.id});
+    assert.equal(objects.length,5);
+    assert.equal(objects.filter((item:any)=>item.technicalName==='contacts').length,1,'shared Contacts keep one identity');
+    const contacts=objects.find((item:any)=>item.technicalName==='contacts');
+    const definition=await ok('get_object_type',{objectTypeId:contacts.id});
+    assert.ok(definition.labels.de&&definition.labels.en);
+    assert.ok(definition.fields.every((field:any)=>field.labels.de&&field.labels.en),'supplied field translations retained');
+    for(const object of objects){
+      const model=await ok('get_object_type',{objectTypeId:object.id});
+      assert.ok(model.formLayouts.default.groups.every((group:any)=>group.labels.de&&group.labels.en),'starter form translations retained');
+      if(['projects','cases','tasks'].includes(object.technicalName)){
+        assert.equal(model.classification.options.length,4);
+        assert.ok(model.classification.options.every((option:any)=>option.labels.de&&option.labels.en),'supplied status translations retained');
+      }
+    }
+    const relationships=await ok('list_relationship_types',{workspaceId:ws.id});
+    const membership=relationships.find((item:any)=>item.technicalName==='contact_person');
+    assert.ok(membership?.isProtected);
+    for(const key of ['labels','leftLabels','rightLabels'])assert.ok(membership[key].de&&membership[key].en,'supplied relationship translations retained');
+    const hidden=language==='de'?'en':'de';
+    const configuration={labels:membership.labels,leftLabels:membership.leftLabels,rightLabels:membership.rightLabels,directed:membership.directed,leftMin:membership.leftMin,leftMax:membership.leftMax,rightMin:membership.rightMin,rightMax:membership.rightMax,allowAll:membership.allowAll,active:membership.active,pairs:membership.pairs,leftApplicability:membership.leftApplicability,rightApplicability:membership.rightApplicability};
+    for(const key of ['labels','leftLabels','rightLabels'] as const){
+      const args={workspaceId:ws.id,relationshipTypeId:membership.id,version:membership.version,configuration:{...configuration,[key]:{...configuration[key],[hidden]:'Unavailable edit'}}};
+      const blocked=await api('configure_relationship_type',args);assert.equal(blocked.statusCode,400,blocked.body);assert.equal(blocked.json().error,'Definition language is unavailable');
+      assert.equal((await client.callTool({name:'configure_relationship_type',arguments:args})).isError,true);
+    }
+    const allowed=await ok('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:membership.id,version:membership.version,configuration:{...configuration,labels:{...configuration.labels,[language]:'Custom membership'}}});
+    assert.equal(allowed.labels[hidden],membership.labels[hidden],'editing an available label retains hidden translations');
+    const createArgs={workspaceId:ws.id,technicalName:'manual_relation',configuration:{...configuration,leftApplicability:null,rightApplicability:null}};
+    assert.equal((await api('configure_relationship_type',createArgs)).statusCode,400,'manual creation cannot import unavailable translations');
+    assert.equal((await api('configure_relationship_type',{...createArgs,definitionSource:'module'})).statusCode,400,'internal origin is not an API option');
+    const identities=objects.map((item:any)=>item.id).sort();
+    await activate(first,false);await activate(first);await activate(first);
+    assert.deepEqual((await ok('list_object_types',{workspaceId:ws.id})).map((item:any)=>item.id).sort(),identities);
+    assert.deepEqual(await languageState(),before,'module installation never changes language policy or version');
+    assert.deepEqual(await languageHistory(),history,'module installation creates no workspace language events');
+  }
+});
+
 test('module catalog is complete and planned modules cannot activate; fixed installation is atomic and never adopts matching custom names',async()=>{
   const ws=await ok('create_workspace',{code:'modulecatalog',name:'Module catalog'});
   const catalog=await ok('list_workspace_modules',{workspaceId:ws.id});
@@ -2773,11 +2825,14 @@ test('module catalog is complete and planned modules cannot activate; fixed inst
   assert.equal((await ok('get_object_type',{objectTypeId:custom.id})).isProtected,false);
 
   const clean=await ok('create_workspace',{code:'moduleatomic',name:'Module atomic'});
+  await ok('configure_workspace_languages',{workspaceId:clean.id,version:1,availableLanguages:['de'],defaultLanguage:'de',labelLanguages:['de']});
   const module=(await ok('list_workspace_modules',{workspaceId:clean.id})).find((m:any)=>m.key==='projects');
+  const cleanHistory=(await sql`SELECT * FROM sys_journal WHERE workspace_id=${clean.id}::uuid ORDER BY id`.execute(runtime.db)).rows;
   await sql`CREATE FUNCTION fail_initial_module() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='module_binding' AND NEW.new_value='"case"'::jsonb THEN RAISE EXCEPTION 'module journal rejected'; END IF; RETURN NEW; END $$`.execute(runtime.db);
   await sql`CREATE TRIGGER fail_initial_module BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_initial_module()`.execute(runtime.db);
   try{assert.equal((await api('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true})).statusCode,500);assert.deepEqual(await ok('list_object_types',{workspaceId:clean.id}),[]);assert.equal((await sql`SELECT 1 FROM sys_module_object_bindings WHERE workspace_id=${clean.id}::uuid`.execute(runtime.db)).rows.length,0);}
   finally{await sql`DROP TRIGGER fail_initial_module ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_initial_module()`.execute(runtime.db);}
+  assert.deepEqual((await sql`SELECT * FROM sys_journal WHERE workspace_id=${clean.id}::uuid ORDER BY id`.execute(runtime.db)).rows,cleanHistory,'failed German-only activation retains history atomically');
   const enabled=await tool('configure_workspace_module',{workspaceId:clean.id,key:'projects',version:module.version,enabled:true});
   const objects=await ok('list_object_types',{workspaceId:clean.id});assert.equal(objects.length,4);
   for(const object of objects){const definition=await ok('get_object_type',{objectTypeId:object.id});assert.equal(definition.isProtected,true);assert.ok(definition.fields.every((f:any)=>f.isProtected));}
@@ -3813,13 +3868,14 @@ test('shared module template additions retain authored views and configurable va
  const id=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts').id;let definition=await ok('get_object_type',{objectTypeId:id});
  const row=await createOrganization(id,'Preserved'),extra=await ok('create_field',{objectTypeId:id,technicalName:'my_field',labels:{en:'My field'}}),layout={groups:[{id:'personal',labels:{en:'Our view'},fields:[{fieldId:extra.id,width:'full'}]}]};
  definition=await ok('configure_form_layout',{objectTypeId:id,version:definition.version,layout});
+ await ok('configure_workspace_languages',{workspaceId:ws.id,version:1,availableLanguages:['de'],defaultLanguage:'de',labelLanguages:['de']});
  const catalog=(await sql<any>`SELECT objects FROM sys_modules WHERE key='contacts'`.execute(runtime.db)).rows[0].objects;
  const revised=structuredClone(catalog);revised.find((o:any)=>o.key==='contact').fields.push({key:'crm_segment',technicalName:'crm_segment',labels:{en:'CRM segment',de:'CRM-Segment'},kind:'text'});
  try{
   await sql`UPDATE sys_modules SET objects=${JSON.stringify(revised)}::jsonb,template_version=2 WHERE key='contacts'`.execute(runtime.db);
   const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');assert.equal(module.installedVersion,1);assert.equal(module.templateVersion,2);
   const updated=await tool('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:module.version});assert.equal(updated.installedVersion,2);
-  const next=await ok('get_object_type',{objectTypeId:id});assert.deepEqual(next.formLayouts.default,layout);assert.equal(next.fields.find((f:any)=>f.technicalName==='my_field').id,extra.id);assert.ok(next.moduleFieldIds.contacts.includes(next.fields.find((f:any)=>f.technicalName==='crm_segment').id));assert.equal((await ok('get_record',{objectTypeId:id,recordId:row.id})).keyword,'Preserved');
+  const next=await ok('get_object_type',{objectTypeId:id});assert.deepEqual(next.formLayouts.default,layout);assert.equal(next.fields.find((f:any)=>f.technicalName==='my_field').id,extra.id);assert.ok(next.moduleFieldIds.contacts.includes(next.fields.find((f:any)=>f.technicalName==='crm_segment').id));assert.deepEqual(next.fields.find((f:any)=>f.technicalName==='crm_segment').labels,{en:'CRM segment',de:'CRM-Segment'});assert.equal((await ok('get_record',{objectTypeId:id,recordId:row.id})).keyword,'Preserved');
   const conflict=structuredClone(revised);conflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='crm_segment').kind='boolean';await sql`UPDATE sys_modules SET objects=${JSON.stringify(conflict)}::jsonb,template_version=3 WHERE key='contacts'`.execute(runtime.db);
   assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);assert.equal((await ok('get_object_type',{objectTypeId:id})).fields.find((f:any)=>f.technicalName==='crm_segment').kind,'text');
   const codecConflict=structuredClone(revised);codecConflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='birthday').config={schema:'url_entries'};await sql`UPDATE sys_modules SET objects=${JSON.stringify(codecConflict)}::jsonb WHERE key='contacts'`.execute(runtime.db);assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);
