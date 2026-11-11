@@ -35,7 +35,7 @@ For the next 1.2.0 release, the native image workflow requires fresh installatio
 
 ### Release-state checklist
 
-The current source prepares Community 1.2.0; it does not itself publish that version. Before publishing, update the package versions/lockfiles, move Unreleased changes to the actual version/date and update comparison links, the README's released status and the roadmap's current/next sections together. Check the PRD/ADR delivery notes against the final acceptance evidence. The website and user/operator guides already target 1.2.0; do not publish that candidate content as if the older application included its new functions.
+The current source prepares Community 1.2.0; it does not itself publish that version. Before publishing, update the package versions, internal workspace dependency versions and lockfiles, move Unreleased changes to the actual version/date and update comparison links, the README's released status and the roadmap's current/next sections together. Check the PRD/ADR delivery notes against the final acceptance evidence. The website and user/operator guides already target 1.2.0; do not publish that candidate content as if the older application included its new functions.
 
 Where website/documentation publication automatically follows `main`, hold that publication before merging the release commit. Resume it after the target images, release assets and versioned documentation are available. Preserve and restore the previous publication setting; successful source CI alone is not evidence that release downloads exist. This coordination affects the public website/docs, not the application installation.
 
