@@ -64,6 +64,12 @@ The preview reserves nothing. Save the object settings, then create a record to 
 
 Annual/monthly restarts use the workspace time zone and automatically include the period in the formatted number. Prefixes such as `TEAM-DV-` help readers distinguish workspaces, but do not create an installation-wide numbering constraint. UUIDs remain the stable record identities. Start and increment accept positive integers up to 30 digits; minimum digits is 1–30.
 
+### Assign missing numbers (unreleased)
+
+After enabling and saving numbering, Administrators can choose **Assign missing numbers** in the same Numbering section. The preview shows how many records lack a number, how many existing numbers remain unchanged, how many eligible records are in the recycle bin, and the first/last proposed number. Review it, then choose **Assign … numbers**. Assignment follows creation time and ID using the current counter and numbering period; it does not renumber existing values. A changed dataset/configuration requires **Refresh preview** before confirmation. A completed dataset shows that no assignment is needed. At most 10,000 missing numbers are accepted in one atomic operation. Every changed record has a field Journal event; failure rolls back the whole operation.
+
+This action is available in the unreleased source; Community 1.0.2 does not contain it.
+
 ## Place fields, link objects and manage lifecycle
 
 New elements remain **Unassigned** until placed. Use the [Form designer](forms.md) to put Keyword and Serial number in General, then [configure a relationship](relationships.md#create-a-device-contract-relationship) to Service contracts. Create a Device with a Keyword, save it and reopen it to verify the result. An Administrator must grant an ordinary user the necessary content rights before that user can test the same workflow.

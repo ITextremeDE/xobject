@@ -12,6 +12,10 @@ This is xObject's public product direction. OpenProject leads operational planni
 
 See [release notes](CHANGELOG.md#102---2026-11-10), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
+## Implemented in source — not yet released
+
+Contact correspondence and Pronouns, family/affiliation links, Other usage choices and confirmed assignment of missing record numbers are implemented and locally tested. Source Serif 4 and the module-activation language correction are also integrated. These changes have no assigned release version and are not part of the published 1.0.2 application. See [Unreleased](CHANGELOG.md#unreleased) for details; the V2 scope below is unchanged.
+
 ## Planned — Version 2
 
 - **Personal table layouts:** remember column order and widths in addition to the column visibility already available in V1 (R-030).

@@ -12,6 +12,8 @@ The permission model combines user/group object and field ceilings, separate Cre
 
 Contacts & Relations supplies Contacts and Distribution lists. Projects & Tasks reuses the same Contacts and adds Projects, Cases and Tasks, including the fixed Contact → Project → Case Primary association. These five supplied object types, user-defined models, record lifecycle, shared forms and workspace settings are part of the released V1 baseline. See the [user guide](docs/user-guide.md) for behavior and the [quality report](docs/quality-acceptance.md) for acceptance evidence and its limits.
 
+The unreleased source adds Contact correspondence and language-specific Pronouns, family/affiliation relationships, Other usage choices and Administrator-confirmed assignment of missing record numbers. These additions require a subsequent application release and supported upgrade; they are not in Community 1.0.2. See the [Unreleased changelog](CHANGELOG.md#unreleased) and [scoped validation evidence](docs/quality-acceptance.md#contact-correspondence-and-missing-number-assignment--2026-11-11-unreleased).
+
 Documents & Communication and the other four agreed V2 themes remain planned; additional Contacts/Projects objects and further modules have no release assignment. The [roadmap](ROADMAP.md) owns that public overview.
 
 External clients use user-bound, expiring and revocable API/MCP tokens under their current permissions. The versioned input/output contract, OpenAPI download and typed bearer client are described in [API and MCP access](docs/api.md).
