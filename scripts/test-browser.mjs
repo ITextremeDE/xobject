@@ -210,6 +210,8 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.keyboard.press(process.platform==='darwin'?'Meta+k':'Control+k');await expect(page.getByRole('dialog',{name:'Search and navigate',exact:true})).toBeVisible();
    await expect(page.getByRole('combobox',{name:'Search and navigate',exact:true})).toBeFocused();await expect(page.getByRole('option',{name:'Customize navigation',exact:true})).toBeVisible();
    await page.keyboard.press('Escape');await expect(page.getByRole('dialog',{name:'Search and navigate',exact:true})).toHaveCount(0);
+   // Closing the command dialog can trigger list refresh; measure the settled, enabled headers.
+   await expect.poll(()=>page.locator('thead [data-slot="button"]').evaluateAll(buttons=>buttons.length>0&&buttons.every(button=>!button.disabled&&getComputedStyle(button).opacity==='1'))).toBe(true);
   });
   await scenario('Classification filters combine values and retain list context','admin',async page=>{
    await page.goto(listPath);await expect(page.getByRole('group',{name:'Classification filters',exact:true})).toBeVisible();
