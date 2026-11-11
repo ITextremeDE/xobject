@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   site:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
@@ -25,9 +25,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
-      - name: Configure signed Ubuntu browser dependencies
-        run: sudo bash ../../scripts/prepare-ci-apt.sh
-      - run: npx playwright install --with-deps chromium
+      # Use the original Playwright browser on the maintained hosted LTS runtime.
+      - run: npx playwright install chromium
         timeout-minutes: 4
       - run: npm test
       - run: npm audit --audit-level=low
