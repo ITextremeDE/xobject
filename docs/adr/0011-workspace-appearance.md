@@ -36,3 +36,5 @@ The no-push limitation recorded above is superseded by [ADR 0036](0036-browser-p
 ## Approved font-catalog extension — 2026-11-11
 
 Source Serif 4 joins Orbitron as an explicitly approved, locally served extension to the pinned shadcn font catalog. The same `source-serif-4` identity is available for both interface and heading fonts through UI, API and MCP. Its variable-weight Fontsource package loads on demand through the existing font loader, with its SIL Open Font License included in the bundled notices. Workspace defaults and existing saved font choices remain unchanged. This adds a fixed catalog choice, preserving the restriction against arbitrary font uploads or external font services. This extension is prepared for a subsequent application release; Community 1.0.2 does not include it.
+
+The Source Serif 4 extension ships in [Community 1.1.0](../../CHANGELOG.md#110---2026-11-11).
