@@ -2,7 +2,7 @@
 
 This is xObject's public product direction. OpenProject leads operational planning; the [PRD](docs/PRD.md) defines requirements and the [changelog](CHANGELOG.md) records delivered changes. Future targets have no committed dates, and only explicitly assigned versions are shown as such.
 
-## Currently released — Community 1.1.0
+## Currently released — Community 1.2.0
 
 - **Connected data:** configurable objects, fields, relationships, forms and journals, with workspace isolation and differentiated user/group permissions.
 - **Contacts and projects:** Contacts & Relations supplies Contacts and Distribution lists; Projects & Tasks adds Projects, Cases and Tasks using the same Contacts.
@@ -11,14 +11,16 @@ This is xObject's public product direction. OpenProject leads operational planni
 - **Web, API and AI:** a responsive web application, shared REST/MCP operations, personal credentials, OAuth and supplied agent skills. Live refresh preserves open drafts.
 - **Self-hosting:** published Linux/AMD64 and Linux/ARM64 containers, Docker Compose setup, first-Administrator provisioning and backup/restore tooling. Version 1.0.2 adds a supported authorization-journal migration from 1.0.0/1.0.1 while retaining data, credentials and history.
 
-See [release notes](CHANGELOG.md#110---2026-11-11), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
+See [release notes](CHANGELOG.md#120---2026-11-11), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
-## Planned — Community 1.2.0
+<span id="planned--community-120"></span>
 
-- **Guided Contact-kind changes:** bring the four [conversion workflows](docs/PRD.md#planned-contact-kind-conversion-workflows) forward from V2: form a new Organization and Contact person, join an existing Organization, continue one Contact person as an Individual contact, or continue all Contact persons as Individual contacts while keeping their Organization. Preview mappings and preserve identities, rights, numbers, links and atomic history (R-065).
+### Contact workflows in 1.2.0
+
+- **Guided Contact-kind changes:** use the four [conversion workflows](docs/PRD.md#contact-kind-conversion-workflows): form a new Organization and Contact person, join an existing Organization, continue one Contact person as an Individual contact, or continue all Contact persons as Individual contacts while keeping their Organization. Preview mappings and preserve identities, rights, numbers, links and atomic history (R-065).
 - **Contact-person inheritance:** inherit Organization name and Commercial register from the main Organization, with independent own-value exceptions, explicit empty values, confirmed reset and a combined own-value action. Keep personal communication fields independent and enforce source/target field rights throughout (R-064).
 
-These are planned V1 extensions; Community 1.1.0 remains the released baseline. The unreleased implementation follows ADR 0038, with explicit mappings, effective-value contracts and dedicated upgrade tooling. Release acceptance and publication remain separate. Contact maintenance and duplicate detection/merging remain in V2.
+These V1 extensions follow ADR 0038, with explicit mappings, effective-value contracts and dedicated upgrade tooling from released 1.0.0–1.1.0 installations. Contact maintenance and duplicate detection/merging remain in V2.
 
 ## Planned — Version 2
 

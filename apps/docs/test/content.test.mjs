@@ -4,6 +4,7 @@ import {readFile,access} from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import {execFileSync} from 'node:child_process';
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 test('generated public pages match canonical sources and keep changelog/roadmap in one place',async()=>{
   const manifest=JSON.parse(await readFile(new URL('../.astro/canonical-sources.json',import.meta.url),'utf8'));
@@ -30,7 +31,7 @@ test('generated public pages match canonical sources and keep changelog/roadmap 
 
 test('shared guide illustrations resolve to local Astro assets with unchanged source bytes',async()=>{
   const output=fileURLToPath(new URL('../src/content/docs/',import.meta.url));
-  for(const name of ['user-guide','projects-and-tasks']){
+  for(const name of ['user-guide','projects-and-tasks','contacts']){
     const source=await readFile(root+`docs/${name}.md`,'utf8');
     const generated=await readFile(path.join(output,`${name}.md`),'utf8');
     const originals=[...source.matchAll(/!\[([^\]]+)\]\(([^)]+)\)/g)];
@@ -48,6 +49,13 @@ test('shared guide illustrations resolve to local Astro assets with unchanged so
       assert.deepEqual(await readFile(new URL(`../public/guide-images/${name}`,import.meta.url)),original,'full-size source remains unchanged');
     }
   }
+});
+
+test('the documented mjs API example is valid executable JavaScript',async()=>{
+  const source=await readFile(root+'docs/api.md','utf8');
+  const example=source.split('ignored `.local/api-example.mjs`')[1]?.match(/```js\n([\s\S]*?)\n```/)?.[1];
+  assert(example,'the source-checkout example must match its .mjs instructions');
+  execFileSync(process.execPath,['--check','--input-type=module'],{input:example,encoding:'utf8'});
 });
 
 test('version choices identify one current build and link only to supported documentation origins',async()=>{

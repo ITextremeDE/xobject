@@ -4,10 +4,17 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-11
+
 ### Added
 
-- Add Contact-person Organization-name and Commercial-register inheritance with independent own-value exceptions, explicit empty values, confirmed reset and a combined own-value draft. Apply current source/target field rights to effective values, search and history; retain source provenance without copied shadows.
-- Add four guided Contact-kind conversions with version-bound previews, explicit confirmation, editable target required fields/classification, retained identities/numbers/security and atomic field/link history across web, API and MCP. Block incompatible custom fields/links and migrate supported released installations through the current schema.
+- Let Contact persons inherit Organization name and Commercial register from their main Organization, with independent own values, explicit empty exceptions and confirmed reset. Field permissions apply to both the source and Contact person.
+- Guide the four Contact-kind changes through a review and explicit confirmation: form or join an Organization, continue one Contact person independently, or continue all of an Organization's Contact persons as Individuals while keeping the Organization. Retain existing IDs, numbers, rights, compatible contents and atomic history across web, API and MCP.
+
+### Changed
+
+- Explain the 1.2.0 Contact workflows in the English/German product website and public guides, with current fictional screenshots, direct feature guides and clearer live-update and version information. Complete correspondence, family-link and Pronouns guidance, reconcile the Contact mapping requirements and correct the runnable JavaScript API example.
+- Prepare the 1.2.0 installation/update instructions and require native release-image upgrade acceptance from published 1.1.0 as well as 1.0.1/1.0.2. Preserve existing records, authored configuration and history during the stopped-writer upgrade.
 
 ### Fixed
 
@@ -15,7 +22,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 - Distinguish Contact Commercial-register fields by applicable Contact kinds in column selection, definition administration, journals and permissions. Explain editable own exceptions correctly instead of marking inherited Contact fields read-only.
 - Show resulting Keywords and removed Organization context in Contact conversion previews, and keep member identities, roles and actions readable on narrow screens.
 - Stop supplying Association / Verein as a Contact Type during module installation or upgrades. Contact Type and Category choices are configured per workspace; existing classifications remain unchanged.
-- Align the English and German website FAQ with the planned 1.2.0 Contact workflows and the remaining V2 scope.
+- Align the English and German website FAQ with the 1.2.0 Contact workflows and the remaining V2 scope.
 
 ## [1.1.0] - 2026-11-11
 
@@ -169,7 +176,8 @@ First Community release under `AGPL-3.0-only`, maintained by Jürgen Schadek und
 
 - Exclude private backup/recovery environment files from Git, build contexts and commit-bound public source archives. Resume unchanged containers after backups with supported Compose v2 commands, reserve the proxy address outside the dynamic pool and keep diagnostics bounded and free of private payloads.
 
-[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ITextremeDE/xobject/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ITextremeDE/xobject/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/ITextremeDE/xobject/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/ITextremeDE/xobject/compare/v1.0.0...v1.0.1

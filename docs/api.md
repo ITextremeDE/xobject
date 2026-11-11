@@ -89,7 +89,7 @@ Category arrays select at least one matching value. Tree records already retain 
 - `GET /api/v1/contract`: authenticated operation manifest with the same schemas and references.
 - [Generated contract](../packages/contracts/api-v1.openapi.json): the versioned source artifact; [shared contracts](../packages/contracts/src/index.ts) own its types/validation. `npm run api:generate` regenerates it and `npm run api:check` rejects drift. The TypeScript schema generator is a build dependency, not part of the running HTTP server.
 
-The latest published application is Community `1.1.0`. The API contract is versioned independently as `1.0.0`; the MCP protocol revision is a third, separate version. The OAuth lifetime and authorization-journal refinements below are part of application 1.0.2. [Documentation versions](versions.md) identifies the released snapshots; [ADR 0035](adr/0035-container-delivery-and-maintenance.md) defines supported installation updates.
+The application features in this guide target Community `1.2.0`. The API contract is versioned independently as `1.0.0`; the MCP protocol revision is a third, separate version. The OAuth lifetime and authorization-journal refinements below are part of application 1.0.2. [Documentation versions](versions.md) identifies the released snapshots; [ADR 0035](adr/0035-container-delivery-and-maintenance.md) defines supported installation updates.
 
 Requests can pin API major version `1` with `X-XObject-API-Version`; another major is rejected before execution. Responses identify their contract through `X-XObject-API-Version: 1.0.0`. External clients should pin the major and reject incompatible successful responses. Compatible additions may add optional fields/operations; callers should tolerate additional response fields. Breaking changes require a new explicit major contract/endpoint and documented client changes rather than silent reinterpretation.
 
@@ -99,14 +99,17 @@ Requests can pin API major version `1` with `X-XObject-API-Version`; another maj
 
 To try the helper from the repository root, use the supported Node.js version from [Development](development.md#requirements), run `npm ci`, then `npm run build --workspace @xobject/contracts`. Save the following as an ignored `.local/api-example.mjs` below that root, set `XOBJECT_TOKEN` through your secret manager and run `node .local/api-example.mjs`:
 
-```ts
+```js
 import { createApiClient } from '@xobject/contracts/client';
 
+const token = process.env.XOBJECT_TOKEN;
+if (!token) throw new Error('Set XOBJECT_TOKEN through your secret manager.');
 const client = createApiClient({
   baseUrl: 'https://your-xobject.example/',
-  token: process.env.XOBJECT_TOKEN!,
+  token,
 });
 const workspaces = await client.call('list_workspaces', {});
+console.log(workspaces);
 ```
 
 It sends versioned JSON without cookies, redirects, token persistence or automatic retries. It rejects non-HTTPS origins except loopback, propagates machine-readable errors and accepts an AbortSignal. Mutations must not be blindly retried after an unknown network outcome; inspect the current record/version before deciding what to do. Versioned writes reject stale records/definitions atomically. An aborted HTTP request does not imply that a committed transaction was undone.
@@ -179,7 +182,7 @@ Installation Administrators can use `list_deleted_records` and `list_record_jour
 
 ## Duplicate drafts
 
-`get_record_duplicate` reads an authorized creation draft without allocating an identity, record number or journal event. It requires Duplicate on the source and Create on its object; only readable, initially writable, active values are copied. Unique values, derived values, record numbers, ownership and relationships are omitted. The response includes the source version. In the unreleased 1.2.0 implementation it additionally retains readable own Contact-inheritance exceptions in `contactInheritance`; inherited projections themselves remain omitted.
+`get_record_duplicate` reads an authorized creation draft without allocating an identity, record number or journal event. It requires Duplicate on the source and Create on its object; only readable, initially writable, active values are copied. Unique values, derived values, record numbers, ownership and relationships are omitted. The response includes the source version. From application 1.2.0 it additionally retains readable own Contact-inheritance exceptions in `contactInheritance`; inherited projections themselves remain omitted.
 
 The web client opens the ordinary new-record form with those values. Saving calls `create_record` with `duplicateFrom` (source ID/version), so Duplicate/Create and the current source version are checked again atomically. The user can edit fields and add relationships before saving; ordinary validation and creation defaults apply. Canceling leaves no new record. `duplicate_record` remains the immediate server-side copy operation for clients that deliberately need one-step duplication.
 
@@ -191,7 +194,7 @@ The interactive web client uses same-origin cookie-authenticated POST `/api/even
 
 Use custom `kind: "tree_choice"` with normal choice options plus optional `parentId` UUIDs. Category uses `category: {required, multiple: true, tree: true, defaultIds}` and Category options with optional same-object Category `parentId`. Create/update/default values may name leaves; the shared backend stores their complete ancestor-closed UUID set. To deselect a parent, submit a set excluding both it and its descendants; submitting a descendant selects that parent again. Flat multiple choice remains `multiple_choice` with no parent assignments. All definitions, conversions, rights and journal operations use the existing versioned endpoints/tools; see ADR 0037 for limits and configuration behavior.
 
-## Contact inheritance and conversions (unreleased 1.2.0)
+## Contact inheritance and conversions
 
 Discover `contactProfile.fields` in `get_object_type`; field names are not semantic identifiers. Contact-person responses add `contactInheritance`, containing permitted field UUIDs, mode, effective value, inherited proposal, edit capability and readable Organization provenance. Continue to read the effective value under the corresponding technical field name.
 

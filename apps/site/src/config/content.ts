@@ -60,6 +60,10 @@ export const content = {
         "Space for different worlds",
         "Separate definitions, records and teams in workspaces, each with its own appearance.",
       ],
+      [
+        "Changes reach your open views",
+        "Updates from colleagues or agents appear automatically. Unsaved edits stay in your draft for review before saving.",
+      ],
     ],
     automation: "Use the interface. Or let your tools do the work.",
     automationText:
@@ -96,12 +100,20 @@ export const content = {
       ],
       [
         "What is planned next?",
-        "Community 1.2.0 is planned to add guided contact-kind changes and Contact-person field inheritance with individual exceptions. Version 2 is planned to add personal column order and widths; Documents & Communication with documents, emails, phone calls, uploads, attachments and file versioning; contact reassignment, duplicate detection and merging; and Previous/Next record navigation. Standards-based synchronization, SSO and native clients remain later goals without a version assignment. The roadmap has no committed delivery dates.",
+        "Version 2 is planned to add personal column order and widths; Documents & Communication with documents, emails, phone calls, uploads, attachments and file versioning; contact reassignment, duplicate detection and merging; and Previous/Next record navigation. Standards-based synchronization, SSO and native clients remain later goals without a version assignment. The roadmap has no committed delivery dates.",
       ],
     ],
     screenshots:
       "Real application views from the fictional ITextreme demo workspace.",
     enDocs: "Documentation is currently available in English.",
+    available: "Community 1.2.0 · Open source",
+    releaseNotes: "Release notes",
+    guide: "Read the guide",
+    workflowLabel: "Contact workflows",
+    workflowTitle: "Keep contact details connected as people move.",
+    workflowText:
+      "Contact people can inherit their organization’s name and commercial register, with an own value or an explicitly empty exception per field. Guided conversions let an individual join a new or existing organization, or continue independently again. Review the affected records and resulting names before confirming; existing identities, numbers and history stay intact.",
+    workflowGuide: "How contact changes work",
     captions: {
       project: "A project with its cases and tasks in the shared hierarchy.",
       contact:
@@ -110,6 +122,7 @@ export const content = {
       custom:
         "A custom service plan: your fields, your relationships, your form.",
       journal: "Individual changes remain traceable in the record journal.",
+      conversion: "Review the affected contact and its resulting name before confirming a Contact-kind change.",
     },
     zoom: "Enlarge screenshot",
   },
@@ -173,6 +186,10 @@ export const content = {
         "Platz für verschiedene Arbeitswelten",
         "Eigene Definitionen, Datensätze und Teams in getrennten Arbeitsbereichen – jeweils mit eigener Darstellung.",
       ],
+      [
+        "Änderungen kommen bei Dir an",
+        "Änderungen von Kollegen oder Agenten erscheinen automatisch. Ungespeicherte Eingaben bleiben zum Prüfen und Speichern im Entwurf erhalten.",
+      ],
     ],
     automation:
       "In der Oberfläche arbeiten. Oder Deine Werkzeuge arbeiten lassen.",
@@ -210,16 +227,25 @@ export const content = {
       ],
       [
         "Was kommt später?",
-        "Für Community 1.2.0 sind geführte Kontaktart-Änderungen und die Feldvererbung bei Ansprechpartnern mit individuellen Ausnahmen vorgesehen. Für V2 sind persönliche Spaltenreihenfolge und -breiten, Dokumente & Kommunikation mit Dokumenten, E-Mails, Telefonaten, Uploads, Anhängen und Dateiversionierung, Kontaktpflege mit Neuzuordnung, Dublettenerkennung und Zusammenführen sowie Vor-/Zurückblättern zwischen Datensätzen vorgesehen. Standardbasierte Synchronisation, SSO und native Clients bleiben spätere Ziele ohne Versionszuordnung. Es gibt keine zugesagten Liefertermine.",
+        "Für V2 sind persönliche Spaltenreihenfolge und -breiten, Dokumente & Kommunikation mit Dokumenten, E-Mails, Telefonaten, Uploads, Anhängen und Dateiversionierung, Kontaktpflege mit Neuzuordnung, Dublettenerkennung und Zusammenführen sowie Vor-/Zurückblättern zwischen Datensätzen vorgesehen. Standardbasierte Synchronisation, SSO und native Clients bleiben spätere Ziele ohne Versionszuordnung. Es gibt keine zugesagten Liefertermine.",
       ],
     ],
     screenshots:
       "Echte Anwendungsansichten aus dem fiktiven ITextreme-Demoarbeitsbereich.",
     enDocs: "Die Dokumentation ist derzeit auf Englisch verfügbar.",
+    available: "Community 1.2.0 · Open Source",
+    releaseNotes: "Release-Änderungen",
+    guide: "Zur Anleitung",
+    workflowLabel: "Kontakte im Wandel",
+    workflowTitle: "Kontakte passend weiterführen.",
+    workflowText:
+      "Ansprechpartner können Organisationsname und Handelsregister ihrer Organisation übernehmen – mit eigenem Wert oder ausdrücklich leerer Ausnahme pro Feld. Geführte Umwandlungen verbinden einen Einzelkontakt mit einer neuen oder bestehenden Organisation oder führen Ansprechpartner wieder als Einzelkontakte weiter. Vor der Bestätigung siehst Du die betroffenen Kontakte und ihre künftigen Stichwörter; bestehende IDs, Nummern und Historie bleiben erhalten.",
+    workflowGuide: "So funktionieren Kontaktumwandlungen",
     captions: {
       project:
         "Ein Projekt mit seinen Vorgängen und Aufgaben im gemeinsamen Baum.",
       contact: "Kontaktdaten, Adressen und berufliche Angaben im Zusammenhang.",
+      conversion: "Prüfe den betroffenen Kontakt und sein künftiges Stichwort, bevor Du die Kontaktumwandlung bestätigst.",
       list: "Datensätze im Arbeitsbereich suchen, sortieren und durchblättern.",
       custom:
         "Ein eigener Serviceplan: Deine Felder, Verknüpfungen und Formulare.",

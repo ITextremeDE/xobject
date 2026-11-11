@@ -9,8 +9,9 @@ no application login, business-data access, analytics or external font service.
 
 English and German product pages live at `/en/` and `/de/`. They explain connected
 records, Contacts & Relations, Projects & Tasks, custom objects/forms, permissions,
-journals, workspaces, API/MCP and Community self-hosting. Later capabilities are
-identified as planned in the FAQ. The primary action opens the self-hosting guide;
+journals, workspaces, API/MCP and Community self-hosting. The 1.2.0 content adds a
+Contact-workflows section, inheritance/conversion screenshots and automatic refresh
+with protected drafts. Later capabilities are identified as planned in the FAQ. The primary action opens the self-hosting guide;
 GitHub is the secondary action. The workflow example is explanatory text, not a
 live AI integration or a public application demo.
 
@@ -26,7 +27,7 @@ canonical, `hreflang` and `x-default` metadata, Open Graph metadata and a share 
 
 The canonical English Changelog and Roadmap remain at `/changelog/` and `/roadmap/`. Resource links are ordered Documentation, Changelog, Roadmap, Requirements, Source code in both languages. Legal footer links place Privacy before Legal notice. Current documentation links to the website pages; released documentation snapshots retain their historical copies.
 The build generates them from the root Markdown files; edit those originals,
-not the ignored generated content. Documentation links in these pages resolve to the rendered public Docs, retaining section anchors; code references continue to point to GitHub. The bilingual FAQ reflects the five agreed V2 themes and distinguishes later goals without a version assignment. The reference documentation currently remains
+not the ignored generated content. Documentation links in these pages resolve to the rendered public Docs, retaining section anchors; code references continue to point to GitHub. The 1.2.0 website explains Contact inheritance and guided conversions as product capabilities; the FAQ reserves V2 for its four agreed themes and distinguishes unassigned later goals. The reference documentation currently remains
 English at <https://docs.xobject.org/>; both product languages state this clearly.
 
 ## Design and components
@@ -66,7 +67,9 @@ new pages do not reuse a stale script from an earlier deployment.
 
 `src/assets/screenshots/` contains actual fictional ITextreme demo views in both
 interface languages and light/dark modes: a project tree, a record list, a Contact,
-a custom service plan and a record journal. No real customer data or credentials
+a custom service plan, a record journal and the Contact-conversion confirmation
+preview. The Contact and conversion views use the current 1.2.0 source; the other
+views retain the unchanged earlier workflow captures. No real customer data or credentials
 are included. Record contents remain in their original English language.
 Capture through a separate browser session and restore temporary account settings.
 

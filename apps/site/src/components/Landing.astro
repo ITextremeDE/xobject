@@ -13,11 +13,13 @@ import {
   ShieldCheck,
   LogsIcon,
   PanelsTopLeft,
+  RefreshCw,
 } from "@lucide/astro";
 const { lang = "en" } = Astro.props as { lang?: Language };
 const t = content[lang],
   icons = [UsersRound, FolderKanban, Boxes],
-  controlIcons = [ShieldCheck, LogsIcon, PanelsTopLeft];
+  controlIcons = [ShieldCheck, LogsIcon, PanelsTopLeft, RefreshCw],
+  guides = ["contacts", "projects-and-tasks", "model-design"];
 ---
 
 <SiteLayout
@@ -39,6 +41,7 @@ const t = content[lang],
           <p class="lead">{t.intro}</p>
           <ProjectActions repository={repositoryURL} lang={lang} />
           <p class="documentation-note">{t.enDocs}</p>
+          <p class="documentation-note">{t.available} · <a class="text-link" href="/changelog/">{t.releaseNotes}</a></p>
         </div>
         <Screenshot view="project" lang={lang} eager />
       </div>
@@ -91,6 +94,7 @@ const t = content[lang],
                 />
                 <h3>{title}</h3>
                 <p>{text}</p>
+                <a class="text-link" href={`https://docs.xobject.org/${guides[i]}/`}>{t.guide}<ArrowUpRight aria-hidden="true" /></a>
               </article>
             );
           })}
@@ -99,6 +103,17 @@ const t = content[lang],
           <Screenshot view="contact" lang={lang} />
           <Screenshot view="custom" lang={lang} />
         </div>
+      </div>
+    </section>
+    <section class="product-section site-container" aria-labelledby="workflow-heading" data-contact-workflows>
+      <div class="feature-story">
+        <div>
+          <p class="eyebrow">{t.workflowLabel}</p>
+          <h2 id="workflow-heading">{t.workflowTitle}</h2>
+          <p class="lead">{t.workflowText}</p>
+          <a class="text-link" href="https://docs.xobject.org/contacts/#change-a-contact-kind">{t.workflowGuide}<ArrowUpRight aria-hidden="true" /></a>
+        </div>
+        <Screenshot view="conversion" lang={lang} />
       </div>
     </section>
     <section

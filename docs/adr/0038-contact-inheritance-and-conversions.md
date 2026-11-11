@@ -1,6 +1,6 @@
 # ADR 0038: Contact inheritance and guided kind conversions
 
-- Status: Accepted for Community 1.2.0; unreleased implementation
+- Status: Accepted; delivered in Community 1.2.0
 - Date: 2026-11-11
 - Requirements: PRD R-024, R-064, R-065
 

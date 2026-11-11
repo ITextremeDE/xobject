@@ -170,7 +170,7 @@ test("localized product site, theme controls, screenshots and resources under pr
       );
       assert.equal(
         await page.locator("main figure.product-screenshot").count(),
-        5,
+        6,
       );
       await expect(
         page.locator('.language-navigation a[data-language="en"]'),
@@ -213,6 +213,17 @@ test("localized product site, theme controls, screenshots and resources under pr
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(viewer.trigger).toBeFocused();
+
+      const workflowImage=page.locator('[data-contact-workflows] .screenshot-link:visible');
+      await workflowImage.click();
+      const workflowViewer=page.getByRole('dialog',{name:'Screenshot',exact:true});
+      await expect(workflowViewer).toBeVisible();
+      await expect(workflowViewer.locator('img')).toHaveJSProperty('complete',true);
+      assert(await workflowViewer.locator('img').evaluate(img=>img.naturalWidth>0));
+      assert.equal(context.pages().length,1,'Contact workflow screenshots stay in the same tab');
+      await page.keyboard.press('Escape');
+      await expect(workflowViewer).toHaveCount(0);
+      await expect(workflowImage).toBeFocused();
       viewer = await openScreenshot();
       await viewer.dialog
         .getByRole("button", {

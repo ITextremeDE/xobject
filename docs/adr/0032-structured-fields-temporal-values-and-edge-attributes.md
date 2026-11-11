@@ -4,9 +4,9 @@
 - Date: 2026-11-04
 - Refines: [ADR 0007](0007-custom-field-types.md), [ADR 0019](0019-record-relationships.md) and [ADR 0031](0031-standards-aligned-groupware-models.md)
 
-## Current reading — 2026-11-10
+## Current reading — 2026-11-11
 
-This staged ADR retains both proposals and later implemented refinements. The [Professional-details ownership refinement](#professional-details-ownership-refinement--2026-11-05) supersedes earlier membership-edge placement: Job title, Department and Function are direct Contact fields. The [V1 Projects refinement](#v1-projects-refinement-2026-11-05) adds the temporal codec and current Task semantics. Recurrence, calendar parties and structured Contact-reference integrity remain planned; original future-tense architecture is not a delivery claim.
+This staged ADR retains both proposals and later implemented refinements. The [Professional-details ownership refinement](#professional-details-ownership-refinement--2026-11-05) supersedes earlier membership-edge placement: Job title, Department and Function are direct Contact fields. The [V1 Projects refinement](#v1-projects-refinement-2026-11-05) adds the temporal codec and current Task semantics. Recurrence, calendar parties and structured Contact-reference integrity remain planned; original future-tense architecture is not a delivery claim. The 1.1.0 correspondence follow-up brings the registry to eleven codecs, including ten Contact codecs. Contact inheritance exceptions and conversions are the separate 1.2.0 refinement in [ADR 0038](0038-contact-inheritance-and-conversions.md); they do not implement recurrence exceptions.
 
 ## Current implementation boundary
 

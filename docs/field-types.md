@@ -35,6 +35,7 @@ The schema selector offers these finite shapes; it does not accept arbitrary JSO
 | Email addresses / Telephone numbers / Websites | Ordered channel entries with configurable contexts and order-derived preference |
 | Postal addresses | Ordered component-based addresses |
 | Languages | Communication-language tags, separate from installed UI languages |
+| Pronouns | Language-tagged pronoun text, freely editable per entry |
 | Messenger addresses | Validated messaging URIs and descriptive contexts |
 | Time zone | A named IANA zone or UTC |
 | Partial date | Month/day with an optional known year |
