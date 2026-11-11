@@ -47,7 +47,7 @@ Uploads, attachments, import/export, SSO, desktop and mobile clients, offline sy
 
 Documents & Communication is planned for V2, including supplied Emails, Documents and Phone calls. No email handling or uploads are implemented. Modules may contribute different fields to one shared object and record. Each object has one common form that combines its applicable contributions. The catalog can grow. See [the module catalog](docs/PRD.md#module-catalog-and-shared-forms).
 
-The unreleased Community 1.2.0 worktree implements guided Contact-kind changes and Contact-person inheritance with per-field exceptions under ADR 0038. The agreed V2 scope also includes personal column order/widths, Contact maintenance with duplicate detection/merging and Previous/Next record navigation. These are planned targets; [delivery boundaries](docs/PRD.md#13-agreed-v2-scope) distinguish them from the released features.
+Community 1.2.0 delivers guided Contact-kind changes and Contact-person inheritance with per-field exceptions under ADR 0038. The agreed V2 scope also includes personal column order/widths, Contact maintenance with duplicate detection/merging and Previous/Next record navigation. These are planned targets; [delivery boundaries](docs/PRD.md#13-agreed-v2-scope) distinguish them from the released features.
 
 ## Technology
 
@@ -61,7 +61,7 @@ The unreleased Community 1.2.0 worktree implements guided Contact-kind changes a
 
 PostgreSQL holds application definitions, records, relationships and history. Git is used for source code and project documentation. Using or self-hosting xObject does not require a Git account or a user-owned repository.
 
-The backend uses Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Dependency versions are recorded in the package manifests and lockfile. The application uses a current fresh-installation baseline, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Installation and maintenance are described in the [self-hosting guide](docs/self-hosting.md). The [quality report](docs/quality-acceptance.md) records the accepted scope and remaining coverage limits. Released upgrades through 1.1.0 use dedicated maintenance tooling to reach the exact target schema while preserving records and history. The unreleased 1.2.0 path additionally accepts 1.1.0; final release-image acceptance remains a release gate.
+The backend uses Fastify, Kysely with `pg`, Better Auth and the official TypeScript MCP SDK. Dependency versions are recorded in the package manifests and lockfile. The application uses a current fresh-installation baseline, deferred record-registry checks, versioned field edits and separate operator/runtime database roles under [ADR 0022](docs/adr/0022-database-integrity-and-concurrency.md). Installation and maintenance are described in the [self-hosting guide](docs/self-hosting.md). The [quality report](docs/quality-acceptance.md) records the accepted scope and remaining coverage limits. Released upgrades to 1.2.0 use dedicated maintenance tooling to reach the exact target schema from 1.0.0–1.1.0 while preserving records and history. Native image acceptance is recorded in the quality report.
 
 ## Documentation and development
 
