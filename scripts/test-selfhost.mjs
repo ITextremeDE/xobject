@@ -36,6 +36,12 @@ try{
   await api('create_field',{objectTypeId:object.id,technicalName:'description',labels:{en:'Description',de:'Beschreibung'},kind:'multiline'});
   const record=await api('create_record',{objectTypeId:object.id,keyword:'Recovery sample',values:{description:'Before backup'}});
   const originalJournal=await api('list_record_journal',{objectTypeId:object.id,recordId:record.id});
+  await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+  const contactSummary=(await api('list_object_types',{workspaceId:ws.id})).find(item=>item.technicalName==='contacts');
+  const contactModel=await api('get_object_type',{objectTypeId:contactSummary.id});
+  const contact=await api('create_record',{objectTypeId:contactModel.id,values:{contact_kind:contactModel.contactProfile.kinds.organization,company_name:'Retained release contact'}});
+  const contactJournal=await api('list_record_journal',{objectTypeId:contactModel.id,recordId:contact.id});
+
   const bundle=path.join(directory,'backup');await helper('backup',bundle);
   await api('update_record',{objectTypeId:object.id,recordId:record.id,version:record.version,values:{description:'After backup'}});
   const extra=await api('create_record',{objectTypeId:object.id,keyword:'After snapshot'});
@@ -52,6 +58,12 @@ try{
   const upgraded=await api('get_record',{objectTypeId:object.id,recordId:record.id});
   assert.equal(upgraded.description,'Before backup');assert.equal(upgraded.version,record.version);assert.equal(upgraded.keyword,record.keyword);
   assert.deepEqual(await api('list_record_journal',{objectTypeId:object.id,recordId:record.id}),journal);
+  const retainedContact=await api('get_record',{objectTypeId:contactModel.id,recordId:contact.id});
+  assert.equal(retainedContact.company_name,contact.company_name);assert.equal(retainedContact.version,contact.version);
+  assert.deepEqual(await api('list_record_journal',{objectTypeId:contactModel.id,recordId:contact.id}),contactJournal);
+  const upgradedContactModel=await api('get_object_type',{objectTypeId:contactModel.id});
+  for(const key of ['address_form','letter_salutation','pronouns'])assert.ok(upgradedContactModel.contactProfile.fields[key]);
+
   await run('docker',[...compose,'stop','app']);
   await run('docker',[...compose,'exec','-T','db','psql','-X','-v','ON_ERROR_STOP=1','-U','xobject','-d','xobject','-c',"UPDATE sys_schema_version SET definition_hash='unsupported-source' WHERE singleton"]);
   await assert.rejects(()=>helper('upgrade',imageId,path.join(directory,'unsupported-source-backup')));

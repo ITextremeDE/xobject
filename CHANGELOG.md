@@ -4,10 +4,14 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-11
+
+Back up the installation and stop all writers before upgrading. The additive catalog upgrade from 1.0.0–1.0.2 preserves records, existing numbers, history and authored definitions.
+
 ### Added
 
 - Add Administrator-only missing record-number assignment with a frozen preview and explicit confirmation in object settings, REST and MCP. Retain issued numbers, include the recycle bin, continue the current counter/period and journal each changed record; stale/concurrent plans, collisions, exhaustion and failed journal writes leave no partial allocation.
-- Add optional Contact Form of address, an automatically suggested Letter salutation with individual override/reset, and freely editable language-specific Pronouns shared by web, API and MCP under field rights. Supply workspace-scoped Parents/Children, Partners/Siblings and Organization-affiliation links, an editable Association Type and Other usage choices for telephone, email, website, messenger and postal-address entries. Provide an additive transactional upgrade from released 1.0.0–1.0.2 that preserves authored definitions, forms, data, history and inactive modules.
+- Add optional Contact Form of address, an automatically suggested Letter salutation with individual override/reset, and freely editable language-specific Pronouns shared by web, API and MCP under field rights. Supply workspace-scoped Parents/Children, Partners/Siblings and Organization-affiliation links, an editable Association Type and Other usage choices for telephone, email, website, messenger and postal-address entries. Provide an additive transactional upgrade from 1.0.0–1.0.2 that preserves authored definitions, forms, data, history and inactive modules.
 - Offer locally served Source Serif 4 for workspace interface and heading fonts, including the shared API/MCP appearance catalog and font license notices.
 
 ### Fixed
@@ -152,6 +156,8 @@ First Community release under `AGPL-3.0-only`, maintained by Jürgen Schadek und
 
 - Exclude private backup/recovery environment files from Git, build contexts and commit-bound public source archives. Resume unchanged containers after backups with supported Compose v2 commands, reserve the proxy address outside the dynamic pool and keep diagnostics bounded and free of private payloads.
 
-[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ITextremeDE/xobject/compare/v1.0.2...v1.1.0
+[1.0.2]: https://github.com/ITextremeDE/xobject/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/ITextremeDE/xobject/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ITextremeDE/xobject/releases/tag/v1.0.0
