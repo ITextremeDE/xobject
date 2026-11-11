@@ -3586,7 +3586,7 @@ test('unique input errors identify only the field and context while global searc
 });
 
 test('structured contact fields share API/MCP, field permissions, safe conversion, versions and atomic history',async()=>{
- const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,10);
+ const inventory=await tool('list_field_schemas',{});assert.equal(inventory.length,11);
  const ws=await ok('create_workspace',{name:'Structured contacts',code:'structuredcontacts'});
  const object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'people',labels:{en:'People',de:'Personen'},standardFields:['keyword']});
  const names=await ok('create_field',{objectTypeId:object.id,technicalName:'given_names',labels:{en:'Given names',de:'Vornamen'},kind:'structured',config:{schema:'name_components'}});
@@ -3706,7 +3706,7 @@ test('Contact salutations and academic titles are configurable independent choic
  const title=field('academic_title'),salutation=field('salutation'),gender=field('gender');
  for(const [purpose,schema] of [['emails','email_entries'],['phones','phone_entries'],['addresses','address_entries'],['websites','url_entries']]){
   const collection=field(purpose);assert.equal(collection.config.schema,schema);assert.notEqual(collection.config.fixedOptions,true);
-  assert.deepEqual(collection.config.options.map((o:any)=>o.labels.en),purpose==='phones'?['Work','Home','Mobile','Voice calls','Fax','SMS / text','Video','Pager','Textphone']:['Work','Home']);
+  assert.deepEqual(collection.config.options.map((o:any)=>o.labels.en),purpose==='phones'?['Work','Home','Other','Mobile','Voice calls','Fax','SMS / text','Video','Pager','Textphone']:['Work','Home','Other']);
   assert.ok(collection.config.options.every((o:any)=>o.labels.de&&o.id));
  }
  assert.equal(gender.kind,'single_choice');assert.equal(gender.required,false);assert.equal(gender.labels.de,'Geschlecht');assert.equal(gender.config.fixedOptions,false);
@@ -3869,17 +3869,17 @@ test('shared module template additions retain authored views and configurable va
  const row=await createOrganization(id,'Preserved'),extra=await ok('create_field',{objectTypeId:id,technicalName:'my_field',labels:{en:'My field'}}),layout={groups:[{id:'personal',labels:{en:'Our view'},fields:[{fieldId:extra.id,width:'full'}]}]};
  definition=await ok('configure_form_layout',{objectTypeId:id,version:definition.version,layout});
  await ok('configure_workspace_languages',{workspaceId:ws.id,version:1,availableLanguages:['de'],defaultLanguage:'de',labelLanguages:['de']});
- const catalog=(await sql<any>`SELECT objects FROM sys_modules WHERE key='contacts'`.execute(runtime.db)).rows[0].objects;
+ const original=(await sql<any>`SELECT objects,template_version FROM sys_modules WHERE key='contacts'`.execute(runtime.db)).rows[0],catalog=original.objects,baseVersion=original.template_version;
  const revised=structuredClone(catalog);revised.find((o:any)=>o.key==='contact').fields.push({key:'crm_segment',technicalName:'crm_segment',labels:{en:'CRM segment',de:'CRM-Segment'},kind:'text'});
  try{
-  await sql`UPDATE sys_modules SET objects=${JSON.stringify(revised)}::jsonb,template_version=2 WHERE key='contacts'`.execute(runtime.db);
-  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');assert.equal(module.installedVersion,1);assert.equal(module.templateVersion,2);
-  const updated=await tool('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:module.version});assert.equal(updated.installedVersion,2);
+  await sql`UPDATE sys_modules SET objects=${JSON.stringify(revised)}::jsonb,template_version=${baseVersion+1} WHERE key='contacts'`.execute(runtime.db);
+  const module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts');assert.equal(module.installedVersion,baseVersion);assert.equal(module.templateVersion,baseVersion+1);
+  const updated=await tool('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:module.version});assert.equal(updated.installedVersion,baseVersion+1);
   const next=await ok('get_object_type',{objectTypeId:id});assert.deepEqual(next.formLayouts.default,layout);assert.equal(next.fields.find((f:any)=>f.technicalName==='my_field').id,extra.id);assert.ok(next.moduleFieldIds.contacts.includes(next.fields.find((f:any)=>f.technicalName==='crm_segment').id));assert.deepEqual(next.fields.find((f:any)=>f.technicalName==='crm_segment').labels,{en:'CRM segment',de:'CRM-Segment'});assert.equal((await ok('get_record',{objectTypeId:id,recordId:row.id})).keyword,'Preserved');
-  const conflict=structuredClone(revised);conflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='crm_segment').kind='boolean';await sql`UPDATE sys_modules SET objects=${JSON.stringify(conflict)}::jsonb,template_version=3 WHERE key='contacts'`.execute(runtime.db);
+  const conflict=structuredClone(revised);conflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='crm_segment').kind='boolean';await sql`UPDATE sys_modules SET objects=${JSON.stringify(conflict)}::jsonb,template_version=${baseVersion+2} WHERE key='contacts'`.execute(runtime.db);
   assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);assert.equal((await ok('get_object_type',{objectTypeId:id})).fields.find((f:any)=>f.technicalName==='crm_segment').kind,'text');
   const codecConflict=structuredClone(revised);codecConflict.find((o:any)=>o.key==='contact').fields.find((f:any)=>f.key==='birthday').config={schema:'url_entries'};await sql`UPDATE sys_modules SET objects=${JSON.stringify(codecConflict)}::jsonb WHERE key='contacts'`.execute(runtime.db);assert.equal((await api('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:updated.version})).statusCode,409);
- }finally{await sql`UPDATE sys_modules SET objects=${JSON.stringify(catalog)}::jsonb,template_version=1 WHERE key='contacts'`.execute(runtime.db);}
+ }finally{await sql`UPDATE sys_modules SET objects=${JSON.stringify(catalog)}::jsonb,template_version=${baseVersion} WHERE key='contacts'`.execute(runtime.db);}
 });
 
 test('custom relationship fields have scoped configuration, preflighted requiredness and a retained definition lifecycle',async()=>{
@@ -4786,4 +4786,178 @@ test('workspace lists use localized names and stable ties instead of technical c
   const limited=await api('list_workspaces',{},userCookie);assert.equal(limited.statusCode,200);
   assert.deepEqual(limited.json().filter((w:any)=>ids.has(w.id)).map((w:any)=>w.code),['nameorderb','nameordera']);
  }finally{await sql`UPDATE sys_users SET language=${before} WHERE id=${adminId}`.execute(runtime.db);}
+});
+
+
+test('Contact correspondence, pronouns, Other usage and family links share API/MCP rights and journal',async()=>{
+ const ws=await ok('create_workspace',{name:'Correspondence acceptance',code:'corresp'});
+ await enableProjects(ws.id);
+ const objects=await ok('list_object_types',{workspaceId:ws.id}),object=objects.find((o:any)=>o.technicalName==='contacts');
+ const definition=await ok('get_object_type',{objectTypeId:object.id}),profile=definition.contactProfile;
+ const field=(key:string)=>definition.fields.find((f:any)=>f.id===profile.fields[key]);
+ const name=(text:string)=>[{id:randomUUID(),text}];
+ for(const key of ['phones','emails','websites','addresses','messenger_addresses'])assert.ok(field(key).config.options.some((o:any)=>o.labels.en==='Other'),key);
+ assert.ok(definition.classification.options.some((o:any)=>o.kind==='type'&&o.labels.de==='Verein'));
+ const row=await ok('create_record',{objectTypeId:object.id,values:{contact_kind:profile.kinds.individual,first_name:name('Jane'),last_name:name('Doe'),salutation:profile.choiceKeys.salutation.ms,address_form:profile.choiceKeys.address_form.formal,languages:[{id:randomUUID(),value:'de-DE',contexts:[],preference:1}],pronouns:[{id:randomUUID(),language:'en',value:'they/them'},{id:randomUUID(),language:'de',value:'sie/ihr'}]}});
+ assert.equal(row.suggestedLetterSalutation,'Sehr geehrte Frau Doe,');assert.equal(row.effectiveLetterSalutation,row.suggestedLetterSalutation);
+ let updated=await tool('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{letter_salutation:'Hello dear Jane,'}});
+ assert.equal(updated.effectiveLetterSalutation,'Hello dear Jane,');
+ updated=await tool('update_record',{objectTypeId:object.id,recordId:row.id,version:updated.version,values:{address_form:profile.choiceKeys.address_form.informal}});
+ assert.equal(updated.suggestedLetterSalutation,'Hallo Jane,');assert.equal(updated.effectiveLetterSalutation,'Hello dear Jane,');
+ updated=await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:updated.version,values:{letter_salutation:null}});assert.equal(updated.effectiveLetterSalutation,'Hallo Jane,');
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,values:{letter_salutation:'stale'}})).statusCode,409);
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:row.id,version:updated.version,values:{pronouns:[{id:randomUUID(),language:'en_US',value:'they/them'}]}})).statusCode,400);
+ const journal=await journalEntries({objectTypeId:object.id,recordId:row.id});assert.ok(journal.some(e=>e.field_id===field('letter_salutation').id));assert.ok(journal.some(e=>e.field_id===field('pronouns').id));
+ const other=await ok('create_workspace',{name:'Separate family',code:'otherfamily'});await enableProjects(other.id);
+ const otherObject=(await ok('list_object_types',{workspaceId:other.id})).find((o:any)=>o.technicalName==='contacts');
+ const otherProfile=(await ok('get_object_type',{objectTypeId:otherObject.id})).contactProfile;
+ const foreign=await ok('create_record',{objectTypeId:otherObject.id,values:{contact_kind:otherProfile.kinds.individual,last_name:name('Outside')}});
+ const types=await ok('list_relationship_types',{workspaceId:ws.id}),parent=types.find((t:any)=>t.technicalName==='contact_parent');
+ assert.ok(parent.directed);assert.equal(parent.leftMax,null);assert.equal(parent.rightMax,null);
+ const child=await ok('create_record',{objectTypeId:object.id,values:{contact_kind:profile.kinds.individual,last_name:name('Doe junior')},relationships:[{relationshipTypeId:parent.id,version:parent.version,side:'right',targets:[{objectTypeId:object.id,recordId:row.id}]}]});
+ assert.ok((await journalEntries({objectTypeId:object.id,recordId:child.id})).some(e=>e.entity_kind==='relationship'));
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:child.id,version:child.version,relationships:[{relationshipTypeId:parent.id,version:parent.version,side:'right',targets:[{objectTypeId:otherObject.id,recordId:foreign.id}]}]})).statusCode,400);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const permissions=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...permissions,grants:[{kind:'user',id:user.id,level:'read',fields:{[field('last_name').id]:'none'}}]});
+ const restricted=(await api('get_record',{objectTypeId:object.id,recordId:row.id},userCookie)).json();assert.equal(restricted.suggestedLetterSalutation,null);assert.equal(restricted.effectiveLetterSalutation,null);assert.ok(!Object.hasOwn(restricted,'last_name'));
+});
+
+
+test('released 1.0.2 Contact catalog upgrade is additive, atomic, repeatable and preserves inactive modules',async()=>{
+ const {connect}=await import('../src/database.js');
+ const {Pool}=await import('pg'),operator=new Pool({connectionString:databaseURL});
+ const name=`contact_upgrade_${randomUUID().replaceAll('-','')}`,url=new URL(databaseURL);url.pathname='/'+name;
+ await operator.query(`CREATE DATABASE "${name}"`);const inspection=new Pool({connectionString:url.href}),connection=connect(url.href),app=new Application(connection.db);
+ const runtimeURL=new URL(url);runtimeURL.username='unused_upgrade_runtime';
+ try{
+  await initializeDatabase(url.href,secret,baseURL);
+  await inspection.query("INSERT INTO sys_users(id,name,email,email_verified,created_at,updated_at,is_admin,must_change_password) VALUES($1,'Upgrade administrator','upgrade@example.test',true,now(),now(),true,false)",[adminId]);
+  const released=JSON.parse(readFileSync(new URL('./fixtures/released-1.0.2-module-catalog.json',import.meta.url),'utf8'));
+  for(const module of released)await inspection.query('UPDATE sys_modules SET objects=$1::jsonb,template_version=1 WHERE key=$2',[JSON.stringify(module.objects),module.key]);
+  const execute=async(operation:Operation,input:unknown)=>app.execute(operation,input,adminId) as Promise<any>;
+  const ws=await execute('create_workspace',{name:'Retained workspace',code:'retained'});
+  await execute('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+  const object=(await execute('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');
+  const before=await execute('get_object_type',{objectTypeId:object.id});
+  const email=before.fields.find((f:any)=>f.technicalName==='emails'),custom=randomUUID();
+  await execute('configure_field',{fieldId:email.id,version:email.version,required:false,config:{...email.config,options:[{...email.config.options[0],labels:{en:'Office custom',de:'Büro individuell'},active:false},email.config.options[1],{id:custom,labels:{en:'Service',de:'Service'},active:true}]}});
+  const extension=await execute('create_field',{objectTypeId:object.id,technicalName:'retained_extension',labels:{en:'Retained extension'},kind:'text'});
+  let current=await execute('get_object_type',{objectTypeId:object.id});
+  const form={groups:[{id:'retained-layout',labels:{en:'Retained layout'},fields:[{fieldId:extension.id,width:'full'}]}]};
+  await execute('configure_form_layout',{objectTypeId:object.id,version:current.version,layout:form});
+  const row=await execute('create_record',{objectTypeId:object.id,values:{contact_kind:before.contactProfile.kinds.individual,last_name:[{id:randomUUID(),text:'Retained'}],retained_extension:'Keep me'}});
+  // Restore definitions that the released installer actually supplied. No runtime legacy model.
+  for(const key of ['contact_parent','contact_partner','contact_sibling','contact_affiliation']){
+   const relation=(await inspection.query('DELETE FROM sys_module_relationship_bindings WHERE workspace_id=$1 AND relationship_key=$2 RETURNING relationship_type_id',[ws.id,key])).rows[0];
+   await inspection.query('DELETE FROM sys_relationship_type_pairs WHERE relationship_type_id=$1',[relation.relationship_type_id]);
+   await inspection.query('DELETE FROM sys_relationship_types WHERE id=$1',[relation.relationship_type_id]);
+  }
+  await inspection.query("DELETE FROM sys_module_field_bindings WHERE workspace_id=$1 AND field_key='contact_type'",[ws.id]);
+  await inspection.query("UPDATE sys_object_types SET classification=jsonb_set(classification,'{options}','[]'::jsonb) WHERE id=$1",[object.id]);
+  await execute('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:false,version:2});
+  await inspection.query("UPDATE sys_schema_version SET definition_hash='1258a98cca87240c1f600ef414567b84be738731044cac929412bc81f1c16e86' WHERE singleton");
+  const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;
+  const retained=(await inspection.query('SELECT config FROM sys_fields WHERE id=$1',[email.id])).rows[0].config;
+  // A conflicting technical name causes rollback of catalog, fields and fingerprint together.
+  await inspection.query('ALTER TABLE retained_contacts ADD COLUMN address_form uuid');
+  await assert.rejects(upgradeInstallation(url.href,runtimeURL.href,true,true));
+  assert.equal((await inspection.query("SELECT template_version FROM sys_modules WHERE key='contacts'")).rows[0].template_version,1);
+  await inspection.query('ALTER TABLE retained_contacts DROP COLUMN address_form');
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);
+  current=await execute('get_object_type',{objectTypeId:object.id});
+  assert.equal(current.state,'inactive');assert.deepEqual(current.formLayouts.default,form);
+  assert.equal((await inspection.query('SELECT retained_extension FROM retained_contacts WHERE id=$1',[row.id])).rows[0].retained_extension,'Keep me');
+  assert.deepEqual(current.fields.find((f:any)=>f.id===email.id).config.options.slice(0,3),retained.options);
+  assert.equal(current.fields.find((f:any)=>f.id===email.id).config.options.filter((o:any)=>o.labels.en==='Other').length,1);
+  for(const key of ['address_form','letter_salutation','pronouns'])assert.ok(current.contactProfile.fields[key]);
+  assert.equal((await execute('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='contacts').enabled,false);
+  assert.deepEqual((await inspection.query('SELECT * FROM sys_journal WHERE id=ANY($1::uuid[]) ORDER BY id',[history.map(row=>row.id)])).rows,history);
+  const count=(await inspection.query('SELECT count(*) FROM sys_journal')).rows[0].count;
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);
+  assert.equal((await inspection.query('SELECT count(*) FROM sys_journal')).rows[0].count,count);
+ // Normal DROP waits for closing sockets and fails if a connection was genuinely leaked.
+ }finally{await connection.db.destroy();if(!connection.pool.ended)await connection.pool.end();await inspection.end();await operator.query(`DROP DATABASE "${name}"`);await operator.end();}
+});
+
+test('record-number backfill previews without writes, preserves issued numbers and includes recycled records through API/MCP',async()=>{
+ const ws=await ok('create_workspace',{name:'Backfill numbering',code:'backfill'});
+ let object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'contacts_test',labels:{en:'Backfill contacts'},standardFields:['keyword']});object=await ok('get_object_type',{objectTypeId:object.id});
+ const older=await ok('create_record',{objectTypeId:object.id,keyword:'Older'}),recycled=await ok('create_record',{objectTypeId:object.id,keyword:'Recycled'});
+ await ok('recycle_record',{objectTypeId:object.id,recordId:recycled.id,version:recycled.version});
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{enabled:true,prefix:'ITx-CON-',suffix:'',start:'1',increment:'1',padding:1,restart:'never'}});
+ const numbered=await ok('create_record',{objectTypeId:object.id,keyword:'Already numbered'});assert.equal(numbered.record_number,'ITx-CON-1');
+ const preview=await tool('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version});
+ assert.equal(preview.eligibleCount,2);assert.equal(preview.preservedCount,1);assert.equal(preview.recycledCount,1);assert.equal(preview.firstNumber,'ITx-CON-2');assert.equal(preview.lastNumber,'ITx-CON-3');
+ assert.deepEqual(preview.samples.map((r:any)=>r.recordId),[older.id,recycled.id]);
+ const readonly=await ok('create_api_credential',{name:'Read-only numbering check',expiresAt:new Date(Date.now()+86400000).toISOString(),channels:['api'],readOnly:true,currentPassword:'test-password-administrator'});
+ const bearer=async(operation:string,input:unknown)=>runtime.app.inject({method:'POST',url:`/api/v1/${operation}`,headers:{host:'127.0.0.1:4100',authorization:`Bearer ${readonly.token}`,'content-type':'application/json'},payload:JSON.stringify(input)});
+ assert.equal((await bearer('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version})).statusCode,200);
+ assert.equal((await bearer('backfill_record_numbers',{objectTypeId:object.id,version:object.version,previewToken:preview.previewToken,confirm:true})).statusCode,403);
+
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:older.id})).record_number,null);
+ const result=await tool('backfill_record_numbers',{objectTypeId:object.id,version:object.version,previewToken:preview.previewToken,confirm:true});assert.equal(result.assigned,2);assert.equal(result.preserved,1);
+ const first=await ok('get_record',{objectTypeId:object.id,recordId:older.id});assert.equal(first.record_number,'ITx-CON-2');assert.equal(first.version,older.version+1);assert.equal(first.created_at,older.created_at);
+ const removed=await ok('get_recycled_record',{objectTypeId:object.id,recordId:recycled.id});assert.equal(removed.record_number,'ITx-CON-3');
+ const retained=await ok('get_record',{objectTypeId:object.id,recordId:numbered.id});assert.equal(retained.record_number,numbered.record_number);assert.equal(retained.version,numbered.version);
+ const events=(await journalEntries({objectTypeId:object.id,recordId:older.id})).filter(e=>e.field_key==='record_number');assert.equal(events.length,1);assert.equal(events[0].old_value,null);assert.equal(events[0].new_value,'ITx-CON-2');
+ const again=await ok('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version});assert.equal(again.eligibleCount,0);
+ assert.equal((await ok('backfill_record_numbers',{objectTypeId:object.id,version:object.version,previewToken:again.previewToken,confirm:true})).assigned,0);
+ assert.equal((await ok('create_record',{objectTypeId:object.id,keyword:'After backfill'})).record_number,'ITx-CON-4');
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'designer',expectedRole:null});
+ assert.equal((await api('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version},userCookie)).statusCode,403);
+ assert.equal((await api('backfill_record_numbers',{objectTypeId:object.id,version:object.version,previewToken:again.previewToken,confirm:true},userCookie)).statusCode,403);
+ assert.equal((await api('backfill_record_numbers',{objectTypeId:object.id,version:object.version,previewToken:again.previewToken,confirm:false})).statusCode,400);
+});
+
+test('record-number backfill rejects stale previews and concurrent repeated execution without partial writes',async()=>{
+ const ws=await ok('create_workspace',{name:'Backfill concurrency',code:'backfillrace'});
+ let object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});object=await ok('get_object_type',{objectTypeId:object.id});
+ const row=await ok('create_record',{objectTypeId:object.id,keyword:'Needs number'});
+ assert.equal((await api('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version})).statusCode,400);
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{enabled:true,prefix:'R-',suffix:'',start:'1',increment:'1',padding:1,restart:'never'}});
+ let preview=await ok('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version});
+ await ok('update_record',{objectTypeId:object.id,recordId:row.id,version:row.version,keyword:'Changed after preview'});
+ assert.equal((await api('backfill_record_numbers',{objectTypeId:object.id,version:object.version,previewToken:preview.previewToken,confirm:true})).statusCode,409);
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).record_number,null);
+ const previousVersion=object.version;object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:{en:'Updated items'}});
+ assert.equal((await api('backfill_record_numbers',{objectTypeId:object.id,version:previousVersion,previewToken:preview.previewToken,confirm:true})).statusCode,409);
+ preview=await ok('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version});
+ await ok('create_record',{objectTypeId:object.id,keyword:'New number changes counter'});
+ assert.equal((await api('backfill_record_numbers',{objectTypeId:object.id,version:object.version,previewToken:preview.previewToken,confirm:true})).statusCode,409);
+ preview=await ok('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version});
+ const payload={objectTypeId:object.id,version:object.version,previewToken:preview.previewToken,confirm:true};
+ const results=await Promise.all([api('backfill_record_numbers',payload),api('backfill_record_numbers',payload)]);assert.deepEqual(results.map(r=>r.statusCode).sort(),[200,409]);
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:row.id})).record_number,'R-2');
+ assert.equal((await journalEntries({objectTypeId:object.id,recordId:row.id})).filter(e=>e.field_key==='record_number').length,1);
+ assert.equal((await api('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version-1})).statusCode,409);
+});
+
+test('record-number backfill rolls back allocations, counters, rows and every field event on journal failure',async()=>{
+ const ws=await ok('create_workspace',{name:'Backfill rollback',code:'backfillrollback'});
+ let object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});object=await ok('get_object_type',{objectTypeId:object.id});
+ const a=await ok('create_record',{objectTypeId:object.id,keyword:'First'}),b=await ok('create_record',{objectTypeId:object.id,keyword:'Second'});
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{enabled:true,prefix:'B-',suffix:'',start:'7',increment:'3',padding:1,restart:'never'}});
+ const preview=await ok('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version});assert.equal(preview.firstNumber,'B-7');assert.equal(preview.lastNumber,'B-10');
+ await sql`CREATE FUNCTION fail_backfill_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='record_number' AND NEW.new_value='"B-10"'::jsonb THEN RAISE EXCEPTION 'Backfill journal failure'; END IF; RETURN NEW; END $$`.execute(runtime.db);
+ await sql`CREATE TRIGGER fail_backfill_journal BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION fail_backfill_journal()`.execute(runtime.db);
+ const payload={objectTypeId:object.id,version:object.version,previewToken:preview.previewToken,confirm:true};
+ try{assert.equal((await api('backfill_record_numbers',payload)).statusCode,500);}finally{await sql`DROP TRIGGER fail_backfill_journal ON sys_journal`.execute(runtime.db);await sql`DROP FUNCTION fail_backfill_journal()`.execute(runtime.db);}
+ for(const row of [a,b]){const retained=await ok('get_record',{objectTypeId:object.id,recordId:row.id});assert.equal(retained.record_number,null);assert.equal(retained.version,row.version);assert.equal((await journalEntries({objectTypeId:object.id,recordId:row.id})).filter(e=>e.field_key==='record_number').length,0);}
+ assert.equal((await sql<{n:string}>`SELECT count(*) AS n FROM sys_number_allocations WHERE object_type_id=${object.id}::uuid`.execute(runtime.db)).rows[0].n,'0');
+ assert.equal((await sql<{n:string}>`SELECT count(*) AS n FROM sys_number_counters WHERE object_type_id=${object.id}::uuid`.execute(runtime.db)).rows[0].n,'0');
+ assert.equal((await ok('backfill_record_numbers',payload)).assigned,2);
+});
+
+test('record-number backfill checks reserved-number collisions and exhaustion before assigning anything',async()=>{
+ const ws=await ok('create_workspace',{name:'Backfill reserved',code:'backfillreserved'});
+ let object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword']});object=await ok('get_object_type',{objectTypeId:object.id});
+ const blank=await ok('create_record',{objectTypeId:object.id,keyword:'Blank'});
+ object=await ok('configure_object_settings',{objectTypeId:object.id,version:object.version,labels:object.labels,numbering:{enabled:true,prefix:'RES-',suffix:'',start:'1',increment:'1',padding:1,restart:'never'}});
+ const issued=await ok('create_record',{objectTypeId:object.id,keyword:'Reserved'});
+ await sql`UPDATE sys_number_counters SET next_value=1 WHERE object_type_id=${object.id}::uuid`.execute(runtime.db);
+ const collision=await api('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version});assert.equal(collision.statusCode,409);assert.equal(collision.json().details.code,'numbering_collision');
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:issued.id})).record_number,'RES-1');assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:blank.id})).record_number,null);
+ await sql`UPDATE sys_number_counters SET next_value=1000000000000000000000000000000 WHERE object_type_id=${object.id}::uuid`.execute(runtime.db);
+ assert.equal((await api('get_numbering_backfill_preview',{objectTypeId:object.id,version:object.version})).statusCode,409);
 });

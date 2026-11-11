@@ -6,10 +6,15 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Added
 
+- Add Administrator-only missing record-number assignment with a frozen preview and explicit confirmation in object settings, REST and MCP. Retain issued numbers, include the recycle bin, continue the current counter/period and journal each changed record; stale/concurrent plans, collisions, exhaustion and failed journal writes leave no partial allocation.
+- Add optional Contact Form of address, an automatically suggested Letter salutation with individual override/reset, and freely editable language-specific Pronouns shared by web, API and MCP under field rights. Supply workspace-scoped Parents/Children, Partners/Siblings and Organization-affiliation links, an editable Association Type and Other usage choices for telephone, email, website, messenger and postal-address entries. Provide an additive transactional upgrade from released 1.0.0–1.0.2 that preserves authored definitions, forms, data, history and inactive modules.
 - Offer locally served Source Serif 4 for workspace interface and heading fonts, including the shared API/MCP appearance catalog and font license notices.
 
 ### Fixed
 
+- Include translated saved usage/type labels in structured Contact values, so the Journal distinguishes label-only changes without changing the underlying history. Avoid duplicate validation-summary announcements.
+- Mark only invalid pronoun inputs, give repeated controls distinct accessible names and restore focus after clearing an individual Letter salutation. Allow removal of additional retained communication/address labels without replacing the main selection.
+- Keep telephone and messenger controls aligned when retained entries have additional types such as Mobile plus Voice calls; show additional saved types below the control row without dropping them.
 - Allow Contacts/Projects module activation in workspaces with only German or only English enabled for interface and definition labels, retaining supplied translations without changing workspace language settings. Manual edits still respect the configured definition languages.
 
 ## [1.0.2] - 2026-11-10

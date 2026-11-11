@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {contactIssues,contactRequiredFields,contactCoreLayout,contactCoreFieldIds,contactExtensionLayout,contactCoreEntry,type ContactProfile} from '@xobject/contracts';
+import {contactLetterSalutation,contactIssues,contactRequiredFields,contactCoreLayout,contactCoreFieldIds,contactExtensionLayout,contactCoreEntry,type ContactProfile} from '@xobject/contracts';
 // Renamed columns/labels cannot change the UUID-bound domain meaning.
 const profile:ContactProfile={relationships:{},fields:{contact_kind:'kind-id',company_name:'company-id',last_name:'last-id'},kinds:{organization:'organization-id',individual:'individual-id',person:'person-id'}};
 const fields=[{id:'kind-id',technicalName:'renamed_kind'},{id:'company-id',technicalName:'renamed_company'},{id:'last-id',technicalName:'renamed_family'}];
@@ -54,4 +54,24 @@ test('professional fields form their own fixed section, independent of Organizat
  const bound={...profile,fields:{...profile.fields,...Object.fromEntries(fields.map(f=>[f.technicalName.slice(8),f.id]))}};
  const layout=contactCoreLayout(bound,fields,[]),business=layout.groups.find(g=>g.id==='contact-business')!;
  assert.equal(business.labels.en,'Professional details');assert.equal(business.labels.de,'Berufliche Angaben');assert.deepEqual(business.fields.flatMap(e=>'fieldId'in e?[e.fieldId]:[]),fields.map(f=>f.id));assert.ok(!layout.groups.some(g=>g.id==='contact-name'));
+});
+
+
+test('letter salutations use explicit forms/languages, neutral fallbacks and readable sources only',()=>{
+ const purposes=['contact_kind','company_name','first_name','last_name','academic_title','salutation','address_form','languages'];
+ const model:ContactProfile={fields:Object.fromEntries(purposes.map(key=>[key,key])),relationships:{},kinds:{individual:'individual',organization:'organization',person:'person'},choiceKeys:{salutation:{mr:'mr',ms:'ms',mx:'mx'},address_form:{formal:'formal',informal:'informal'}},defaultLanguage:'en'};
+ const definitions=purposes.map(id=>({id,technicalName:id,config:{options:id==='academic_title'?[{id:'dr',labels:{en:'Dr',de:'Dr.'}}]:[]}}));
+ const values={contact_kind:'individual',company_name:null,first_name:[{text:'Jane'}],last_name:[{text:'Doe'}],academic_title:null,salutation:'ms',address_form:'formal',languages:[{value:'de-DE'}]};
+ const suggest=(next:Record<string,unknown>={})=>contactLetterSalutation(model,definitions,{...values,...next});
+ assert.equal(suggest(),'Sehr geehrte Frau Doe,');
+ assert.equal(suggest({address_form:'informal'}),'Hallo Jane,');
+ assert.equal(suggest({address_form:null}),'Guten Tag Jane Doe,');
+ assert.equal(suggest({academic_title:'dr'}),'Sehr geehrte Frau Dr. Doe,');
+ assert.equal(suggest({languages:[{value:'en-GB'}],academic_title:'dr'}),'Dear Dr Doe,');
+ assert.equal(suggest({languages:null}),'Dear Ms Doe,');
+ assert.equal(suggest({languages:[{value:'fr'}]}),null);
+ assert.equal(suggest({contact_kind:'organization',company_name:'Example Inc'}),'Guten Tag,');
+ assert.equal(suggest({gender:'male',pronouns:[{language:'en',value:'they/them'}]}),'Sehr geehrte Frau Doe,');
+ assert.equal(contactLetterSalutation(model,definitions.filter(f=>f.id!=='last_name'),values),null);
+ assert.equal(contactLetterSalutation(model,definitions.map(f=>({...f,fieldPermissions:{read:f.id!=='first_name'}})),values),null);
 });

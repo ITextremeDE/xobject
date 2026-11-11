@@ -3,6 +3,8 @@ import {type FormEntry,type FormLayout,type FormRelationship} from './form-layou
 /** Supplied semantics use field/choice UUIDs; labels and technical names carry no domain meaning. */
 export interface ContactProfile {
  fields:Record<string,string>;
+ choiceKeys?:Record<string,Record<string,string>>;
+ defaultLanguage?:string;
  relationships:Record<string,string>;
  kinds:{organization:string;individual:string;person:string};
 }
@@ -34,7 +36,7 @@ export const contactKindOrder:ContactKind[]=['organization','person','individual
 type ContactLayoutField={id:string;technicalName:string;kind:string;config?:{schema?:string}};
 /** Module-owned core is fixed; designer metadata contains only additional fields/links. */
 export function contactCoreFieldIds(profile:ContactProfile,fields:ContactLayoutField[]):Set<string>{
- return new Set([...Object.entries(profile.fields).filter(([purpose])=>["contact_kind", "company_name", "first_name", "additional_names", "last_name", "salutation", "academic_title", "name_suffix", "formatted_name", "organization_name", "emails", "phones", "addresses", "websites", "birthday", "gender", "commercial_register", "notes", "nickname", "languages", "messenger_addresses", "contact_time_zone", "wedding_anniversary", "death_date", "job_title", "function", "department", "keyword"].includes(purpose)).map(([,id])=>id),...fields.filter(f=>['type','status','category','record_number'].includes(f.technicalName)).map(f=>f.id)]);
+ return new Set([...Object.entries(profile.fields).filter(([purpose])=>["contact_kind", "company_name", "first_name", "additional_names", "last_name", "salutation", "academic_title", "name_suffix", "formatted_name", "organization_name", "emails", "phones", "addresses", "websites", "birthday", "gender", "commercial_register", "notes", "nickname", "languages", "messenger_addresses", "contact_time_zone", "wedding_anniversary", "death_date", "job_title", "function", "department", "keyword", "address_form", "letter_salutation", "pronouns"].includes(purpose)).map(([,id])=>id),...fields.filter(f=>['type','status','category','record_number'].includes(f.technicalName)).map(f=>f.id)]);
 }
 export function contactCoreEntry(profile:ContactProfile,fields:ContactLayoutField[],entry:FormEntry):boolean{
  return 'fieldId'in entry?contactCoreFieldIds(profile,fields).has(entry.fieldId):'relationshipTypeId'in entry?Object.values(profile.relationships).includes(entry.relationshipTypeId):false;
@@ -44,18 +46,45 @@ export function contactExtensionLayout(profile:ContactProfile,fields:ContactLayo
  return {...layout,groups:layout.groups.map(g=>({...g,fields:g.fields.filter(e=>!contactCoreEntry(profile,fields,e))})),unassigned:layout.unassigned?.filter(e=>!contactCoreEntry(profile,fields,e))};
 }
 export function contactCoreLayout(profile:ContactProfile,fields:ContactLayoutField[],relationships:FormRelationship[]):FormLayout{
- const entry=(purpose:string):FormEntry[]=>fields.some(f=>f.id===profile.fields[purpose])?[{fieldId:profile.fields[purpose],width:['company_name','notes','emails','phones','addresses','websites','messenger_addresses','function'].includes(purpose)?'full':'half'}]:[];
+ const entry=(purpose:string):FormEntry[]=>fields.some(f=>f.id===profile.fields[purpose])?[{fieldId:profile.fields[purpose],width:['company_name','notes','emails','phones','addresses','websites','messenger_addresses','function','letter_salutation','pronouns'].includes(purpose)?'full':'half'}]:[];
  const relation=(key:string)=>relationships.filter(r=>r.definition.id===profile.relationships[key]).map(r=>({relationshipTypeId:r.definition.id,side:r.side,width:(r.side==='left'?r.definition.leftMax:r.definition.rightMax)===1?'half':'full',visible:true,expanded:'open'} as FormEntry));
  const group=(id:string,en:string,de:string,entries:FormEntry[])=>({id,labels:{en,de},fields:entries});
  return {groups:[
- group('contact-name','Name & organization','Name & Organisation',[...entry('company_name'),...entry('salutation'),...entry('academic_title'),...entry('first_name'),...entry('additional_names'),...entry('last_name'),...entry('name_suffix'),...entry('nickname'),...relation('contact_person').filter(e=>'side'in e&&e.side==='right').map(e=>({...e,width:'full' as const}))]),
+ group('contact-name','Name & organization','Name & Organisation',[...entry('company_name'),...entry('salutation'),...entry('academic_title'),...entry('first_name'),...entry('additional_names'),...entry('last_name'),...entry('name_suffix'),...entry('nickname'),...entry('pronouns'),...relation('contact_person').filter(e=>'side'in e&&e.side==='right').map(e=>({...e,width:'full' as const}))]),
  group('contact-business','Professional details','Berufliche Angaben',['job_title','department','function'].flatMap(entry)),
  group('contact-details','Further details','Weitere Angaben',[...fields.filter(f=>f.technicalName==='record_number').map(f=>({fieldId:f.id,width:'half' as const})),...['birthday','death_date','wedding_anniversary','gender','commercial_register'].flatMap(entry)]),
  group('contact-locale','Language & time zone','Sprache & Zeitzone',['contact_time_zone','languages'].flatMap(entry)),
+ group('contact-correspondence','Correspondence','Korrespondenz',['address_form','letter_salutation'].flatMap(entry)),
  group('contact-communication','Contact details','Kontaktdaten',['phones','emails','websites','messenger_addresses'].flatMap(entry)),
  group('contact-addresses','Addresses','Adressen',entry('addresses')),
  group('contact-classification','Classification','Einordnung',fields.filter(f=>['type','status','category'].includes(f.technicalName)).map(f=>({fieldId:f.id,width:f.technicalName==='category'?'full':'half'}))),
  group('contact-relationships','Relationships','Beziehungen',relationships.filter(r=>Object.values(profile.relationships).includes(r.definition.id)&&!(r.definition.id===profile.relationships.contact_person&&r.side==='right')).map(r=>({relationshipTypeId:r.definition.id,side:r.side,width:'full',visible:true,expanded:'open'}))),
  group('contact-notes','Notes','Notizen',entry('notes'))
  ].filter(g=>g.fields.length)};
+}
+
+/** Suggestions use only explicitly readable sources. Pronouns and gender never select a form. */
+export function contactLetterSalutation(profile:ContactProfile,fields:{id:string;technicalName:string;fieldPermissions?:{read?:boolean}}[],values:Record<string,unknown>):string|null{
+ const source=(purpose:string)=>{const f=fields.find(f=>f.id===profile.fields[purpose]);return f&&f.fieldPermissions?.read!==false&&Object.hasOwn(values,f.technicalName)?values[f.technicalName]:undefined;};
+ const required=['contact_kind','first_name','last_name','academic_title','salutation','address_form','languages','company_name'];
+ if(required.some(key=>source(key)===undefined))return null;
+ const name=(key:string)=>{const v=source(key);return Array.isArray(v)?v.map(p=>typeof p==='object'&&p&&'text'in p?String(p.text):'').join(' ').trim():'';};
+ const first=name('first_name'),last=name('last_name');
+ const titleId=source('academic_title'),titleField=fields.find(f=>f.id===profile.fields.academic_title) as {config?:{options?:{id:string;labels:Record<string,string>}[]}}|undefined;
+ const languages=source('languages'),tag=Array.isArray(languages)&&languages.length?String(languages[0]?.value??''):profile.defaultLanguage??'en';
+ const language=tag.split('-')[0].toLowerCase(),de=language==='de';
+ if(!['de','en'].includes(language))return null;
+ const titleOption=titleField?.config?.options?.find(o=>o.id===titleId),title=titleOption?.labels[language]??titleOption?.labels.en??titleOption?.labels.de??'';
+ const form=source('address_form'),forms=profile.choiceKeys?.address_form??{},salutation=source('salutation'),salutations=profile.choiceKeys?.salutation??{};
+ if(source('contact_kind')===profile.kinds.organization)return de?'Guten Tag,':'Hello,';
+ if(form===forms.informal&&form!=null)return first?`${de?'Hallo':'Hello'} ${first},`:de?'Hallo,':'Hello,';
+ const full=[first,last].filter(Boolean).join(' ')||String(source('company_name')??'').trim();
+ if(form===forms.formal&&form!=null&&last){
+  const family=[title,last].filter(Boolean).join(' ');
+  if(!de&&title)return `Dear ${family},`;
+  if(salutation===salutations.mr&&salutation!=null)return de?`Sehr geehrter Herr ${family},`:`Dear Mr ${family},`;
+  if(salutation===salutations.ms&&salutation!=null)return de?`Sehr geehrte Frau ${family},`:`Dear Ms ${family},`;
+  if(!de&&salutation===salutations.mx&&salutation!=null)return `Dear Mx ${family},`;
+ }
+ return `${de?'Guten Tag':'Hello'}${full?' '+full:''},`;
 }

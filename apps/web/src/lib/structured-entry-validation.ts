@@ -1,4 +1,4 @@
-import {postalAddressSchema,type PostalAddress,parseStructuredValue,type StructuredEntry,type StructuredSchemaKey} from '@xobject/contracts';
+import {structuredSchemas,postalAddressSchema,type PostalAddress,parseStructuredValue,type StructuredEntry,type StructuredSchemaKey} from '@xobject/contracts';
 
 /** A draft error in one collection item must not mark its valid siblings. */
 export function structuredEntryInvalid(schema:StructuredSchemaKey,entry:StructuredEntry):boolean{
@@ -20,4 +20,10 @@ export function addressDraftProblems(value:unknown):{empty:boolean;general:boole
   fields[input]=issue.code==='too_big'?{kind:issue.origin==='array'?'tooManyLines':'tooLong',limit:Number(issue.maximum)}:issue.code==='too_small'?{kind:'emptyLine'}:{kind:'invalid'};
  }
  return {empty,general,fields};
+}
+
+/** Keep a bad language tag separate from otherwise valid pronoun wording, and vice versa. */
+export function pronounDraftProblems(entry:unknown):{language:boolean;value:boolean}{
+ const result=structuredSchemas.pronoun_entries.safeParse([entry]);
+ return {language:!result.success&&result.error.issues.some(issue=>issue.path[1]==='language'),value:!result.success&&result.error.issues.some(issue=>issue.path[1]==='value')};
 }

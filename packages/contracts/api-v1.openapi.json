@@ -2713,7 +2713,7 @@
                       "type": "number"
                     },
                     "values": {
-                      "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+                      "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
                     }
                   },
                   "required": [
@@ -2857,6 +2857,302 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RecordWriteResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/get_numbering_backfill_preview": {
+      "post": {
+        "operationId": "get_numbering_backfill_preview",
+        "summary": "get numbering backfill preview",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-XObject-API-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "name": "X-XObject-Request",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for cookie-authenticated requests."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input_get_numbering_backfill_preview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation-specific result. Additional response fields may be introduced.",
+            "headers": {
+              "X-XObject-API-Version": {
+                "schema": {
+                  "type": "string",
+                  "const": "1.0.0"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NumberingBackfillPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backfill_record_numbers": {
+      "post": {
+        "operationId": "backfill_record_numbers",
+        "summary": "backfill record numbers",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-XObject-API-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "name": "X-XObject-Request",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for cookie-authenticated requests."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input_backfill_record_numbers"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation-specific result. Additional response fields may be introduced.",
+            "headers": {
+              "X-XObject-API-Version": {
+                "schema": {
+                  "type": "string",
+                  "const": "1.0.0"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "assigned": {
+                      "type": "number"
+                    },
+                    "firstNumber": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "lastNumber": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "preserved": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "assigned",
+                    "firstNumber",
+                    "lastNumber",
+                    "preserved"
+                  ],
+                  "type": "object"
                 }
               }
             }
@@ -7614,6 +7910,7 @@
                           "name_components",
                           "partial_date",
                           "phone_entries",
+                          "pronoun_entries",
                           "temporal",
                           "time_zone",
                           "url_entries"
@@ -11990,6 +12287,9 @@
       "Record_string_none_read_edit_": {
         "type": "object"
       },
+      "Record_string_Record_string_string_": {
+        "type": "object"
+      },
       "Record_string_content-permissions.FieldCapabilities_": {
         "type": "object"
       },
@@ -11999,7 +12299,7 @@
       "Record_string_string__2072b48031": {
         "type": "object"
       },
-      "Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_": {
+      "Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_": {
         "type": "object"
       },
       "Record_string_left_string_right_string_": {
@@ -12057,6 +12357,12 @@
       "contact-profile.ContactProfile": {
         "description": "Supplied semantics use field/choice UUIDs; labels and technical names carry no domain meaning.",
         "properties": {
+          "choiceKeys": {
+            "$ref": "#/components/schemas/Record_string_Record_string_string_"
+          },
+          "defaultLanguage": {
+            "type": "string"
+          },
           "fields": {
             "$ref": "#/components/schemas/Record_string_string_"
           },
@@ -12346,6 +12652,12 @@
             },
             {
               "items": {
+                "$ref": "#/components/schemas/_id_string_language_string_value_string_"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
                 "$ref": "#/components/schemas/_value_string_id_string_contexts_string_preference_number_null_"
               },
               "type": "array"
@@ -12455,6 +12767,12 @@
           "created_by": {
             "type": "string"
           },
+          "effectiveLetterSalutation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "fieldAccess": {
             "$ref": "#/components/schemas/Record_string_content-permissions.FieldCapabilities_"
           },
@@ -12482,6 +12800,12 @@
             "$ref": "#/components/schemas/content-permissions.ContentCapabilities"
           },
           "status": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestedLetterSalutation": {
             "type": [
               "null",
               "string"
@@ -12561,7 +12885,7 @@
             "type": "boolean"
           },
           "config": {
-            "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+            "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_pronoun_entries_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
           },
           "description": {
             "type": "string"
@@ -12590,7 +12914,7 @@
             "type": "string"
           },
           "inputRules": {
-            "$ref": "#/components/schemas/_description_Partial_Record_de_en_string_helpText_Partial_Record_de_en_string_defaultValue_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_unique_boolean_"
+            "$ref": "#/components/schemas/_description_Partial_Record_de_en_string_helpText_Partial_Record_de_en_string_defaultValue_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_unique_boolean_"
           },
           "isDerived": {
             "type": "boolean"
@@ -12862,7 +13186,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_pronoun_entries_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -12884,7 +13208,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_pronoun_entries_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -12967,6 +13291,74 @@
           "isAdmin",
           "mustChangePassword",
           "name",
+          "version"
+        ],
+        "type": "object"
+      },
+      "NumberingBackfillPreview": {
+        "properties": {
+          "eligibleCount": {
+            "type": "number"
+          },
+          "firstNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "objectTypeId": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "preservedCount": {
+            "type": "number"
+          },
+          "previewToken": {
+            "type": "string"
+          },
+          "recycledCount": {
+            "type": "number"
+          },
+          "samples": {
+            "items": {
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "recordId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "recordId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "eligibleCount",
+          "firstNumber",
+          "lastNumber",
+          "objectTypeId",
+          "period",
+          "preservedCount",
+          "previewToken",
+          "recycledCount",
+          "samples",
           "version"
         ],
         "type": "object"
@@ -13523,7 +13915,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_pronoun_entries_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -13545,7 +13937,7 @@
                   {
                     "properties": {
                       "config": {
-                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
+                        "$ref": "#/components/schemas/_fixedOptions_boolean_undefined_schema_name_components_pronoun_entries_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_"
                       },
                       "kind": {
                         "type": "string"
@@ -14300,7 +14692,7 @@
       "record-relationships.RecordRelationship": {
         "properties": {
           "attributes": {
-            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
           },
           "definition": {
             "$ref": "#/components/schemas/relationship-types.RelationshipType"
@@ -14371,7 +14763,7 @@
             "$ref": "#/components/schemas/Record_string_read_boolean_edit_boolean_"
           },
           "attributeValues": {
-            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
           },
           "edgeId": {
             "type": "string"
@@ -14546,7 +14938,7 @@
             "$ref": "#/components/schemas/Record_string_read_boolean_edit_boolean_"
           },
           "attributeValues": {
-            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
+            "$ref": "#/components/schemas/Record_string_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_"
           },
           "edgeId": {
             "type": "string"
@@ -15265,7 +15657,7 @@
         },
         "type": "object"
       },
-      "_description_Partial_Record_de_en_string_helpText_Partial_Record_de_en_string_defaultValue_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_unique_boolean_": {
+      "_description_Partial_Record_de_en_string_helpText_Partial_Record_de_en_string_defaultValue_string_boolean_kind_date_date_string_kind_instant_instant_string_kind_zoned_local_string_timeZone_string_occurrence_earlier_later_null_month_number_day_number_year_number_null_id_string_language_string_value_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_timeZone_string_id_string_text_string_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_value_string_id_string_contexts_string_preference_number_null_address_poBox_string_extended_string_streetLines_string_houseNumber_string_postalCode_string_locality_string_region_string_country_string_formatted_string_id_string_contexts_string_preference_number_null_kind_group_user_id_string_amount_string_currency_string_string_kind_group_user_id_string_null_unique_boolean_": {
         "properties": {
           "defaultValue": {
             "anyOf": [
@@ -15280,6 +15672,12 @@
               },
               {
                 "$ref": "#/components/schemas/_month_number_day_number_year_number_null_"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/_id_string_language_string_value_string_"
+                },
+                "type": "array"
               },
               {
                 "items": {
@@ -15449,7 +15847,7 @@
         ],
         "type": "object"
       },
-      "_fixedOptions_boolean_undefined_schema_name_components_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_": {
+      "_fixedOptions_boolean_undefined_schema_name_components_pronoun_entries_email_entries_phone_entries_address_entries_url_entries_language_entries_messenger_entries_time_zone_partial_date_temporal_undefined_scale_number_undefined_currency_string_undefined_formatted_boolean_undefined_options_id_string_labels_de_string_undefined_en_string_undefined_active_boolean_parentId_string_null_undefined_group_usage_phone_type_messenger_type_undefined_undefined_referenceTarget_group_user_both_undefined_multiple_boolean_undefined_": {
         "properties": {
           "currency": {
             "type": "string"
@@ -15489,6 +15887,7 @@
               "name_components",
               "partial_date",
               "phone_entries",
+              "pronoun_entries",
               "temporal",
               "time_zone",
               "url_entries"
@@ -15647,6 +16046,25 @@
           "active",
           "id",
           "labels"
+        ],
+        "type": "object"
+      },
+      "_id_string_language_string_value_string_": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "language",
+          "value"
         ],
         "type": "object"
       },
@@ -17371,6 +17789,56 @@
         ],
         "additionalProperties": false
       },
+      "Input_get_numbering_backfill_preview": {
+        "type": "object",
+        "properties": {
+          "objectTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "objectTypeId",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "Input_backfill_record_numbers": {
+        "type": "object",
+        "properties": {
+          "objectTypeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "objectTypeId",
+          "version",
+          "previewToken",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
       "Input_configure_object_settings": {
         "type": "object",
         "properties": {
@@ -18083,6 +18551,36 @@
                             "format": "uuid",
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           },
+                          "language": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "language",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
                           "text": {
                             "type": "string",
                             "minLength": 1,
@@ -18704,6 +19202,36 @@
                           "additionalProperties": false
                         }
                       ]
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "language": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "language",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
                     },
                     {
                       "maxItems": 20,
@@ -21307,6 +21835,36 @@
                               "format": "uuid",
                               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                             },
+                            "language": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "language",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
                             "text": {
                               "type": "string",
                               "minLength": 1,
@@ -22159,6 +22717,36 @@
                               "format": "uuid",
                               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                             },
+                            "language": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "language",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
                             "text": {
                               "type": "string",
                               "minLength": 1,
@@ -22696,6 +23284,7 @@
                 "type": "string",
                 "enum": [
                   "name_components",
+                  "pronoun_entries",
                   "email_entries",
                   "phone_entries",
                   "address_entries",
@@ -22985,6 +23574,36 @@
                             "additionalProperties": false
                           }
                         ]
+                      },
+                      {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "language": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "language",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
                       },
                       {
                         "maxItems": 20,
@@ -23528,6 +24147,7 @@
                 "type": "string",
                 "enum": [
                   "name_components",
+                  "pronoun_entries",
                   "email_entries",
                   "phone_entries",
                   "address_entries",
@@ -24202,6 +24822,36 @@
                                   "additionalProperties": false
                                 }
                               ]
+                            },
+                            {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                  },
+                                  "language": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 100
+                                  },
+                                  "value": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "language",
+                                  "value"
+                                ],
+                                "additionalProperties": false
+                              }
                             },
                             {
                               "maxItems": 20,
@@ -25054,6 +25704,36 @@
                             "format": "uuid",
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           },
+                          "language": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "language",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
                           "text": {
                             "type": "string",
                             "minLength": 1,
@@ -25715,6 +26395,36 @@
                                 "additionalProperties": false
                               }
                             ]
+                          },
+                          {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "language": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 100
+                                },
+                                "value": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "language",
+                                "value"
+                              ],
+                              "additionalProperties": false
+                            }
                           },
                           {
                             "maxItems": 20,
@@ -26752,6 +27462,36 @@
                             "format": "uuid",
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           },
+                          "language": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "language",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
                           "text": {
                             "type": "string",
                             "minLength": 1,
@@ -27470,6 +28210,36 @@
                                 "additionalProperties": false
                               }
                             ]
+                          },
+                          {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "language": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 100
+                                },
+                                "value": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "language",
+                                "value"
+                              ],
+                              "additionalProperties": false
+                            }
                           },
                           {
                             "maxItems": 20,

@@ -2,7 +2,11 @@ import {sql} from 'kysely';
 import {readFile} from 'node:fs/promises';
 import type {Executor} from './database.js';
 export const moduleCatalogFile=new URL('./module-catalog.json',import.meta.url);
-export async function seedModuleCatalog(tx:Executor){
+export async function seedModuleCatalog(tx:Executor,update=false){
  const catalog=JSON.parse(await readFile(moduleCatalogFile,'utf8')) as {key:string;templateVersion:number;labels:Record<string,string>;description:Record<string,string>;available:boolean;position:number;objects:unknown[]}[];
- for(const module of catalog)await sql`INSERT INTO sys_modules(key,template_version,labels,description,available,position,objects) VALUES(${module.key},${module.templateVersion},${JSON.stringify(module.labels)}::jsonb,${JSON.stringify(module.description)}::jsonb,${module.available},${module.position},${JSON.stringify(module.objects)}::jsonb)`.execute(tx);
+ for(const module of catalog){
+  const insert=sql`INSERT INTO sys_modules(key,template_version,labels,description,available,position,objects) VALUES(${module.key},${module.templateVersion},${JSON.stringify(module.labels)}::jsonb,${JSON.stringify(module.description)}::jsonb,${module.available},${module.position},${JSON.stringify(module.objects)}::jsonb)`;
+  if(!update)await insert.execute(tx);
+  else await sql`${insert} ON CONFLICT(key) DO UPDATE SET template_version=EXCLUDED.template_version,labels=EXCLUDED.labels,description=EXCLUDED.description,available=EXCLUDED.available,position=EXCLUDED.position,objects=EXCLUDED.objects`.execute(tx);
+ }
 }

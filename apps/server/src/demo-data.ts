@@ -10,7 +10,7 @@ import type { Database } from './database.js';
 
 type Labels = { de: string; en: string };
 type SeedField = { name: string; labels: Labels; kind?: CustomFieldKind; config?: FieldConfig; required?: boolean };
-export type DemoLink = { from: { objectTypeId: string; recordId: string }; to: { objectTypeId: string; recordId: string }; relation: 'primary' | 'contact_person' | 'general' | 'identity' | 'support' | 'equipment' | 'distribution_member' };
+export type DemoLink = { from: { objectTypeId: string; recordId: string }; to: { objectTypeId: string; recordId: string }; relation: 'primary' | 'contact_person' | 'general' | 'identity' | 'support' | 'equipment' | 'distribution_member' | 'parent' | 'partner' | 'affiliation' };
 // COS/itextreme.de approximation through the existing editable appearance controls.
 // Fixed, locally served fonts and paired primary colors remain editable per workspace.
 export const itextremeDemoAppearance:WorkspaceAppearance={...defaultWorkspaceAppearance,baseColor:'gray',theme:'rose',chartColor:'rose',primaryColor:'#C81E3A',primaryColorDark:'#F26074',logoIcon:'network',font:'inter',fontHeading:'orbitron',radius:'large'};
@@ -196,14 +196,14 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
   for (const [i, person] of (scenario==='family'?[['Jane','Doe'],['Alex','Doe'],['Jane','Doe']]:scenario==='business'?[['Emily','Brooks'],['Oliver','Reed'],['Emily','Brooks']]:[['Emily','Example'],['Oliver','Sample'],['Emily','Example']]).entries()) {
     const individual = i === 2;
     const organizationIndex=scenario==='family'&&i===1?3:i;
-    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[organizationIndex]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, salutation:contactChoice('salutation',i===1?'Mr':'Ms'), academic_title:i===0?contactChoice('academic_title','Dr.'):null, nickname: i===0?(scenario==='family'?'Janey':'Em'):null, languages:[{id:v7(),value:'en-GB',contexts:[],preference:1},{id:v7(),value:'de-DE',contexts:[],preference:2}], messenger_addresses:[{id:v7(),value:`xmpp:person${i+1}@example.test`,contexts:[contactChoice('messenger_addresses','Work'),contactChoice('messenger_addresses','XMPP')],preference:1}], contact_time_zone:{timeZone:i===1?'America/New_York':'Europe/Berlin'}, wedding_anniversary:i===2?{year:null,month:9,day:12}:null, death_date:scenario==='test'&&i===1?{year:2024,month:11,day:3}:null, first_name: name(person[0]), last_name: name(person[1]), emails: email(`person${i+1}@example.test`), phones: email(`+4989201000${30+i}`,'phones','Mobile'), birthday: {year:i===2?null:1990+i,month:6,day:15}, addresses: address('Example Lane','10'), notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[organizationIndex]}. The relationship is stored as a real link.` });
+    const row = await record('contacts', `${person[1]}, ${person[0]}${individual ? '' : ` (${companies[organizationIndex]})`}`, { contact_kind: contactKinds[individual ? 1 : 2].id, salutation:contactChoice('salutation',i===1?'Mr':'Ms'), address_form:contactChoice('address_form',i===2?'Informal (Du)':'Formal (Sie)'), letter_salutation:i===2?'Hello dear friend,':null, pronouns:i===0?[{id:v7(),language:'en',value:'she/her'},{id:v7(),language:'de',value:'sie/ihr'}]:null, academic_title:i===0?contactChoice('academic_title','Dr.'):null, nickname: i===0?(scenario==='family'?'Janey':'Em'):null, languages:[{id:v7(),value:'en-GB',contexts:[],preference:1},{id:v7(),value:'de-DE',contexts:[],preference:2}], messenger_addresses:[{id:v7(),value:`xmpp:person${i+1}@example.test`,contexts:[contactChoice('messenger_addresses','Work'),contactChoice('messenger_addresses','XMPP')],preference:1}], contact_time_zone:{timeZone:i===1?'America/New_York':'Europe/Berlin'}, wedding_anniversary:i===2?{year:null,month:9,day:12}:null, death_date:scenario==='test'&&i===1?{year:2024,month:11,day:3}:null, first_name: name(person[0]), last_name: name(person[1]), emails: email(`person${i+1}@example.test`), phones: email(`+4989201000${30+i}`,'phones','Mobile'), birthday: {year:i===2?null:1990+i,month:6,day:15}, addresses: address('Example Lane','10'), notes: individual ? 'Independent individual contact for a future standalone project.' : `Organization: ${companies[organizationIndex]}. The relationship is stored as a real link.` });
     if (!individual) link('contacts', organizations[organizationIndex], 'contacts', row, 'contact_person');
   }
   if(scenario==='family'){
     for(const [first,last]of [['Jamie','Doe'],['Alex','Doe']])await record('contacts',`${last}, ${first}`,{contact_kind:contactKinds[1].id,first_name:name(first),last_name:name(last),emails:email(`${first.toLowerCase()}.family@example.test`),notes:'Family contact profile.'});
     link('contacts',records.contacts[7],'contacts',records.contacts[10],'identity');
-    link('contacts',records.contacts[8],'contacts',records.contacts[9],'general');
-    link('contacts',records.contacts[10],'contacts',records.contacts[9],'general');
+    link('contacts',records.contacts[8],'contacts',records.contacts[9],'parent');
+    link('contacts',records.contacts[10],'contacts',records.contacts[9],'parent');
   }
   await object('projects', 'Projekte', 'Projects', [], scenario==='family'?['Haushaltsprojekt','Familienprojekt']:['Kundenprojekt', 'Internes Projekt'], ['Geplant', 'In Arbeit', 'Abgeschlossen']);
   await object('cases', 'Vorgänge', 'Cases', [], scenario==='family'?['Planung','Durchführung']:['Arbeitspaket', 'Servicefall'], ['Offen', 'In Arbeit', 'Erledigt']);
@@ -475,7 +475,7 @@ export async function connectDemoRelationships(db: Database, actorId: string, wo
   definitions=await app.execute('list_relationship_types',{workspaceId},actorId) as typeof definitions;
   for(const link of links) {
     if(!objects.some(type=>type.id===link.from.objectTypeId)||!objects.some(type=>type.id===link.to.objectTypeId))throw new Error('Demo plan does not match this workspace');
-    const technicalName=({primary:'primary_association',contact_person:'contact_person',general:'general_relation',identity:'contact_identity',support:'tool_support',equipment:'workshop_equipment',distribution_member:'distribution_members'} as const)[link.relation];
+    const technicalName=({primary:'primary_association',contact_person:'contact_person',general:'general_relation',identity:'contact_identity',support:'tool_support',equipment:'workshop_equipment',distribution_member:'distribution_members',parent:'contact_parent',partner:'contact_partner',affiliation:'contact_affiliation'} as const)[link.relation];
     const type=definitions.find(type=>type.technicalName===technicalName);if(!type)throw new Error('Demo relationship definition missing');
     const snapshot=await app.execute('get_record_relationships',{objectTypeId:link.from.objectTypeId,recordId:link.from.recordId},actorId) as import('@xobject/contracts').RecordRelationships;
     const field=snapshot.fields.find(field=>field.definition.id===type.id&&field.side==='left');if(!field)throw new Error('Demo relationship side missing');

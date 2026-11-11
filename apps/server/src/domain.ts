@@ -16,7 +16,7 @@ import {validateContact,contactProfile} from './contact-domain.js';
 import {structuredChanges,structuredSchemaKeys,structuredSchemaLabels} from '@xobject/contracts';
 import {applyFieldDefaults} from '@xobject/contracts';
 import {normalizeInputRules,configureUniqueIndex,writeInputRules,uniqueIndexName,validateUniqueLength} from './field-input-rules.js';
-import {configureNumbering,allocateRecordNumber} from './record-numbering.js';
+import {numberingBackfillPlan,backfillRecordNumbers,configureNumbering,allocateRecordNumber} from './record-numbering.js';
 import {emptyFieldInputRules,type FieldInputRules,type Numbering} from '@xobject/contracts';
 import {recordSecurity,saveRecordSecurity,writeRecordSecurity,initializeRecordSecurity} from './record-security.js';
 import {getForeignAccess,foreignAccessView,configureForeignAccess,configureGroupInheritance} from './ownership-settings.js';
@@ -133,6 +133,13 @@ export class Application {
             const a=schemas.duplicate_record.parse(parsed),type=await this.objectType(tx,a.objectTypeId);await contentAccess().require(type.id,a.recordId,'duplicate');await contentAccess().require(type.id,undefined,'create');const source=await this.record(tx,type,a.recordId);if(source.version!==a.version)throw new AppError(409,'Record version conflict');
             const {sourceVersion,...draft}=await this.duplicateDraft(tx,type,source,a.recordId);
             return this.createRecord(tx,schemas.create_record.parse({objectTypeId:type.id,...draft,...(a.keyword!==undefined?{keyword:a.keyword}:{})}),userId);
+          }
+          case 'get_numbering_backfill_preview':
+          case 'backfill_record_numbers': {
+            const args=parsed as Inputs['backfill_record_numbers'],type=await this.objectType(tx,args.objectTypeId);
+            this.requireActive(type);if(type.version!==args.version)throw new AppError(409,'Definition version conflict');
+            if(operation==='get_numbering_backfill_preview')return (await numberingBackfillPlan(tx,type,tableName(type))).preview;
+            const change=v7();return backfillRecordNumbers(tx,type,tableName(type),args.previewToken,userId,(recordId,fieldId,number)=>this.journal(tx,userId,type.workspace_id,type.id,'record',recordId,change,'record_number',null,number,fieldId));
           }
           case 'configure_object_settings': {
             const args=schemas.configure_object_settings.parse(parsed),type=await this.objectType(tx,args.objectTypeId),change=v7();
@@ -355,6 +362,7 @@ export class Application {
       await contentAccess().require(String(args.objectTypeId),String(args.recordId),operation==='recycle_record'?'delete':operation==='restore_record'||operation==='permanently_delete_record'?'full':'read',recycledRead);return {isAdmin:user.is_admin};
     }
     if(operation==='list_record_journal'&&recycledRead){await contentAccess().require(String(args.objectTypeId),String(args.recordId),'read',true);return {isAdmin:user.is_admin};}
+    if(['get_numbering_backfill_preview','backfill_record_numbers'].includes(operation)&&!user.is_admin)throw new AppError(403,'Only Administrators assign missing record numbers');
     if (user.is_admin) return { isAdmin: true };
     if(operation==='configure_group'&&args.members!==undefined)throw new AppError(403,'Only Administrators manage group memberships');
     if (operation==='create_group' && Array.isArray(args.members)&&args.members.length) throw new AppError(403, 'Only Administrators manage group memberships');
@@ -610,6 +618,23 @@ export class Application {
     return { id, ...args };
   }
 
+  /** Upgrade-tool entry point; all writers are stopped and the caller owns the model lock. */
+  async refreshInstalledModuleTemplates(tx:Executor){
+    const installed=(await sql<{workspace_id:string;module_key:string}>`SELECT DISTINCT workspace_id,module_key FROM sys_module_contributions WHERE module_key IN ('contacts','projects') ORDER BY workspace_id,module_key`.execute(tx)).rows;
+    if(!installed.length)return;
+    const actor=(await sql<{id:string}>`SELECT id FROM sys_users WHERE is_admin AND active ORDER BY created_at,id LIMIT 1`.execute(tx)).rows[0]?.id;
+    if(!actor)throw new AppError(409,'Module upgrade requires an active Administrator');
+    await withContentAccess(tx,actor,async()=>{
+      await sql`SELECT set_config('xobject.actor_id',${actor},true),set_config('xobject.channel','internal',true)`.execute(tx);
+      // Inactive definitions stay inactive. Temporary transaction-local activation permits the
+      // shared installer to validate and add definitions without exposing a partial model.
+      const inactive=(await sql<{id:string}>`SELECT id FROM sys_object_types WHERE state='inactive'`.execute(tx)).rows.map(row=>row.id);
+      if(inactive.length)await sql`UPDATE sys_object_types SET state='active' WHERE id=ANY(${inactive}::uuid[])`.execute(tx);
+      for(const module of installed)await this.installModuleObjects(tx,module.workspace_id,actor,module.module_key);
+      if(inactive.length)await sql`UPDATE sys_object_types SET state='inactive' WHERE id=ANY(${inactive}::uuid[])`.execute(tx);
+    });
+  }
+
   private async installModuleObjects(tx:Executor,workspaceId:string,actor:string,moduleKey="projects") {
     if(moduleKey==='projects')await this.installModuleObjects(tx,workspaceId,actor,'contacts');
     const catalog=(await sql<{template_version:number;objects:{key:string;technicalName:string;labels:Record<string,string>;standardFields:('keyword'|'type_status'|'category')[];fields?:{key:string;technicalName:string;labels:Record<string,string>;kind:import('@xobject/contracts').CustomFieldKind;config?:FieldConfig;required?:boolean;derived?:boolean;appliesTo?:string[];choices?:{key:string;labels:Record<string,string>;group?:'usage'|'phone_type'}[]}[]}[]}>`SELECT template_version,objects FROM sys_modules WHERE key=${moduleKey}`.execute(tx)).rows[0];
@@ -638,8 +663,14 @@ export class Application {
       if((await sql`INSERT INTO sys_module_contributions VALUES(${workspaceId}::uuid,${moduleKey},${type.id}::uuid,${catalog.template_version}) ON CONFLICT DO NOTHING RETURNING object_type_id`.execute(tx)).rows.length)await this.journal(tx,actor,workspaceId,type.id,'object_type',type.id,v7(),`module.${moduleKey}.contribution`,null,{version:catalog.template_version});
       {
         for(const blueprint of proposal.fields??[]){
-          const retained=(await sql<{id:string;kind:string;technical_name:string;value_mode:string;config:FieldConfig}>`SELECT f.id,f.kind,f.technical_name,f.value_mode,f.config FROM sys_module_field_bindings b JOIN sys_fields f ON f.id=b.field_id WHERE b.workspace_id=${workspaceId}::uuid AND b.object_key=${proposal.key} AND b.field_key=${blueprint.key}`.execute(tx)).rows[0];
-          if(retained){if(retained.kind!==blueprint.kind||retained.technical_name!==blueprint.technicalName||retained.value_mode!==(blueprint.derived?'derived':'stored')||Object.entries(blueprint.config??{}).some(([key,value])=>!['options','components'].includes(key)&&!isDeepStrictEqual(retained.config[key as keyof FieldConfig],value)))throw new AppError(409,'Conflicting shared module field structure');continue;}
+          const retained=(await sql<{id:string;kind:string;technical_name:string;value_mode:string;config:FieldConfig;version:number;required:boolean;option_keys:Record<string,string>}>`SELECT f.id,f.kind,f.technical_name,f.value_mode,f.config,f.version,f.required,b.option_keys FROM sys_module_field_bindings b JOIN sys_fields f ON f.id=b.field_id WHERE b.workspace_id=${workspaceId}::uuid AND b.object_key=${proposal.key} AND b.field_key=${blueprint.key}`.execute(tx)).rows[0];
+          if(retained){if(retained.kind!==blueprint.kind||retained.technical_name!==blueprint.technicalName||retained.value_mode!==(blueprint.derived?'derived':'stored')||Object.entries(blueprint.config??{}).some(([key,value])=>!['options','components'].includes(key)&&!isDeepStrictEqual(retained.config[key as keyof FieldConfig],value)))throw new AppError(409,'Conflicting shared module field structure');
+            const missing=(blueprint.choices??[]).filter(choice=>!retained.option_keys[choice.key]);
+            if(missing.length){const added=missing.map(choice=>({id:v7(),labels:choice.labels,active:true,...choice.group?{group:choice.group}:{}}));
+              await this.configureField(tx,{fieldId:retained.id,required:retained.required,config:{...retained.config,options:[...(retained.config.options??[]),...added]}},actor);
+              const keys={...retained.option_keys,...Object.fromEntries(missing.map((choice,index)=>[choice.key,added[index].id]))};
+              await sql`UPDATE sys_module_field_bindings SET option_keys=${JSON.stringify(keys)}::jsonb WHERE field_id=${retained.id}::uuid`.execute(tx);
+            }continue;}
           const options=(blueprint.choices??[]).map(choice=>({id:v7(),key:choice.key,labels:choice.labels,active:true,...(choice.group?{group:choice.group}:{})}));
           const kindBinding=(await sql<{field_id:string;option_keys:Record<string,string>}>`SELECT field_id,option_keys FROM sys_module_field_bindings WHERE workspace_id=${workspaceId}::uuid AND object_key=${proposal.key} AND field_key='contact_kind'`.execute(tx)).rows[0];
           const created=await this.createField(tx,{objectTypeId:binding.object_type_id,technicalName:blueprint.technicalName,labels:blueprint.labels,kind:blueprint.kind,required:blueprint.required??false,config:blueprint.choices?{...blueprint.config,...(blueprint.kind==='single_choice'||blueprint.kind==='multiple_choice'?{fixedOptions:blueprint.key==='contact_kind'}:{}),options:options.map(({key,...option})=>option)}:blueprint.config,applicability:blueprint.appliesTo&&kindBinding?{fieldId:kindBinding.field_id,optionIds:blueprint.appliesTo.map(key=>kindBinding.option_keys[key])}:undefined},actor) as {id:string};
@@ -657,6 +688,13 @@ export class Application {
           await this.journal(tx,actor,workspaceId,type.id,'field',keyword.id,v7(),'value_mode','stored','derived',keyword.id);
         }
       }
+      if(proposal.key==='contact'&&!(await sql`SELECT 1 FROM sys_module_field_bindings WHERE workspace_id=${workspaceId}::uuid AND object_key='contact' AND field_key='contact_type'`.execute(tx)).rows.length){
+        const field=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${type.id}::uuid AND technical_name='type' AND state<>'deleted'`.execute(tx)).rows[0];
+        if(field){const latest=await this.objectType(tx,type.id),association=v7();
+          await this.configureClassification(tx,{objectTypeId:type.id,version:latest.classification.version,config:{...latest.classification,options:[...latest.classification.options,{id:association,kind:'type',typeId:null,active:true,labels:{en:'Association',de:'Verein'}}]}},actor);
+          await sql`INSERT INTO sys_module_field_bindings VALUES(${workspaceId}::uuid,'contact','contact_type',${field.id}::uuid,'{}'::jsonb)`.execute(tx);
+        }
+      }
       if(freshObjects.has(type.id)&&['project','case','task'].includes(proposal.key)){
         const meanings=['open','in_progress','done','canceled'] as const,english=['Open','In progress','Done','Canceled'],german=['Offen','In Arbeit','Erledigt','Abgebrochen'];
         await this.configureClassification(tx,{objectTypeId:type.id,version:type.classification.version,config:{type:{required:false,defaultId:null},status:{required:false,defaults:[]},category:{required:false,multiple:true,defaultIds:[]},options:meanings.map((meaning,index)=>({id:v7(),kind:'status' as const,typeId:null,active:true,labels:{en:english[index],de:german[index]},...(proposal.key==='task'?{meaning}:{})}))}},actor);
@@ -672,6 +710,10 @@ export class Application {
       for(const blueprint of [
         {key:'contact_person',left:levels.contact,right:levels.contact,directed:true,leftMax:null,rightMax:1,labels:{en:'Organization membership',de:'Organisationszugehörigkeit'},leftLabels:{en:'Contact persons',de:'Ansprechpartner'},rightLabels:{en:'Organization',de:'Organisation'},leftOptions:[kind.option_keys.organization],rightOptions:[kind.option_keys.person]},
         {key:'contact_identity',left:levels.contact,right:levels.contact,directed:false,leftMax:null,rightMax:null,labels:{en:'Identities',de:'Identitäten'},leftLabels:{en:'Identities',de:'Identitäten'},rightLabels:{en:'Identities',de:'Identitäten'},leftOptions:[kind.option_keys.individual,kind.option_keys.person],rightOptions:[kind.option_keys.individual,kind.option_keys.person]},
+        {key:'contact_parent',left:levels.contact,right:levels.contact,directed:true,leftMax:null,rightMax:null,labels:{en:'Parenthood',de:'Elternschaft'},leftLabels:{en:'Children',de:'Kinder'},rightLabels:{en:'Parents',de:'Eltern'},leftOptions:[kind.option_keys.individual,kind.option_keys.person],rightOptions:[kind.option_keys.individual,kind.option_keys.person]},
+        {key:'contact_partner',left:levels.contact,right:levels.contact,directed:false,leftMax:null,rightMax:null,labels:{en:'Partnership',de:'Partnerschaft'},leftLabels:{en:'Partners',de:'Partner'},rightLabels:{en:'Partners',de:'Partner'},leftOptions:[kind.option_keys.individual,kind.option_keys.person],rightOptions:[kind.option_keys.individual,kind.option_keys.person]},
+        {key:'contact_sibling',left:levels.contact,right:levels.contact,directed:false,leftMax:null,rightMax:null,labels:{en:'Sibling relationship',de:'Geschwisterbeziehung'},leftLabels:{en:'Siblings',de:'Geschwister'},rightLabels:{en:'Siblings',de:'Geschwister'},leftOptions:[kind.option_keys.individual,kind.option_keys.person],rightOptions:[kind.option_keys.individual,kind.option_keys.person]},
+        {key:'contact_affiliation',left:levels.contact,right:levels.contact,directed:true,leftMax:null,rightMax:null,labels:{en:'Affiliation',de:'Zugehörigkeit'},leftLabels:{en:'Affiliated contacts',de:'Zugehörige Kontakte'},rightLabels:{en:'Organizations',de:'Organisationen'},leftOptions:[kind.option_keys.organization],rightOptions:[kind.option_keys.individual]},
         {key:'distribution_members',left:levels.distribution_list,right:levels.contact,directed:true,leftMax:null,rightMax:null,labels:{en:'Distribution membership',de:'Verteilermitgliedschaft'},leftLabels:{en:'Members',de:'Mitglieder'},rightLabels:{en:'Distribution lists',de:'Verteiler'},leftOptions:undefined,rightOptions:undefined}
       ]){
         if((await sql`SELECT 1 FROM sys_module_relationship_bindings WHERE workspace_id=${workspaceId}::uuid AND relationship_key=${blueprint.key}`.execute(tx)).rows.length)continue;
