@@ -2,19 +2,16 @@
 
 This is xObject's public product direction. OpenProject leads operational planning; the [PRD](docs/PRD.md) defines requirements and the [changelog](CHANGELOG.md) records delivered changes. Future targets have no committed dates, and only explicitly assigned versions are shown as such.
 
-## Currently released — Community 1.0.2
+## Currently released — Community 1.1.0
 
 - **Connected data:** configurable objects, fields, relationships, forms and journals, with workspace isolation and differentiated user/group permissions.
 - **Contacts and projects:** Contacts & Relations supplies Contacts and Distribution lists; Projects & Tasks adds Projects, Cases and Tasks using the same Contacts.
+- **Contacts and configuration 1.1.0:** Contact correspondence, Pronouns, family/affiliation links, Other usage choices, confirmed missing-number assignment, Source Serif 4 and single-language module activation.
 - **Maintenance 1.0.2:** renewable offline OAuth access, consent-focused security history, bounded container logs, workspace-name sorting and 48 grouped workspace icons.
 - **Web, API and AI:** a responsive web application, shared REST/MCP operations, personal credentials, OAuth and supplied agent skills. Live refresh preserves open drafts.
 - **Self-hosting:** published Linux/AMD64 and Linux/ARM64 containers, Docker Compose setup, first-Administrator provisioning and backup/restore tooling. Version 1.0.2 adds a supported authorization-journal migration from 1.0.0/1.0.1 while retaining data, credentials and history.
 
-See [release notes](CHANGELOG.md#102---2026-11-10), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
-
-## Implemented in source — not yet released
-
-Contact correspondence and Pronouns, family/affiliation links, Other usage choices and confirmed assignment of missing record numbers are implemented and locally tested. Source Serif 4 and the module-activation language correction are also integrated. These changes have no assigned release version and are not part of the published 1.0.2 application. See [Unreleased](CHANGELOG.md#unreleased) for details; the V2 scope below is unchanged.
+See [release notes](CHANGELOG.md#110---2026-11-11), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
 ## Planned — Version 2
 
