@@ -1,6 +1,6 @@
 # Using xObject
 
-xObject connects Contacts, Projects, Cases, Tasks and your own object types in workspaces. Version 1 is entirely Community. This guide describes the published Community 1.0.2 baseline. [released documentation snapshots](versions.md) retain the exact version context.
+xObject connects Contacts, Projects, Cases, Tasks and your own object types in workspaces. Version 1 is entirely Community. This guide describes Community 1.2.0. Use a [released documentation snapshot](versions.md) when your installation runs an earlier version.
 
 For an empty installation, start with [First steps](first-steps.md), including workspace creation and module activation.
 
@@ -40,7 +40,7 @@ The [Projects guide](projects-and-tasks.md) explains which object to use, a comp
 
 ## Connect records
 
-**Link with…** selects existing records; **New linked record** creates a new record with an atomic link to the source. The menus use the object pair and available relationship labels. A one-target relationship is a field; multi-target relationships are lists/tables.
+**Link with…** selects existing records; **New linked record** creates a new record with an atomic link to the source. The menus use the object pair and available relationship labels. Candidate search matches permitted Keywords and Numbers; Contact-kind icons help distinguish people and Organizations. Filtering and counts use your current rights. A one-target relationship is a field; multi-target relationships are lists/tables.
 
 Primary association follows **Contact → Project → Case**. Selecting ancestors filters descendants. Changing or clearing an earlier level clears later draft selections; the records themselves remain. Save persists the deepest direct parent and derives the other levels. Required levels are configured per object type.
 

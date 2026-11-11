@@ -1,8 +1,8 @@
 # Self-hosting and recovery
 
-Install the published **Community 1.1.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
+Install the **Community 1.2.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
 
-Use the [1.1.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.1.0) and its matching installer/image, not an unreleased source checkout. [Documentation versions](versions.md) separates the released baseline from later source changes.
+Use the [1.2.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.2.0) and its matching installer/image. For an earlier installation, use its [released documentation snapshot](versions.md).
 
 ## Prepare an installation
 
@@ -11,18 +11,18 @@ Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, Open
 In a new working directory on that host, download the matching installer, checksum list and image references:
 
 ```sh
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.1.0/xobject-1.1.0-selfhost.tar.gz
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.1.0/SHA256SUMS
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.1.0/IMAGE_DIGESTS.txt
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.2.0/xobject-1.2.0-selfhost.tar.gz
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.2.0/SHA256SUMS
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.2.0/IMAGE_DIGESTS.txt
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 Continue only when the installer reports **OK**. The check ignores other release artifacts that were not downloaded; obtain the checksums from the same trusted release. Inspect `IMAGE_DIGESTS.txt` and use its **Multi-platform** image reference. Extract into a new installation directory:
 
 ```sh
-mkdir xobject-1.1.0
-tar -xzf xobject-1.1.0-selfhost.tar.gz -C xobject-1.1.0
-cd xobject-1.1.0
+mkdir xobject-1.2.0
+tar -xzf xobject-1.2.0-selfhost.tar.gz -C xobject-1.2.0
+cd xobject-1.2.0
 ```
 
 Configure the installation, replacing the example origin, digest and TLS contact address:
@@ -88,11 +88,17 @@ Versions 1.0.0 and 1.0.1 share a schema/catalog/auth fingerprint. Version 1.0.2 
 <span id="upgrade-from-100-to-101"></span>
 <span id="upgrade-from-100-or-101-to-102"></span>
 
-### Upgrade from 1.0.0, 1.0.1 or 1.0.2 to 1.1.0
+<span id="upgrade-from-100-101-or-102-to-110"></span>
 
-Download and verify the 1.1.0 installer, extract it into a new directory and retain the previous installer for recovery. Use the new package's operator with the existing private environment file, Compose project and any proxy override; preserve all credentials and volume identities. Do not run first-time configuration or development reset against the installation.
+### Upgrade from 1.0.0â€“1.1.0 to 1.2.0
 
-Run `scripts/xobject upgrade IMMUTABLE_1_1_0_IMAGE NEW_BACKUP_DIRECTORY` using the published 1.1.0 digest. The operator stops writers, preserves a checksummed database/configuration backup and the actual previous image, switches the image and runs the dedicated schema migration before target/integrity verification and restart. The upgrade adds correspondence/Pronouns, Other usage choices and family/affiliation definitions while retaining customized forms/input aids and inactive modules/objects. Sources 1.0.0/1.0.1 also receive consent-decision journaling. Existing users, tokens, consents, records, versions and Journal entries are retained. Unknown fingerprints fail closed. On failure, keep writers stopped and restore the verified backup with its matching previous image; the target application does not serve an older model.
+Download and verify the 1.2.0 installer, extract it into a new directory and retain the previous installer for recovery. Use the new package's operator with the existing private environment file, Compose project and any proxy override; preserve all credentials and volume identities. Do not run first-time configuration or a development reset against the installation.
+
+Run `scripts/xobject upgrade IMMUTABLE_1_2_0_IMAGE NEW_BACKUP_DIRECTORY` using the published 1.2.0 digest. The operator stops writers, preserves a checksummed database/configuration backup and the actual previous image, switches the image and runs dedicated migrations before target/integrity verification and restart.
+
+The 1.2.0 migration adds the sparse Contact inheritance table and protected Contact-person Commercial-register field, including permissions for the existing runtime role. Contact persons initially inherit without copied values. Own exceptions are created only when explicitly saved. Existing Contact identities, record numbers, authored fields/forms, retained values, inactive module contributions and Journal remain. Existing Type choices survive removal of the old supplied Contact-Type binding. Older sources also receive any required authorization-journal and 1.1.0 Contact-catalog additions.
+
+Only the exact published 1.0.0/1.0.1, 1.0.2 and 1.1.0 fingerprints are accepted. Unknown schemas and structural collisions abort the complete upgrade. On failure, keep writers stopped and restore the verified backup with its matching previous image; the target application does not serve an older model.
 
 ## Use an existing reverse proxy
 
@@ -115,7 +121,7 @@ This uses a random Compose project, loopback port, isolated fictional account/da
 
 `/healthz` checks database availability after startup fingerprint validation. Operator output reports aggregate verification results. Request logs exclude cookies, authorization, query strings and bodies. Authentication diagnostics retain only severity and a bounded SQLSTATE/code, excluding vendor messages/arguments; never paste private configuration, archives or diagnostic payloads into a public issue.
 
-The 1.1.0 upgrade preserves credentials, consents, records, issued numbers and existing history. Its additive module refresh rolls back completely if a conflicting field name/structure prevents installation. Use the published immutable target image; never edit fingerprints or reset an installed database.
+The supported upgrade preserves credentials, consents, records, issued numbers and existing history. Its additive module refresh rolls back completely if a conflicting field name/structure prevents installation. Use the published immutable target image; never edit fingerprints or reset an installed database.
 
 The supplied Compose package bounds each container's `json-file` logs to three files of 10 MB (approximately 30 MB per container). Recreate containers through the normal update procedure to apply logging changes; restarting an old container does not change its logging driver configuration. Existing installations or custom Compose/logging overrides must explicitly adopt an equivalent bound. Routine successful token rotation is absent from the permanent Journal; application consent and explicit application/security changes remain visible. Existing Journal history is retained.
 
@@ -132,7 +138,3 @@ Optional application environment settings are `APP_NAME` (default `xObject`, 1â€
 The web manifest provides one installation per `BASE_URL` origin, with standalone display and standard/maskable icons. No service worker caches authenticated business data. The application sends noindex/nofollow hints and denies anonymous data access; robots directives are not authorization. Public workspaces/record previews are later scope.
 
 Allow cookie-authenticated POST `/api/events` responses to stream as `text/event-stream`. Disable proxy buffering and retain connections beyond the 15-second heartbeat. The supplied Caddy proxy passes streams through. The app shares one PostgreSQL LISTEN connection and bounds streams per process/user; see ADR 0036 for limits. Reconnect resynchronizes current state instead of replaying events. Preserve the existing Host/Origin and CSRF checks. `/api/client-info` returns only generic name/description/title mode/build identity and `/manifest.webmanifest` is public generic metadata.
-
-## Preparing the 1.2.0 upgrade (unreleased)
-
-Community 1.1.0 remains the published installation baseline. The 1.2.0 worktree adds a sparse Contact inheritance table and an additive protected Contact-person Commercial-register field. Its stopped-writer upgrade accepts exact released 1.0.0/1.0.1, 1.0.2 and 1.1.0 fingerprints, grants the existing runtime role access to the new table and fully reaches the current schema before restart. Existing Contacts initially inherit without copied values. Authored fields/forms, data and history are retained; a structural collision aborts the complete upgrade. Use a verified backup and the matching released target image when 1.2.0 is published.
