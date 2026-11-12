@@ -124,9 +124,12 @@ test('rendered application workflows on an isolated current installation',{timeo
      if(name.endsWith('-Details'))await page.screenshot({path:path.join(artifacts,`${engineName}-${name}.png`),fullPage:true});
      accessibilityFindings.push(...accessibility.violations.map(item=>({view:name,id:item.id,impact:item.impact,nodes:item.nodes.map(node=>node.target)})));
   }
+  async function resetFixtureAuthQuota(){const limiter=new PgClient({connectionString:databaseURL});await limiter.connect();try{await limiter.query('DELETE FROM sys_auth_rate_limits');}finally{await limiter.end();}}
   async function scenario(name,role,run,viewport={width:1440,height:1000}){
    if(process.env.XOBJECT_TEST_SCENARIO&&!name.includes(process.env.XOBJECT_TEST_SCENARIO))return;
    await t.test(name,async()=>{
+    // Each scenario owns its synthetic loopback request quota; production limits remain enabled.
+    await resetFixtureAuthQuota();
     const context=await browser.newContext({viewport,colorScheme:'light',locale:'en-US',storageState:authenticatedStates.get(role)});
     await context.tracing.start({screenshots:true,snapshots:true,sources:false});
     const page=await context.newPage(),errors=[];page.setDefaultTimeout(10000);
@@ -423,7 +426,7 @@ test('rendered application workflows on an isolated current installation',{timeo
   });
   if(!process.env.XOBJECT_TEST_SCENARIO||'Throttled sign-in shows retry guidance'.includes(process.env.XOBJECT_TEST_SCENARIO))await t.test('Throttled sign-in shows retry guidance',async()=>{
    // Isolate this synthetic 429 response from earlier scenarios' shared loopback quota.
-   const limiter=new PgClient({connectionString:databaseURL});await limiter.connect();try{await limiter.query('DELETE FROM sys_auth_rate_limits');}finally{await limiter.end();}
+   await resetFixtureAuthQuota();
    const context=await browser.newContext({locale:'en-US',colorScheme:'light'});try{
     const page=await context.newPage();
     await page.route('**/api/auth/sign-in/email',route=>route.fulfill({status:429,contentType:'text/plain',body:'Too many requests'}));

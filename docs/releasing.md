@@ -39,7 +39,7 @@ For each release, before publishing, update the package versions, internal works
 
 Where website/documentation publication automatically follows `main`, hold that publication before merging the release commit. Resume it after the target images, release assets and versioned documentation are available. Preserve and restore the previous publication setting; successful source CI alone is not evidence that release downloads exist. This coordination affects the public website/docs, not the application installation.
 
-Only add 1.2.0 to the retained public documentation picker and version list when its matching snapshot is actually served. Preserve previous snapshots. The 1.2.0 installer/download URLs become available with the release assets; verify them after publication. API contract version 1.0.0 and the negotiated MCP protocol do not change merely because the application version changes.
+Only add a new release to the retained public documentation picker and version list when its matching snapshot is actually served. Preserve previous snapshots. The matching installer/download URLs become available with the release assets; verify them after publication. API contract version 1.0.0 and the negotiated MCP protocol do not change merely because the application version changes.
 
 ### Publication sequence
 
