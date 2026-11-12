@@ -17,4 +17,3 @@ export function localizedLabel(labels: Labels, userLanguage: string | null, work
   }
   return Object.values(labels)[0];
 }
-

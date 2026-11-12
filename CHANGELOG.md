@@ -4,6 +4,27 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-12
+
+### Added
+
+- Retry record creation safely across web/API/MCP with optional user-scoped request IDs, seven-day technical receipts, current-rights projections and atomic record/number/link/history preservation.
+- Configure the Object type column as Automatic, Show or Hide in the Form designer for individual and combined relationship lists; selection dialogs follow the same preference. Automatic omits redundant single-target object columns.
+
+### Changed
+
+- Open saved Contacts in a compact overview with readable channels, addresses and Notes; choose Edit contact for the complete form. Keep new Contacts in the editor and preserve draft/conflict guards.
+- Use the shared searchable, sortable, selectable and paginated table for individual and combined relationship lists, with consistent record links and row actions.
+- Resolve list visibility and field masking in transaction-local SQL; load only requested policies for individual checks, sharing the current security graph within the transaction. Separate definition management, module installation, record creation and relationship-draft state from central orchestration.
+- Supply Family as an editable combined Contacts-module template for Parents, Children, Partners and Siblings. Keep authored forms unchanged and retain relationship rules, permissions and ordinary draft saving.
+
+### Fixed
+
+- Drive localized errors and conflict recovery through stable machine codes rather than English server-message comparisons.
+- Respect mobile safe areas in the application shell and record/sidebar action areas without disabling zoom or text selection.
+- Correct the current-release guidance and distinguish unreleased Contact/list changes from Community 1.3.0.
+- Allow Contact persons as well as Individuals in Organization affiliations. Preserve their single main Organization and inherited details; upgrade existing supplied definitions without replacing links or history.
+
 ## [1.3.0] - 2026-11-12
 
 ### Added
@@ -197,7 +218,8 @@ First Community release under `AGPL-3.0-only`, maintained by Jürgen Schadek und
 
 - Exclude private backup/recovery environment files from Git, build contexts and commit-bound public source archives. Resume unchanged containers after backups with supported Compose v2 commands, reserve the proxy address outside the dynamic pool and keep diagnostics bounded and free of private payloads.
 
-[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/ITextremeDE/xobject/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/ITextremeDE/xobject/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ITextremeDE/xobject/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ITextremeDE/xobject/compare/v1.0.2...v1.1.0
