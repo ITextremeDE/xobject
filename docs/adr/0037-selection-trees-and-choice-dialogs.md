@@ -26,3 +26,7 @@ The three demo workspaces show single/multiple/tree Category across standard and
 ## Consequences
 
 No new business object or relationship represents a choice node. This extends ADRs 0006/0007; it does not make Type/Status hierarchical. The unreleased installation baseline adds the new `sys_fields.kind` constraint value, so disposable development databases are recreated from the current schema and demo seed. Released upgrades will follow the dedicated update policy.
+
+## Query-picker refinement — 2026-11-12 (unreleased)
+
+Reuse the searchable tree dialog for Category filters with independent criterion toggles. Query criteria do not use record-entry ancestor closure: adding a child must not add a parent criterion and inadvertently match siblings. Keep OR within one classification, AND across classifications, empty/inactive criteria and URL context. Applying or cancelling a query dialog is not a pending content edit. Record-entry pickers retain their existing ancestor closure and unsaved-form guards. Form guidance owns the interaction details.

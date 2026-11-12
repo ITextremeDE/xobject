@@ -25,9 +25,15 @@ The form shows the applicable fixed core. Keyword is derived, so there is no sep
 
 Contact lists, including the three Contact-kind views and the Contacts dashboard filter, start sorted by Keyword ascending. Selecting a column changes the sorting for the current view.
 
-Relationship lists for Contact persons also show Job title, Department and Function in Community 1.3.0, including combined lists, Dossier and link selection. These are the Contact person's own professional fields; unreadable values remain hidden.
+Relationship lists can display Job title, Department and Function from Contact persons. Enable the professional columns for the relevant list in the Form designer; its picker follows that preference. Combined family lists can keep only the relationship and linked Contact. Dossier and general link selection retain their own context presentation. These values belong to the Contact person; unreadable fields remain hidden.
 
 A Contact person can have **at most one Organization**. Changing this relationship does not delete either record. Job title, Department and Function belong to the Contact person itself and remain unchanged when the Organization changes. Check them after a move. Individual contacts also expose these professional fields; Organizations show their applicable company fields instead.
+
+## Read and link a saved Contact
+
+The overview displays readable values, classification labels and category paths. Organization-derived values show their inheritance mode and permitted source. Empty optional sections are omitted; configured relationship lists stay available even when empty.
+
+Use the plus menu on **Contact relationships** to choose a relationship and existing Contact. The table names the relationship from this Contact's side and can contain several rows for one linked person. Applying a selection prepares a draft while keeping the overview visible. Save or Reset in the footer; leaving with unsaved changes uses the normal warning. Use **Edit contact** for field changes.
 
 ## Maintain names and personal details
 

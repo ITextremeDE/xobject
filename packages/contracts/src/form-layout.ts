@@ -8,7 +8,7 @@ export const relationshipObjectColumnSchema=z.enum(['auto','show','hide']);
 export type RelationshipObjectColumn=z.infer<typeof relationshipObjectColumnSchema>;
 export const formEntrySchema=z.union([
   z.object({fieldId:uuidSchema,width}).strict(),
-  z.object({relationshipTypeId:uuidSchema,side:z.enum(['left','right']),width,visible:z.boolean().optional(),expanded:z.enum(['auto','open','closed']).optional(),objectColumn:relationshipObjectColumnSchema.optional()}).strict(),
+  z.object({relationshipTypeId:uuidSchema,side:z.enum(['left','right']),width,visible:z.boolean().optional(),expanded:z.enum(['auto','open','closed']).optional(),objectColumn:relationshipObjectColumnSchema.optional(),professionalColumns:z.boolean().optional()}).strict(),
   z.object({primary:z.literal(true),width:z.literal('full'),visible:z.boolean().optional()}).strict(),
 ]);
 export type FormEntry=z.infer<typeof formEntrySchema>;
@@ -19,6 +19,7 @@ export const formLayoutSchema=z.object({groups:z.array(z.object({
   width:width.optional(),
   relationshipList:z.boolean().optional(),
   objectColumn:relationshipObjectColumnSchema.optional(),
+  professionalColumns:z.boolean().optional(),
   fields:z.array(formEntrySchema).max(1000),
 }).strict()).max(50),unassigned:z.array(formEntrySchema).max(1000).optional()}).strict().superRefine((layout,ctx)=>{
   const groups=layout.groups.map(group=>group.id),fields=[...layout.groups.flatMap(group=>group.fields),...(layout.unassigned??[])].map(formEntryKey);
@@ -37,7 +38,7 @@ export function relationshipSidesForObject(type:RelationshipType,objectId:string
   return (['left','right'] as const).filter(side=>!(side==='right'&&symmetric)&&!(type.kind==='primary'&&chain&&((side==='left'&&!Object.values(chain).includes(objectId))||(side==='right'&&chain.contact===objectId)))&&(eligible(side)||(symmetric&&eligible('right'))));
 }
 export function formRelationshipFields(types:RelationshipType[],objectId:string,chain?:PrimaryChain|null,requirements?:PrimaryRequirements):FormRelationship[]{
-  return types.filter(type=>type.kind!=='general'&&type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side,...(definition.kind==='primary'?{required:Boolean(requirements?.associationRequired||requirements?.requiredLevels.length)}:{})})));
+  return types.filter(type=>type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side,...(definition.kind==='primary'?{required:Boolean(requirements?.associationRequired||requirements?.requiredLevels.length)}:{})})));
 }
 export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||(['multiline','multiple_choice','tree_choice'].includes(field.kind)||field.kind==='structured'&&field.config?.schema!=='name_components')?'full':'half';}
 export function formLayoutElements(fields:LayoutField[],relationships:FormRelationship[]=[]):FormElement[]{
@@ -67,7 +68,7 @@ export function resolveFormLayout(layout:FormLayout|undefined,fields:LayoutField
     const rank=['keyword','type','status','category'];
     const ordered=layout?elements:[...elements].sort((a,b)=>{const ai=rank.indexOf(a.field?.technicalName??''),bi=rank.indexOf(b.field?.technicalName??'');return (ai<0?4:ai)-(bi<0?4:bi);});
     const included=new Set([...groups.flatMap(group=>group.fields),...unassigned].map(formEntryKey));
-    for(const element of ordered)if(!included.has(element.key)){
+    for(const element of ordered)if(!included.has(element.key)&&element.relationship?.definition.kind!=='general'){
       if(layout)unassigned.push(element.entry);
       else {
         const target=element.relationship?.definition.kind==='primary'?'primary_association':!element.field?(element.single?'general':'relationships'):['type','status','category'].includes(element.field.technicalName)?'classification':element.field.technicalName==='notes'&&element.field.kind==='multiline'?'notes':'general';

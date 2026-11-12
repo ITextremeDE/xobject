@@ -4,6 +4,22 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+
+- Configure Contact-person professional columns independently for each relationship list and its picker. Add General relationships explicitly to a form or combined list through the designer.
+
+### Changed
+
+- New Contacts-module forms suggest one configurable **Contact relationships** table combining family, identity, affiliation and Contact-person relationships. Existing authored layouts remain intact.
+- Contact overviews and editors share a compact, responsive section order. Empty configured relationship lists stay available, and their plus menu prepares normal versioned record drafts directly from the overview.
+- Category-tree filters use a searchable tree dialog with removable path labels. Filter selection stays independent of the ancestor selection used when entering record values.
+
+### Fixed
+
+- Resolve Type, Status and hierarchical Category labels in Contact overviews; render extension fields as readable values and show inheritance mode/source, including explicit empty own values.
+- Keep search controls uniquely labelled when both sides of a directed relationship appear on a form; translate inactive choices consistently.
+- Preserve complete before/after collections in journal details instead of reusing the truncated table preview.
+
 ## [1.4.0] - 2026-11-12
 
 ### Added

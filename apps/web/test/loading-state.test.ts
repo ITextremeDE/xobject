@@ -67,7 +67,7 @@ test('outer Contact creation fallback uses the known route kind and renders the 
  const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{details:'Details',recordFormActions:'Actions'}}}});
  const definition=structuredClone(contactLoadingDefinition);Object.assign(definition.contactProfile!.fields,{company_name:'company',job_title:'professional'});definition.fields.forEach(field=>{field.label=field.id==='company'?'Company name':field.id==='professional'?'Job title':field.technicalName;field.kind='text';field.config={};});
  const render=(contactKind:string)=>renderToStaticMarkup(createElement(I18nextProvider,{i18n},createElement(RecordPageLoading,{definition,contactKind,isNew:true})));
- const organization=render('org');assert.match(organization,/Company name/);assert.doesNotMatch(organization,/Job title/);assert.match(organization,/xl:grid-cols-3/);
+ const organization=render('org');assert.match(organization,/Company name/);assert.doesNotMatch(organization,/Job title/);
  const person=render('ap');assert.match(person,/Job title/);assert.doesNotMatch(person,/Company name/);
 });
 

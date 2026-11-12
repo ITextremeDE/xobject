@@ -33,7 +33,7 @@ test('relationship layout keeps defaults, coerces changed cardinality/requiredne
  const retained=resolveFormLayout(layout,[],true,[],true);assert.deepEqual(retained.groups[0].fields,[hidden]);
  assert.equal(resolveFormLayout(layout,[],true,[]).groups[0].fields.length,0,'unavailable relationships do not render');
  const symmetric={...relation,directed:false};assert.equal(formRelationshipFields([symmetric],a.id).length,1);
- assert.equal(formRelationshipFields([{...relation,kind:'general'}],a.id).length,0);
+ assert.equal(formRelationshipFields([{...relation,kind:'general'}],a.id).length,2);
 });
 
 
@@ -92,14 +92,14 @@ test('starter layout separates classification and relationships while keeping no
 });
 
 test('Family is an editable module-template list and object columns are ordinary layout metadata',async()=>{
- const {contactFamilyListLayout,contactExtensionLayout}=await import('@xobject/contracts');
+ const {contactRelationshipListLayout,contactExtensionLayout}=await import('@xobject/contracts');
  const profile={fields:{},relationships:{contact_parent:a.id,contact_partner:b.id,contact_sibling:c.id},kinds:{}} as any;
  const relation=(id:string,side:'left'|'right')=>({relationshipTypeId:id,side,width:'full' as const,visible:true});
  const original:any={groups:[{id:'custom',labels:{en:'My fields'},fields:[{fieldId:a.id,width:'half'}]},{id:'links',labels:{en:'Relationships'},fields:[relation(a.id,'left'),relation(a.id,'right'),relation(b.id,'left'),relation(c.id,'left')]}]};
- const next=contactFamilyListLayout(profile,original),family=next.groups.find(g=>g.relationshipList)!;
- assert.equal(family.fields.length,4);assert.equal(family.labels.de,'Familie');assert.equal(original.groups[1].fields.length,4,'suggestions do not mutate an authored layout');
+ const next=contactRelationshipListLayout(profile,original),family=next.groups.find(g=>g.relationshipList)!;
+ assert.equal(family.fields.length,4);assert.equal(family.labels.de,'Kontaktbeziehungen');assert.equal(original.groups[1].fields.length,4,'suggestions do not mutate an authored layout');
  assert.deepEqual(next.groups[0],original.groups[0]);family.labels.en='Relatives';family.objectColumn='show';
- assert.deepEqual(contactFamilyListLayout(profile,next),next,'existing configured combined lists retain labels and preferences');
+ assert.deepEqual(contactRelationshipListLayout(profile,next),next,'existing configured combined lists retain labels and preferences');
  assert.deepEqual(contactExtensionLayout(profile,[],original)?.groups,original.groups,'normal rendering never silently regroups saved layouts');
  assert.equal(formLayoutSchema.safeParse(next).success,true);
  assert.equal(formLayoutSchema.safeParse({groups:[{...family,objectColumn:'sometimes'}]}).success,false);

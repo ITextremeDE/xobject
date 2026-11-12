@@ -32,11 +32,11 @@ export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fi
   if(field.definition.kind==='primary')return <PrimaryAssociationFields {...props} headingHidden={singleGroupLabel===t('primaryChainTitle')} readOnly={props.readOnly||field.editable===false} configuration={primaryChain??null} field={field} onChange={change}/>;
   const controller=fieldDefinitions.find(item=>item.id===rule?.fieldId);
   const sourceValues=controller?{[controller.technicalName]:values[controller.technicalName]??null}:undefined;
-  return <RelationshipControl {...props} fieldDefinitions={fieldDefinitions} values={values} sourceValues={sourceValues} objectColumn={'objectColumn'in entry?entry.objectColumn:undefined} field={field} expandedDefault={'expanded' in entry?entry.expanded:undefined} onChange={change}/>;
+  return <RelationshipControl {...props} fieldDefinitions={fieldDefinitions} values={values} sourceValues={sourceValues} professionalColumns={'professionalColumns'in entry?entry.professionalColumns:undefined} objectColumn={'objectColumn'in entry?entry.objectColumn:undefined} field={field} expandedDefault={'expanded' in entry?entry.expanded:undefined} onChange={change}/>;
 }
 
 
-function RelationshipControl({ fieldDefinitions,values,workspaceId,objectColumn,sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'entry'> & { objectColumn?:import('@xobject/contracts').RelationshipObjectColumn;expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
+function RelationshipControl({ professionalColumns,fieldDefinitions,values,workspaceId,objectColumn,sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'entry'> & { professionalColumns?:boolean;objectColumn?:import('@xobject/contracts').RelationshipObjectColumn;expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
   const { t, i18n } = useTranslation(), [pickerOpen, setPickerOpen] = useState(false);
   const navigate = useNavigate();
   const label = (labels: Record<string, string>) => labels[i18n.language] ?? labels.de ?? labels.en ?? Object.values(labels)[0] ?? '';
@@ -81,11 +81,11 @@ function RelationshipControl({ fieldDefinitions,values,workspaceId,objectColumn,
         {editable ? <Button id={`${id}-choose`} type="button" variant="outline" size="icon-sm" disabled={disabled} aria-label={chooseLabel} onClick={()=>setPickerOpen(true)}><PlusIcon/></Button>:null}
       </div>
       <CollapsibleContent className="flex flex-col gap-3 pt-3">
-        <CombinedRelationshipList showAdd={false} single chooseId={`${id}-choose`} objectColumn={objectColumn} title={title} entries={[{relationshipTypeId:field.definition.id,side:field.side,width:'full'}]} fields={[field]} fieldDefinitions={fieldDefinitions} values={values} workspaceId={workspaceId} objectTypeId={objectTypeId} recordId={recordId} workspaceCode={workspaceCode} disabled={disabled} readOnly={!editable} onChange={next=>onChange(next[0].targets)} onPickerDirtyChange={onPickerDirtyChange}/>
+        <CombinedRelationshipList professionalColumns={professionalColumns} showAdd={false} single chooseId={`${id}-choose`} objectColumn={objectColumn} title={title} entries={[{relationshipTypeId:field.definition.id,side:field.side,width:'full'}]} fields={[field]} fieldDefinitions={fieldDefinitions} values={values} workspaceId={workspaceId} objectTypeId={objectTypeId} recordId={recordId} workspaceCode={workspaceCode} disabled={disabled} readOnly={!editable} onChange={next=>onChange(next[0].targets)} onPickerDirtyChange={onPickerDirtyChange}/>
       </CollapsibleContent></Collapsible>}
     <RelationshipAttributes field={field} targets={field.targets} workspaceId={workspaceId} disabled={disabled} readOnly={readOnly} onChange={onChange}/>
     {!field.definition.active ? <FieldDescription>{t('relationshipInactiveHelp')}</FieldDescription> : null}
     {invalid ? <FieldError id={`${id}-error`}>{t('relationshipRequiredHelp')}</FieldError> : null}
-    {pickerOpen ? <RelationshipPicker objectColumn={objectColumn} sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); setExpanded(true); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}
+    {pickerOpen ? <RelationshipPicker professionalColumns={professionalColumns} objectColumn={objectColumn} sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); setExpanded(true); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}
   </Field>;
 }

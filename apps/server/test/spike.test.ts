@@ -2699,7 +2699,8 @@ test('relationship form elements enforce side scope, width and required visibili
   const configuration={labels:{en:'Connection'},leftLabels:{en:'Child'},rightLabels:{en:'Parents'},directed:true,leftMin:1,leftMax:1,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:left.id,rightObjectTypeId:right.id}],active:true};
   let relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'connection',configuration});relation=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
   let model=await ok('get_object_type',{objectTypeId:left.id});
-  assert.deepEqual(model.formRelationships.map((item:any)=>[item.definition.id,item.side]),[[relation.id,'left']]);
+  assert.deepEqual(model.formRelationships.filter((item:any)=>item.definition.kind!=='general').map((item:any)=>[item.definition.id,item.side]),[[relation.id,'left']]);
+  assert.equal(model.formRelationships.filter((item:any)=>item.definition.kind==='general').length,1,'General is an explicit optional designer source');
   const view=(entry:any)=>({groups:[{id:'connections',labels:{en:'Connections'},fields:[entry]}]});
   const single={relationshipTypeId:relation.id,side:'left',width:'half',visible:true};
   assert.equal((await api('configure_form_layout',{objectTypeId:left.id,version:model.version,layout:view({...single,visible:false})})).statusCode,400);
@@ -2728,7 +2729,8 @@ test('Primary is one full-width form element and its stored position survives a 
   const layout={groups:[{id:'context',labels:{en:'Context'},fields:[{primary:true,width:'full',visible:true}]}]};
   const saved=await ok('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout});assert.deepEqual(saved.formLayouts.default,layout);
   module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:module.version,enabled:false});
-  model=await ok('get_object_type',{objectTypeId:ids[1]});assert.equal(model.formRelationships.length,0);
+  model=await ok('get_object_type',{objectTypeId:ids[1]});assert.equal(model.formRelationships.filter((item:any)=>item.definition.kind==='primary').length,0);
+  assert.ok(model.formRelationships.every((item:any)=>item.definition.kind==='general'),'the module-independent General source remains available');
   assert.deepEqual(model.formLayouts.default,layout,'disabled module retains the authored view');
   layout.groups[0].labels.en='Retained context';assert.equal((await api('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout})).statusCode,400,'inactive module definitions are read-only');
   const unconfigured=await ok('get_object_type',{objectTypeId:ids[2]});assert.equal((await api('configure_form_layout',{objectTypeId:ids[2],version:unconfigured.version,layout})).statusCode,400);
@@ -5169,15 +5171,18 @@ test('central Organization fields remain live and own exceptions preserve data w
 test('combined relationship lists validate sides and remain configurable on supplied Contacts',async()=>{
  const ws=await ok('create_workspace',{name:'Combined family lists',code:'combinedlists'});await enableProjects(ws.id);
  let object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');object=await ok('get_object_type',{objectTypeId:object.id});
- const defaultFamily=object.formLayouts.default.groups.find((g:any)=>g.relationshipList);assert.equal(defaultFamily.labels.de,'Familie');assert.equal(defaultFamily.fields.length,4);
+ const defaultFamily=object.formLayouts.default.groups.find((g:any)=>g.relationshipList);assert.equal(defaultFamily.labels.de,'Kontaktbeziehungen');assert.equal(defaultFamily.fields.length,8);
  const rels=object.formRelationships.filter((r:any)=>[object.contactProfile.relationships.contact_parent,object.contactProfile.relationships.contact_partner].includes(r.definition.id));
  assert.ok(rels.length>=2);
  const layout={groups:[{id:'family',labels:{en:'Family',de:'Familie'},relationshipList:true,objectColumn:'hide',fields:rels.map((r:any)=>({relationshipTypeId:r.definition.id,side:r.side,width:'full',visible:true}))}]};
  const saved=await ok('configure_form_layout',{objectTypeId:object.id,version:object.version,layout});assert.deepEqual(saved.formLayouts.default,layout);
+ const general=object.formRelationships.find((r:any)=>r.definition.kind==='general');assert.ok(general);
+ const withGeneral={groups:[{...layout.groups[0],professionalColumns:true,fields:[...layout.groups[0].fields,{relationshipTypeId:general.definition.id,side:general.side,width:'full',visible:true}]}]};
+ object=await ok('configure_form_layout',{objectTypeId:object.id,version:saved.version,layout:withGeneral});assert.deepEqual(object.formLayouts.default,withGeneral);
  const single={relationshipTypeId:object.contactProfile.relationships.contact_person,side:'right',width:'full',visible:true};
- assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:saved.version,layout:{groups:[{...layout.groups[0],fields:[single]}]}})).statusCode,400);
- assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:saved.version,layout:{groups:[{...layout.groups[0],width:'half'}]}})).statusCode,400);
- assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:saved.version,layout:{groups:[{...layout.groups[0],fields:[{fieldId:object.contactProfile.fields.first_name,width:'full'}]}]}})).statusCode,400);
+ assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:object.version,layout:{groups:[{...layout.groups[0],fields:[single]}]}})).statusCode,400);
+ assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:object.version,layout:{groups:[{...layout.groups[0],width:'half'}]}})).statusCode,400);
+ assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:object.version,layout:{groups:[{...layout.groups[0],fields:[{fieldId:object.contactProfile.fields.first_name,width:'full'}]}]}})).statusCode,400);
  const event=(await ok('get_definition_journal',{objectTypeId:object.id})).find((e:any)=>e.field_key==='form_layout.default'&&e.new_value?.groups[0]?.id==='family');assert.equal(event.new_value.groups[0].relationshipList,true);assert.equal(event.new_value.groups[0].objectColumn,'hide');
 });
 

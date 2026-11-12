@@ -84,7 +84,7 @@ export function JournalEntryDetails({ entry, memberName, renderValue, compact = 
       {entry.field_key.startsWith('access.')?<FieldDescription>{t('journalSecurityNamesHelp')}</FieldDescription>:null}
       {entry.field_key.startsWith('form_layout.')?<FieldDescription>{t('formSnapshotNamesHelp')}</FieldDescription>:null}
         <dl className="grid min-w-0 grid-cols-1 divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className={entry.field_key.startsWith('form_layout.')?'sm:max-h-80 overflow-auto whitespace-pre-wrap wrap-anywhere':'sm:max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere'}>{renderValue ? renderValue(item,index===0?'before':'after') : value(item)}</dd></div>)}
+          {[[t('before'), entry.old_value], [t('after'), entry.new_value]].map(([label, item], index) => <div key={index} className="min-w-0 p-3"><dt className="mb-2 text-xs font-medium text-muted-foreground">{String(label)}</dt><dd className={entry.field_key.startsWith('form_layout.')?'sm:max-h-80 overflow-auto whitespace-pre-wrap wrap-anywhere':'sm:max-h-48 overflow-auto whitespace-pre-wrap wrap-anywhere'}>{(renderValue?.(item,index===0?'before':'after')) ?? value(item)}</dd></div>)}
         </dl>
       <Collapsible className="overflow-hidden rounded-lg border">
           <CollapsibleTrigger className="group/journal-details" render={<Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-between rounded-none px-3 py-2.5" />}>

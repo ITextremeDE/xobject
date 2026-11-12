@@ -1,4 +1,4 @@
-import {choiceDisplayOrder} from '@xobject/contracts';
+import {choiceDisplayOrder,choiceAncestors} from '@xobject/contracts';
 import {ChoicePicker} from './choice-picker';
 import {FieldExplanation,fieldDescriptionIds} from './record-field-hints';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,8 @@ export function displayClassification(config: ClassificationConfig, kind: string
   if (value === null || value === undefined || (Array.isArray(value) && !value.length)) return '—';
   const selected = Array.isArray(value) ? value : [value];
   const ids = [...choiceDisplayOrder(config.options.filter(option=>option.kind===kind),kind==='category'&&Boolean(config.category.tree)).filter(option=>selected.includes(option.id)).map(option => option.id), ...selected.filter(id => !config.options.some(option => option.id === id && option.kind === kind))];
-  return ids.map(id => config.options.find(option => option.id === id && option.kind === kind)).map((option, index) => option ? choiceLabel(option) : String(ids[index])).join(', ');
+  const tree=kind==='category'&&config.category.tree;
+  return ids.filter(id=>!tree||!selected.some(child=>child!==id&&choiceAncestors(config.options,String(child)).includes(id))).map(id=>{const option=config.options.find(o=>o.id===id&&o.kind===kind);return option?[...(tree?[...choiceAncestors(config.options,option.id)].reverse().map(parent=>choiceLabel(config.options.find(o=>o.id===parent)!)):[]),choiceLabel(option)].join(' › '):String(id);}).join(', ');
 }
 export function initialChoices(config: ClassificationConfig): ClassificationValues {
   return { type: config.type.defaultId, status: config.status.defaults.find(item => item.typeId === config.type.defaultId)?.statusId ?? null, category: [...config.category.defaultIds].sort() };
