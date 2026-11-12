@@ -36,29 +36,29 @@ export const contactKindOrder:ContactKind[]=['organization','person','individual
 type ContactLayoutField={id:string;technicalName:string;kind:string;config?:{schema?:string}};
 /** Module-owned core is fixed; designer metadata contains only additional fields/links. */
 export function contactCoreFieldIds(profile:ContactProfile,fields:ContactLayoutField[]):Set<string>{
- return new Set([...Object.entries(profile.fields).filter(([purpose])=>["contact_kind", "company_name", "first_name", "additional_names", "last_name", "salutation", "academic_title", "name_suffix", "formatted_name", "organization_name", "organization_commercial_register", "emails", "phones", "addresses", "websites", "birthday", "gender", "commercial_register", "notes", "nickname", "languages", "messenger_addresses", "contact_time_zone", "wedding_anniversary", "death_date", "job_title", "function", "department", "keyword", "address_form", "letter_salutation", "pronouns"].includes(purpose)).map(([,id])=>id),...fields.filter(f=>['type','status','category','record_number'].includes(f.technicalName)).map(f=>f.id)]);
+ return new Set([...Object.entries(profile.fields).filter(([purpose])=>["contact_kind", "company_name", "first_name", "additional_names", "last_name", "salutation", "academic_title", "name_suffix", "formatted_name", "organization_name", "organization_addresses", "organization_phones", "organization_emails", "emails", "phones", "addresses", "websites", "birthday", "gender", "commercial_register", "notes", "nickname", "languages", "messenger_addresses", "contact_time_zone", "wedding_anniversary", "death_date", "job_title", "function", "department", "keyword", "address_form", "letter_salutation", "pronouns"].includes(purpose)).map(([,id])=>id),...fields.filter(f=>['type','status','category','record_number'].includes(f.technicalName)).map(f=>f.id)]);
 }
 export function contactCoreEntry(profile:ContactProfile,fields:ContactLayoutField[],entry:FormEntry):boolean{
- return 'fieldId'in entry?contactCoreFieldIds(profile,fields).has(entry.fieldId):'relationshipTypeId'in entry?Object.values(profile.relationships).includes(entry.relationshipTypeId):false;
+ return 'fieldId'in entry?contactCoreFieldIds(profile,fields).has(entry.fieldId):'relationshipTypeId'in entry?entry.relationshipTypeId===profile.relationships.contact_person&&entry.side==='right':false;
 }
 export function contactExtensionLayout(profile:ContactProfile,fields:ContactLayoutField[],layout:FormLayout|undefined):FormLayout|undefined{
  if(!layout)return undefined;
  return {...layout,groups:layout.groups.map(g=>({...g,fields:g.fields.filter(e=>!contactCoreEntry(profile,fields,e))})),unassigned:layout.unassigned?.filter(e=>!contactCoreEntry(profile,fields,e))};
 }
 export function contactCoreLayout(profile:ContactProfile,fields:ContactLayoutField[],relationships:FormRelationship[]):FormLayout{
- const entry=(purpose:string):FormEntry[]=>fields.some(f=>f.id===profile.fields[purpose])?[{fieldId:profile.fields[purpose],width:['company_name','organization_name','notes','emails','phones','addresses','websites','messenger_addresses','function','letter_salutation','pronouns'].includes(purpose)?'full':'half'}]:[];
+ const entry=(purpose:string):FormEntry[]=>fields.some(f=>f.id===profile.fields[purpose])?[{fieldId:profile.fields[purpose],width:['company_name','organization_name','organization_phones','organization_emails','organization_addresses','notes','emails','phones','addresses','websites','messenger_addresses','function','letter_salutation','pronouns'].includes(purpose)?'full':'half'}]:[];
  const relation=(key:string)=>relationships.filter(r=>r.definition.id===profile.relationships[key]).map(r=>({relationshipTypeId:r.definition.id,side:r.side,width:(r.side==='left'?r.definition.leftMax:r.definition.rightMax)===1?'half':'full',visible:true,expanded:'open'} as FormEntry));
  const group=(id:string,en:string,de:string,entries:FormEntry[])=>({id,labels:{en,de},fields:entries});
  return {groups:[
- group('contact-name','Name & organization','Name & Organisation',[...entry('company_name'),...entry('organization_name'),...entry('salutation'),...entry('academic_title'),...entry('first_name'),...entry('additional_names'),...entry('last_name'),...entry('name_suffix'),...entry('nickname'),...entry('pronouns'),...relation('contact_person').filter(e=>'side'in e&&e.side==='right').map(e=>({...e,width:'full' as const}))]),
+ group('contact-name','Name & organization','Name & Organisation',[...entry('company_name'),...entry('salutation'),...entry('academic_title'),...entry('first_name'),...entry('additional_names'),...entry('last_name'),...entry('name_suffix'),...entry('nickname'),...entry('pronouns'),...relation('contact_person').filter(e=>'side'in e&&e.side==='right').map(e=>({...e,width:'full' as const}))]),
+ group('contact-organization','Organization','Organisation',['organization_name','organization_phones','organization_emails','organization_addresses'].flatMap(entry).map(e=>'fieldId'in e?{...e,width:[profile.fields.organization_phones,profile.fields.organization_emails].includes(e.fieldId)?'half' as const:'full' as const}:e)),
  group('contact-business','Professional details','Berufliche Angaben',['job_title','department','function'].flatMap(entry)),
- group('contact-details','Further details','Weitere Angaben',[...fields.filter(f=>f.technicalName==='record_number').map(f=>({fieldId:f.id,width:'half' as const})),...['birthday','death_date','wedding_anniversary','gender','commercial_register','organization_commercial_register'].flatMap(entry)]),
+ group('contact-details','Further details','Weitere Angaben',[...fields.filter(f=>f.technicalName==='record_number').map(f=>({fieldId:f.id,width:'half' as const})),...['birthday','death_date','wedding_anniversary','gender','commercial_register'].flatMap(entry)]),
  group('contact-locale','Language & time zone','Sprache & Zeitzone',['contact_time_zone','languages'].flatMap(entry)),
  group('contact-correspondence','Correspondence','Korrespondenz',['address_form','letter_salutation'].flatMap(entry)),
  group('contact-communication','Contact details','Kontaktdaten',['phones','emails','websites','messenger_addresses'].flatMap(entry)),
  group('contact-addresses','Addresses','Adressen',entry('addresses')),
  group('contact-classification','Classification','Einordnung',fields.filter(f=>['type','status','category'].includes(f.technicalName)).map(f=>({fieldId:f.id,width:f.technicalName==='category'?'full':'half'}))),
- group('contact-relationships','Relationships','Beziehungen',relationships.filter(r=>Object.values(profile.relationships).includes(r.definition.id)&&!(r.definition.id===profile.relationships.contact_person&&r.side==='right')).map(r=>({relationshipTypeId:r.definition.id,side:r.side,width:'full',visible:true,expanded:'open'}))),
  group('contact-notes','Notes','Notizen',entry('notes'))
  ].filter(g=>g.fields.length)};
 }

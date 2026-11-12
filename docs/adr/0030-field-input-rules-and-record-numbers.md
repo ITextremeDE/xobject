@@ -1,8 +1,10 @@
 # ADR 0030: Field input rules and record numbers
 
-- Status: Accepted; implemented in the local prototype
+- Status: Accepted; baseline delivered in 1.0.0, missing-number assignment delivered in 1.1.0
 - Date: 2026-11-04
 - Complements: [ADR 0003](0003-localized-labels-and-column-order.md), [ADR 0007](0007-custom-field-types.md), [ADR 0027](0027-ownership-and-foreign-access.md), [ADR 0028](0028-current-installation-baseline.md) and [ADR 0029](0029-record-recycle-bin.md)
+
+Delivery note: the dated unreleased wording below records the implementation stage when the decision was taken. The supported released upgrade path and final acceptance are maintained in the operator guide and quality report.
 
 ## Field metadata and defaults
 

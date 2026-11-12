@@ -1,3 +1,4 @@
+import {TruncatedText} from './truncated-text';
 import {RecordIcon} from './record-icon';
 import {useColumnPreferences} from '@/lib/column-preferences';
 import { useState } from 'react';
@@ -20,12 +21,13 @@ export function RecordDossier({data,workspaceCode}:{data:RecordRelationships;rec
   const [objectTypeId,setObjectTypeId]=useState('all');
   const rows=dossierRows(data.dossier,i18n.language);
   const objects=[{value:'all',label:t('allObjectTypes')},...Array.from(new Map(rows.map(row=>[row.objectTypeId,{value:row.objectTypeId,label:row.object}])).values()).sort((a,b)=>a.label.localeCompare(b.label,i18n.language))];
-  const table=useSettingsTable(sortDossierRows(rows.filter(row=>objectTypeId==='all'||row.objectTypeId===objectTypeId),sort,i18n.language),row=>`${row.relationship} ${row.object} ${row.keyword} ${row.type} ${row.status} ${row.category}`);
+  const table=useSettingsTable(sortDossierRows(rows.filter(row=>objectTypeId==='all'||row.objectTypeId===objectTypeId),sort,i18n.language),row=>`${row.relationship} ${row.object} ${row.keyword} ${row.type} ${row.status} ${row.category} ${row.jobTitle} ${row.department} ${row.function}`);
   const path=(row:DossierRow)=>`/w/${workspaceCode}/objects/${row.objectTechnicalName}/${row.recordId}`;
   const columns:RecordColumn<DossierRow>[]=[
     {key:'relationship',label:t('relationshipType'),cell:row=>row.relationship},
     {key:'object',label:t('objectSingular'),cell:row=>row.object},
-    {key:'keyword',label:t('keyword'),required:true,cell:row=><Button type="button" variant="link" className="max-w-80 justify-start truncate px-0" nativeButton={false} render={<Link to={path(row)}/>}><RecordIcon iconKey={row.iconKey} objectLabel={row.object}/><span className="truncate">{row.keyword}</span></Button>},
+    {key:'keyword',label:t('keyword'),required:true,cell:row=><Button type="button" variant="link" className="max-w-80 justify-start truncate px-0" nativeButton={false} render={<Link to={path(row)}/>}><RecordIcon iconKey={row.iconKey} objectLabel={row.object}/><TruncatedText>{row.keyword}</TruncatedText></Button>},
+    ...(rows.some(row=>row.contactPerson)?(['jobTitle','department','function'] as const).map((key,index)=>({key,label:t(['contactPersonJobTitle','contactPersonDepartment','contactPersonFunction'][index]),cell:(row:DossierRow)=>row[key]||'—'})):[]),
     {key:'type',label:t('classificationType'),cell:row=>row.type},
     {key:'status',label:t('classificationStatus'),cell:row=>row.status},
     {key:'category',label:t('classificationCategory'),cell:row=>row.category},

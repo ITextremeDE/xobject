@@ -29,7 +29,7 @@ node scripts/test-selfhost.mjs
 
 For private offline recovery, retain an image archive with `docker image save xobject:local-acceptance | gzip > xobject-local-image.tar.gz` and record its SHA-256. Load it with `docker image load` before using the installer. Local image identifiers are not published registry digests. A local candidate is not a user-facing release. Versions 1.0.0 and 1.0.1 share the complete schema/catalog/auth fingerprint: upgrading requires backup, stopped writers and target/integrity verification, with no SQL conversion.
 
-For releases from 1.2.0 onward, the native image workflow requires fresh installation and upgrades from the immutable published 1.0.1, 1.0.2 and 1.1.0 images on both supported architectures. It checks retained record values, versions and Journal, including an installed Contacts module and Contact record. The 1.1.0 predecessor is pinned to its published multi-platform digest `sha256:84732cb65fc9d9a1e0d2cc93d6700d24bfe5f5c29a3839eb8033446ef77db68d`. A configured gate alone is not a passed image run: require a successful run on the final release commit. Source-level upgrade scenarios and the PR container checks do not replace it. Unknown schemas fail closed. Dedicated migrations reach the complete target model before runtime starts.
+For releases from 1.3.0 onward, the native image workflow requires fresh installation and upgrades from the immutable published 1.0.1, 1.0.2, 1.1.0 and 1.2.0 images on both supported architectures. It checks retained record values, versions and Journal, including an installed Contacts module and Contact record. The 1.1.0 predecessor is pinned to its published multi-platform digest `sha256:84732cb65fc9d9a1e0d2cc93d6700d24bfe5f5c29a3839eb8033446ef77db68d`. The installed 1.2.0 predecessor is pinned to `sha256:446d8fcd53478909c4828abfe9f3aede39e2b39f415756ac838aa847e4d0d6b4`. A configured gate alone is not a passed image run: require a successful run on the final release commit. Source-level upgrade scenarios and the PR container checks do not replace it. Unknown schemas fail closed. Dedicated migrations reach the complete target model before runtime starts.
 
 ## Publish after explicit authorization
 
@@ -39,7 +39,7 @@ For each release, before publishing, update the package versions, internal works
 
 Where website/documentation publication automatically follows `main`, hold that publication before merging the release commit. Resume it after the target images, release assets and versioned documentation are available. Preserve and restore the previous publication setting; successful source CI alone is not evidence that release downloads exist. This coordination affects the public website/docs, not the application installation.
 
-Only add 1.2.0 to the retained public documentation picker and version list when its matching snapshot is actually served. Preserve previous snapshots. The 1.2.0 installer/download URLs become available with the release assets; verify them after publication. API contract version 1.0.0 and the negotiated MCP protocol do not change merely because the application version changes.
+Only add a new release to the retained public documentation picker and version list when its matching snapshot is actually served. Preserve previous snapshots. The matching installer/download URLs become available with the release assets; verify them after publication. API contract version 1.0.0 and the negotiated MCP protocol do not change merely because the application version changes.
 
 ### Publication sequence
 

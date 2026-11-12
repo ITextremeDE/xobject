@@ -24,13 +24,19 @@ Relationship controls offer visibility and, for tables, initial expansion settin
 
 On sensitive objects, the protected **Access principals** field can be positioned, ordered and given a supported width using its existing identity. This changes its placement, not its ownership or activity-assignment behavior. [Access administration](access-administration.md) explains its rights details.
 
+## Combine relationship lists (Community 1.3.0)
+
+Move the desired to-many relationship elements into one group, name it (for example **Family**) and enable **Show relationships in one list**. A combined group uses full width and contains only to-many custom relationship sides. Ordinary fields, the Primary chain and single-target relationships stay in other groups. Parents and Children are separate sides of the same relationship and can both appear in Family alongside Partners or Siblings.
+
+The record shows one searchable, sortable, paginated table with Relationship, Object type and Keyword. The plus button first asks which available relationship to add, then opens the normal record picker. Removing a row removes that relationship only; it keeps the other record. Changes remain in the ordinary record draft until Save. Combining is presentation metadata: permissions, cardinalities, requiredness and record identities do not change. The same Contact may appear in several rows for different relationships. A shared layout is available through the normal API/MCP form configuration as well as the designer.
+
 ## Unassigned and removed groups
 
 Newly added elements remain Unassigned until you place them. They remain available; adding or deleting a group never deletes field definitions or data. Removing a group moves its elements to Unassigned. Required inputs must remain reachable. Do not use form placement as a permission boundary or as a substitute for [definition lifecycle](model-design.md#place-fields-link-objects-and-manage-lifecycle).
 
 ## Supplied Contact forms
 
-Organizations, Contact persons and Individual contacts have fixed kind-specific core forms. Their name, professional, channel/address, language/time and applicable personal/company sections are provided by the module. The designer arranges **extensions**: user-defined fields and custom relationships outside that core.
+Organizations, Contact persons and Individual contacts have fixed kind-specific core forms. Their name, professional, channel/address, language/time and applicable personal/company sections are provided by the module. The designer arranges additional fields and relationship lists, including supplied family/identity lists in Community 1.3.0. The single main-Organization selector stays in the protected core.
 
 The core's intended input aids, labels and supported field rules remain configurable in Object types, subject to protection and existing-data validation. You cannot move/remove protected core components or turn a Contact person into an Organization by rearranging the form.
 

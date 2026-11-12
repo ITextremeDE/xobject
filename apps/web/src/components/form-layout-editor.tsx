@@ -1,3 +1,4 @@
+import {Checkbox} from './ui/checkbox';
 import {contactKindLabel} from '@/lib/contact-kind';
 import {contactCoreFieldIds,contactExtensionLayout} from '@xobject/contracts';
 import {SettingsSection} from './settings-section';
@@ -16,7 +17,7 @@ import {Kbd} from '@/components/ui/kbd';
 import {Spinner} from '@/components/ui/spinner';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
-import {Field,FieldGroup,FieldLabel,FieldDescription,FieldSet,FieldLegend} from '@/components/ui/field';
+import {Field,FieldContent,FieldGroup,FieldLabel,FieldDescription,FieldSet,FieldLegend} from '@/components/ui/field';
 import {NativeSelect,NativeSelectOption} from '@/components/ui/native-select';
 import {TranslatedLabelInput,hasLabel,cleanLabels} from './translated-label-input';
 import {ErrorNotice} from './feedback';
@@ -29,7 +30,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
   const coreIds=definition.contactProfile?contactCoreFieldIds(definition.contactProfile,definition.fields):new Set<string>();
   const fields=definition.fields.filter(field=>field.state!=='deleted'&&!coreIds.has(field.id));
   const extensionLayout=definition.contactProfile?contactExtensionLayout(definition.contactProfile,definition.fields,definition.formLayouts?.default):definition.formLayouts?.default;
-  const relationships=(definition.formRelationships??[]).filter(r=>!definition.contactProfile||!Object.values(definition.contactProfile.relationships).includes(r.definition.id)),elements=formLayoutElements(fields,relationships);
+  const relationships=(definition.formRelationships??[]).filter(r=>!definition.contactProfile||!(r.definition.id===definition.contactProfile.relationships.contact_person&&r.side==='right')),elements=formLayoutElements(fields,relationships);
   const [baseline,setBaseline]=useState<FormLayout>(()=>resolveFormLayout(extensionLayout,fields,true,relationships,true)),[draft,setDraft]=useState<FormLayout>(baseline);
   const dirty=!readOnly&&JSON.stringify(draft)!==JSON.stringify(baseline);
   const valid=draft.groups.every(group=>hasLabel(group.labels));
@@ -47,7 +48,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
   function moveField(id:string,groupId:string){setDraft(old=>{
     if(groupId===':unassigned'?(old.unassigned??[]).some(entry=>formEntryKey(entry)===id):old.groups.find(group=>group.id===groupId)?.fields.some(entry=>formEntryKey(entry)===id))return old;
     const entry=formLayoutEntries(old).find(entry=>formEntryKey(entry)===id)!;
-    return {...old,groups:old.groups.map(group=>({...group,fields:group.id===groupId?[...group.fields,entry]:group.fields.filter(field=>formEntryKey(field)!==id)})),unassigned:groupId===':unassigned'?[...(old.unassigned??[]),entry]:(old.unassigned??[]).filter(field=>formEntryKey(field)!==id)};
+    return {...old,groups:old.groups.map(group=>({...group,fields:group.id===groupId?[...group.fields,entry]:group.fields.filter(field=>formEntryKey(field)!==id),relationshipList:group.relationshipList&&!(group.id!==groupId&&group.fields.length===1)})),unassigned:groupId===':unassigned'?[...(old.unassigned??[]),entry]:(old.unassigned??[]).filter(field=>formEntryKey(field)!==id)};
   });}
   function shiftField(groupIndex:number,index:number,offset:number){const entries=[...(groupIndex===draft.groups.length?draft.unassigned??[]:draft.groups[groupIndex].fields)];[entries[index],entries[index+offset]]=[entries[index+offset],entries[index]];updateGroup(groupIndex,{fields:entries});}
   const shownGroups=[...draft.groups.map(group=>({...group,unassigned:false})),...(draft.unassigned?.length?[{id:':unassigned',labels:{de:t('formUnassigned'),en:t('formUnassigned')},fields:draft.unassigned,unassigned:true,width:undefined}]:[])];
@@ -66,7 +67,8 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
         <Button type="button" variant="ghost" size="icon-sm" disabled={mutation.isPending} aria-label={t('formRemoveGroup')} title={t('formRemoveGroup')} onClick={()=>setDraft(old=>({...old,groups:old.groups.filter(item=>item.id!==group.id),unassigned:[...(old.unassigned??[]),...group.fields]}))}><Trash2Icon/></Button>
       </span>:null}</FieldLegend>
       {group.unassigned?<FieldDescription>{t('formUnassignedHelp')}</FieldDescription>:<TranslatedLabelInput showHelp={false} id={`form-group-${group.id}`} value={group.labels} readOnly={readOnly} disabled={mutation.isPending} onChange={labels=>updateGroup(groupIndex,{labels})}/>}
-      {!group.unassigned?<Field><FieldLabel htmlFor={`form-group-width-${group.id}`}>{t('formGroupWidth')}</FieldLabel><NativeSelect id={`form-group-width-${group.id}`} disabled={readOnly||mutation.isPending} value={group.width??'full'} onChange={event=>updateGroup(groupIndex,{width:event.target.value as 'half'|'full'})}><NativeSelectOption value="full">{t('formFull')}</NativeSelectOption><NativeSelectOption value="half">{t('formHalf')}</NativeSelectOption></NativeSelect></Field>:null}
+      {!group.unassigned?<Field><FieldLabel htmlFor={`form-group-width-${group.id}`}>{t('formGroupWidth')}</FieldLabel><NativeSelect id={`form-group-width-${group.id}`} disabled={readOnly||mutation.isPending||group.relationshipList===true} value={group.width??'full'} onChange={event=>updateGroup(groupIndex,{width:event.target.value as 'half'|'full'})}><NativeSelectOption value="full">{t('formFull')}</NativeSelectOption><NativeSelectOption value="half">{t('formHalf')}</NativeSelectOption></NativeSelect></Field>:null}
+      {!group.unassigned?<Field orientation="horizontal"><Checkbox id={`form-list-${group.id}`} checked={group.relationshipList===true} disabled={readOnly||mutation.isPending||!group.fields.length||group.fields.some(entry=>{const element=elements.find(e=>e.key===formEntryKey(entry));return !element?.relationship||element.single||element.relationship.definition.kind!=='custom';})} onCheckedChange={checked=>updateGroup(groupIndex,{relationshipList:checked===true,width:'full'})}/><FieldContent><FieldLabel htmlFor={`form-list-${group.id}`}>{t('formRelationshipList')}</FieldLabel><FieldDescription>{t('formRelationshipListHelp')}</FieldDescription></FieldContent></Field>:null}
       {!group.fields.length?<FieldDescription>{t('formGroupEmpty')}</FieldDescription>:null}
       <FieldGroup className="gap-6">{group.fields.map((entry,index)=>{
         const element=elements.find(element=>element.key===formEntryKey(entry));if(!element)return null;
@@ -82,7 +84,7 @@ export function FormLayoutEditor({definition,readOnly,onDirtyChange,onBusyChange
           </span>:null}</FieldLegend>
           {element.field?.technicalName==='access_principals'?<FieldDescription>{t('formAccessPrincipalsHelp')}</FieldDescription>:null}
           <FieldGroup className="grid gap-3 sm:grid-cols-2">
-            <Field><FieldLabel htmlFor={`${id}-group`}>{t('formGroup')}</FieldLabel><NativeSelect id={`${id}-group`} className="w-full" aria-label={t('formGroupFor',{name:label})} disabled={readOnly||mutation.isPending} value={group.id} onChange={event=>moveField(element.key,event.target.value)}>{draft.groups.map(item=><NativeSelectOption key={item.id} value={item.id}>{localLabel(item.labels)||t('formGroup')}</NativeSelectOption>)}<NativeSelectOption value=":unassigned">{t('formUnassigned')}</NativeSelectOption></NativeSelect></Field>
+            <Field><FieldLabel htmlFor={`${id}-group`}>{t('formGroup')}</FieldLabel><NativeSelect id={`${id}-group`} className="w-full" aria-label={t('formGroupFor',{name:label})} disabled={readOnly||mutation.isPending} value={group.id} onChange={event=>moveField(element.key,event.target.value)}>{draft.groups.map(item=><NativeSelectOption key={item.id} value={item.id} disabled={item.relationshipList===true&&(!element.relationship||element.single||element.relationship.definition.kind!=='custom')}>{localLabel(item.labels)||t('formGroup')}</NativeSelectOption>)}<NativeSelectOption value=":unassigned">{t('formUnassigned')}</NativeSelectOption></NativeSelect></Field>
             <Field><FieldLabel htmlFor={element.single?`${id}-width`:undefined}>{t('formWidth')}</FieldLabel>{element.single?<NativeSelect id={`${id}-width`} className="w-full" aria-label={t('formWidthFor',{name:label})} disabled={readOnly||mutation.isPending} value={entry.width} onChange={event=>patch({width:event.target.value as 'half'|'full'})}><NativeSelectOption value="half">{t('formHalf')}</NativeSelectOption><NativeSelectOption value="full">{t('formFull')}</NativeSelectOption></NativeSelect>:<FieldDescription>{t('formFull')} · {t('formFullRequired')}</FieldDescription>}</Field>
             {!('fieldId' in entry)?<Field><FieldLabel htmlFor={element.required?undefined:`${id}-visibility`}>{t('formVisibility')}</FieldLabel>{element.required?<FieldDescription>{t('formRequiredVisible')}</FieldDescription>:<NativeSelect id={`${id}-visibility`} className="w-full" aria-label={t('formVisibilityFor',{name:label})} disabled={readOnly||mutation.isPending} value={entry.visible===false?'hidden':'shown'} onChange={event=>patch({visible:event.target.value==='shown'})}><NativeSelectOption value="shown">{t('formShown')}</NativeSelectOption><NativeSelectOption value="hidden">{t('formHidden')}</NativeSelectOption></NativeSelect>}</Field>:null}
             {'relationshipTypeId' in entry&&!element.single?<Field><FieldLabel htmlFor={`${id}-expansion`}>{t('formExpansion')}</FieldLabel><NativeSelect id={`${id}-expansion`} className="w-full" aria-label={t('formExpansionFor',{name:label})} disabled={readOnly||mutation.isPending||entry.visible===false} value={entry.expanded??'auto'} onChange={event=>patch({expanded:event.target.value as 'auto'|'open'|'closed'})}><NativeSelectOption value="auto">{t('formExpansionAuto')}</NativeSelectOption><NativeSelectOption value="open">{t('formExpansionOpen')}</NativeSelectOption><NativeSelectOption value="closed">{t('formExpansionClosed')}</NativeSelectOption></NativeSelect></Field>:null}

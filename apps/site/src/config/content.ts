@@ -106,13 +106,13 @@ export const content = {
     screenshots:
       "Real application views from the fictional ITextreme demo workspace.",
     enDocs: "Documentation is currently available in English.",
-    available: "Community 1.2.0 · Open source",
+    available: "Community 1.3.0 · Open source",
     releaseNotes: "Release notes",
     guide: "Read the guide",
     workflowLabel: "Contact workflows",
     workflowTitle: "Keep contact details connected as people move.",
     workflowText:
-      "Contact people can inherit their organization’s name and commercial register, with an own value or an explicitly empty exception per field. Guided conversions let an individual join a new or existing organization, or continue independently again. Review the affected records and resulting names before confirming; existing identities, numbers and history stay intact.",
+      "Contact people see their organization’s name, central phone/fax, email and addresses separately from their direct details, with own values or explicitly empty exceptions per field. Related contacts can share one configurable list. Guided conversions let an individual join a new or existing organization, or continue independently again. Review the affected records and resulting names before confirming; existing identities, numbers and history stay intact.",
     workflowGuide: "How contact changes work",
     captions: {
       project: "A project with its cases and tasks in the shared hierarchy.",
@@ -233,13 +233,13 @@ export const content = {
     screenshots:
       "Echte Anwendungsansichten aus dem fiktiven ITextreme-Demoarbeitsbereich.",
     enDocs: "Die Dokumentation ist derzeit auf Englisch verfügbar.",
-    available: "Community 1.2.0 · Open Source",
+    available: "Community 1.3.0 · Open Source",
     releaseNotes: "Release-Änderungen",
     guide: "Zur Anleitung",
     workflowLabel: "Kontakte im Wandel",
     workflowTitle: "Kontakte passend weiterführen.",
     workflowText:
-      "Ansprechpartner können Organisationsname und Handelsregister ihrer Organisation übernehmen – mit eigenem Wert oder ausdrücklich leerer Ausnahme pro Feld. Geführte Umwandlungen verbinden einen Einzelkontakt mit einer neuen oder bestehenden Organisation oder führen Ansprechpartner wieder als Einzelkontakte weiter. Vor der Bestätigung siehst Du die betroffenen Kontakte und ihre künftigen Stichwörter; bestehende IDs, Nummern und Historie bleiben erhalten.",
+      "Ansprechpartner sehen Organisationsname, zentrale Telefon-/Faxnummern, E-Mails und Anschriften getrennt von ihren eigenen Kontaktdaten – mit eigenem Wert oder ausdrücklich leerer Ausnahme pro Feld. Zusammengehörige Kontakte lassen sich in einer gemeinsamen Liste anzeigen. Geführte Umwandlungen verbinden einen Einzelkontakt mit einer neuen oder bestehenden Organisation oder führen Ansprechpartner wieder als Einzelkontakte weiter. Vor der Bestätigung siehst Du die betroffenen Kontakte und ihre künftigen Stichwörter; bestehende IDs, Nummern und Historie bleiben erhalten.",
     workflowGuide: "So funktionieren Kontaktumwandlungen",
     captions: {
       project:

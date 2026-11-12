@@ -2,6 +2,7 @@ import {choiceDisplayOrder} from '@xobject/contracts';
 import {temporalSchema,temporalInstant,postalAddressLines,type StructuredEntry,structuredSummary,defaultRegionalSettings,type RegionalSettings,type FieldDefinition,type FieldPrincipal,type MoneyValue,type ReferenceValue} from '@xobject/contracts';
 import type {TFunction} from 'i18next';
 import {formatRegionalDate,formatRegionalNumber,formatRegionalMoney} from './regional';
+import {formatPhoneNumber} from './phone-format';
 const optionName=(labels:Record<string,string>,language:string)=>labels[language]??labels.en??labels.de??Object.values(labels)[0]??'—';
 
 export function displayFieldValue(field: Pick<FieldDefinition,'kind'|'config'>, value: unknown, language: string, t: TFunction, principals: FieldPrincipal[] = [], timeZone = 'UTC', regional: RegionalSettings = defaultRegionalSettings): string {
@@ -14,9 +15,10 @@ export function displayFieldValue(field: Pick<FieldDefinition,'kind'|'config'>, 
       const date=value as {year:number|null;month:number;day:number},month=String(date.month).padStart(2,'0'),day=String(date.day).padStart(2,'0');
       return date.year===null?new Intl.DateTimeFormat(regional.locale,{month:'long',day:'numeric',timeZone:'UTC'}).format(new Date(`2000-${month}-${day}T12:00:00Z`)):formatRegionalDate(`${String(date.year).padStart(4,'0')}-${month}-${day}`,regional,timeZone,false,true);
     }
-    if(Array.isArray(value))return (value as StructuredEntry[]).map(entry=>structuredSummary(field.config.schema!,[entry])+contexts(entry)).join('; ')||'—';
+    if(Array.isArray(value))return (value as StructuredEntry[]).map(entry=>(field.config.schema==='phone_entries'&&'value'in entry?formatPhoneNumber(entry.value):structuredSummary(field.config.schema!,[entry]))+contexts(entry)).join('; ')||'—';
     return structuredSummary(field.config.schema!,value);
   }
+  if (field.kind === 'phone') return formatPhoneNumber(String(value));
   if (field.kind === 'boolean') return t(value === true ? 'yes' : 'no');
   if (field.kind === 'money') { const money = value as MoneyValue; return formatRegionalMoney(money.amount,money.currency,regional,field.config.scale??2); }
   if (field.kind === 'single_choice' || (field.kind === 'multiple_choice'||field.kind==='tree_choice')) return (field.kind==='single_choice'?[value]:choiceDisplayOrder(field.config.options??[],field.kind==='tree_choice').filter(option=>(value as string[]).includes(option.id)).map(option=>option.id)).map(id => { const option = field.config.options?.find(item => item.id === id); return option ? optionName(option.labels, language) : String(id); }).join(', ') || '—';

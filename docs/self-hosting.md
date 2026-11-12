@@ -1,8 +1,8 @@
 # Self-hosting and recovery
 
-Install the **Community 1.2.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
+Install the **Community 1.3.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
 
-Use the [1.2.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.2.0) and its matching installer/image. For an earlier installation, use its [released documentation snapshot](versions.md).
+Use the [1.3.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.3.0) and its matching installer/image. For an earlier installation, use its [released documentation snapshot](versions.md).
 
 ## Prepare an installation
 
@@ -11,18 +11,18 @@ Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, Open
 In a new working directory on that host, download the matching installer, checksum list and image references:
 
 ```sh
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.2.0/xobject-1.2.0-selfhost.tar.gz
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.2.0/SHA256SUMS
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.2.0/IMAGE_DIGESTS.txt
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.3.0/xobject-1.3.0-selfhost.tar.gz
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.3.0/SHA256SUMS
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.3.0/IMAGE_DIGESTS.txt
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 Continue only when the installer reports **OK**. The check ignores other release artifacts that were not downloaded; obtain the checksums from the same trusted release. Inspect `IMAGE_DIGESTS.txt` and use its **Multi-platform** image reference. Extract into a new installation directory:
 
 ```sh
-mkdir xobject-1.2.0
-tar -xzf xobject-1.2.0-selfhost.tar.gz -C xobject-1.2.0
-cd xobject-1.2.0
+mkdir xobject-1.3.0
+tar -xzf xobject-1.3.0-selfhost.tar.gz -C xobject-1.3.0
+cd xobject-1.3.0
 ```
 
 Configure the installation, replacing the example origin, digest and TLS contact address:
@@ -90,15 +90,15 @@ Versions 1.0.0 and 1.0.1 share a schema/catalog/auth fingerprint. Version 1.0.2 
 
 <span id="upgrade-from-100-101-or-102-to-110"></span>
 
-### Upgrade from 1.0.0–1.1.0 to 1.2.0
+### Upgrade from 1.0.0–1.2.0 to 1.3.0
 
-Download and verify the 1.2.0 installer, extract it into a new directory and retain the previous installer for recovery. Use the new package's operator with the existing private environment file, Compose project and any proxy override; preserve all credentials and volume identities. Do not run first-time configuration or a development reset against the installation.
+Download and verify the 1.3.0 installer, extract it into a new directory and retain the previous installer for recovery. Use the new package's operator with the existing private environment file, Compose project and any proxy override; preserve credentials and volume identities. Do not run first-time configuration or a development reset against the installation.
 
-Run `scripts/xobject upgrade IMMUTABLE_1_2_0_IMAGE NEW_BACKUP_DIRECTORY` using the published 1.2.0 digest. The operator stops writers, preserves a checksummed database/configuration backup and the actual previous image, switches the image and runs dedicated migrations before target/integrity verification and restart.
+Run `scripts/xobject upgrade IMMUTABLE_1_3_0_IMAGE NEW_BACKUP_DIRECTORY` using the published 1.3.0 digest. The operator stops writers, preserves a checksummed database/configuration backup and the actual previous image, switches the image and runs dedicated migrations before target/integrity verification and restart.
 
-The 1.2.0 migration adds the sparse Contact inheritance table and protected Contact-person Commercial-register field, including permissions for the existing runtime role. Contact persons initially inherit without copied values. Own exceptions are created only when explicitly saved. Existing Contact identities, record numbers, authored fields/forms, retained values, inactive module contributions and Journal remain. Existing Type choices survive removal of the old supplied Contact-Type binding. Older sources also receive any required authorization-journal and 1.1.0 Contact-catalog additions.
+The migration adds separate central Organization telephone/fax, email and address projections with typed sparse exceptions, and retires the AP-only Commercial-register definition. Its deleted-definition identity and existing Journal rows remain. An unexpected nonempty own register exception aborts the transaction for explicit resolution. Earlier supported released sources migrate directly to this same target, including required authorization-journal and Contact-catalog changes. Existing IDs, numbers, authored fields/forms, input aids, module state, credentials and history remain.
 
-Only the exact published 1.0.0/1.0.1, 1.0.2 and 1.1.0 fingerprints are accepted. Unknown schemas and structural collisions abort the complete upgrade. On failure, keep writers stopped and restore the verified backup with its matching previous image; the target application does not serve an older model.
+Only exact published 1.0.0/1.0.1, 1.0.2, 1.1.0 and 1.2.0 fingerprints are accepted. Unknown schemas and structural collisions abort the complete upgrade. On failure, keep writers stopped and restore the verified backup with its matching previous image; runtime never falls back to an earlier model.
 
 ## Use an existing reverse proxy
 

@@ -36,6 +36,6 @@ Use xObject to connect Contacts, Projects, Cases, Tasks and your own data object
 
 ## Choose the right version
 
-The current documentation describes Community 1.2.0. Use a [released snapshot](versions.md) for the behavior delivered by your installed version. The version control opens the selected documentation's start page.
+The current documentation describes Community 1.3.0. Use a [released snapshot](versions.md) for the behavior delivered by your installed version. The version control opens the selected documentation's start page.
 
 Follow the [changelog](../CHANGELOG.md) for changes and the [roadmap](../ROADMAP.md) for planned work. The [product website](https://xobject.org/) introduces xObject and its main benefits.

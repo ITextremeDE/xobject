@@ -1,9 +1,14 @@
+import {contactInheritanceSources} from '@xobject/contracts';
 import {sql,type RawBuilder} from 'kysely';
 import type {Executor} from './database.js';
 import {contactIssues,type ContactProfile} from '@xobject/contracts';
 import {AppError} from './errors.js';
-export interface ContactField {id:string;technical_name:string;field_key:string;option_keys:Record<string,string>;config:import('@xobject/contracts').FieldConfig}
-export async function contactFields(tx:Executor,objectId:string){return (await sql<ContactField>`SELECT f.id,f.technical_name,f.config,b.field_key,b.option_keys FROM sys_module_field_bindings b JOIN sys_fields f ON f.id=b.field_id WHERE f.object_type_id=${objectId}::uuid AND b.object_key='contact'`.execute(tx)).rows;}
+export interface ContactField {id:string;technical_name:string;field_key:string;option_keys:Record<string,string>;state:string;config:import('@xobject/contracts').FieldConfig}
+export async function contactFields(tx:Executor,objectId:string){
+ const fields=(await sql<ContactField>`SELECT f.id,f.technical_name,f.config,f.state,b.field_key,b.option_keys FROM sys_module_field_bindings b JOIN sys_fields f ON f.id=b.field_id WHERE f.object_type_id=${objectId}::uuid AND b.object_key='contact'`.execute(tx)).rows;
+ for(const field of fields){const source=fields.find(f=>f.field_key===contactInheritanceSources[field.field_key as keyof typeof contactInheritanceSources]);if(source&&source.config.schema){field.config=source.config;field.option_keys=source.option_keys;}}
+ return fields;
+}
 export async function contactProfile(tx:Executor,objectId:string):Promise<ContactProfile|undefined>{
  const bindings=await contactFields(tx,objectId),kind=bindings.find(field=>field.field_key==='contact_kind');
  if(!kind)return undefined;
@@ -37,9 +42,11 @@ export async function contactDerivedValue(tx:Executor,objectId:string,policy:Obj
  const company=sql.ref(`organization.${binding('company_name').technical_name}`);
  const organization=draft?sql`${draft.organization.name}::text`:edge?sql`(SELECT CASE WHEN ${policy.predicate('organization')} AND ${allowed('company_name','organization')} THEN ${company} ELSE NULL END FROM sys_relationships edge JOIN ${sql.table(meta.name)} organization ON organization.id=edge.left_record_id WHERE edge.relationship_type_id=${edge.relationship_type_id}::uuid AND edge.right_record_id=${id})`:sql`NULL::text`;
  const hasOrganization=draft?sql`${draft.organization.present}`:edge?sql`EXISTS(SELECT 1 FROM sys_relationships edge WHERE edge.relationship_type_id=${edge.relationship_type_id}::uuid AND edge.right_record_id=${id})`:sql`false`;
- if(purpose==='organization_name'||purpose==='organization_commercial_register'){
-  const inherited=purpose==='organization_name'?organization:edge?sql`(SELECT CASE WHEN ${policy.predicate('organization')} AND ${allowed('commercial_register','organization')} THEN ${sql.ref(`organization.${binding('commercial_register').technical_name}`)} ELSE NULL END FROM sys_relationships edge JOIN ${sql.table(meta.name)} organization ON organization.id=edge.left_record_id WHERE edge.relationship_type_id=${edge.relationship_type_id}::uuid AND edge.right_record_id=${id})`:sql`NULL::text`;
-  return sql`CASE WHEN ${allowed('contact_kind')} AND ${kind}=${keys.person}::uuid THEN CASE WHEN EXISTS(SELECT 1 FROM sys_contact_field_overrides o WHERE o.object_type_id=${objectId}::uuid AND o.record_id=${id} AND o.field_id=${binding(purpose).id}::uuid) THEN (SELECT value #>> '{}' FROM sys_contact_field_overrides o WHERE o.object_type_id=${objectId}::uuid AND o.record_id=${id} AND o.field_id=${binding(purpose).id}::uuid) ELSE ${inherited} END ELSE NULL END`;
+ if(Object.hasOwn(contactInheritanceSources,purpose)){
+  const source=contactInheritanceSources[purpose as keyof typeof contactInheritanceSources],structured=source!=='company_name';
+  const inherited=purpose==='organization_name'?organization:edge?sql`(SELECT CASE WHEN ${policy.predicate('organization')} AND ${allowed(source,'organization')} THEN ${sql.ref(`organization.${binding(source).technical_name}`)} ELSE NULL END FROM sys_relationships edge JOIN ${sql.table(meta.name)} organization ON organization.id=edge.left_record_id WHERE edge.relationship_type_id=${edge.relationship_type_id}::uuid AND edge.right_record_id=${id})`:sql`NULL::jsonb`;
+  const own=structured?sql`(SELECT value FROM sys_contact_field_overrides o WHERE o.object_type_id=${objectId}::uuid AND o.record_id=${id} AND o.field_id=${binding(purpose).id}::uuid)`:sql`(SELECT value #>> '{}' FROM sys_contact_field_overrides o WHERE o.object_type_id=${objectId}::uuid AND o.record_id=${id} AND o.field_id=${binding(purpose).id}::uuid)`;
+  return sql`CASE WHEN ${allowed('contact_kind')} AND ${kind}=${keys.person}::uuid THEN CASE WHEN EXISTS(SELECT 1 FROM sys_contact_field_overrides o WHERE o.object_type_id=${objectId}::uuid AND o.record_id=${id} AND o.field_id=${binding(purpose).id}::uuid) THEN ${own} ELSE ${inherited} END ELSE NULL END`;
  }
  return sql`CASE WHEN NOT (${allowed('contact_kind')}) THEN ${id}::text WHEN ${kind}=${keys.organization}::uuid THEN CASE WHEN ${allowed('company_name')} THEN ${column('company_name')} ELSE ${id}::text END WHEN ${kind}=${keys.individual}::uuid THEN CASE WHEN NOT (${allowed('company_name')}) THEN ${id}::text WHEN COALESCE(${column('company_name')},'')<>'' THEN ${column('company_name')} WHEN ${personalAllowed} THEN ${personal} ELSE ${id}::text END WHEN ${kind}=${keys.person}::uuid THEN CASE WHEN NOT (${personalAllowed}) OR (${hasOrganization} AND ${organization} IS NULL) THEN ${id}::text ELSE concat(${personal},CASE WHEN ${organization} IS NOT NULL AND ${purpose==='keyword'} THEN concat(' (',${organization},')') ELSE '' END) END ELSE ${id}::text END`;
 }

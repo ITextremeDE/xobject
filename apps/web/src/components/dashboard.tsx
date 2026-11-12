@@ -1,3 +1,4 @@
+import {TruncatedText} from './truncated-text';
 import {RecordIcon} from './record-icon';
 import {DashboardSummaryLoading} from './loading';
 import {useColumnPreferences} from '@/lib/column-preferences';
@@ -50,14 +51,15 @@ function DashboardContents({ workspace, types, onOpen }: Pick<Props, 'workspace'
   const pageValue = Number(params.get('page') ?? 1), page = Number.isInteger(pageValue) && pageValue >= 1 && pageValue <= Math.floor(100000 / pageSize) + 1 ? pageValue : 1;
   function change(values: Record<string, string | null>, replace = false) { const next = new URLSearchParams(params); for (const [key, value] of Object.entries(values)) { if (value === null || value === '') next.delete(key); else next.set(key, value); } setParams(next, { replace }); }
   const sortable = ['record_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version'] as const;
-  const sortBy = sortable.find(key => key === params.get('sort')) ?? 'updated_at';
-  const sort = { by: sortBy, direction: params.get('direction') === 'asc' ? 'asc' as const : 'desc' as const };
+  const contactList = Boolean(objectTypeId && types.find(type=>type.id===objectTypeId)?.technicalName==='contacts');
+  const sortBy = sortable.find(key => key === params.get('sort')) ?? (contactList ? 'keyword' : 'updated_at');
+  const sort = { by: sortBy, direction: params.get('direction') === 'asc' ? 'asc' as const : params.get('direction') === 'desc' ? 'desc' as const : !params.has('sort') && contactList ? 'asc' as const : 'desc' as const };
   const summary = useQuery({ queryKey: ['dashboard', workspace.id, days, timeZone], placeholderData: keepPreviousData, queryFn: () => api('get_workspace_dashboard', { workspaceId: workspace.id, days }) });
   const records = useQuery({ queryKey: ['workspace-records', workspace.id, objectTypeId, i18n.language, deferredQuery, sort, page, pageSize], placeholderData: keepPreviousData, queryFn: () => api('list_workspace_records', { workspaceId: workspace.id, objectTypeId, query: deferredQuery, sortBy, sortDirection: sort.direction, limit: pageSize, offset: (page - 1) * pageSize }) });
   useEffect(() => { if (records.data && !records.isPlaceholderData && page > 1 && (page - 1) * pageSize >= records.data.total) change({ page: String(Math.max(1, Math.ceil(records.data.total / pageSize))) }, true); }, [records.data, records.isPlaceholderData, page, pageSize]);
   const count = (value: number) => formatRegionalNumber(String(value), regional, 0);
   const columns: RecordColumn<WorkspaceRecord>[] = [
-    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}><RecordIcon iconKey={row.iconKey} objectLabel={row.objectLabel}/><span className="truncate">{row.keyword || row.id}</span></Button> },
+    { key: 'keyword', label: t('keyword'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`/w/${workspace.code}/objects/${row.objectTechnicalName}/${row.id}`} state={{ recordOrigin: `/w/${workspace.code}?${params}` }} />} nativeButton={false}><RecordIcon iconKey={row.iconKey} objectLabel={row.objectLabel}/><TruncatedText>{row.keyword || row.id}</TruncatedText></Button> },
     {key:'record_number',label:t('recordNumber'),cell:row=>row.record_number??'—'},
     { key: 'objectLabel', label: t('objectType'), cell: row => row.objectLabel },
     ...(['type', 'status', 'category'] as const).map(key => ({ key, label: t(key === 'type' ? 'classificationType' : key === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: WorkspaceRecord) => row[key] ?? '—' })),

@@ -15,6 +15,7 @@ export async function journalValueContexts(tx:Executor,entries:JournalEntry[]):P
     WHERE e.id=ANY(${ids}::uuid[]) AND (m.created_at>e.created_at OR (m.created_at=e.created_at AND m.id>e.id) OR m.change_id=e.change_id)
     ORDER BY m.created_at DESC,m.id DESC`.execute(tx)).rows;
   return entries.map(entry=>{
+    if(entry.detail_context?.valueContext)return {...entry,value_context:{before:entry.detail_context.valueContext,after:entry.detail_context.valueContext}};
     const field=fields.find(f=>f.id===entry.field_id);if(!field||!['record','relationship'].includes(entry.entity_kind??''))return entry;
     const after={kind:field.kind,config:field.config};
     for(const change of changes.filter(c=>c.entry_id===entry.id&&!c.same_change)) {

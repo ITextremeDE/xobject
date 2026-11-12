@@ -1,3 +1,4 @@
+import {contactFields} from './contact-domain.js';
 import {recordIconExpression} from './record-icons.js';
 import {candidateAttributes,projectEdgeAttributes,writeEdgeAttributes} from './relationship-fields.js';
 import {contentAccess} from './content-permissions.js';
@@ -35,6 +36,24 @@ async function reference(tx:Executor,ref:RecordReference,workspace:string):Promi
   return {...ref,iconKey:row.iconKey,keyword:row.keyword||ref.recordId,objectTechnicalName:model.technical_name,objectLabels:model.labels,state:model.state as 'active'|'inactive'};
 }
 async function visibleReference(tx:Executor,ref:RecordReference,workspace:string){await contentAccess().require(ref.objectTypeId,ref.recordId);const value=await reference(tx,ref,workspace);if(!await contentAccess().canField(ref.objectTypeId,'keyword','read',ref.recordId))value.keyword=ref.recordId;return value;}
+/** Batch professional context for readable Contact-person targets. It is not edge data or an audit snapshot. */
+async function enrichContactPersons(tx:Executor,records:RelatedRecord[]){
+ for(const objectId of new Set(records.map(record=>record.objectTypeId))){
+  const bindings=await contactFields(tx,objectId),kind=bindings.find(field=>field.field_key==='contact_kind');
+  if(!kind)continue;
+  const policy=await contentAccess().policy(objectId);if(!policy.field(kind.id).read)continue;
+  const fields=['job_title','department','function'].map(key=>bindings.find(field=>field.field_key===key&&field.state==='active'));
+  const projection=(index:number)=>fields[index]?policy.fieldValue(fields[index]!.id,fields[index]!.technical_name):index===2?sql`NULL::uuid[]`:sql`NULL::text`;
+  const model=await modelFor(tx,objectId),ids=[...new Set(records.filter(record=>record.objectTypeId===objectId).map(record=>record.recordId))];
+  const rows=(await sql<{id:string;job_title:string|null;department:string|null;function:string[]|null}>`SELECT id,${projection(0)} AS job_title,${projection(1)} AS department,${projection(2)} AS function FROM ${sql.table(table(model))} WHERE id=ANY(${ids}::uuid[]) AND ${sql.ref(kind.technical_name)}=${kind.option_keys.person}::uuid AND ${policy.predicate()}`.execute(tx)).rows;
+  for(const row of rows){
+   if(!policy.field(kind.id,row.id).read)continue;
+   const summary={...(fields[0]&&policy.field(fields[0].id,row.id).read?{jobTitle:row.job_title}:{}),...(fields[1]&&policy.field(fields[1].id,row.id).read?{department:row.department}:{}),...(fields[2]&&policy.field(fields[2].id,row.id).read?{functionLabels:(row.function??[]).flatMap(id=>{const option=fields[2]!.config.options?.find(option=>option.id===id);return option?[option.labels]:[];})}:{})};
+   for(const record of records)if(record.objectTypeId===objectId&&record.recordId===row.id)record.contactPerson=summary;
+  }
+ }
+ return records;
+}
 async function edgesFor(tx:Executor,workspace:string) {return (await sql<Edge>`SELECT * FROM sys_relationships WHERE workspace_id=${workspace}::uuid ORDER BY id`.execute(tx)).rows;}
 export async function recordRelationships(tx:Executor,objectTypeId:string,recordId?:string):Promise<RecordRelationships> {
   const sourcePolicy=await contentAccess().require(objectTypeId,recordId,recordId?'read':'create');
@@ -44,6 +63,7 @@ export async function recordRelationships(tx:Executor,objectTypeId:string,record
   const attributeProjections=new Map(await Promise.all(own.map(async edge=>[edge.id,await projectEdgeAttributes(tx,edge)] as const)));
   const edges:RecordRelationship[]=[];
   for(const edge of own)if(await contentAccess().readable(edge.left_object_type_id,edge.left_record_id)&&await contentAccess().readable(edge.right_object_type_id,edge.right_record_id))edges.push({version:edge.version,attributes:attributeProjections.get(edge.id)!.values,id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:await visibleReference(tx,left(edge),model.workspace_id),right:await visibleReference(tx,right(edge),model.workspace_id)});
+  await enrichContactPersons(tx,edges.flatMap(edge=>[edge.left,edge.right]));
   const fields:RecordRelationships['fields']=[];
   for(const definition of definitions.filter(d=>(d.kind!=='primary'||d.active)&&(d.rulesState==='active'||own.some(e=>e.relationship_type_id===d.id)))) {
     for(const side of relationshipSidesForObject(definition,objectTypeId,chain)) {
@@ -124,6 +144,7 @@ export async function searchRelationshipCandidates(tx:Executor,args:{primaryAnce
   const rows=sql.join(selects,sql` UNION ALL `),filter=sql`(position(lower(${args.query}) IN lower(keyword))>0 OR position(lower(${args.query}) IN lower(COALESCE("recordNumber",'')))>0) AND NOT ("objectTypeId"=${args.objectTypeId}::uuid AND "recordId"=${args.recordId??null}::uuid IS TRUE)`;
   const total=(await sql<{total:number}>`WITH candidates AS (${rows}) SELECT count(*)::integer AS total FROM candidates WHERE ${filter}`.execute(tx)).rows[0].total;
   const records=(await sql<RelatedRecord>`WITH candidates AS (${rows}) SELECT * FROM candidates WHERE ${filter} ORDER BY lower(keyword),"objectTypeId","recordId" LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
+  await enrichContactPersons(tx,records);
   return {records:await Promise.all(records.map(async record=>({...record,...await candidateAttributes(tx,type.id,{objectTypeId:args.objectTypeId,recordId:args.recordId},record)}))),total,limit:args.limit,offset:args.offset};
 }
 

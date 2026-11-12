@@ -14,7 +14,7 @@ Open **Contacts → Create record** and choose one kind:
 
 Contact kind is separate from configurable **Type**. An organization might have Type Supplier; that does not make Supplier another contact kind. Normal editing cannot change the kind. Community 1.2.0 adds guided conversions and per-field Organization inheritance, described below.
 
-The form shows the applicable fixed core. Keyword is derived, so there is no separate editable Keyword input. Additional fields and custom relationships can be arranged in the [Form designer](forms.md#supplied-contact-forms).
+The form shows the applicable fixed core. Keyword is derived, so there is no separate editable Keyword input. Additional fields and relationship lists can be arranged in the [Form designer](forms.md#supplied-contact-forms).
 
 ## Create an organization and its contact person
 
@@ -22,6 +22,10 @@ The form shows the applicable fixed core. Keyword is derived, so there is no sep
 2. Create a Contact person called **Alex Morgan**.
 3. In its Organization relationship, choose the saved Example Studio record. Save the Contact person.
 4. Open the Organization's linked records to inspect its Contact persons, subject to your rights.
+
+Contact lists, including the three Contact-kind views and the Contacts dashboard filter, start sorted by Keyword ascending. Selecting a column changes the sorting for the current view.
+
+Relationship lists for Contact persons also show Job title, Department and Function in Community 1.3.0, including combined lists, Dossier and link selection. These are the Contact person's own professional fields; unreadable values remain hidden.
 
 A Contact person can have **at most one Organization**. Changing this relationship does not delete either record. Job title, Department and Function belong to the Contact person itself and remain unchanged when the Organization changes. Check them after a move. Individual contacts also expose these professional fields; Organizations show their applicable company fields instead.
 
@@ -39,7 +43,7 @@ Birthday, Wedding anniversary and Date of death accept a known month/day without
 
 ## Telephone, email, messenger and postal details
 
-Add separate entries for different telephone numbers, email addresses, websites, messenger URIs and postal addresses. Usage offers **Work**, **Home** and **Other**; email, website and postal entries can also have no usage label. Telephone and messenger entries offer a separate Type. The ordinary form selects at most one value in each dimension, for example Work + Mobile. Retained additional labels remain visible and removable. These labels describe an entry; they do not send messages or alter a URI.
+Add separate entries for different telephone numbers, email addresses, websites, messenger URIs and postal addresses. The web interface groups valid international telephone numbers for readability across all usages and types. Editing retains your text until you leave the field; the server stores the canonical international number. Usage offers **Work**, **Home** and **Other**; email, website and postal entries can also have no usage label. Telephone and messenger entries offer a separate Type. The ordinary form selects at most one value in each dimension, for example Work + Mobile. Retained additional labels remain visible and removable. These labels describe an entry; they do not send messages or alter a URI.
 
 Use the move controls to put the preferred entry first. Order determines preference, starting at 1; deleting or moving an entry updates that order. Collections support up to 100 entries each. The website arrow opens a valid HTTP(S) address in a new tab while preserving your draft.
 
@@ -81,13 +85,15 @@ Use Notes for working observations and the Journal for recorded changes. [Record
 
 [Open the full-size Contact image](../apps/site/src/assets/screenshots/contact-en-light.png).
 
-On a Contact person, Organization name and Commercial register initially show the readable main Organization value. Choose **Own value** beside either field to edit a local exception. An own empty value stays empty. **Inherit from Organization** asks before discarding an exception. **Use own values for all Organization fields** prepares both fields together; the ordinary Save applies the draft. Reset discards the unsaved edits.
+From Community 1.3.0, the **Organization** area on a Contact person shows Organization name, central Telephone/Fax, central Email addresses and Organization addresses from the main Organization. Personal contact details remain separate. Changes at the Organization appear when the view refreshes, without copying the data or adding artificial Contact history. Choose **Own value** for a field to maintain an exception; for a collection, this replaces that whole collection. Own empty values stay empty. **Inherit from Organization** asks before discarding an exception. **Use own values for all Organization fields** stages all four fields; normal Save persists the draft and Reset discards it. Telephone/Fax, email and address input aids are maintained on the Organization's corresponding source fields and also apply to their inherited counterparts.
+
+Commercial register belongs only to Organizations and Individual contacts. The Contact-person-only register introduced in 1.2.0 is removed in 1.3.0. The stopped-writer update retires its definition while retaining journal history. Unexpected own register exceptions block the update for resolution instead of being discarded.
 
 Changing Organization keeps own exceptions and refreshes inherited fields. Removing the Organization leaves inherited fields empty. Personal communication/address entries never acquire an Organization fallback. The Contact Keyword still names the actual linked Organization, even when the displayed Organization-name field has an own exception.
 
 You need permission to read the source Organization and its field to see an inherited value. Editing an own exception additionally requires the Contact person's field to be editable. No visible source value does not prove the Organization's field is empty. Source changes appear as current inherited values; they do not create pretend edit events on every Contact person.
 
-In cross-kind settings, column selection and field-rights controls, Commercial register is qualified by its Contact kinds. Organization/Individual values and Contact-person inheritance remain separate field identities. The Contact-person fields permit editable own exceptions within current rights; generated Keywords and record numbers remain read-only.
+Commercial register is available only to Organizations and Individual contacts. Organization-context fields on a Contact person have separate field rights from the Organization sources. Generated Keywords and record numbers remain read-only.
 
 ## Change a Contact kind
 
@@ -97,10 +103,10 @@ Save or reset edits first. Open **Record actions** (the three-dot menu beside Du
 | --- | --- | --- |
 | Individual contact | Create a new Organization | The existing person becomes its Contact person; the new Organization receives its own identity and number |
 | Individual contact | Join an existing Organization | The person becomes its Contact person; the Organization's contents remain unchanged |
-| Contact person | Continue as an Individual | Readable effective company/register values become the Individual's own fields; the main membership is removed |
+| Contact person | Continue as an Individual | Readable effective Organization name and central telephone/email/address collections become owned values alongside direct contact details; the main membership is removed |
 | Organization | Continue all Contact persons as Individuals | All current Contact persons change together; the Organization itself remains |
 
-Existing Contact IDs, numbers, access rights and compatible contents/links remain. A new Organization gets its own ID/number. Company/register differences are preserved as exceptions instead of overwriting the target Organization. Incompatible custom fields or links must be resolved first; a conflict, missing right or stale preview leaves the entire operation unchanged. Full access to every affected Contact and the relevant field rights are required; creating an Organization also needs Create. API/MCP clients use `get_contact_conversion_preview` and `convert_contact`; normal `update_record` cannot change Contact kind. [ADR 0038](adr/0038-contact-inheritance-and-conversions.md) records the exact mapping and permission rules.
+Existing Contact IDs, numbers, access rights and compatible contents/links remain. A new Organization gets its own ID/number. Different Organization names can remain own exceptions. Register data is transferred when forming a new Organization; an incompatible register when joining an existing Organization must be resolved before conversion. Detaching a Contact person materializes its readable effective Organization telephone/email/address collections alongside its own contact details. The target Organization is never overwritten. Incompatible custom fields or links must be resolved first; a conflict, missing right or stale preview leaves the entire operation unchanged. Full access to every affected Contact and the relevant field rights are required; creating an Organization also needs Create. API/MCP clients use `get_contact_conversion_preview` and `convert_contact`; normal `update_record` cannot change Contact kind. [ADR 0038](adr/0038-contact-inheritance-and-conversions.md) records the exact mapping and permission rules.
 
 ![Contact-kind conversion showing the original and resulting name before confirmation](../apps/site/src/assets/screenshots/conversion-en-light.png)
 

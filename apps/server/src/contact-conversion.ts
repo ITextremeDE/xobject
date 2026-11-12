@@ -1,3 +1,5 @@
+import {v7} from 'uuid';
+import {contactInheritanceSources} from '@xobject/contracts';
 import {
   effectiveClassification,
   resolveChoices,
@@ -319,10 +321,7 @@ export async function contactConversionPlan(
         );
       const inherited = await contactInheritance(tx, args.objectTypeId, row.id);
       sourceState = inherited;
-      for (const [purpose, target] of [
-        ["organization_name", "company_name"],
-        ["organization_commercial_register", "commercial_register"],
-      ] as const) {
+      for (const [purpose, target] of Object.entries(contactInheritanceSources)) {
         const field = inherited.find(
           (f) => f.fieldId === profile.fields[purpose],
         );
@@ -344,13 +343,21 @@ export async function contactConversionPlan(
             403,
             "Conversion needs readable Organization source fields",
           );
-        if (!Object.hasOwn(values, name(target)))
-          values[name(target)] = field.value;
+        if (!Object.hasOwn(values, name(target))){
+          if(purpose==='organization_name')values[name(target)]=field.value;
+          else {
+            const existing=row[name(target)],inherited=field.value;
+            if(!Array.isArray(inherited)||!inherited.length)continue;
+            const combined=[...(Array.isArray(existing)?existing:[]),...(Array.isArray(inherited)?inherited:[])];
+            const seen=new Set<string>();
+            values[name(target)]=combined.map((entry,index)=>{if(typeof entry!=='object'||!entry||!('id'in entry))return entry;const id=seen.has(entry.id)?v7():entry.id;seen.add(id);return {...entry,id,preference:index+1};}) as FieldValue;
+          }
+        }
       }
     } else {
       for (const [source, purpose] of [
         ["company_name", "organization_name"],
-        ["commercial_register", "organization_commercial_register"],
+
       ] as const) {
         const field = bindings.find((f) => f.field_key === source)!;
         if (!policy.field(field.id, row.id).read)
@@ -376,6 +383,10 @@ export async function contactConversionPlan(
           });
         values[name(source)] = null;
       }
+      // Register data belongs to the Organization, never to a Contact person.
+      // A different existing Organization register remains a visible conversion conflict.
+      const register=name('commercial_register');
+      if(args.action==='new_organization'||isEmptyFieldValue(row[register])||row[register]===organization?.[register])values[register]=null;
     }
     const resulting = { ...row, ...values };
     for (const field of fields) {
@@ -476,12 +487,7 @@ export async function contactConversionPlan(
       sourceInheritance: plan.sourceState,
       targetInheritance: individual
         ? []
-        : (
-            [
-              ["organization_name", "company_name"],
-              ["organization_commercial_register", "commercial_register"],
-            ] as const
-          ).map(([purpose, source]) => {
+        : Object.entries(contactInheritanceSources).map(([purpose, source]) => {
             const own = plan.inheritance.find(
               (item) => item.fieldId === profile.fields[purpose],
             );
@@ -501,7 +507,7 @@ export async function contactConversionPlan(
                   : visible
                     ? ((args.action === "new_organization"
                         ? organizationValues[name(source)]
-                        : organization?.[name(source)]) as string | null)
+                        : organization?.[name(source)]) as FieldValue) ?? null
                     : null,
             };
           }),

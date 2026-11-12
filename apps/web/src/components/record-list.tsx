@@ -1,3 +1,4 @@
+import {TruncatedText} from './truncated-text';
 import {fieldContextLabel} from '@/lib/field-context-label';
 import {ClassificationFiltersBar} from './classification-filters';
 import {readClassificationFilters,classificationFilterQuery} from '@/lib/classification-filters';
@@ -37,7 +38,8 @@ export function RecordList({ definition, selectedRecord, basePath, disabled }: {
   const timeZone = useTimeZone(), regional = useRegional();
   const activeFields = definition.fields.filter(field => field.fieldPermissions?.read!==false&&(!field.state || field.state === 'active'));
   const allowed = ['id', 'created_at', 'updated_at', ...activeFields.filter(field => field.technicalName !== 'access_principals').map(field => field.technicalName)];
-  const sort = { by: allowed.includes(params.get('sort') ?? '') ? params.get('sort')! : 'updated_at', direction: params.get('direction') === 'asc' ? 'asc' as const : 'desc' as const };
+  const defaultSort = definition.contactProfile && allowed.includes('keyword') ? {by:'keyword',direction:'asc' as const} : {by:'updated_at',direction:'desc' as const};
+  const sort = { by: allowed.includes(params.get('sort') ?? '') ? params.get('sort')! : defaultSort.by, direction: params.get('direction') === 'asc' ? 'asc' as const : params.get('direction') === 'desc' ? 'desc' as const : params.has('sort') ? 'desc' as const : defaultSort.direction };
   function change(values: Record<string, string | null>, replace = false) { const next = new URLSearchParams(params); for (const [key, value] of Object.entries(values)) { if (value === null || value === '') next.delete(key); else next.set(key, value); } setParams(next, { replace }); }
   useEffect(() => { if (params.has('sort') && !allowed.includes(params.get('sort')!)) change({sort:null,direction:null,page:null}, true); }, [params, definition]);
   const contactKindId=Object.values(definition.contactProfile?.kinds??{}).includes(params.get('kind')??'')?params.get('kind')!:undefined;
@@ -55,7 +57,7 @@ export function RecordList({ definition, selectedRecord, basePath, disabled }: {
   const hasKeyword = activeFields.some(field => field.technicalName === 'keyword');
 
   const columns: RecordColumn<DataRecord>[] = [
-    { key: hasKeyword ? 'keyword' : 'id', label: t(hasKeyword ? 'keyword' : 'recordIdentity'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`${basePath}/${row.id}?${params}`} state={{ recordOrigin: `${basePath}?${params}` }} />} nativeButton={false} disabled={disabled}><RecordIcon iconKey={row.iconKey} objectLabel={definition.label}/><span className="truncate">{row.keyword || row.id}</span></Button> },
+    { key: hasKeyword ? 'keyword' : 'id', label: t(hasKeyword ? 'keyword' : 'recordIdentity'), required: true, cell: row => <Button variant="link" className="max-w-80 justify-start truncate px-0" render={<Link to={`${basePath}/${row.id}?${params}`} state={{ recordOrigin: `${basePath}?${params}` }} />} nativeButton={false} disabled={disabled}><RecordIcon iconKey={row.iconKey} objectLabel={definition.label}/><TruncatedText>{row.keyword || row.id}</TruncatedText></Button> },
     ...activeFields.filter(field=>field.technicalName==='record_number').map(field=>({key:field.technicalName,label:field.label,cell:(row:DataRecord)=>String(row.record_number??'—')})),
     ...classifications.map(kind => ({ key: kind, label: t(kind === 'type' ? 'classificationType' : kind === 'status' ? 'classificationStatus' : 'classificationCategory'), cell: (row: DataRecord) => displayClassification(definition.classification, kind, row[kind]) })),
     { key: 'created_at', label: t('createdAt'), cell: row => formatRegionalDate(row.created_at, regional, timeZone) },
