@@ -2699,7 +2699,8 @@ test('relationship form elements enforce side scope, width and required visibili
   const configuration={labels:{en:'Connection'},leftLabels:{en:'Child'},rightLabels:{en:'Parents'},directed:true,leftMin:1,leftMax:1,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:left.id,rightObjectTypeId:right.id}],active:true};
   let relation=await ok('create_relationship_type',{workspaceId:ws.id,technicalName:'connection',configuration});relation=await ok('activate_relationship_type',{workspaceId:ws.id,relationshipTypeId:relation.id,version:relation.version});
   let model=await ok('get_object_type',{objectTypeId:left.id});
-  assert.deepEqual(model.formRelationships.map((item:any)=>[item.definition.id,item.side]),[[relation.id,'left']]);
+  assert.deepEqual(model.formRelationships.filter((item:any)=>item.definition.kind!=='general').map((item:any)=>[item.definition.id,item.side]),[[relation.id,'left']]);
+  assert.equal(model.formRelationships.filter((item:any)=>item.definition.kind==='general').length,1,'General is an explicit optional designer source');
   const view=(entry:any)=>({groups:[{id:'connections',labels:{en:'Connections'},fields:[entry]}]});
   const single={relationshipTypeId:relation.id,side:'left',width:'half',visible:true};
   assert.equal((await api('configure_form_layout',{objectTypeId:left.id,version:model.version,layout:view({...single,visible:false})})).statusCode,400);
@@ -2728,7 +2729,8 @@ test('Primary is one full-width form element and its stored position survives a 
   const layout={groups:[{id:'context',labels:{en:'Context'},fields:[{primary:true,width:'full',visible:true}]}]};
   const saved=await ok('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout});assert.deepEqual(saved.formLayouts.default,layout);
   module=(await ok('list_workspace_modules',{workspaceId:ws.id})).find((m:any)=>m.key==='projects');await ok('configure_workspace_module',{workspaceId:ws.id,key:'projects',version:module.version,enabled:false});
-  model=await ok('get_object_type',{objectTypeId:ids[1]});assert.equal(model.formRelationships.length,0);
+  model=await ok('get_object_type',{objectTypeId:ids[1]});assert.equal(model.formRelationships.filter((item:any)=>item.definition.kind==='primary').length,0);
+  assert.ok(model.formRelationships.every((item:any)=>item.definition.kind==='general'),'the module-independent General source remains available');
   assert.deepEqual(model.formLayouts.default,layout,'disabled module retains the authored view');
   layout.groups[0].labels.en='Retained context';assert.equal((await api('configure_form_layout',{objectTypeId:ids[1],version:model.version,layout})).statusCode,400,'inactive module definitions are read-only');
   const unconfigured=await ok('get_object_type',{objectTypeId:ids[2]});assert.equal((await api('configure_form_layout',{objectTypeId:ids[2],version:unconfigured.version,layout})).statusCode,400);
