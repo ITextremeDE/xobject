@@ -4,6 +4,26 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-12
+
+### Added
+
+- Show permission-filtered Job title, Department and translated Function choices for linked Contact persons in relationship tables, combined lists, the Dossier and candidate selection.
+- Show live main-Organization addresses, central Telephone/Fax and Email addresses separately from a Contact person's direct details, with independent per-field own exceptions and shared source input aids. Preserve effective channel/address collections when converting back to an Individual.
+- Configure groups of to-many relationship sides as one searchable, sortable and paginated list, including supplied Contact family relationships. Choose the relationship at the plus button and persist selections through the normal record Save.
+
+### Changed
+
+- Remove the Contact-person Commercial register field. Keep Commercial register on Organizations and Individuals; upgrade exact released predecessors, retain old definition/history identities and reject unexpected populated AP exceptions before changing data.
+
+### Fixed
+
+- Limit combined relationship candidate context to its applicability controller so unrelated draft-field permissions do not prevent selection.
+- Require native upgrade acceptance from released 1.2.0 alongside earlier supported predecessors and refresh installation, product guides and fictional website illustrations.
+- Use the standard shadcn tooltip for record-list text and icons.
+- Default Contact lists, Contact-kind views, relationship lists and the Contacts dashboard filter to Keyword ascending while preserving explicit sorting.
+- Show readable international phone-number grouping in Contact entries, custom fields, tables, previews and history. Preserve canonical storage and stable text/cursor behavior while editing.
+
 ## [1.2.0] - 2026-11-11
 
 ### Added
@@ -176,7 +196,8 @@ First Community release under `AGPL-3.0-only`, maintained by Jürgen Schadek und
 
 - Exclude private backup/recovery environment files from Git, build contexts and commit-bound public source archives. Resume unchanged containers after backups with supported Compose v2 commands, reserve the proxy address outside the dynamic pool and keep diagnostics bounded and free of private payloads.
 
-[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/ITextremeDE/xobject/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ITextremeDE/xobject/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ITextremeDE/xobject/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/ITextremeDE/xobject/compare/v1.0.1...v1.0.2

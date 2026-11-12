@@ -89,7 +89,7 @@ The three mutually exclusive Contact kinds, name requirements, single-Organizati
 | `emails`, `phones`, `addresses`, `websites` | Email addresses / E-Mail-Adressen; Telephone numbers / Telefonnummern; Addresses / Anschriften; Websites / Webseiten | Separate structured repeated values for every Contact kind; start empty. |
 | `birthday` | Date of birth / Geburtsdatum | Partial birthday; Individual contact and Contact person only. |
 | `gender` | Gender / Geschlecht | Optional configurable single choice for Individual contacts and Contact persons. Initially Female / Weiblich, Male / Männlich, Other / Divers and Not specified / Keine Angabe; no default or inference from Salutation. Shown in Further details. |
-| `commercial_register` | Commercial register / Handelsregister | Released 1.1.0: text for Organization and Individual contact only. 1.2.0: inherited/own-value Contact-person behavior follows PRD R-064. |
+| `commercial_register` | Commercial register / Handelsregister | Text for Organizations and Individual contacts only. The AP-only inherited field from 1.2.0 is retired in 1.3.0. |
 | `notes` | Notes / Notizen | Reusable recipe. |
 
 Accepted Contact additions — selected product scope and local delivery status (2026-11-05):
