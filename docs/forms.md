@@ -24,15 +24,19 @@ Relationship controls offer visibility and, for tables, initial expansion settin
 
 On sensitive objects, the protected **Access principals** field can be positioned, ordered and given a supported width using its existing identity. This changes its placement, not its ownership or activity-assignment behavior. [Access administration](access-administration.md) explains its rights details.
 
-## Combine relationship lists (Community 1.3.0)
+## Combine relationship lists
 
-The next release supplies a **Family / Familie** list as the initial Contacts-module suggestion. It combines Parents, Children, Partners and Siblings with a Relationship type column; the group, label and included sides remain editable in the standard designer. Existing authored layouts are retained. Apply the same grouping yourself by moving the desired to-many sides into one group and enabling **Show relationships in one list**.
+Move the desired to-many relationship sides into a full-width group, name it and enable **Show relationships in one list**. The first column names each relationship from the current record's side. The remaining columns identify the linked record. Parents and Children can appear together alongside Partners, Siblings, Identities, affiliations or an Organization's Contact persons. Single-target relationships and the Primary chain stay separate.
 
-The **Object type column** preference is available on combined groups and individual to-many relationship entries: **Automatic**, **Show** or **Hide**. Automatic uses allowed endpoint definitions, including when a list is empty, and omits the column for a single target object. The selection dialog follows the same preference. Expansion settings apply to individual collapsible lists, not combined table groups.
+New Contacts-module templates suggest **Contact relationships / Kontaktbeziehungen** for these supplied sides. Existing authored layouts are retained; apply the grouping explicitly in the designer when needed. The template is a starting arrangement, not a special table implementation or a reserved group name.
 
-Move the desired to-many relationship elements into one group, name it (for example **Family**) and enable **Show relationships in one list**. A combined group uses full width and contains only to-many custom relationship sides. Ordinary fields, the Primary chain and single-target relationships stay in other groups. Parents and Children are separate sides of the same relationship and can both appear in Family alongside Partners or Siblings.
+The **Object type column** preference is available on combined groups and individual to-many entries: **Automatic**, **Show** or **Hide**. Automatic uses allowed endpoint definitions, including for an empty list, and omits the column for a single target object. Enable **Contact-person professional columns** separately when Job title, Department and Function are useful for that list. Their values remain permission-filtered; family lists can keep the lean presentation. Both preferences also apply to the selection dialog.
 
-The record shows one searchable, sortable, paginated table with Relationship, Object type and Keyword. The plus button first asks which available relationship to add, then opens the normal record picker. Removing a row removes that relationship only; it keeps the other record. Changes remain in the ordinary record draft until Save. Combining is presentation metadata: permissions, cardinalities, requiredness and record identities do not change. The same Contact may appear in several rows for different relationships. A shared layout is available through the normal API/MCP form configuration as well as the designer.
+Use **Add General relationship to the form** to place that existing relationship explicitly, individually or in a combined group. It otherwise remains available through the header and Dossier. The Primary chain is excluded from combined lists. Expansion settings apply to individual collapsible lists; combined groups display a table directly.
+
+The table shares search, sorting and pagination with other record tables. Its plus menu first asks which relationship to add, then opens the normal record picker. It remains available in a saved Contact's overview, including when empty, subject to edit rights. Applying a selection prepares an unsaved record draft; review it and Save or Reset using the usual footer. Removing a row removes that edge only. The same Contact may appear in several rows for different relationships.
+
+Combining lists changes presentation metadata. It retains cardinalities, requiredness, permissions, optimistic versions, record identities and atomic journals. The common form configuration is available through UI, API and MCP.
 
 ## Unassigned and removed groups
 
@@ -40,10 +44,16 @@ Newly added elements remain Unassigned until you place them. They remain availab
 
 ## Supplied Contact forms
 
-Organizations, Contact persons and Individual contacts have fixed kind-specific core forms. Their name, professional, channel/address, language/time and applicable personal/company sections are provided by the module. The designer arranges additional fields and relationship lists, including configurable supplied family/identity lists in Community 1.4.0. The single main-Organization selector stays in the protected core.
+Organizations, Contact persons and Individual contacts have fixed kind-specific core forms. Their name, professional, channel/address, language/time and applicable personal/company sections are provided by the module. The designer arranges additional fields and relationship lists, including configurable supplied family, identity, affiliation and Contact-person lists. The single main-Organization selector stays in the protected core.
 
 The core's intended input aids, labels and supported field rules remain configurable in Object types, subject to protection and existing-data validation. You cannot move/remove protected core components or turn a Contact person into an Organization by rearranging the form.
 
 Projects, Cases and Tasks instead have editable supplied starter layouts. They keep protected field/domain semantics even when their groups move. One shared Contacts object has one common extension layout across modules; there is no module-specific form selector.
 
 Conditional visibility by Type/Status is [planned](PRD.md#34-planned-conditional-field-visibility). Current semantic applicability is different: it determines whether a value is valid, not merely whether its control is visible.
+
+## Contact reading and classification filters
+
+Saved Contacts display field values rather than disabled inputs. Type and Status use their configured labels; hierarchical Categories show paths without repeating selected ancestors. Inherited Organization fields show their mode and readable source. An explicit empty own value remains visible as an exception. Edit contact opens the same core section order for changes; custom extension fields retain their configured grouping.
+
+A tree Category filter opens a searchable, keyboard-operable dialog. Choose criteria and Apply filters; remove individual criteria using the path-labelled buttons. Criteria within one classification are OR-combined; Type, Status and Category are AND-combined. A parent criterion matches records in its descendants because stored selections include ancestors. Selecting a child filter does not additionally select its parent. Inactive and empty values remain filterable. These query rules differ intentionally from record entry, which selects ancestors automatically.

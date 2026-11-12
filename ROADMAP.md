@@ -30,6 +30,10 @@ ADR 0038 defines these V1 extensions. Dedicated maintenance tooling upgrades sup
 
 The [changelog](CHANGELOG.md#unreleased) records the source changes; the [quality report](docs/quality-acceptance.md) records acceptance and remaining platform limits. Community 1.4.0 delivers these additions; acceptance and retained platform limits are recorded separately.
 
+## Implemented in source — awaiting the next release
+
+Contact UI corrections add readable classification and inheritance details, a searchable category-tree filter, direct relationship drafts from the overview, configurable mixed Contact lists and professional columns, and complete collection values in journal details. Existing authored forms are preserved. This source work does not change the published 1.4.0 baseline; release and deployment remain separate steps.
+
 ## Planned — Version 2
 
 - **Personal table layouts:** remember column order and widths in addition to the column visibility already available in V1 (R-030).
