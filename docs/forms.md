@@ -30,6 +30,8 @@ Move the desired to-many relationship sides into a full-width group, name it and
 
 New Contacts-module templates suggest **Contact relationships / Kontaktbeziehungen** for these supplied sides. Existing authored layouts are retained; apply the grouping explicitly in the designer when needed. The template is a starting arrangement, not a special table implementation or a reserved group name.
 
+![A fictional ITextreme Contact relationship table, with relationship type, linked Contact and the plus control.](../apps/site/src/assets/screenshots/relationships-en-light.png)
+
 The **Object type column** preference is available on combined groups and individual to-many entries: **Automatic**, **Show** or **Hide**. Automatic uses allowed endpoint definitions, including for an empty list, and omits the column for a single target object. Enable **Contact-person professional columns** separately when Job title, Department and Function are useful for that list. Their values remain permission-filtered; family lists can keep the lean presentation. Both preferences also apply to the selection dialog.
 
 Use **Add General relationship to the form** to place that existing relationship explicitly, individually or in a combined group. It otherwise remains available through the header and Dossier. The Primary chain is excluded from combined lists. Expansion settings apply to individual collapsible lists; combined groups display a table directly.

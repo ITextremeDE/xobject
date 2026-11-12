@@ -4,6 +4,8 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-12
+
 ### Added
 
 - Configure Contact-person professional columns independently for each relationship list and its picker. Add General relationships explicitly to a form or combined list through the designer.
@@ -235,7 +237,8 @@ First Community release under `AGPL-3.0-only`, maintained by Jürgen Schadek und
 
 - Exclude private backup/recovery environment files from Git, build contexts and commit-bound public source archives. Resume unchanged containers after backups with supported Compose v2 commands, reserve the proxy address outside the dynamic pool and keep diagnostics bounded and free of private payloads.
 
-[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/ITextremeDE/xobject/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/ITextremeDE/xobject/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/ITextremeDE/xobject/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ITextremeDE/xobject/compare/v1.1.0...v1.2.0

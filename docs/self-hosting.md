@@ -104,6 +104,10 @@ Only exact published 1.0.0/1.0.1, 1.0.2, 1.1.0 and 1.2.0 fingerprints are accept
 
 The current source also accepts the exact Community 1.3.0 fingerprint. Its maintenance upgrade expands supplied Organization affiliations to include Contact persons alongside Individuals, preserves relationship identities, custom labels, existing links and history, and journals the definition change atomically. The single main Organization and its inherited fields remain independent. A repeated upgrade is a no-op. Use the matching 1.4.0 installer and immutable image; creation-retry storage is installed in the same stopped-writer upgrade.
 
+### Upgrade to Community 1.5.0
+
+Use the matching 1.5.0 installer and immutable image through the same stopped-writer backup/upgrade/verify procedure. The complete 1.4.0 schema/catalog fingerprint is unchanged; no additional SQL conversion is needed. Earlier supported released fingerprints still migrate to this same complete target model before serving requests. Optional form metadata extends presentation without changing data or rights. Existing authored forms, including deliberately grouped Contact relationships, are retained; the new Contact-list proposal applies to fresh module objects.
+
 ## Use an existing reverse proxy
 
 Keep the dedicated application/database project and use `XOBJECT_START_SERVICES=app` to leave the supplied proxy stopped. Select a private Compose override with `XOBJECT_COMPOSE_OVERRIDE`: connect `app` to the existing proxy network, assign a unique network alias and override its `TRUSTED_PROXIES` environment variable with the proxy's actual fixed address/CIDR. Avoid broad trust ranges. Keep PostgreSQL unpublished and on its internal network; the app needs no public port mapping.

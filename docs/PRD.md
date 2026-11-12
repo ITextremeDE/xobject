@@ -42,7 +42,7 @@ Later integrations must preserve the authority and access rules of their source 
 
 ### 1.3 Agreed V2 scope
 
-V2 is planned to deliver the following four themes. Version 1.4.0 is the current Community release; no V2 delivery date is committed. OpenProject leads operational planning and the [roadmap](../ROADMAP.md) provides the public overview.
+V2 is planned to deliver the following four themes. Version 1.5.0 is the current Community release; no V2 delivery date is committed. OpenProject leads operational planning and the [roadmap](../ROADMAP.md) provides the public overview.
 
 | V2 theme | Requirement and specification status |
 | --- | --- |
@@ -55,7 +55,9 @@ The 11 additional Contacts objects and six additional Projects objects have no r
 
 <span id="14-planned-community-120"></span>
 
-### 1.4 Community 1.2.0–1.4.0 release scope
+### 1.4 Community 1.2.0–1.5.0 release scope
+
+Community 1.5.0 refines Contact reading, independent category-tree query selection, configurable mixed relationship lists and professional columns, explicit General placement and complete journal details. Existing authored forms and the shared versioned writer remain.
 
 Community 1.4.0 adds compact Contact reading, unified configurable relationship lists, Contact-person affiliations and safe creation retries. Transaction-local permission queries preserve the existing rights contract; ADR 0039 records the implementation.
 
