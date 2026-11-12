@@ -1,3 +1,4 @@
+import {CombinedRelationshipList} from './combined-relationship-list';
 import {contactPersonValues} from '@/lib/contact-person-summary';
 import {TruncatedText} from './truncated-text';
 import {RecordIcon} from './record-icon';
@@ -9,13 +10,13 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { Link2Icon, PlusIcon, PencilIcon, XIcon, ArrowUpRightIcon, ChevronDownIcon } from 'lucide-react';
 import {fieldApplies,type FormEntry,type FieldDefinition,type FieldValue,type RelationshipField,type RelatedRecord } from '@xobject/contracts';
-import { relatedIdentity } from '@/lib/relationship-selection';
+import { relationshipShowsObjectColumn, relatedIdentity } from '@/lib/relationship-selection';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Field, FieldDescription, FieldLabel, FieldError } from '@/components/ui/field';
 import { InputGroup, InputGroupInput, InputGroupAddon, InputGroupButton } from '@/components/ui/input-group';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { useClientPagination, ClientTablePagination } from './client-table-pagination';
+
+
 import { RelationshipPicker } from './relationship-picker';
 export { RecordDossier } from './record-dossier';
 
@@ -31,11 +32,11 @@ export function RecordRelationshipFields({ entry,fields,onChange,primaryChain,fi
   if(field.definition.kind==='primary')return <PrimaryAssociationFields {...props} headingHidden={singleGroupLabel===t('primaryChainTitle')} readOnly={props.readOnly||field.editable===false} configuration={primaryChain??null} field={field} onChange={change}/>;
   const controller=fieldDefinitions.find(item=>item.id===rule?.fieldId);
   const sourceValues=controller?{[controller.technicalName]:values[controller.technicalName]??null}:undefined;
-  return <RelationshipControl {...props} sourceValues={sourceValues} field={field} expandedDefault={'expanded' in entry?entry.expanded:undefined} onChange={change}/>;
+  return <RelationshipControl {...props} fieldDefinitions={fieldDefinitions} values={values} sourceValues={sourceValues} objectColumn={'objectColumn'in entry?entry.objectColumn:undefined} field={field} expandedDefault={'expanded' in entry?entry.expanded:undefined} onChange={change}/>;
 }
 
 
-function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'fieldDefinitions' | 'values' | 'entry'> & { expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
+function RelationshipControl({ fieldDefinitions,values,workspaceId,objectColumn,sourceValues,objectTypeId, recordId, field, disabled, readOnly, onChange, onPickerDirtyChange, workspaceCode, expandedDefault }: Omit<Props, 'fields' | 'onChange' | 'entry'> & { objectColumn?:import('@xobject/contracts').RelationshipObjectColumn;expandedDefault?:'auto'|'open'|'closed';sourceValues?:Record<string,FieldValue>;field: RelationshipField; onChange: (targets: RelatedRecord[]) => void }) {
   const { t, i18n } = useTranslation(), [pickerOpen, setPickerOpen] = useState(false);
   const navigate = useNavigate();
   const label = (labels: Record<string, string>) => labels[i18n.language] ?? labels.de ?? labels.en ?? Object.values(labels)[0] ?? '';
@@ -47,7 +48,8 @@ function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, 
   const [expanded,setExpanded]=useState(expandedDefault==='open'||(expandedDefault!=='closed'&&(field.targets.length>0||required)));
   const id = `relation-${field.definition.id}-${field.side}`;
   const listTargets = field.targets.every(target=>target.objectTechnicalName==='contacts') ? [...field.targets].sort((a,b)=>a.keyword.localeCompare(b.keyword,i18n.language)||relatedIdentity(a).localeCompare(relatedIdentity(b))) : field.targets;
-  const pagination = useClientPagination(listTargets);
+
+  const showObject=relationshipShowsObjectColumn([field],objectTypeId,objectColumn);
   const professional=field.targets.some(target=>target.contactPerson);
   const close = () => { onPickerDirtyChange(false); setPickerOpen(false); };
   const remove = (target: RelatedRecord) => { onChange(field.targets.filter(item => relatedIdentity(item) !== relatedIdentity(target))); requestAnimationFrame(() => document.getElementById(`${id}-choose`)?.focus()); };
@@ -75,27 +77,15 @@ function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, 
     </> : <Collapsible open={expanded} onOpenChange={setExpanded}>
       <div className="flex items-center justify-between gap-3">
         <CollapsibleTrigger render={<Button type="button" variant="ghost" className="group/relation h-auto min-h-8 min-w-0 shrink flex-wrap justify-start whitespace-normal px-0 py-1 text-left"/>}><ChevronDownIcon data-icon="inline-start" className="transition-transform group-aria-expanded/relation:rotate-180"/><span id={`${id}-title`}>{fieldLabel}</span><Badge variant="secondary">{field.targets.length}</Badge>{single?<span className="text-xs text-muted-foreground">{t('relationshipAtMostOne')}</span>:null}</CollapsibleTrigger>
-        {editable ? <Button id={`${id}-choose`} type="button" variant="outline" size="icon-sm" disabled={disabled} aria-label={chooseLabel} title={t(single && field.targets.length ? 'relationshipChange' : 'addRelatedRecord')} onClick={() => setPickerOpen(true)}>{single && field.targets.length ? <PencilIcon/> : <PlusIcon/>}</Button> : null}
+
+        {editable ? <Button id={`${id}-choose`} type="button" variant="outline" size="icon-sm" disabled={disabled} aria-label={chooseLabel} onClick={()=>setPickerOpen(true)}><PlusIcon/></Button>:null}
       </div>
-      <CollapsibleContent className="flex flex-col gap-3 pt-3"><div className="min-w-0 overflow-hidden rounded-lg border"><Table aria-labelledby={`${id}-title`} className={professional?'table-fixed min-w-240':'table-fixed'}>
-        <TableHeader><TableRow><TableHead>{t('keyword')}</TableHead><TableHead className="w-24 sm:w-40">{t('objectSingular')}</TableHead>{professional?<>{['contactPersonJobTitle','contactPersonDepartment','contactPersonFunction'].map(key=><TableHead key={key} className="w-36">{t(key)}</TableHead>)}</>:null}<TableHead className="w-20"><span className="sr-only">{t('action')}</span></TableHead></TableRow></TableHeader>
-        <TableBody>{pagination.rows.map(target => <TableRow key={relatedIdentity(target)} onClick={event => {
-          if (disabled || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString()) return;
-          if (event.target instanceof Element && event.target.closest('a, button, input, label')) return;
-          void navigate(path(target));
-        }}>
-          <TableCell className="truncate"><Button type="button" variant="link" className="h-auto max-w-full justify-start px-0" disabled={disabled} nativeButton={false} render={<Link to={path(target)} />} ><RecordIcon iconKey={target.iconKey} objectLabel={label(target.objectLabels)}/><TruncatedText>{target.keyword}</TruncatedText></Button></TableCell>
-          <TableCell className="truncate"><TruncatedText>{label(target.objectLabels)}</TruncatedText>{target.state === 'inactive' ? <Badge variant="outline" className="ml-2">{t('definition_inactive')}</Badge> : null}</TableCell>
-          {professional?Object.entries(contactPersonValues(target,i18n.language)).map(([key,value])=><TableCell key={key} className="truncate"><TruncatedText>{value||'—'}</TruncatedText></TableCell>):null}
-          <TableCell><div className="flex items-center justify-end">{controls(target)}</div></TableCell>
-        </TableRow>)}
-        {!field.targets.length ? <TableRow><TableCell colSpan={professional?6:3} className="h-16 text-center text-muted-foreground">{t('relationshipNoneSelected')}</TableCell></TableRow> : null}</TableBody>
-      </Table></div>
-      {field.targets.length > 10 ? <ClientTablePagination pagination={pagination} disabled={disabled} countLabel={t('relationshipCount', { count: field.targets.length })} /> : null}
+      <CollapsibleContent className="flex flex-col gap-3 pt-3">
+        <CombinedRelationshipList showAdd={false} single chooseId={`${id}-choose`} objectColumn={objectColumn} title={title} entries={[{relationshipTypeId:field.definition.id,side:field.side,width:'full'}]} fields={[field]} fieldDefinitions={fieldDefinitions} values={values} workspaceId={workspaceId} objectTypeId={objectTypeId} recordId={recordId} workspaceCode={workspaceCode} disabled={disabled} readOnly={!editable} onChange={next=>onChange(next[0].targets)} onPickerDirtyChange={onPickerDirtyChange}/>
       </CollapsibleContent></Collapsible>}
     <RelationshipAttributes field={field} targets={field.targets} workspaceId={workspaceId} disabled={disabled} readOnly={readOnly} onChange={onChange}/>
     {!field.definition.active ? <FieldDescription>{t('relationshipInactiveHelp')}</FieldDescription> : null}
     {invalid ? <FieldError id={`${id}-error`}>{t('relationshipRequiredHelp')}</FieldError> : null}
-    {pickerOpen ? <RelationshipPicker sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); setExpanded(true); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}
+    {pickerOpen ? <RelationshipPicker objectColumn={objectColumn} sourceValues={sourceValues} objectTypeId={objectTypeId} recordId={recordId} field={field} title={title} onDirtyChange={onPickerDirtyChange} onClose={close} onApply={targets => { close(); setExpanded(true); onChange(targets); }} finalFocus={() => document.getElementById(`${id}-choose`) ?? true} /> : null}
   </Field>;
 }

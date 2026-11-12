@@ -51,7 +51,7 @@ export function WorkspaceApp({ user, onSignOut }: { user: AuthUser; onSignOut: (
   const access = useQuery({ queryKey: ['access-context', user.id], queryFn: () => api('get_access_context', {}) });
   if (access.isPending) return <WorkspaceLoading/>;
   if (blocksCachedView(access)) return <ErrorNotice error={access.error} retry={() => { void access.refetch(); }} />;
-  return <TransientDraftProvider><TablePreferencesProvider userId={user.id}><SidebarProvider><WorkspaceScreen user={{ ...user, isAdmin: access.data!.isAdmin }} onSignOut={onSignOut} /></SidebarProvider></TablePreferencesProvider></TransientDraftProvider>;
+  return <TransientDraftProvider><TablePreferencesProvider userId={user.id}><SidebarProvider className="safe-area-shell"><WorkspaceScreen user={{ ...user, isAdmin: access.data!.isAdmin }} onSignOut={onSignOut} /></SidebarProvider></TablePreferencesProvider></TransientDraftProvider>;
 }
 
 function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
@@ -178,7 +178,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   return <RegionalProvider value={effectiveRegionalSettings(workspace?.regional, user.regionalPreferences)}><TimeZoneProvider value={effectiveTimeZone(user.timeZone, workspace?.time_zone)}><WorkspaceLanguageProvider languages={workspace?.label_languages}><WorkspaceMenuAppearanceProvider appearance={workspace?.appearance}>
 <HeaderSearch key={workspace?.id} workspaceId={workspace?.id} workspaceName={workspace?.name} language={language} disabled={busy} canSearchRecords={true} objectTypes={(types.data??[]).filter(type=>type.permissions?.read===true)} onNavigate={(target) => { if(target==='navigation'){navigate(()=>{navigationOrigin.current=document.querySelector<HTMLElement>('[data-workspace-search-trigger]');setOpenMobile(false);setNavigationOpen(true);});} else if (target === 'settings') showPage('settings'); else if (target === 'keyboard') showKeyboardHelp(null); else if (target === 'dashboard') navigateSidebar(dashboardPath); else if (target === 'recycle-bin') navigateSidebar(`${dashboardPath}/recycle-bin`); }} onOpenResult={(id, recordId) => { const selected = types.data?.find(type => type.id === id); if (selected && !busy) void routeNavigate(`${dashboardPath}/objects/${selected.technicalName}${recordId ? `/${recordId}` : ''}`); }}>
     <Sidebar collapsible="icon" variant="inset" mobileTitle={t('menu')} mobileDescription={t('selectObject')}>
-      <SidebarHeader>
+      <SidebarHeader className="safe-area-sidebar-header">
         <SidebarMenu><SidebarMenuItem>
           <DropdownMenu><DropdownMenuTrigger render={<SidebarMenuButton data-definition-trigger="workspace" size="lg" className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground" disabled={busy || workspaces.isPending} />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"><WorkspaceLogo icon={workspace?.appearance.logoIcon??'layers'}/></div>
@@ -209,7 +209,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
         {canManage?<SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem><SidebarMenuButton data-definition-trigger="object" tooltip={t('newObject')} disabled={!workspace||busy} onClick={()=>navigate(()=>{setOpenMobile(false);setDialog('object');})}><PlusIcon/><span>{t('newObject')}</span></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>:null}
         {workspace&&navigationSettings.isPending?<div className="mt-auto"><Loading variant="sidebar"/></div>:(!workspace||navigationSettings.isSuccess)&&navigationLayout.resources?<SidebarGroup className="mt-auto"><SidebarGroupLabel>{t('resources')}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu className="gap-1">{resourceLinks.map(item => <SidebarMenuItem key={item.label}><SidebarMenuButton size="sm" tooltip={t('resourceNewTab', { name: t(item.label) })} aria-label={t('resourceNewTab', { name: t(item.label) })} render={<a href={item.href} target="_blank" rel="noopener noreferrer" />} onClick={() => setOpenMobile(false)}><item.icon /><span>{t(item.label)}</span></SidebarMenuButton></SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup>:null}
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="safe-area-sidebar-footer">
 
         <SidebarMenu><SidebarMenuItem><UserMenu placement="sidebar" user={user} busy={busy} signingOut={logout.isPending} onNavigation={workspace?(origin)=>{if(!dirty&&!busy){navigationOrigin.current=origin;setOpenMobile(false);setNavigationOpen(true);}}:undefined} navigationDisabled={dirty||navigationSettings.isPending||navigationSettings.isError} onKeyboardHelp={showKeyboardHelp} onSettings={() => showPage('settings')} onSignOut={() => navigate(() => logout.mutate())} /></SidebarMenuItem></SidebarMenu></SidebarFooter>
       <SidebarRail aria-label={t('navigation')} title={t('navigation')} />

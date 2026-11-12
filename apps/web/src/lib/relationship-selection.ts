@@ -14,6 +14,17 @@ export function eligibleTargetObject(type:RelationshipType,source:string,side:'l
   return type.pairs.some(pair=>side==='left'?pair.leftObjectTypeId===source&&pair.rightObjectTypeId===target:pair.rightObjectTypeId===source&&pair.leftObjectTypeId===target)
     ||!type.directed&&type.pairs.some(pair=>side==='left'?pair.rightObjectTypeId===source&&pair.leftObjectTypeId===target:pair.leftObjectTypeId===source&&pair.rightObjectTypeId===target);
 }
+/** Decide from allowed target objects, including empty lists, rather than current row contents. */
+export function relationshipShowsObjectColumn(fields:import('@xobject/contracts').RelationshipField[],source:string,mode:import('@xobject/contracts').RelationshipObjectColumn='auto'):boolean{
+ if(mode==='show')return true;if(mode==='hide')return false;
+ const ids=new Set<string>();
+ for(const field of fields){
+  if(field.definition.allowAll)return true;
+  for(const id of new Set(field.definition.pairs.flatMap(pair=>[pair.leftObjectTypeId,pair.rightObjectTypeId])))if(eligibleTargetObject(field.definition,source,field.side,id))ids.add(id);
+  for(const target of field.targets)ids.add(target.objectTypeId);
+ }
+ return ids.size>1;
+}
 /** A picker returns candidate metadata; reselecting an existing edge retains its saved/draft attributes. */
 export function retainRelationshipAttributes(next:import('@xobject/contracts').RelationshipField[],current:import('@xobject/contracts').RelationshipField[],baseline:import('@xobject/contracts').RelationshipField[]){
  return next.map(field=>({...field,targets:field.targets.map(target=>{

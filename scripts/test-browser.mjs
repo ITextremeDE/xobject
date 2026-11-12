@@ -340,6 +340,7 @@ test('rendered application workflows on an isolated current installation',{timeo
   });
   await scenario('Mobile record and settings remain usable','admin',async page=>{
    await page.goto(recordPath);await expect(page.getByRole('textbox',{name:/^Keyword(?: \*)?$/})).toBeVisible();
+   await page.getByRole('button',{name:'Navigation',exact:true}).click();await expect(page.getByRole('dialog',{name:'Navigation',exact:true})).toBeVisible();await auditPage(page,'Mobile navigation drawer');await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Navigation',exact:true})).toBeFocused();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal page overflow');
    await settings(page);await expect(page.getByRole('combobox',{name:'Settings',exact:true})).toBeVisible();
    await page.getByRole('combobox',{name:'Settings',exact:true}).selectOption({label:'Workspace · Object types'});await selectChecks(page);
@@ -356,29 +357,50 @@ test('rendered application workflows on an isolated current installation',{timeo
    const membership=(await api('list_relationship_types',{workspaceId:workspace.id})).find(r=>r.id===profile.relationships.contact_person);
    const person=await api('create_record',{objectTypeId:contact.id,values:{contact_kind:personKind,last_name:[{id:randomUUID(),text:'Family example'}],job_title:'Support manager',department:'Operations',function:[functionId],phones:[{id:directPhoneId,value:'+442079460018',contexts:[],preference:1}]},relationships:[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:contact.id,recordId:org.id}]}]});
    const relative=await api('create_record',{objectTypeId:contact.id,values:{contact_kind:personKind,last_name:[{id:randomUUID(),text:'Relative example'}],job_title:'Account manager',department:'Sales',function:[functionId]}});
-   const family=def.formRelationships.filter(r=>[profile.relationships.contact_parent,profile.relationships.contact_partner].includes(r.definition.id));
-   def=await api('configure_form_layout',{objectTypeId:contact.id,version:def.version,layout:{groups:[{id:'family',labels:{en:'Family',de:'Familie'},relationshipList:true,fields:family.map(r=>({relationshipTypeId:r.definition.id,side:r.side,width:'full',visible:true}))}]}});
-   await page.goto(`${baseURL}/w/qa/objects/contacts/${org.id}`);const people=page.getByRole('table',{name:'Contact persons',exact:true});await expect(people.getByText('Support manager',{exact:true})).toBeVisible();await expect(people.getByText('Operations',{exact:true})).toBeVisible();await expect(people.getByText('Customer adviser',{exact:true})).toBeVisible();
-   await page.goto(`${baseURL}/w/qa/objects/contacts/${person.id}`);
+   const defaultFamily=def.formLayouts.default.groups.find(group=>group.relationshipList);assert.equal(defaultFamily.labels.en,'Family');assert.equal(defaultFamily.fields.length,4);
+   await page.goto(`${baseURL}/w/qa/objects/contacts/${org.id}`);const people=page.getByRole('table',{name:'Contact persons',exact:true});await expect(people.getByRole('columnheader',{name:'Object type',exact:true})).toHaveCount(0);await expect(people.getByText('Support manager',{exact:true})).toBeVisible();await expect(people.getByText('Operations',{exact:true})).toBeVisible();await expect(people.getByText('Customer adviser',{exact:true})).toBeVisible();await people.getByRole('link').first().hover();await expect(people.getByRole('link').first()).toHaveCSS('text-decoration-line','none');
+   await page.goto(`${baseURL}/w/qa/objects/contacts/${person.id}`);await page.getByRole('button',{name:'Edit contact',exact:true}).click();
    const inherited=page.locator(`#field-${profile.fields.organization_phones}-${centralPhoneId}`);await expect(inherited).toHaveValue('+1 202 555 0123');await expect(inherited).toBeDisabled();
    await expect(page.locator(`#field-${profile.fields.phones}-${directPhoneId}`)).toHaveValue('+44 20 7946 0018');
    const section=inherited.locator('xpath=ancestor::fieldset[1]');await section.getByRole('button',{name:'Own value',exact:true}).click();await expect(inherited).toBeEnabled();
    await inherited.fill('+49891234567');await inherited.press('Tab');await expect(inherited).toHaveValue('+49 89 1234567');
    const plus=page.getByRole('button',{name:'Choose linked records: Family',exact:true});await plus.click();await page.getByRole('menuitem',{name:'Children',exact:true}).click();
    const dialog=page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]');await dialog.locator('#relationship-picker-search').fill('Relative example');await expect(dialog.getByRole('columnheader',{name:'Job title',exact:true})).toBeVisible();await dialog.getByRole('checkbox',{name:/Relative example/}).check();await dialog.getByRole('button',{name:'Apply selection',exact:true}).click();
-   const table=page.getByRole('table',{name:'Family',exact:true});await expect(table.getByText('Relative example',{exact:true})).toBeVisible();await expect(table.getByText('Account manager',{exact:true})).toBeVisible();await expect(table.getByText('Sales',{exact:true})).toBeVisible();await expect(table.getByText('Customer adviser',{exact:true})).toBeVisible();assert.ok(await table.evaluate((table,notesId)=>Boolean(table.compareDocumentPosition(document.getElementById(`field-${notesId}`))&Node.DOCUMENT_POSITION_FOLLOWING),profile.fields.notes));
-   await expect(page.getByText('Changes have not been saved yet.',{exact:true})).toBeVisible();await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
+   const table=page.getByRole('table',{name:'Family',exact:true});await table.getByRole('link').first().hover();await expect(table.getByRole('link').first()).toHaveCSS('text-decoration-line','none');await expect(table.getByRole('columnheader',{name:'Object type',exact:true})).toHaveCount(0);await expect(table.getByText('Relative example',{exact:true})).toBeVisible();await expect(table.getByText('Account manager',{exact:true})).toBeVisible();await expect(table.getByText('Sales',{exact:true})).toBeVisible();await expect(table.getByText('Customer adviser',{exact:true})).toBeVisible();assert.ok(await table.evaluate((table,notesId)=>Boolean(table.compareDocumentPosition(document.getElementById(`field-${notesId}`))&Node.DOCUMENT_POSITION_FOLLOWING),profile.fields.notes));
+   await expect(page.getByText('Changes have not been saved yet.',{exact:true})).toBeVisible();await page.locator('button[type=submit]').click();await expect(page.getByRole('button',{name:'Edit contact',exact:true})).toBeVisible();
    const saved=await api('get_record',{objectTypeId:contact.id,recordId:person.id});assert.equal(saved.organization_phones[0].value,'+49891234567');assert.equal(saved.phones[0].value,'+442079460018');assert.equal((await api('get_record',{objectTypeId:contact.id,recordId:org.id})).phones[0].value,'+12025550123');
+   await page.getByRole('button',{name:'Edit contact',exact:true}).click();
    await page.screenshot({path:path.join(artifacts,'central-family-desktop.png'),fullPage:true});
    await page.setViewportSize({width:390,height:844});await expect(plus).toBeVisible();await page.waitForFunction(()=>document.documentElement.scrollWidth<=window.innerWidth,undefined,{timeout:3000});await page.screenshot({path:path.join(artifacts,'central-family-mobile.png'),fullPage:true});
    await auditPage(page,'Central Organization and Family list mobile light');
    await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveClass(/dark/);await page.screenshot({path:path.join(artifacts,'central-family-mobile-dark.png'),fullPage:true});
    await page.setViewportSize({width:1440,height:1000});await settings(page);await page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]').getByRole('button',{name:'Form designer',exact:true}).click();
    await page.locator('#form-designer-object').click();await page.getByRole('option',{name:'Contacts',exact:true}).click();
-   const combined=page.getByRole('checkbox',{name:'Show relationships in one list',exact:true});await expect(combined).toBeChecked();await combined.uncheck();await combined.check();await page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]').locator('button[type=submit]').click();
-   await expect(page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]').locator('button[type=submit]')).toBeDisabled();await page.keyboard.press('Escape');
+   const combined=page.locator('#form-list-contact-family');await expect(combined).toBeChecked();await page.locator('label[for="form-list-contact-family"]').click();await expect(combined).not.toBeChecked();await page.locator('label[for="form-list-contact-family"]').click();await expect(combined).toBeChecked();await page.locator('#form-object-column-contact-family').selectOption('show');await page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]').locator('button[type=submit]').click();
+   await expect.poll(async()=>(await api('get_object_type',{objectTypeId:contact.id})).formLayouts.default.groups.find(group=>group.relationshipList)?.objectColumn).toBe('show');await page.goto(`${baseURL}/w/qa/objects/contacts/${person.id}`);await page.getByRole('button',{name:'Edit contact',exact:true}).click();
+   await expect(table.getByRole('columnheader',{name:'Object type',exact:true})).toBeVisible();
+   const configured=await api('get_object_type',{objectTypeId:contact.id});assert.equal(configured.formLayouts.default.groups.find(group=>group.relationshipList).objectColumn,'show');
    await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.documentElement.scrollWidth<=window.innerWidth,undefined,{timeout:3000});
 
+  });
+  await scenario('Contact-person affiliations select Organizations without changing the main Organization','admin',async page=>{
+   const p=contact.contactProfile,args={objectTypeId:contact.id},definitions=await api('list_relationship_types',{workspaceId:workspace.id});
+   const main=definitions.find(r=>r.id===p.relationships.contact_person),aff=definitions.find(r=>r.id===p.relationships.contact_affiliation);
+   const home=await api('create_record',{...args,values:{contact_kind:p.kinds.organization,company_name:'Affiliation household'}});
+   const club=await api('create_record',{...args,values:{contact_kind:p.kinds.organization,company_name:'Affiliation test club'}});
+   const member=await api('create_record',{...args,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Affiliation member'}]},relationships:[{relationshipTypeId:main.id,version:main.version,side:'right',targets:[{objectTypeId:contact.id,recordId:home.id}]}]});
+   await page.goto(`${baseURL}/w/qa/objects/contacts/${member.id}`);await page.getByRole('button',{name:'Edit contact',exact:true}).click();
+   await page.locator(`[id$="${aff.id}-right-choose"]`).click();
+   const dialog=page.getByRole('dialog',{name:'Choose Organizations',exact:true});await expect(dialog).toBeVisible();
+   await dialog.getByRole('searchbox').fill('Affiliation test club');
+   await dialog.getByRole('row').filter({hasText:'Affiliation test club'}).getByRole('checkbox').click();
+   await dialog.getByRole('button',{name:'Apply selection',exact:true}).click();
+   await page.locator('button[type=submit]').click();
+   await expect.poll(async()=>{const list=await api('get_record_relationships',{...args,recordId:member.id});return list.fields.find(f=>f.definition.id===aff.id&&f.side==='right')?.targets.map(r=>r.recordId);}).toEqual([club.id]);
+   assert.equal((await api('get_record',{...args,recordId:member.id})).organization_name,'Affiliation household');
+   await page.screenshot({path:path.join(artifacts,'contact-person-affiliations-desktop.png'),fullPage:true});
+   await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.documentElement.scrollWidth<=window.innerWidth);
+   await page.screenshot({path:path.join(artifacts,'contact-person-affiliations-mobile.png'),fullPage:true});
   });
   await scenario('Contact lists default to Keyword ascending and retain explicit sorting','admin',async page=>{
    for(const company_name of ['Zulu sorting fixture','Alpha sorting fixture'])await api('create_record',{objectTypeId:contact.id,values:{contact_kind:organization,company_name}});
@@ -394,6 +416,22 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.goto(`${baseURL}/w/qa?object=${contact.id}`);await assertOrder();
    await page.goto(`${baseURL}/w/qa/objects/contacts?sort=keyword&direction=desc`);
    await expect(page.locator('thead th[aria-sort]').first()).toHaveAttribute('aria-sort','descending');
+  });
+  await scenario('Saved Contact overview is compact, actionable and opens the full editor','admin',async page=>{
+   const definition=await api('get_object_type',{objectTypeId:contact.id}),p=definition.contactProfile;
+   const phoneId=randomUUID(),person=await api('create_record',{objectTypeId:contact.id,values:{contact_kind:p.kinds.individual,first_name:[{id:randomUUID(),text:'Taylor'}],last_name:[{id:randomUUID(),text:'Overview'}],phones:[{id:phoneId,value:'+12025550123',contexts:[],preference:1}],notes:'A **readable** contact note.'}});
+   await page.goto(`${baseURL}/w/qa/objects/contacts/${person.id}`);await expect(page.getByRole('heading',{name:person.keyword,exact:true})).toBeVisible();
+   const input=page.locator(`#field-${p.fields.phones}-${phoneId}`);await expect(input).toHaveCount(0);
+   await expect(page.getByRole('link',{name:'+1 202 555 0123',exact:true})).toHaveAttribute('href','tel:+12025550123');
+   await expect(page.getByText('readable',{exact:true})).toBeVisible();
+   await expect(page.locator('#record-link-with')).toBeEnabled();await expect(page.locator('#record-link-with')).toHaveCSS('opacity','1');
+   await expect(page.locator('[data-record-form-actions]')).toHaveCount(0);await expect(page.getByText('No details entered.',{exact:true})).toHaveCount(0);
+   await auditPage(page,'Contact overview desktop');await page.screenshot({path:path.join(artifacts,'contact-overview-desktop.png'),fullPage:true});
+   await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.documentElement.scrollWidth<=window.innerWidth);await auditPage(page,'Contact overview mobile');await page.screenshot({path:path.join(artifacts,'contact-overview-mobile.png'),fullPage:true});
+   await page.getByRole('button',{name:'Edit contact',exact:true}).click();await expect(input).toHaveValue('+1 202 555 0123');await input.fill('+442079460018');await input.press('Tab');
+   await expect(page.getByRole('button',{name:'Show overview',exact:true})).toBeDisabled();
+   await page.locator('button[type=submit]').click();await expect(page.getByRole('button',{name:'Edit contact',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Edit contact',exact:true})).toBeFocused();await expect(input).toHaveCount(0);
+   assert.equal((await api('get_record',{objectTypeId:contact.id,recordId:person.id})).phones[0].value,'+442079460018');
   });
   await scenario('Phone numbers are readable without dirtying untouched fields or moving the editing cursor','admin',async page=>{
    const field=await api('create_field',{objectTypeId:object.id,technicalName:'telephone',labels:{en:'Telephone'},kind:'phone'});
@@ -425,12 +463,12 @@ test('rendered application workflows on an isolated current installation',{timeo
    const phoneField=contact.fields.find(f=>f.config.schema==='phone_entries'),entryId=randomUUID();
    const contactBefore=await api('get_record',{objectTypeId:contact.id,recordId:domain.contacts.record.id});
    await api('update_record',{objectTypeId:contact.id,recordId:contactBefore.id,version:contactBefore.version,values:{[phoneField.technicalName]:[{id:entryId,value:'+12025550123',contexts:[],preference:1}]}});
-   await page.goto(`${baseURL}/w/qa/objects/contacts/${contactBefore.id}`);
+   await page.goto(`${baseURL}/w/qa/objects/contacts/${contactBefore.id}`);await page.getByRole('button',{name:'Edit contact',exact:true}).click();
    const contactInput=page.locator(`#field-${phoneField.id}-${entryId}`);
    await expect(contactInput).toHaveValue('+1 202 555 0123');
    await contactInput.focus();await contactInput.press('Tab');await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
    await contactInput.fill('+49891234567');await expect(contactInput).toHaveValue('+49891234567');await contactInput.press('Tab');await expect(contactInput).toHaveValue('+49 89 1234567');
-   await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
+   await page.locator('button[type=submit]').click();await expect(page.getByRole('button',{name:'Edit contact',exact:true})).toBeVisible();
    assert.equal((await api('get_record',{objectTypeId:contact.id,recordId:contactBefore.id}))[phoneField.technicalName][0].value,'+49891234567');
   });
   if(!process.env.XOBJECT_TEST_SCENARIO||'Throttled sign-in shows retry guidance'.includes(process.env.XOBJECT_TEST_SCENARIO))await t.test('Throttled sign-in shows retry guidance',async()=>{
