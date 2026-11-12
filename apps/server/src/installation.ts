@@ -40,8 +40,8 @@ export async function upgradeInstallation(operatorURL:string,runtimeURL:string,b
       await sql`SELECT pg_advisory_xact_lock(hashtext('xobject:model'))`.execute(tx);
       const source=(await sql<{version:number;definition_hash:string}>`SELECT version,definition_hash FROM sys_schema_version WHERE singleton FOR UPDATE`.execute(tx)).rows[0];
       if(source?.version===1&&source.definition_hash===target.hash)return;
-      // Exact released 1.0.0–1.2.0 fingerprints; no development-schema adoption.
-      if(source?.version!==1||!['37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d','1258a98cca87240c1f600ef414567b84be738731044cac929412bc81f1c16e86','c90239c3007922f096bd22cd4dadeeed35ea94c61182853f05f1883dd17a6b21','b819eeb2cecc2c7cd9a25065aa838b1cbfde8b67651dfd4959703ec6927063ab'].includes(source.definition_hash))throw new Error('No supported released upgrade path exists for this source installation. Use its matching application and recovery backup.');
+      // Exact released 1.0.0–1.3.0 fingerprints; no development-schema adoption.
+      if(source?.version!==1||!['37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d','1258a98cca87240c1f600ef414567b84be738731044cac929412bc81f1c16e86','c90239c3007922f096bd22cd4dadeeed35ea94c61182853f05f1883dd17a6b21','b819eeb2cecc2c7cd9a25065aa838b1cbfde8b67651dfd4959703ec6927063ab','4b50eb80a34a503460f079e6e84ad0f14a1983829771660f3c9782e69f7c0b19'].includes(source.definition_hash))throw new Error('No supported released upgrade path exists for this source installation. Use its matching application and recovery backup.');
       if(source.definition_hash==='37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d'){
       await sql.raw('DROP TRIGGER sys_oauth_access_token_journal ON public.sys_oauth_access_token; DROP TRIGGER sys_oauth_refresh_token_journal ON public.sys_oauth_refresh_token; DROP FUNCTION public.journal_oauth_token_state();').execute(tx);
       await sql.raw(target.oauthJournal).execute(tx);
@@ -61,10 +61,12 @@ export async function upgradeInstallation(operatorURL:string,runtimeURL:string,b
           for(const field of retiredFields)await sql`INSERT INTO sys_journal(id,change_id,workspace_id,object_type_id,entity_kind,entity_id,field_id,field_key,old_value,new_value,actor_id) VALUES(${v7()}::uuid,${v7()}::uuid,${field.workspace_id}::uuid,${field.object_type_id}::uuid,'field',${field.id}::uuid,${field.id}::uuid,'state',${JSON.stringify(field.state)}::jsonb,'"deleted"'::jsonb,${actor})`.execute(tx);
         }
         await sql.raw("ALTER TABLE public.sys_contact_field_overrides DROP CONSTRAINT sys_contact_field_overrides_value_check; ALTER TABLE public.sys_contact_field_overrides ADD CONSTRAINT sys_contact_field_overrides_value_check CHECK(jsonb_typeof(value) IN ('string','array','null'))").execute(tx);
-      }else await sql.raw(target.contactInheritance).execute(tx);
+      }else if(source.definition_hash!=='4b50eb80a34a503460f079e6e84ad0f14a1983829771660f3c9782e69f7c0b19')await sql.raw(target.contactInheritance).execute(tx);
       if((await sql`SELECT 1 FROM pg_roles WHERE rolname=${role}`.execute(tx)).rows.length)await sql`GRANT SELECT,INSERT,UPDATE,DELETE,REFERENCES ON TABLE sys_contact_field_overrides TO ${sql.id(role)}`.execute(tx);
       // Type is workspace-owned classification, not a supplied Contact-profile purpose.
       await sql`DELETE FROM sys_module_field_bindings b USING sys_fields f WHERE b.field_id=f.id AND b.object_key='contact' AND b.field_key='contact_type' AND f.technical_name='type' AND f.kind='type'`.execute(tx);
+      await sql.raw(target.recordCreationRequests).execute(tx);
+      if((await sql`SELECT 1 FROM pg_roles WHERE rolname=${role}`.execute(tx)).rows.length)await sql`GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE sys_record_creation_requests TO ${sql.id(role)}`.execute(tx);
       await seedModuleCatalog(tx,true);
       await new Application(db).refreshInstalledModuleTemplates(tx);
       await sql`UPDATE sys_schema_version SET definition_hash=${target.hash} WHERE singleton`.execute(tx);

@@ -4744,7 +4744,7 @@ test('released OAuth journal upgrade preserves data/history, is repeatable and r
   await inspection.query("INSERT INTO sys_users(id,name,email,email_verified,created_at,updated_at,is_admin,must_change_password) VALUES($1,'Upgrade administrator','upgrade@example.test',true,now(),now(),true,false)",[adminId]);
   await inspection.query("INSERT INTO sys_journal(id,change_id,entity_kind,entity_id,field_key,actor_id,access_channel,new_value) VALUES($1,$2,'user',$3::uuid,'created',$3::text,'internal','true')",[randomUUID(),randomUUID(),adminId]);
   // Restore the actual released trigger fixture; source fingerprints are pinned.
-  await inspection.query(`DROP TABLE sys_contact_field_overrides; DROP TRIGGER sys_oauth_consent_journal ON sys_oauth_consent; DROP FUNCTION journal_oauth_authorization_state();
+  await inspection.query(`DROP TABLE sys_record_creation_requests; DROP TABLE sys_contact_field_overrides; DROP TRIGGER sys_oauth_consent_journal ON sys_oauth_consent; DROP FUNCTION journal_oauth_authorization_state();
     UPDATE sys_schema_version SET definition_hash='37fe6ee81a1fadc580d6cd7678d1b088a72e7f1f4e5d0810937e9489fd6a921d' WHERE singleton;`);
   await inspection.query(readFileSync(new URL('./fixtures/released-oauth-token-journal.sql',import.meta.url),'utf8'));
   await assert.rejects(upgradeInstallation(url.href,runtimeURL.href,false,true),/verified backup/);
@@ -4856,7 +4856,7 @@ test('released 1.0.2 Contact catalog upgrade is additive, atomic, repeatable and
   await inspection.query("UPDATE sys_object_types SET classification=jsonb_set(classification,'{options}','[]'::jsonb) WHERE id=$1",[object.id]);
   await execute('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:false,version:2});
   await inspection.query("DROP TABLE sys_contact_field_overrides");
-  await inspection.query("UPDATE sys_schema_version SET definition_hash='1258a98cca87240c1f600ef414567b84be738731044cac929412bc81f1c16e86' WHERE singleton");
+  await inspection.query("DROP TABLE sys_record_creation_requests; UPDATE sys_schema_version SET definition_hash='1258a98cca87240c1f600ef414567b84be738731044cac929412bc81f1c16e86' WHERE singleton");
   const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;
   const retained=(await inspection.query('SELECT config FROM sys_fields WHERE id=$1',[email.id])).rows[0].config;
   // A conflicting technical name causes rollback of catalog, fields and fingerprint together.
@@ -5069,7 +5069,7 @@ test('released 1.1.0 upgrade installs inheritance atomically and preserves autho
   await execute('configure_classification',{objectTypeId:object.id,version:before.classification.version,config:{...classificationRules,options:[...before.classification.options,{id:association,kind:'type',typeId:null,active:true,labels:{en:'Association',de:'Verein'}}]}});
   await inspection.query("INSERT INTO sys_module_field_bindings(workspace_id,object_key,field_key,field_id,option_keys) VALUES($1,'contact','contact_type',$2,'{}')",[ws.id,classificationField.id]);
   const {provisionRuntimeRole}=await import('../src/database-roles.js');await provisionRuntimeRole(url.href,runtimeURL.href);
-  await inspection.query('DROP TABLE sys_contact_field_overrides');await inspection.query("UPDATE sys_schema_version SET definition_hash='c90239c3007922f096bd22cd4dadeeed35ea94c61182853f05f1883dd17a6b21'");
+  await inspection.query('DROP TABLE sys_record_creation_requests; DROP TABLE sys_contact_field_overrides');await inspection.query("UPDATE sys_schema_version SET definition_hash='c90239c3007922f096bd22cd4dadeeed35ea94c61182853f05f1883dd17a6b21'");
   const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;
   await upgradeInstallation(url.href,runtimeURL.href,true,true);
   const runtimePool=new Pool({connectionString:runtimeURL.href});try{assert.equal((await runtimePool.query('SELECT count(*)::int AS n FROM sys_contact_field_overrides')).rows[0].n,0);}finally{await runtimePool.end();}
@@ -5169,15 +5169,16 @@ test('central Organization fields remain live and own exceptions preserve data w
 test('combined relationship lists validate sides and remain configurable on supplied Contacts',async()=>{
  const ws=await ok('create_workspace',{name:'Combined family lists',code:'combinedlists'});await enableProjects(ws.id);
  let object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts');object=await ok('get_object_type',{objectTypeId:object.id});
+ const defaultFamily=object.formLayouts.default.groups.find((g:any)=>g.relationshipList);assert.equal(defaultFamily.labels.de,'Familie');assert.equal(defaultFamily.fields.length,4);
  const rels=object.formRelationships.filter((r:any)=>[object.contactProfile.relationships.contact_parent,object.contactProfile.relationships.contact_partner].includes(r.definition.id));
  assert.ok(rels.length>=2);
- const layout={groups:[{id:'family',labels:{en:'Family',de:'Familie'},relationshipList:true,fields:rels.map((r:any)=>({relationshipTypeId:r.definition.id,side:r.side,width:'full',visible:true}))}]};
+ const layout={groups:[{id:'family',labels:{en:'Family',de:'Familie'},relationshipList:true,objectColumn:'hide',fields:rels.map((r:any)=>({relationshipTypeId:r.definition.id,side:r.side,width:'full',visible:true}))}]};
  const saved=await ok('configure_form_layout',{objectTypeId:object.id,version:object.version,layout});assert.deepEqual(saved.formLayouts.default,layout);
  const single={relationshipTypeId:object.contactProfile.relationships.contact_person,side:'right',width:'full',visible:true};
  assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:saved.version,layout:{groups:[{...layout.groups[0],fields:[single]}]}})).statusCode,400);
  assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:saved.version,layout:{groups:[{...layout.groups[0],width:'half'}]}})).statusCode,400);
  assert.equal((await api('configure_form_layout',{objectTypeId:object.id,version:saved.version,layout:{groups:[{...layout.groups[0],fields:[{fieldId:object.contactProfile.fields.first_name,width:'full'}]}]}})).statusCode,400);
- const event=(await ok('get_definition_journal',{objectTypeId:object.id})).find((e:any)=>e.field_key==='form_layout.default'&&e.new_value?.groups[0]?.id==='family');assert.equal(event.new_value.groups[0].relationshipList,true);
+ const event=(await ok('get_definition_journal',{objectTypeId:object.id})).find((e:any)=>e.field_key==='form_layout.default'&&e.new_value?.groups[0]?.id==='family');assert.equal(event.new_value.groups[0].relationshipList,true);assert.equal(event.new_value.groups[0].objectColumn,'hide');
 });
 
 
@@ -5193,7 +5194,7 @@ test('released 1.2.0 upgrade retires AP register, keeps history and rolls back u
   const object=(await execute('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),before=await execute('get_object_type',{objectTypeId:object.id}),p=before.contactProfile;
   const person=await execute('create_record',{objectTypeId:object.id,values:{contact_kind:p.kinds.person,last_name:[{id:randomUUID(),text:'Retained'}]}}),retired=p.fields.organization_commercial_register;
   await inspection.query('INSERT INTO sys_contact_field_overrides(workspace_id,object_type_id,record_id,field_id,value) VALUES($1,$2,$3,$4,$5::jsonb)',[ws.id,object.id,person.id,retired,JSON.stringify('Unexpected exception')]);
-  await inspection.query("ALTER TABLE sys_contact_field_overrides DROP CONSTRAINT sys_contact_field_overrides_value_check; ALTER TABLE sys_contact_field_overrides ADD CONSTRAINT sys_contact_field_overrides_value_check CHECK(jsonb_typeof(value) IN ('string','null')); UPDATE sys_schema_version SET definition_hash='b819eeb2cecc2c7cd9a25065aa838b1cbfde8b67651dfd4959703ec6927063ab'");
+  await inspection.query("DROP TABLE sys_record_creation_requests; ALTER TABLE sys_contact_field_overrides DROP CONSTRAINT sys_contact_field_overrides_value_check; ALTER TABLE sys_contact_field_overrides ADD CONSTRAINT sys_contact_field_overrides_value_check CHECK(jsonb_typeof(value) IN ('string','null')); UPDATE sys_schema_version SET definition_hash='b819eeb2cecc2c7cd9a25065aa838b1cbfde8b67651dfd4959703ec6927063ab'");
   const {provisionRuntimeRole}=await import('../src/database-roles.js');await provisionRuntimeRole(url.href,runtimeURL.href);
   await assert.rejects(()=>upgradeInstallation(url.href,runtimeURL.href,true,true),/exceptions must be resolved/);
   assert.equal((await inspection.query('SELECT state FROM sys_fields WHERE id=$1',[retired])).rows[0].state,'active');
@@ -5223,4 +5224,141 @@ test('linked Contact-person professional context respects each field right in li
  list=(await api('get_record_relationships',{...args,recordId:org.id},userCookie)).json();target=list.fields.find((f:any)=>f.definition.id===membership.id&&f.side==='left').targets[0];assert.deepEqual(target.contactPerson,{department:'Purchasing'});assert.ok(!JSON.stringify(list).includes('Procurement lead'));assert.ok(!JSON.stringify(list).includes('Buyer'));
  candidates=(await api('search_relationship_candidates',{...args,recordId:org.id,relationshipTypeId:general.id,side:'left',query:'Context'},userCookie)).json();assert.deepEqual(candidates.records.find((r:any)=>r.recordId===person.id).contactPerson,{department:'Purchasing'});
  rights=await ok('get_content_permissions',args);await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'read',create:false,fields:{[p.fields.contact_kind]:'none'}}]});list=(await api('get_record_relationships',{...args,recordId:org.id},userCookie)).json();assert.ok(list.fields.every((f:any)=>f.targets.every((r:any)=>!r.contactPerson)));
+});
+
+test('Contact affiliations support API and MCP Contact persons independently of their main Organization',async()=>{
+ const ws=await ok('create_workspace',{name:'Affiliations',code:'affiliations'});await enableProjects(ws.id);
+ const object=(await ok('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),args={objectTypeId:object.id},p=(await ok('get_object_type',args)).contactProfile;
+ const [home,club,other]=await Promise.all(['Household','Club','Other club'].map(name=>createOrganization(object.id,name)));
+ const definitions=await ok('list_relationship_types',{workspaceId:ws.id}),aff=definitions.find((r:any)=>r.id===p.relationships.contact_affiliation),main=definitions.find((r:any)=>r.id===p.relationships.contact_person);
+ const targets=(...records:any[])=>records.map(r=>({objectTypeId:object.id,recordId:r.id}));
+ let person=await ok('create_record',{...args,values:{contact_kind:p.kinds.individual,last_name:[{id:randomUUID(),text:'Member'}]},relationships:[{relationshipTypeId:aff.id,version:aff.version,side:'right',targets:targets(club)}]});
+ const before=(await ok('get_record_relationships',{...args,recordId:person.id})).edges.find((e:any)=>e.definition.id===aff.id);
+ const conversion={...args,recordId:person.id,version:person.version,action:'existing_organization',organizationId:home.id},preview=await ok('get_contact_conversion_preview',conversion);
+ person=(await tool('convert_contact',{...conversion,previewToken:preview.previewToken,confirm:true})).records[0];
+ assert.equal(person.contact_kind,p.kinds.person);assert.equal(person.organization_name,'Household');
+ let links=await ok('get_record_relationships',{...args,recordId:person.id});assert.equal(links.edges.find((e:any)=>e.definition.id===aff.id).id,before.id);
+ const choices=await tool('search_relationship_candidates',{...args,recordId:club.id,relationshipTypeId:aff.id,side:'left',query:'Member'});assert.ok(choices.records.some((r:any)=>r.recordId===person.id));
+ const candidates=await ok('search_relationship_candidates',{...args,recordId:person.id,relationshipTypeId:aff.id,side:'right',query:'club'});assert.equal(candidates.total,2);
+ person=await tool('update_record',{...args,recordId:person.id,version:person.version,relationships:[{relationshipTypeId:aff.id,version:aff.version,side:'right',targets:targets(club,other)}]});
+ assert.equal(person.organization_name,'Household');assert.equal(person.keyword,'Member (Household)');
+ links=await tool('get_record_relationships',{...args,recordId:person.id});assert.equal(links.fields.find((f:any)=>f.definition.id===aff.id&&f.side==='right').targets.length,2);assert.equal(links.fields.find((f:any)=>f.definition.id===main.id&&f.side==='right').targets[0].recordId,home.id);
+ assert.equal((await api('update_record',{...args,recordId:home.id,version:(await ok('get_record',{...args,recordId:home.id})).version,relationships:[{relationshipTypeId:aff.id,version:aff.version,side:'right',targets:targets(club)}]})).statusCode,409);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ const rights=await ok('get_content_permissions',args);await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'read',create:false,fields:{}}]});
+ assert.equal((await api('update_record',{...args,recordId:person.id,version:person.version,relationships:[{relationshipTypeId:aff.id,version:aff.version,side:'right',targets:[]}]},userCookie)).statusCode,403);
+ const configuration=Object.fromEntries(['labels','leftLabels','rightLabels','directed','leftMin','leftMax','rightMin','rightMax','allowAll','pairs','active','leftApplicability','rightApplicability'].map(k=>[k,aff[k]]));
+ assert.equal((await api('configure_relationship_type',{workspaceId:ws.id,relationshipTypeId:aff.id,version:aff.version,configuration:{...configuration,rightApplicability:{fieldId:p.fields.contact_kind,optionIds:[p.kinds.individual]}}})).statusCode,403);
+ assert.ok((await journalEntries({...args,recordId:person.id})).some((e:any)=>JSON.stringify(e.new_value).includes(other.id)));
+ const detach={...args,recordId:person.id,version:person.version,action:'individual'},detached=await ok('get_contact_conversion_preview',detach);
+ person=(await ok('convert_contact',{...detach,previewToken:detached.previewToken,confirm:true})).records[0];
+ assert.equal((await ok('get_record_relationships',{...args,recordId:person.id})).fields.find((f:any)=>f.definition.id===aff.id&&f.side==='right').targets.length,2);
+});
+
+test('released 1.3.0 affiliation upgrade preserves identities, custom labels and history and is idempotent',async()=>{
+ const {connect}=await import('../src/database.js'),{Pool}=await import('pg'),operator=new Pool({connectionString:databaseURL});
+ const name=`aff_upgrade_${randomUUID().replaceAll('-','')}`,url=new URL(databaseURL);url.pathname='/'+name;await operator.query(`CREATE DATABASE "${name}"`);
+ const inspection=new Pool({connectionString:url.href}),connection=connect(url.href),app=new Application(connection.db),runtimeURL=new URL(url);runtimeURL.username=`aff_runtime_${randomUUID().replaceAll('-','')}`;
+ try{
+  await initializeDatabase(url.href,secret,baseURL);await inspection.query("INSERT INTO sys_users(id,name,email,email_verified,created_at,updated_at,is_admin,must_change_password) VALUES($1,'Upgrade admin','aff-upgrade@example.test',true,now(),now(),true,false)",[adminId]);
+  const execute=async(operation:Operation,input:unknown)=>app.execute(operation,input,adminId) as Promise<any>;
+  const ws=await execute('create_workspace',{name:'Released Contacts',code:'releasedaff'});await execute('configure_workspace_module',{workspaceId:ws.id,key:'contacts',enabled:true,version:1});
+  const object=(await execute('list_object_types',{workspaceId:ws.id})).find((o:any)=>o.technicalName==='contacts'),p=(await execute('get_object_type',{objectTypeId:object.id})).contactProfile;
+  const affiliation=(await execute('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===p.relationships.contact_affiliation);
+  const club=await execute('create_record',{objectTypeId:object.id,values:{contact_kind:p.kinds.organization,company_name:'Preserved club'}});
+  const individual=await execute('create_record',{objectTypeId:object.id,values:{contact_kind:p.kinds.individual,last_name:[{id:randomUUID(),text:'Preserved member'}]},relationships:[{relationshipTypeId:affiliation.id,version:affiliation.version,side:'right',targets:[{objectTypeId:object.id,recordId:club.id}]}]});
+  for(const module of JSON.parse(readFileSync(new URL('./fixtures/released-1.3.0-module-catalog.json',import.meta.url),'utf8')))await inspection.query('UPDATE sys_modules SET objects=$1::jsonb,template_version=$2 WHERE key=$3',[JSON.stringify(module.objects),module.templateVersion,module.key]);
+  await inspection.query('UPDATE sys_relationship_types SET right_applicability=$1::jsonb,labels=$2::jsonb WHERE id=$3',[JSON.stringify({fieldId:p.fields.contact_kind,optionIds:[p.kinds.individual]}),JSON.stringify({en:'My affiliations',de:'Meine Zugehörigkeiten'}),affiliation.id]);
+  await inspection.query("DROP TABLE sys_record_creation_requests; UPDATE sys_schema_version SET definition_hash='4b50eb80a34a503460f079e6e84ad0f14a1983829771660f3c9782e69f7c0b19'");
+  const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows,links=(await execute('get_record_relationships',{objectTypeId:object.id,recordId:individual.id})).edges;
+  await inspection.query("CREATE FUNCTION reject_affiliation_upgrade() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.field_key='rightApplicability' THEN RAISE EXCEPTION 'upgrade journal rejected'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_affiliation_upgrade BEFORE INSERT ON sys_journal FOR EACH ROW EXECUTE FUNCTION reject_affiliation_upgrade()");
+  await assert.rejects(()=>upgradeInstallation(url.href,runtimeURL.href,true,true),/upgrade journal rejected/);
+  assert.equal((await inspection.query('SELECT definition_hash FROM sys_schema_version')).rows[0].definition_hash,'4b50eb80a34a503460f079e6e84ad0f14a1983829771660f3c9782e69f7c0b19');
+  assert.deepEqual((await inspection.query('SELECT right_applicability FROM sys_relationship_types WHERE id=$1',[affiliation.id])).rows[0].right_applicability.optionIds,[p.kinds.individual]);
+  await inspection.query('DROP TRIGGER reject_affiliation_upgrade ON sys_journal; DROP FUNCTION reject_affiliation_upgrade()');
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);
+  const updated=(await execute('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.id===affiliation.id);
+  assert.deepEqual(updated.rightApplicability.optionIds,[p.kinds.individual,p.kinds.person]);assert.equal(updated.labels.en,'My affiliations');assert.equal(updated.version,affiliation.version+1);
+  assert.deepEqual((await execute('get_record_relationships',{objectTypeId:object.id,recordId:individual.id})).edges.map(({definition,...edge}:any)=>edge),links.map(({definition,...edge}:any)=>edge));
+  assert.deepEqual((await inspection.query('SELECT * FROM sys_journal WHERE id=ANY($1::uuid[]) ORDER BY id',[history.map(r=>r.id)])).rows,history);
+  const journal=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;assert.ok(journal.some(r=>r.entity_id===affiliation.id&&r.field_key==='rightApplicability'));
+  await upgradeInstallation(url.href,runtimeURL.href,true,true);assert.deepEqual((await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows,journal);
+ }finally{await connection.db.destroy();if(!connection.pool.ended)await connection.pool.end();await inspection.end();await operator.query(`DROP DATABASE "${name}"`);await operator.end();}
+});
+
+test('SQL access predicates agree with the finite resolver for ownership, privacy, cycles and field exceptions',async()=>{
+ const {ContentAccessQuery}=await import('../src/content-access-query.js');
+ const {resolveRecordAccess,accessRank,accessLevels}=await import('@xobject/contracts');
+ const users=Array.from({length:5},()=>randomUUID()),groups=Array.from({length:3},()=>randomUUID()),object=randomUUID(),field=randomUUID();
+ const members=[{kind:'user' as const,id:users[0],groupId:groups[0],level:'edit' as const},{kind:'user' as const,id:users[1],groupId:groups[1],level:'read' as const},{kind:'group' as const,id:groups[0],groupId:groups[2],level:'duplicate' as const},{kind:'user' as const,id:users[2],groupId:groups[2],level:'full' as const}];
+ const rules=[{id:randomUUID(),requester:{kind:'group' as const,id:groups[0]},owner:{kind:'group' as const,id:groups[1]},level:'full' as const,confidential:true,objects:{}},{id:randomUUID(),requester:{kind:'user' as const,id:users[1]},owner:{kind:'user' as const,id:users[0]},level:'edit' as const,confidential:false,objects:{}},{id:randomUUID(),requester:{kind:'user' as const,id:users[0]},owner:{kind:'user' as const,id:users[3]},level:'delete' as const,confidential:false,objects:{[object]:{level:'schedule' as const,confidential:true}}}];
+ let seed=1741;const next=(n:number)=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed%n;};
+ const policies=Array.from({length:240},()=>{const owners=Array.from({length:next(4)},()=>next(2)?{kind:'user' as const,id:users[next(users.length)],level:accessLevels[2+next(6)]}:{kind:'group' as const,id:groups[next(groups.length)],level:accessLevels[2+next(6)]});return {...defaultRecordSecurity(),owners:[...new Map(owners.map(o=>[`${o.kind}:${o.id}`,o])).values()],privacy:(['normal','personal','confidential'] as const)[next(3)],publicLevel:next(4)?null:accessLevels[2+next(6)],foreignMax:accessLevels[next(8)]};});
+ for(const inherit of [true,false])for(const actor of users){
+  const query=new ContentAccessQuery(actor,object,{users,groups,members,rules,settings:[]},inherit);
+  const actual=(await sql<{n:number;position:number}>`SELECT ${query.level(sql`p.policy`)} AS n,position::integer FROM jsonb_array_elements(${JSON.stringify(policies)}::jsonb) WITH ORDINALITY p(policy,position)`.execute(runtime.db)).rows;
+  for(const row of actual)assert.equal(row.n,accessRank(resolveRecordAccess(actor,object,policies[row.position-1],members,rules,inherit).level),JSON.stringify({actor,inherit,policy:policies[row.position-1]}));
+ }
+ const query=new ContentAccessQuery(users[0],object,{users,groups,members,rules,settings:[]},true);
+ const exception={...defaultRecordSecurity(),fields:[{kind:'group',id:groups[0],fields:{[field]:'edit'}},{kind:'user',id:users[0],fields:{[field]:'none'}}]};
+ assert.equal((await sql<{n:number}>`SELECT ${query.field(sql`${JSON.stringify(exception)}::jsonb`,field,[groups[0]])} AS n`.execute(runtime.db)).rows[0].n,0);
+});
+
+test('record creation retry keys preserve one record, number and journal across API/MCP, reject changed input and reapply current rights',async()=>{
+ const ws=await ok('create_workspace',{code:'retry',name:'Retry checks'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'checks',labels:{en:'Checks'},standardFields:['keyword']});
+ await ok('configure_object_settings',{objectTypeId:object.id,version:1,labels:object.labels,numbering:{enabled:true,prefix:'CHK-',suffix:'',start:'1',increment:'1',padding:1,restart:'never'}});
+ const requestId=randomUUID(),input={objectTypeId:object.id,requestId,keyword:'One creation'};
+ const first=await ok('create_record',input),journal=await ok('list_record_journal',{objectTypeId:object.id,recordId:first.id});
+ const results=await Promise.all([ok('create_record',input),tool('create_record',input)]);
+ assert.ok(results.every(row=>row.id===first.id&&row.record_number==='CHK-1'));
+ assert.equal((await ok('list_records',{objectTypeId:object.id})).total,1);
+ assert.deepEqual(await ok('list_record_journal',{objectTypeId:object.id,recordId:first.id}),journal);
+ const conflict=await api('create_record',{...input,keyword:'Different'});assert.equal(conflict.statusCode,409);assert.equal(conflict.json().code,'creation_request_conflict');
+ const edited=await ok('update_record',{objectTypeId:object.id,recordId:first.id,version:first.version,keyword:'Current value'});
+ assert.equal((await ok('create_record',input)).keyword,'Current value');
+ const rights=await ok('get_content_permissions',{objectTypeId:object.id}),user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');
+ await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'full',create:true,fields:{}}]});
+ const userCreated=await api('create_record',input,userCookie);assert.equal(userCreated.statusCode,200);assert.notEqual(userCreated.json().id,first.id);
+ const ceiling=await ok('get_content_permissions',{objectTypeId:object.id});await ok('configure_content_permissions',{...ceiling,grants:[]});
+ assert.equal((await api('create_record',input,userCookie)).statusCode,403);
+ assert.equal((await ok('get_record',{objectTypeId:object.id,recordId:edited.id})).keyword,'Current value');
+ // A receipt failure occurs after creation/number/history writes and rolls the entire transaction back.
+ const rollbackKey=randomUUID(),beforeCount=(await ok('list_records',{objectTypeId:object.id})).total;
+ await sql.raw("CREATE FUNCTION reject_retry_receipt() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'receipt rejected'; END $$; CREATE TRIGGER reject_retry_receipt BEFORE INSERT ON sys_record_creation_requests FOR EACH ROW EXECUTE FUNCTION reject_retry_receipt()").execute(runtime.db);
+ try{assert.equal((await api('create_record',{objectTypeId:object.id,requestId:rollbackKey,keyword:'Atomic receipt'})).statusCode,500);}finally{await sql.raw('DROP TRIGGER reject_retry_receipt ON sys_record_creation_requests; DROP FUNCTION reject_retry_receipt()').execute(runtime.db);}
+ assert.equal((await ok('list_records',{objectTypeId:object.id})).total,beforeCount);
+ await ok('create_record',{objectTypeId:object.id,requestId:rollbackKey,keyword:'Atomic receipt'});
+ // A failed transaction leaves no receipt and the same key can be corrected/retried.
+ const failedId=randomUUID();assert.equal((await api('create_record',{objectTypeId:object.id,requestId:failedId,values:{unknown:'invalid'}})).statusCode,400);
+ assert.equal((await sql`SELECT 1 FROM sys_record_creation_requests WHERE request_id=${failedId}::uuid`.execute(runtime.db)).rows.length,0);
+ await ok('create_record',{objectTypeId:object.id,requestId:failedId,keyword:'Corrected'});
+ await sql`UPDATE sys_record_creation_requests SET expires_at=now()-interval '1 second' WHERE request_id=${failedId}::uuid`.execute(runtime.db);
+ const later=await ok('create_record',{objectTypeId:object.id,requestId:failedId,keyword:'New after expiry'});assert.ok(later.id);
+});
+
+test('SQL field masks match direct/group exceptions and administrative ceilings exhaustively',async()=>{
+ const {ContentAccessQuery}=await import('../src/content-access-query.js'),{ObjectAccess}=await import('../src/content-permissions.js');
+ const actor=randomUUID(),groups=[randomUUID(),randomUUID()],object=randomUUID(),record=randomUUID(),field=randomUUID();
+ const query=new ContentAccessQuery(actor,object,{users:[actor],groups,members:[],rules:[],settings:[]},true);
+ const levels=['none','read','edit',null] as const;
+ const policies=levels.flatMap(direct=>levels.flatMap(first=>levels.map(second=>({...defaultRecordSecurity([{kind:'user',id:actor,level:'full'}]),fields:[...(direct?[{kind:'user' as const,id:actor,fields:{[field]:direct}}]:[]),...(first?[{kind:'group' as const,id:groups[0],fields:{[field]:first}}]:[]),...(second?[{kind:'group' as const,id:groups[1],fields:{[field]:second}}]:[])]}))));
+ const results=(await sql<{n:number;position:number}>`SELECT ${query.field(sql`p.policy`,field,groups)} AS n,position::integer FROM jsonb_array_elements(${JSON.stringify(policies)}::jsonb) WITH ORDINALITY p(policy,position)`.execute(runtime.db)).rows;
+ for(const ceiling of ['none','read','edit'] as const)for(const row of results){
+  const expected=new ObjectAccess(object,randomUUID(),true,false,7,[{kind:'user',id:actor,level:'full',create:true,fields:{[field]:ceiling}}],groups,actor,true,new Map([[record,{policy:policies[row.position-1],access:{level:'full',source:'ownership',path:[]}}]]),query,runtime.db,'unused',async()=>{}).field(field,record);
+  assert.deepEqual({read:ceiling!=='none'&&row.n>=2,edit:ceiling==='edit'&&row.n>=5},expected,JSON.stringify({ceiling,policy:policies[row.position-1]}));
+ }
+});
+
+test('creation receipt expiry cleanup skips unrelated locked receipts and removes them on a later request',async()=>{
+ const ws=await ok('create_workspace',{code:'receiptlocks',name:'Receipt locks'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'checks',labels:{en:'Checks'},standardFields:['keyword']});
+ const expired=randomUUID();await ok('create_record',{objectTypeId:object.id,requestId:expired,keyword:'Expired receipt'});
+ await sql`UPDATE sys_record_creation_requests SET expires_at=now()-interval '1 second' WHERE request_id=${expired}::uuid`.execute(runtime.db);
+ const held=new PgClient({connectionString:databaseURL});await held.connect();await held.query('BEGIN');await held.query('SELECT 1 FROM sys_record_creation_requests WHERE request_id=$1::uuid FOR UPDATE',[expired]);
+ const pending=api('create_record',{objectTypeId:object.id,requestId:randomUUID(),keyword:'Unrelated creation'});
+ try{const result=await Promise.race([pending,setTimeout(1500).then(()=>{throw Error('Cleanup waited for an unrelated locked receipt');})]);assert.equal(result.statusCode,200,result.body);}
+ finally{await held.query('ROLLBACK');await held.end();await pending;}
+ assert.equal((await sql`SELECT 1 FROM sys_record_creation_requests WHERE request_id=${expired}::uuid`.execute(runtime.db)).rows.length,1);
+ await ok('create_record',{objectTypeId:object.id,requestId:randomUUID(),keyword:'Next cleanup'});
+ assert.equal((await sql`SELECT 1 FROM sys_record_creation_requests WHERE request_id=${expired}::uuid`.execute(runtime.db)).rows.length,0);
 });

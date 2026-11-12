@@ -32,11 +32,11 @@ export async function configureForeignAccess(tx:Executor,args:ForeignSettings,jo
  if(!admin){
   if(!isDeepStrictEqual(args.users,view.users)||args.rules.some(r=>r.owner.kind!=='user'||r.owner.id!==actor))throw new AppError(403,'Delegation permits only foreign access on own records');
   const objects=(await sql<{id:string}>`SELECT id FROM sys_object_types WHERE workspace_id=${args.workspaceId}::uuid AND state<>'deleted' AND is_sensitive`.execute(tx)).rows;
-  for(const rule of args.rules)for(const object of objects){const allowed=await contentAccess().policy(object.id),level=rule.objects[object.id]?.level??rule.level;if(accessRank(level)>allowed.level)throw new AppError(403,'Cannot delegate above own object permission');}
+  for(const rule of args.rules)for(const object of objects){const allowed=await contentAccess().policy(object.id),level=rule.objects[object.id]?.level??rule.level;if(accessRank(level)>allowed.level)throw new AppError(403,'Cannot delegate above own object permission',{code:"foreignDelegationCeiling"});}
   args={...args,rules:[...all.rules.filter(r=>r.owner.kind!=='user'||r.owner.id!==actor),...args.rules],users:all.users};
  }
 
- const old=await getForeignAccess(tx,args.workspaceId);if(old.version!==args.version)throw new AppError(409,'Foreign access version conflict');
+ const old=await getForeignAccess(tx,args.workspaceId);if(old.version!==args.version)throw new AppError(409,'Foreign access version conflict',{code:"version_conflict"});
  const ids=new Set<string>(),pairs=new Set<string>();
  for(const rule of args.rules){const pair=`${principalKey(rule.requester)}>${principalKey(rule.owner)}`;if(ids.has(rule.id)||pairs.has(pair))throw new AppError(400,'Duplicate foreign access rule');ids.add(rule.id);pairs.add(pair);
   if(!isDeepStrictEqual(old.rules.find(r=>r.id===rule.id),rule))for(const p of [rule.requester,rule.owner])await validatePrincipal(tx,args.workspaceId,p,true);
@@ -58,19 +58,19 @@ export async function configureForeignAccess(tx:Executor,args:ForeignSettings,jo
 export async function validatePrincipal(tx:Executor,workspace:string,p:{kind:string;id:string},requireActive=false){
  const rows=p.kind==='user'?(await sql`SELECT u.active FROM sys_users u WHERE u.id=${p.id} AND (u.is_admin OR EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.user_id=u.id AND m.workspace_id=${workspace}::uuid))`.execute(tx)).rows:(await sql`SELECT active FROM sys_groups WHERE id=${p.id}::uuid AND workspace_id=${workspace}::uuid`.execute(tx)).rows;
  if(!rows.length)throw new AppError(400,'Principal outside workspace');
- if(requireActive&&!(rows[0] as {active:boolean}).active)throw new AppError(400,'Inactive principals cannot receive new foreign rules');
+ if(requireActive&&!(rows[0] as {active:boolean}).active)throw new AppError(400,'Inactive principals cannot receive new foreign rules',{code:"inactiveForeignHelp"});
 }
 export async function configureGroupInheritance(tx:Executor,args:{workspaceId:string;groupId:string;version:number;name?:string;members:GradedMember[]},journal:ConfigurationJournal){
- const group=(await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===args.groupId);if(!group)throw new AppError(404,'Group not found');if(group.version!==args.version)throw new AppError(409,'Group version conflict');if(!group.active)throw new AppError(400,'Group is inactive');
+ const group=(await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===args.groupId);if(!group)throw new AppError(404,'Group not found');if(group.version!==args.version)throw new AppError(409,'Group version conflict',{code:"version_conflict"});if(!group.active)throw new AppError(400,'Group is inactive',{code:"groupInactiveHelp"});
  const seen=new Set<string>();for(const member of args.members){await validatePrincipal(tx,args.workspaceId,member);
   const active=member.kind==='user'?Boolean((await sql`SELECT 1 FROM sys_users WHERE id=${member.id} AND active`.execute(tx)).rows.length):Boolean((await sql`SELECT 1 FROM sys_groups WHERE id=${member.id}::uuid AND active`.execute(tx)).rows.length);
-  if(!active&&!group.members.some(previous=>isDeepStrictEqual(previous,member)))throw new AppError(400,'Inactive members can only be retained or removed');const key=principalKey(member);if(seen.has(key)||member.kind==='group'&&member.id===group.id)throw new AppError(400,'Duplicate or cyclic membership');seen.add(key);}
+  if(!active&&!group.members.some(previous=>isDeepStrictEqual(previous,member)))throw new AppError(400,'Inactive members can only be retained or removed',{code:"inactiveMembershipHelp"});const key=principalKey(member);if(seen.has(key)||member.kind==='group'&&member.id===group.id)throw new AppError(400,'Duplicate or cyclic membership',{code:"membershipCycleHelp"});seen.add(key);}
  // Validate the entire retained graph, including inactive groups, before replacement.
  const edges=(await sql<{group_id:string;member_group_id:string}>`SELECT n.* FROM sys_group_nesting n JOIN sys_groups g ON g.id=n.group_id WHERE g.workspace_id=${args.workspaceId}::uuid AND n.group_id<>${group.id}::uuid`.execute(tx)).rows;
  edges.push(...args.members.filter(m=>m.kind==='group').map(m=>({group_id:group.id,member_group_id:m.id})));
  const visiting=new Set<string>(),done=new Set<string>(),children=new Map<string,string[]>();
  for(const e of edges)children.set(e.group_id,[...(children.get(e.group_id)??[]),e.member_group_id]);
- const visit=(id:string)=>{if(visiting.has(id))throw new AppError(400,'Group membership cycle');if(done.has(id))return;visiting.add(id);for(const child of children.get(id)??[])visit(child);visiting.delete(id);done.add(id);};for(const id of children.keys())visit(id);
+ const visit=(id:string)=>{if(visiting.has(id))throw new AppError(400,'Group membership cycle',{code:"membershipCycleHelp"});if(done.has(id))return;visiting.add(id);for(const child of children.get(id)??[])visit(child);visiting.delete(id);done.add(id);};for(const id of children.keys())visit(id);
  const before=[...group.members].sort((a,b)=>principalKey(a).localeCompare(principalKey(b))),after=[...args.members].sort((a,b)=>principalKey(a).localeCompare(principalKey(b)));
  const name=args.name??group.name;if(isDeepStrictEqual(before,after)&&name===group.name)return group;
  const change=v7();if(name!==group.name)await journal('group',group.id,change,'name',group.name,name);for(const key of new Set([...before.map(principalKey),...after.map(principalKey)])){const a=before.find(m=>principalKey(m)===key),b=after.find(m=>principalKey(m)===key);if(a?.level!==b?.level)await journal('group',group.id,change,`membership.${key}`,a?.level??null,b?.level??null);}

@@ -1,3 +1,4 @@
+import {contactFamilyListLayout} from '@xobject/contracts';
 import {scenarioSettings,scenarioOrganizations,projectStory,caseStory,taskStory,customStory,type DemoScenario} from './demo-scenarios.js';
 import {workFormLayout,contactExtensionLayout,resolveFormLayout} from '@xobject/contracts';
 import { randomBytes } from 'node:crypto';
@@ -447,7 +448,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
   for (const name of Object.keys(objects)) {
     let model=await app.execute('get_object_type',{objectTypeId:objects[name].id},actorId) as ObjectDefinition;
     const base= model.workProfile?workFormLayout(model.workProfile,model.fields.filter(item=>item.state==='active'),model.formRelationships??[]):resolveFormLayout(undefined,model.fields.filter(item=>item.state==='active'),true,model.formRelationships??[]);
-    let groups=model.contactProfile?contactExtensionLayout(model.contactProfile,model.fields,base)!.groups.filter(g=>g.fields.length):base.groups;
+    let groups=model.contactProfile?contactFamilyListLayout(model.contactProfile,contactExtensionLayout(model.contactProfile,model.fields,base)!).groups.filter(g=>g.fields.length):base.groups;
     if(['mobile_workshops','support_packages','workshop_tools'].includes(name))groups=customDemoGroups(name,groups,model.fields);
     model=await app.execute('configure_form_layout',{objectTypeId:model.id,version:model.version,layout:{groups}},actorId) as ObjectDefinition;
     objects[name]=await app.execute('get_object_type',{objectTypeId:model.id},actorId) as ObjectDefinition;

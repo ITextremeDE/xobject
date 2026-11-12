@@ -5,7 +5,7 @@ import {AppError} from './errors.js';
 export async function conditionColumn(tx:Executor,rule:FieldApplicability|undefined,objectTypeId:string) {
   if(!rule)return null;
   const field=(await sql<{technical_name:string;kind:string;config:{options?:{id:string}[]};applicability:unknown}>`SELECT technical_name,kind,config,applicability FROM sys_fields WHERE id=${rule.fieldId}::uuid AND object_type_id=${objectTypeId}::uuid AND state='active'`.execute(tx)).rows[0];
-  if(!field||field.kind!=='single_choice'||field.applicability||rule.optionIds.some(id=>!field.config.options?.some(option=>option.id===id)))throw new AppError(400,'Relationship condition needs an active unconditional choice field and valid options');
+  if(!field||field.kind!=='single_choice'||field.applicability||rule.optionIds.some(id=>!field.config.options?.some(option=>option.id===id)))throw new AppError(400,'Relationship condition needs an active unconditional choice field and valid options',{code:"relationshipConditionConfigurationInvalid"});
   return field.technical_name;
 }
 export async function endpointMatches(tx:Executor,type:RelationshipType,side:'left'|'right',ref:RecordReference) {
@@ -18,7 +18,7 @@ export async function endpointMatches(tx:Executor,type:RelationshipType,side:'le
   return rule.optionIds.includes(value??'');
 }
 export async function validateEndpointPair(tx:Executor,type:RelationshipType,left:RecordReference,right:RecordReference) {
-  if(!await endpointMatches(tx,type,'left',left)||!await endpointMatches(tx,type,'right',right))throw new AppError(409,'Relationship endpoint conditions are not satisfied');
+  if(!await endpointMatches(tx,type,'left',left)||!await endpointMatches(tx,type,'right',right))throw new AppError(409,'Relationship endpoint conditions are not satisfied',{code:"relationshipConditionInvalid"});
 }
 export async function validateConditionalRecord(tx:Executor,objectTypeId:string,recordId:string,definitions:RelationshipType[]) {
   for(const type of definitions.filter(type=>type.rulesState==='active'&&(type.leftApplicability||type.rightApplicability))){

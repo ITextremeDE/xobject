@@ -1,4 +1,4 @@
-import {type FormEntry,type FormLayout,type FormRelationship} from './form-layout.js';
+import {formLayoutEntries,type FormEntry,type FormLayout,type FormRelationship} from './form-layout.js';
 
 /** Supplied semantics use field/choice UUIDs; labels and technical names carry no domain meaning. */
 export interface ContactProfile {
@@ -40,6 +40,17 @@ export function contactCoreFieldIds(profile:ContactProfile,fields:ContactLayoutF
 }
 export function contactCoreEntry(profile:ContactProfile,fields:ContactLayoutField[],entry:FormEntry):boolean{
  return 'fieldId'in entry?contactCoreFieldIds(profile,fields).has(entry.fieldId):'relationshipTypeId'in entry?entry.relationshipTypeId===profile.relationships.contact_person&&entry.side==='right':false;
+}
+/** Apply the module's Family suggestion to a new template or an explicitly requested layout update. */
+export function contactFamilyListLayout(profile:ContactProfile,layout:FormLayout):FormLayout{
+ const ids=new Set(['contact_parent','contact_partner','contact_sibling'].map(key=>profile.relationships[key]).filter(Boolean));
+ const family=(entry:FormEntry)=>'relationshipTypeId'in entry&&ids.has(entry.relationshipTypeId);
+ const entries=formLayoutEntries(layout).filter(family);
+ if(!entries.length||layout.groups.some(group=>group.relationshipList&&group.fields.length===entries.length&&group.fields.every(family)))return layout;
+ const groups=layout.groups.flatMap(group=>{const fields=group.fields.filter(entry=>!family(entry));return group.fields.length&&!fields.length?[]:[{...group,fields}];});
+ let id='contact-family',index=1;while(groups.some(group=>group.id===id))id=`contact-family-${++index}`;
+ groups.push({id,labels:{en:'Family',de:'Familie'},width:'full',relationshipList:true,fields:entries.map(entry=>({...entry,width:'full'}))});
+ return {...layout,groups,unassigned:layout.unassigned?.filter(entry=>!family(entry))};
 }
 export function contactExtensionLayout(profile:ContactProfile,fields:ContactLayoutField[],layout:FormLayout|undefined):FormLayout|undefined{
  if(!layout)return undefined;

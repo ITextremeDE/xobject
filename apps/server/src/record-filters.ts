@@ -15,8 +15,7 @@ export function classificationFilterPredicate(config:ClassificationConfig,fields
   if(ids.some(id=>!config.options.some(option=>option.id===id&&option.kind===kind)))throw new AppError(400,'Unknown classification filter choice');
   // Masked values must never match "empty". Exclude unreadable records altogether.
   if(policy.sensitive&&!policy.admin){
-   const readable=[...policy.records.keys()].filter(id=>policy.field(field.id,id).read);
-   predicates.push(sql<boolean>`id=ANY(${readable}::uuid[])`);
+   predicates.push(policy.fieldPredicate(field.id));
   }
   const column=sql.ref(kind),empty=selected.includes(null);
   if(kind==='category')predicates.push(sql<boolean>`(${ids.length?sql`${column} && ${ids}::uuid[]`:sql`false`} OR ${empty?sql`cardinality(${column})=0`:sql`false`})`);

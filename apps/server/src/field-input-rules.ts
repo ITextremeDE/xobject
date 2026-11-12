@@ -19,7 +19,7 @@ export async function normalizeInputRules(tx:Executor,field:TypedField,input:Fie
  return {...input,defaultValue:value};
 }
 export function validateUniqueLength(field:TypedField,value:unknown,unique:boolean){
- if(unique&&typeof value==='string'&&Buffer.byteLength(value,'utf8')>2000)throw new AppError(400,'Unique text values may contain at most 2000 UTF-8 bytes');
+ if(unique&&typeof value==='string'&&Buffer.byteLength(value,'utf8')>2000)throw new AppError(400,'Unique text values may contain at most 2000 UTF-8 bytes',{code:"uniqueValueTooLong"});
 }
 export function uniqueIndexName(id:string){return `xobject_unique_${id.replaceAll('-','')}`;}
 export async function configureUniqueIndex(tx:Executor,table:string,field:InputField){

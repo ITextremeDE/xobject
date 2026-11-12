@@ -34,7 +34,7 @@ export async function configureNavigation(tx:Executor,args:{workspaceId:string;s
  await sql`SELECT 1 FROM sys_workspaces WHERE id=${args.workspaceId}::uuid FOR UPDATE`.execute(tx);
  const current=await getNavigation(tx,args.workspaceId,actor),previous=current[args.scope];
  if(args.scope==='workspace'&&!current.canManage)throw new AppError(403,'Access denied');
- if(previous.version!==args.version)throw new AppError(409,'Navigation version conflict');
+ if(previous.version!==args.version)throw new AppError(409,'Navigation version conflict',{code:"version_conflict"});
  const ids=new Set(current.nodes.map(n=>n.id));if(args.layout&&[...args.layout.order,...args.layout.hidden].some(id=>!ids.has(id)))throw new AppError(400,'Unknown navigation entry');
  if(isDeepStrictEqual(previous.layout,args.layout))return current;
  const owner=args.scope==='personal'?actor:null;

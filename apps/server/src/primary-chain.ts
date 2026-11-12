@@ -14,7 +14,7 @@ export async function validatePrimaryChain(tx:Executor,workspaceId:string,chain:
     OR (e.left_object_type_id=${chain.project}::uuid AND e.right_object_type_id NOT IN (${chain.contact}::uuid,${chain.project}::uuid))
     OR (e.left_object_type_id=${chain.case}::uuid AND e.right_object_type_id NOT IN (${chain.contact}::uuid,${chain.project}::uuid,${chain.case}::uuid))
   ) LIMIT 1`.execute(tx)).rows;
-  if(bad.length)throw new AppError(409,'Existing Primary associations violate the configured levels');
+  if(bad.length)throw new AppError(409,'Existing Primary associations violate the configured levels',{code:"primaryChainInvalidExisting"});
 }
 export {primaryPairAllowed};
 
@@ -23,7 +23,7 @@ export {primaryPairAllowed};
 export async function validatePrimaryRequirements(tx:Executor,workspaceId:string) {
  const rules=(await sql<{id:string;primary_requirements:PrimaryRequirements}>`SELECT id,primary_requirements FROM sys_object_types WHERE workspace_id=${workspaceId}::uuid AND state<>'deleted' AND (primary_requirements->>'associationRequired'='true' OR jsonb_array_length(primary_requirements->'requiredLevels')>0)`.execute(tx)).rows;
  if(!rules.length)return;
- const chain=await primaryChain(tx,workspaceId);if(!chain)throw new AppError(409,'Enable the Projects module first');
+ const chain=await primaryChain(tx,workspaceId);if(!chain)throw new AppError(409,'Enable the Projects module first',{code:"projectsModuleDisabled"});
  const edges=(await sql<{parent:string;child:string;parent_type:string;child_type:string}>`SELECT e.left_record_id AS parent,e.right_record_id AS child,e.left_object_type_id AS parent_type,e.right_object_type_id AS child_type FROM sys_relationships e JOIN sys_relationship_types t ON t.id=e.relationship_type_id WHERE e.workspace_id=${workspaceId}::uuid AND t.kind='primary'`.execute(tx)).rows;
  const parents=new Map(edges.map(edge=>[`${edge.child_type}:${edge.child}`,edge]));
  for(const rule of rules){
@@ -38,9 +38,9 @@ export async function validatePrimaryRequirements(tx:Executor,workspaceId:string
 export async function configurePrimaryRequirements(tx:Executor,type:{id:string;workspace_id:string;primary_requirements:PrimaryRequirements},input:PrimaryRequirements,journal:(key:string,before:unknown,after:unknown)=>Promise<unknown>) {
  const value=primaryRequirementsSchema.parse(input),chain=await primaryChain(tx,type.workspace_id);
  if(value.associationRequired||value.requiredLevels.length){
-  if(!chain)throw new AppError(409,'Enable the Projects module first');
+  if(!chain)throw new AppError(409,'Enable the Projects module first',{code:"projectsModuleDisabled"});
   const allowed=primaryRolesForObject(chain,type.id);
-  if(!allowed.length||value.requiredLevels.some(role=>!allowed.includes(role)))throw new AppError(400,'Primary requirements contain an unavailable level');
+  if(!allowed.length||value.requiredLevels.some(role=>!allowed.includes(role)))throw new AppError(400,'Primary requirements contain an unavailable level',{code:"primaryRequirementsUnavailable"});
  }
  if(isDeepStrictEqual(type.primary_requirements,value))return;
  await sql`UPDATE sys_object_types SET primary_requirements=${JSON.stringify(value)}::jsonb WHERE id=${type.id}::uuid`.execute(tx);
