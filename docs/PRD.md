@@ -61,7 +61,7 @@ Community 1.3.0 extends Organization inheritance to separate central Telephone/F
 
 Community 1.2.0 extends the V1 feature scope. It brings the four guided Contact-kind conversions in section 6.1 forward from V2 and adds Contact-person field inheritance with per-field exceptions (R-064, R-065). ADR 0038 specifies the implementation, tested in the current source. The quality report records scoped acceptance evidence and the release procedure verifies final images before publication.
 
-Unreleased follow-up: replace the AP-only register with separate central Organization telephone/email/address collections; allow full-width combined relationship lists in the common designer. This follow-up has no assigned release version. ADR 0038 specifies inheritance, effective-value permissions and conversion field mappings. Deliver both capabilities through the shared web/API/MCP business logic, with preview/confirmation, optimistic conflicts, transactional journals and a supported upgrade from published installations. The four themes in section 1.3, including Contact maintenance and duplicate detection/merging, remain assigned to V2.
+ADR 0038 specifies inheritance, effective-value permissions and conversion field mappings for 1.2.0–1.3.0. Shared web/API/MCP writers provide preview/confirmation, optimistic conflicts, transactional journals and supported upgrades from published installations. The four themes in section 1.3, including Contact maintenance and duplicate detection/merging, remain assigned to V2.
 
 ## 2. Terms and actors
 

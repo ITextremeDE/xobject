@@ -6,7 +6,7 @@
 
 ## Current reading — 2026-11-11
 
-This staged ADR retains both proposals and later implemented refinements. The [Professional-details ownership refinement](#professional-details-ownership-refinement--2026-11-05) supersedes earlier membership-edge placement: Job title, Department and Function are direct Contact fields. The [V1 Projects refinement](#v1-projects-refinement-2026-11-05) adds the temporal codec and current Task semantics. Recurrence, calendar parties and structured Contact-reference integrity remain planned; original future-tense architecture is not a delivery claim. The 1.1.0 correspondence follow-up brings the registry to eleven codecs, including ten Contact codecs. Contact inheritance exceptions and conversions are the separate 1.2.0 refinement in [ADR 0038](0038-contact-inheritance-and-conversions.md); they do not implement recurrence exceptions.
+This staged ADR retains both proposals and later implemented refinements. The [Professional-details ownership refinement](#professional-details-ownership-refinement--2026-11-05) supersedes earlier membership-edge placement: Job title, Department and Function are direct Contact fields. The [V1 Projects refinement](#v1-projects-refinement-2026-11-05) adds the temporal codec and current Task semantics. Recurrence, calendar parties and structured Contact-reference integrity remain planned; original future-tense architecture is not a delivery claim. The correspondence follow-up was delivered in 1.1.0 and brings the registry to eleven codecs, including ten Contact codecs. Contact inheritance exceptions and conversions are the separate 1.2.0 refinement in [ADR 0038](0038-contact-inheritance-and-conversions.md); they do not implement recurrence exceptions.
 
 ## Current implementation boundary
 
@@ -33,7 +33,7 @@ Initial codecs:
 | Schema key | Logical value | Canonical shape |
 | --- | --- | --- |
 | `name_components` | One personal-name part | Ordered `{id,text}` components. Each name part remains a separate field for normal field rights. |
-| `pronoun_entries` | Pronouns (unreleased) | Up to 20 strict `{id,language,value}` entries: canonical BCP 47 language, free text up to 200 characters, UUID identity; no context, preference or inferred grammar. |
+| `pronoun_entries` | Pronouns (1.1.0) | Up to 20 strict `{id,language,value}` entries: canonical BCP 47 language, free text up to 200 characters, UUID identity; no context, preference or inferred grammar. |
 | `email_entries` | Email addresses | Ordered entries `{id,value,contexts,preference}` with email validation. |
 | `phone_entries` | Telephone numbers | Ordered entries `{id,value,contexts,preference}` with the common international phone normalizer. |
 | `address_entries` | Postal addresses | Ordered entries `{id,address,contexts,preference}`; typed address components follow the domain appendix. |
