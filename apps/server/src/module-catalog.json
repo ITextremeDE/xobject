@@ -549,19 +549,6 @@
             ]
           },
           {
-            "key": "organization_commercial_register",
-            "technicalName": "organization_commercial_register",
-            "labels": {
-              "en": "Commercial register",
-              "de": "Handelsregister"
-            },
-            "kind": "text",
-            "derived": true,
-            "appliesTo": [
-              "person"
-            ]
-          },
-          {
             "key": "notes",
             "technicalName": "notes",
             "labels": {
@@ -839,6 +826,57 @@
               "individual",
               "person"
             ]
+          },
+          {
+            "key": "organization_addresses",
+            "technicalName": "organization_addresses",
+            "labels": {
+              "en": "Organization addresses",
+              "de": "Organisationsanschriften"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "address_entries",
+              "options": []
+            },
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          },
+          {
+            "key": "organization_phones",
+            "technicalName": "organization_phones",
+            "labels": {
+              "en": "Central telephone / fax",
+              "de": "Telefon / Fax der Zentrale"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "phone_entries",
+              "options": []
+            },
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          },
+          {
+            "key": "organization_emails",
+            "technicalName": "organization_emails",
+            "labels": {
+              "en": "Central email addresses",
+              "de": "E-Mail-Adressen der Zentrale"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "email_entries",
+              "options": []
+            },
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
           }
         ],
         "navigationPriority": 100
@@ -884,7 +922,7 @@
         "navigationPriority": 90
       }
     ],
-    "templateVersion": 3
+    "templateVersion": 4
   },
   {
     "key": "projects",

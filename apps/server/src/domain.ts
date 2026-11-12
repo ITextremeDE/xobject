@@ -1,3 +1,4 @@
+import {contactFields} from './contact-domain.js';
 import {contactConversionPlan} from './contact-conversion.js';
 import {contactInheritance,inheritedContactFields,writeContactInheritance} from './contact-inheritance.js';
 import {classificationFilterPredicate} from './record-filters.js';
@@ -579,6 +580,7 @@ export class Application {
         if(!element.single&&entry.width!=='full')throw new AppError(400,'Relationship tables and Primary chain require full width');
         if(!('fieldId' in entry)&&element.required&&entry.visible===false)throw new AppError(400,'Required relationships must remain visible');
       }
+      for(const group of args.layout.groups)if(group.relationshipList&&group.fields.some(entry=>{const element=elements.find(e=>e.key===formEntryKey(entry));return !element?.relationship||element.single||element.relationship.definition.kind!=='custom';}))throw new AppError(400,'Combined lists require to-many custom relationship sides');
       const languages=(await sql<{label_languages:string[]}>`SELECT label_languages FROM sys_workspaces WHERE id=${type.workspace_id}::uuid`.execute(tx)).rows[0].label_languages;
       const old=type.form_layouts?.default;
       for(const group of args.layout.groups){
@@ -618,8 +620,9 @@ export class Application {
 
   private async journal(tx: Executor, actor: string, workspace: string | null, type: string | null,
     entityKind: string, entityId: string, changeId: string, key: string, oldValue: unknown, newValue: unknown, fieldId: string | null = null) {
-    const field=entityKind==='record'&&fieldId?(await sql<{kind:string;config:FieldConfig}>`SELECT kind,config FROM sys_fields WHERE id=${fieldId}::uuid`.execute(tx)).rows[0]:undefined;
-    const detail=field?.kind==='structured'?{schema:field.config.schema,changes:structuredChanges(oldValue,newValue)}:null;
+    const field=entityKind==='record'&&fieldId?(await sql<{kind:string;config:FieldConfig;value_mode:string}>`SELECT kind,config,value_mode FROM sys_fields WHERE id=${fieldId}::uuid`.execute(tx)).rows[0]:undefined;
+    const effective=field?.kind==='structured'&&field.value_mode==='derived'&&type?(await contactFields(tx,type)).find(f=>f.id===fieldId):undefined;
+    const detail=field?.kind==='structured'?{schema:field.config.schema,changes:structuredChanges(oldValue,newValue),...(effective&&inheritedContactFields.includes(effective.field_key as typeof inheritedContactFields[number])?{valueContext:{kind:field.kind,config:effective.config}}:{})}:null;
     await sql`INSERT INTO sys_journal
       (id, change_id, workspace_id, object_type_id, entity_kind, entity_id, field_id, field_key, detail_context,old_value, new_value, actor_id)
       VALUES (${v7()}::uuid, ${changeId}::uuid, ${workspace}::uuid, ${type}::uuid, ${entityKind},
@@ -847,6 +850,8 @@ export class Application {
     const user = (await sql<{ language: string | null }>`SELECT language FROM sys_users WHERE id = ${actor}`.execute(tx)).rows[0];
     const fields = (await sql<Field>`SELECT value_mode,applicability, version, id, technical_name, labels, kind, required, config,input_rules, state, is_protected FROM sys_fields
       WHERE object_type_id = ${id}::uuid ORDER BY id`.execute(tx)).rows;
+    const contactMetadata=await contactFields(tx,id);
+    for(const field of fields){const effective=contactMetadata.find(f=>f.id===field.id);if(effective&&field.value_mode==='derived'&&effective.config.schema)field.config=effective.config;}
     const columns = (await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns
       WHERE table_schema = current_schema() AND table_name = ${tableName(type)} AND ${type.state !== 'deleted'} ORDER BY ordinal_position`.execute(tx)).rows;
     const used = type.state !== 'deleted' && type.classification.options.some(option => option.kind !== 'category') ? await this.usedClassificationIds(tx, type, fields) : new Set<string>();

@@ -11,7 +11,8 @@ export const relationshipWriteSchema = z.object({ relationshipTypeId: uuidSchema
 export const relationshipWritesSchema = z.array(relationshipWriteSchema).max(200);
 export type RelationshipWrite = z.infer<typeof relationshipWriteSchema>;
 export type RecordReference = z.infer<typeof recordReferenceSchema>;
-export interface RelatedRecord extends RecordReference {recordNumber?:string|null;iconKey?:import('./record-icons.js').RecordIconKey;edgeId?:string;edgeVersion?:number;attributeValues?:Record<string,FieldValue>;attributeAccess?:Record<string,{read:boolean;edit:boolean}>; keyword: string; objectTechnicalName: string; objectLabels: Record<string,string>; state: 'active' | 'inactive' }
+export interface ContactPersonSummary {jobTitle?:string|null;department?:string|null;functionLabels?:Record<string,string>[] }
+export interface RelatedRecord extends RecordReference {contactPerson?:ContactPersonSummary;recordNumber?:string|null;iconKey?:import('./record-icons.js').RecordIconKey;edgeId?:string;edgeVersion?:number;attributeValues?:Record<string,FieldValue>;attributeAccess?:Record<string,{read:boolean;edit:boolean}>; keyword: string; objectTechnicalName: string; objectLabels: Record<string,string>; state: 'active' | 'inactive' }
 export interface RelationshipField { editable?:boolean;restricted?:boolean; definition: RelationshipType; side: 'left' | 'right'; targets: RelatedRecord[] }
 export interface RecordRelationship { version:number;attributes?:Record<string,FieldValue>;id: string; definition: RelationshipType; left: RelatedRecord; right: RelatedRecord }
 export interface DossierEntry {

@@ -15,9 +15,11 @@ export const formLayoutSchema=z.object({groups:z.array(z.object({
   id:z.string().regex(/^[a-zA-Z0-9_-]+$/).max(100),
   labels:z.partialRecord(languageSchema,z.string().trim().min(1).max(200)).refine(value=>Object.keys(value).length>0,'Group needs a label'),
   width:width.optional(),
+  relationshipList:z.boolean().optional(),
   fields:z.array(formEntrySchema).max(1000),
 }).strict()).max(50),unassigned:z.array(formEntrySchema).max(1000).optional()}).strict().superRefine((layout,ctx)=>{
   const groups=layout.groups.map(group=>group.id),fields=[...layout.groups.flatMap(group=>group.fields),...(layout.unassigned??[])].map(formEntryKey);
+  for(const group of layout.groups)if(group.relationshipList&&(group.width==='half'||!group.fields.length||group.fields.some(entry=>!('relationshipTypeId'in entry))))ctx.addIssue({code:'custom',message:'A combined relationship list needs full width and relationship elements only'});
   if(new Set(groups).size!==groups.length||new Set(fields).size!==fields.length)ctx.addIssue({code:'custom',message:'Duplicate group or form element'});
 });
 export type FormLayout=z.infer<typeof formLayoutSchema>;

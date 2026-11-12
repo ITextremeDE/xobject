@@ -1,3 +1,5 @@
+import {contactInheritanceSources,type FieldValue} from '@xobject/contracts';
+import {normalizeFieldValue} from './field-types.js';
 import { sql } from "kysely";
 import type {
   ContactInheritanceField,
@@ -7,10 +9,7 @@ import type { Executor } from "./database.js";
 import { contentAccess } from "./content-permissions.js";
 import { contactFields, contactProfile } from "./contact-domain.js";
 import { AppError } from "./errors.js";
-export const inheritedContactFields = [
-  "organization_name",
-  "organization_commercial_register",
-] as const;
+export const inheritedContactFields = Object.keys(contactInheritanceSources) as (keyof typeof contactInheritanceSources)[];
 export async function contactInheritance(
   tx: Executor,
   objectId: string,
@@ -48,7 +47,7 @@ export async function contactInheritance(
   const own = (
     await sql<{
       field_id: string;
-      value: string | null;
+      value: FieldValue;
     }>`SELECT field_id,value FROM sys_contact_field_overrides WHERE object_type_id=${objectId}::uuid AND record_id=${recordId}::uuid`.execute(
       tx,
     )
@@ -60,21 +59,20 @@ export async function contactInheritance(
     const origin = fields.find(
       (f) =>
         f.field_key ===
-        (purpose === "organization_name"
-          ? "company_name"
-          : "commercial_register"),
+        contactInheritanceSources[purpose],
     )!;
     const readable = Boolean(source && policy.field(origin.id, source.id).read),
       override = own.find((v) => v.field_id === field.id);
-    const value = readable
+    const raw = readable
       ? (
           await sql<{
-            value: string | null;
+            value: FieldValue;
           }>`SELECT ${sql.ref(origin.technical_name)} AS value FROM ${sql.table(model.name)} WHERE id=${source.id}::uuid`.execute(
             tx,
           )
         ).rows[0].value
       : null;
+    const value=raw;
     result.push({
       fieldId: field.id,
       mode: override ? "own" : "inherit",
@@ -173,17 +171,19 @@ export async function writeContactInheritance(
       !write.confirmReset
     )
       throw new AppError(400, "Discarding an own value requires confirmation");
+    const meta=fields.find(f=>f.id===write.fieldId)!;
+    const normalized=write.mode==='own'?normalizeFieldValue({...meta,kind:meta.config.schema?'structured':'text',required:false},write.value,current.value):null;
     const before = {
         mode: current.mode,
         ...(current.mode === "own" ? { value: current.value } : {}),
       },
       after = {
         mode: write.mode,
-        ...(write.mode === "own" ? { value: write.value } : {}),
+        ...(write.mode === "own" ? { value: normalized } : {}),
       };
     if (JSON.stringify(before) === JSON.stringify(after)) continue;
     if (write.mode === "own")
-      await sql`INSERT INTO sys_contact_field_overrides(workspace_id,object_type_id,record_id,field_id,value) VALUES(${workspace}::uuid,${objectId}::uuid,${recordId}::uuid,${write.fieldId}::uuid,${JSON.stringify(write.value)}::jsonb) ON CONFLICT(object_type_id,record_id,field_id) DO UPDATE SET value=EXCLUDED.value`.execute(
+      await sql`INSERT INTO sys_contact_field_overrides(workspace_id,object_type_id,record_id,field_id,value) VALUES(${workspace}::uuid,${objectId}::uuid,${recordId}::uuid,${write.fieldId}::uuid,${JSON.stringify(normalized)}::jsonb) ON CONFLICT(object_type_id,record_id,field_id) DO UPDATE SET value=EXCLUDED.value`.execute(
         tx,
       );
     else

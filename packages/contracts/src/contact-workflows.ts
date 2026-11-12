@@ -9,7 +9,7 @@ export const contactInheritanceWriteSchema = z
         .object({
           fieldId: uuid,
           mode: z.literal("own"),
-          value: z.string().trim().max(10000).nullable(),
+          value: fieldValueSchema,
         })
         .strict(),
       z
@@ -21,7 +21,7 @@ export const contactInheritanceWriteSchema = z
         .strict(),
     ]),
   )
-  .max(2)
+  .max(4)
   .refine(
     (items) => new Set(items.map((i) => i.fieldId)).size === items.length,
     "Duplicate inheritance field",
@@ -32,8 +32,8 @@ export type ContactInheritanceWrite = z.infer<
 export interface ContactInheritanceField {
   fieldId: string;
   mode: "inherit" | "own";
-  value: string | null;
-  inheritedValue: string | null;
+  value: FieldValue;
+  inheritedValue: FieldValue;
   canEdit: boolean;
   source?: { recordId: string; version: number; keyword: string };
 }
@@ -81,7 +81,7 @@ export interface ContactConversionChange {
   targetInheritance: {
     fieldId: string;
     mode: "own" | "inherit";
-    value: string | null;
+    value: FieldValue;
   }[];
 }
 export interface ContactConversionPreview {
