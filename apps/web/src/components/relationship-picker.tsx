@@ -25,8 +25,8 @@ import { DialogActions } from './dialog-actions';
 import { TablePagination } from './table-pagination';
 import { ErrorNotice, Loading } from './feedback';
 
-type Props={objectColumn?:import('@xobject/contracts').RelationshipObjectColumn;primaryAncestor?:import('@xobject/contracts').RecordReference;dialogTitle?:string;description?:string;sourceValues?:Record<string,import('@xobject/contracts').FieldValue>;targetObjectTypeId?:string;objectTypeId:string;recordId?:string;field:RelationshipField;title:string;onClose:()=>void;onApply:(targets:RelatedRecord[])=>void;onDirtyChange:(dirty:boolean)=>void;finalFocus:()=>HTMLElement|true};
-export function RelationshipPicker({objectColumn,primaryAncestor,dialogTitle,description,sourceValues,targetObjectTypeId,objectTypeId,recordId,field,title,onClose,onApply,onDirtyChange,finalFocus}:Props) {
+type Props={professionalColumns?:boolean;objectColumn?:import('@xobject/contracts').RelationshipObjectColumn;primaryAncestor?:import('@xobject/contracts').RecordReference;dialogTitle?:string;description?:string;sourceValues?:Record<string,import('@xobject/contracts').FieldValue>;targetObjectTypeId?:string;objectTypeId:string;recordId?:string;field:RelationshipField;title:string;onClose:()=>void;onApply:(targets:RelatedRecord[])=>void;onDirtyChange:(dirty:boolean)=>void;finalFocus:()=>HTMLElement|true};
+export function RelationshipPicker({professionalColumns=false,objectColumn,primaryAncestor,dialogTitle,description,sourceValues,targetObjectTypeId,objectTypeId,recordId,field,title,onClose,onApply,onDirtyChange,finalFocus}:Props) {
   const {t,i18n}=useTranslation();
   const label=(labels:Record<string,string>)=>labels[i18n.language]??labels.de??labels.en??Object.values(labels)[0]??'';
   const single=(field.side==='left'?field.definition.leftMax:field.definition.rightMax)===1;
@@ -41,7 +41,7 @@ export function RelationshipPicker({objectColumn,primaryAncestor,dialogTitle,des
   const selectedPage=Math.min(page,Math.max(1,Math.ceil(selected.length/pageSize)));
   const rows=mode==='selected'?selected.slice((selectedPage-1)*pageSize,selectedPage*pageSize):candidates.data?.records??[];
   const showObject=relationshipShowsObjectColumn([field],objectTypeId,objectColumn);
-  const professional=rows.some(target=>target.contactPerson);
+  const professional=professionalColumns&&rows.some(target=>target.contactPerson);
   const total=mode==='selected'?selected.length:candidates.data?.total??0;
   const fetching=mode==='available'&&candidates.isFetching;
   function change(next:RelatedRecord[]){setTargets(next);onDirtyChange(!sameRelatedSelection(next,field.targets));}

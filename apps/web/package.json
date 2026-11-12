@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "dev": "vite build --watch",
-    "test": "tsx --tsconfig tsconfig.json --test test/*.test.ts",
+    "test": "tsx --tsconfig tsconfig.json --test test/*.test.ts test/*.test.tsx",
     "icons:generate": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
