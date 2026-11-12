@@ -1,5 +1,5 @@
 // Only published, retained snapshots belong in the public picker.
-export const releasedVersions = ['1.4.0', '1.3.0', '1.2.0', '1.1.0', '1.0.2', '1.0.1', '1.0.0'];
+export const releasedVersions = ['1.5.0', '1.4.0', '1.3.0', '1.2.0', '1.1.0', '1.0.2', '1.0.1', '1.0.0'];
 export const documentationVersion = process.env.XOBJECT_DOCS_VERSION;
 export const versionLabel = documentationVersion
   ? `${/^\d+\.\d+\.\d+$/.test(documentationVersion) ? 'Release' : 'Unreleased snapshot'} ${documentationVersion}`
