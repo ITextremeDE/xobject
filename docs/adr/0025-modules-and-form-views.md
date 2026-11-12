@@ -89,7 +89,7 @@ Fresh supplied forms reserve the module-gated Primary association group before C
 
 The four guided Contact-kind conversions move from V2 to planned Community 1.2.0. The same release adds main-Organization field inheritance for Contact persons with explicit per-field own-value exceptions and a combined disable action. PRD sections 1.4 and 6.1 own the requirements (R-064/R-065); ADR 0038 now specifies the resolved field mappings, sparse storage and permission-aware effective-value contracts for the unreleased implementation. The fixed Contact-kind form cores and shared business-logic architecture remain. Contact maintenance and duplicate detection/merge stay in V2. This supersedes only the conversion release assignment above and makes no delivery claim.
 
-## Presentation refinement — 2026-11-12 (unreleased)
+## Presentation refinement — 2026-11-12 (Community 1.5.0)
 
 Combined groups may include explicitly placed General relationship sides, alongside supplied/custom to-many sides. The Primary chain and maximum-one controls remain separate. General is not automatically added to authored forms. Optional `professionalColumns` metadata on a list group or entry controls Contact-person Job title/Department/Function columns in the table and picker; the default is the lean list. Object-column preferences retain their existing semantics.
 

@@ -2,7 +2,7 @@
 
 This is xObject's public product direction. OpenProject leads operational planning; the [PRD](docs/PRD.md) defines requirements and the [changelog](CHANGELOG.md) records delivered changes. Future targets have no committed dates, and only explicitly assigned versions are shown as such.
 
-## Currently released — Community 1.4.0
+## Currently released — Community 1.5.0
 
 - **Connected data:** configurable objects, fields, relationships, forms and journals, with workspace isolation and differentiated user/group permissions.
 - **Contacts and projects:** Contacts & Relations supplies Contacts and Distribution lists; Projects & Tasks adds Projects, Cases and Tasks using the same Contacts.
@@ -11,7 +11,7 @@ This is xObject's public product direction. OpenProject leads operational planni
 - **Web, API and AI:** a responsive web application, shared REST/MCP operations, personal credentials, OAuth and supplied agent skills. Live refresh preserves open drafts.
 - **Self-hosting:** published Linux/AMD64 and Linux/ARM64 containers, Docker Compose setup, first-Administrator provisioning and backup/restore tooling. Version 1.0.2 adds a supported authorization-journal migration from 1.0.0/1.0.1 while retaining data, credentials and history.
 
-See [release notes](CHANGELOG.md#140---2026-11-12), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
+See [release notes](CHANGELOG.md#150---2026-11-12), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
 ### Contact workflows in 1.2.0–1.3.0
 
@@ -30,9 +30,11 @@ ADR 0038 defines these V1 extensions. Dedicated maintenance tooling upgrades sup
 
 The [changelog](CHANGELOG.md#unreleased) records the source changes; the [quality report](docs/quality-acceptance.md) records acceptance and remaining platform limits. Community 1.4.0 delivers these additions; acceptance and retained platform limits are recorded separately.
 
-## Implemented in source — awaiting the next release
+### Contact interface and configuration in 1.5.0
 
-Contact UI corrections add readable classification and inheritance details, a searchable category-tree filter, direct relationship drafts from the overview, configurable mixed Contact lists and professional columns, and complete collection values in journal details. Existing authored forms are preserved. This source work does not change the published 1.4.0 baseline; release and deployment remain separate steps.
+- **Readable Contacts:** classification labels, category paths, inheritance provenance and extension values in a compact overview/editor layout.
+- **Direct relationship work:** mixed configurable Contact lists with normal Save/Reset drafts from the overview, optional professional columns and explicit General-list placement.
+- **Clear filtering and history:** searchable category-tree criteria, unique accessible search controls and complete collection values in journal details.
 
 ## Planned — Version 2
 
