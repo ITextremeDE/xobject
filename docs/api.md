@@ -204,7 +204,7 @@ Save exceptions together with ordinary record edits using `create_record.contact
 {"fieldId":"DISCOVERED_FIELD_UUID","mode":"own","value":null}
 ```
 
-Own null is explicitly empty. To resume inheritance, send `{"fieldId":"DISCOVERED_FIELD_UUID","mode":"inherit","confirmReset":true}` after confirming that the own value may be discarded. A combined own-value action is one array with both independent field writes. Derived values cannot be assigned through the ordinary `values` map. Source and target rights apply separately.
+Own null is explicitly empty. To resume inheritance, send `{"fieldId":"DISCOVERED_FIELD_UUID","mode":"inherit","confirmReset":true}` after confirming that the own value may be discarded. A combined own-value action is one array containing the independent writes for each requested field. Derived values cannot be assigned through the ordinary `values` map. Source and target rights apply separately.
 
 For a Contact-kind change, call `get_contact_conversion_preview` with objectTypeId, recordId, current version and action: `new_organization`, `existing_organization`, `individual` or `dissolve_organization`. Supply organizationId only for an existing target; `organizationValues` and `organizationClassification` apply only to a newly created Organization. Supply applicable custom required fields and explicit classification choices when configured defaults are insufficient. Optional `contactValues` maps affected Contact UUIDs to patches whose keys are technical field names. The preview lists actual mappings, inherited source modes, affected identities and conflicts. It allocates no identity or number.
 
