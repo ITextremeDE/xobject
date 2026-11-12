@@ -1,3 +1,4 @@
+import {ContentAccessQuery} from './content-access-query.js';
 import {contactInheritance} from './contact-inheritance.js';
 import {isActivityObject} from './activity.js';
 import {incidentFields} from './relationship-fields.js';
@@ -17,7 +18,7 @@ export function contentAccess(){const access=scope.getStore();if(!access)throw n
 const rank=(level:ContentLevel|null|undefined)=>accessRank(level??'none');
 export const contentCapabilities=(level:number,create=false):ContentCapabilities=>({read:level>=2,edit:level>=5,delete:level>=6,full:level>=7,duplicate:level>=3,schedule:level>=4,create});
 // Eligibility depends on the administrative object ceiling, not ownership of existing records.
-// Both full record-policy loading and principal selection use this exact finite resolver.
+// Single-record checks and principal selection use the same finite resolver.
 function objectCeiling(actor:string,user:{active:boolean;is_admin:boolean}|undefined,member:boolean,grants:ContentGrant[],members:Awaited<ReturnType<typeof securityGraph>>['members']){
  const groups=[...membershipRights(actor,members).keys()];
  const admin=Boolean(user?.active&&user.is_admin),level=!user?.active?0:admin?7:!member?0:rank(resolveContentRule(grants,actor,groups).level);
@@ -25,7 +26,7 @@ function objectCeiling(actor:string,user:{active:boolean;is_admin:boolean}|undef
  return {groups,admin,level,canCreate};
 }
 export class ObjectAccess {
- constructor(readonly id:string,readonly workspace:string,readonly sensitive:boolean,readonly admin:boolean,readonly level:number,readonly grants:ContentGrant[],readonly groups:string[],readonly actor:string,readonly create:boolean,readonly records:Map<string,{policy:RecordSecurity;access:AccessExplanation;deleted?:boolean}>){ }
+ constructor(readonly id:string,readonly workspace:string,readonly sensitive:boolean,readonly admin:boolean,readonly level:number,readonly grants:ContentGrant[],readonly groups:string[],readonly actor:string,readonly create:boolean,readonly records:Map<string,{policy:RecordSecurity;access:AccessExplanation;deleted?:boolean}>,readonly query:ContentAccessQuery,readonly tx:Executor,readonly table:string,readonly load:(ids:string[])=>Promise<void>){ }
  get capabilities(){return contentCapabilities(this.level,this.create);}
  recordLevel(id:string){return this.admin?7:Math.min(this.level,rank(this.records.get(id)?.access.level??(this.sensitive?'none':contentLevels[this.level])));}
  recordCapabilities(id:string){return contentCapabilities(this.recordLevel(id),this.create);}
@@ -44,73 +45,77 @@ export class ObjectAccess {
   if(groups.some(g=>Object.hasOwn(g.fields,id)))return groups.some(g=>Object.hasOwn(g.fields,id)?g.fields[id]==='edit':g.create===true);
   return true;
  }
- fieldReadableEverywhere(id:string){return this.field(id).read&&[...this.records.keys()].filter(id=>!this.records.get(id)?.deleted&&this.recordLevel(id)>=2).every(record=>this.field(id,record).read);}
+ async fieldReadableEverywhere(id:string){
+  if(!this.field(id).read)return false;
+  if(this.admin||!this.sensitive)return true;
+  return !(await sql`SELECT 1 FROM ${sql.table(this.table)} r WHERE ${this.predicate('r')} AND NOT (${this.fieldPredicate(id,'r')}) LIMIT 1`.execute(this.tx)).rows.length;
+ }
+ private securityPredicate(alias?:string,fieldId?:string):RawBuilder<boolean>{
+  if(this.level<2||fieldId&&!this.field(fieldId).read)return sql<boolean>`false`;
+  if(this.admin||!this.sensitive)return sql<boolean>`true`;
+  return sql<boolean>`EXISTS(SELECT 1 FROM sys_record_security s WHERE s.object_type_id=${this.id}::uuid AND s.record_id=${sql.ref(alias?`${alias}.id`:'id')}
+    AND ${this.query.level(sql`s.policy`)}>=2 ${fieldId?sql`AND ${this.query.field(sql`s.policy`,fieldId,this.groups)}>=2`:sql``})`;
+ }
+ fieldPredicate(id:string,alias?:string){return this.securityPredicate(alias,id);}
  predicate(alias?:string,lifecycle:'active'|'recycled'|'all'='active'):RawBuilder<boolean>{
   const id=sql.ref(alias?`${alias}.id`:'id');
   const state=lifecycle==='all'?sql`true`:sql`${id} IN (SELECT record_id FROM sys_record_identities WHERE object_type_id=${this.id}::uuid AND ${lifecycle==='active'?sql`recycled_at IS NULL`:sql`recycled_at IS NOT NULL`})`;
-  if(this.level<2)return sql<boolean>`false`;if(this.admin||!this.sensitive)return sql<boolean>`${state}`;
-  const ids=[...this.records.keys()].filter(id=>this.recordLevel(id)>=2);return sql<boolean>`${state} AND ${id}=ANY(${ids}::uuid[])`;
+  return sql<boolean>`${state} AND ${this.securityPredicate(alias)}`;
  }
  fieldValue(id:string,column:string,alias?:string,fallback?:RawBuilder<unknown>):RawBuilder<unknown>{
   const value=sql.ref(alias?`${alias}.${column}`:column),otherwise=fallback??sql`NULL`;
   if(!this.field(id).read)return otherwise;
   if(this.admin||!this.sensitive)return value;
-  const ids=[...this.records.keys()].filter(record=>this.field(id,record).read);
-  return sql`CASE WHEN ${sql.ref(alias?`${alias}.id`:'id')}=ANY(${ids}::uuid[]) THEN ${value} ELSE ${otherwise} END`;
+  return sql`CASE WHEN ${this.fieldPredicate(id,alias)} THEN ${value} ELSE ${otherwise} END`;
  }
 }
 export class ContentAccess {
+ private graphs=new Map<string,ReturnType<typeof securityGraph>>();
+ private graph(workspace:string){let result=this.graphs.get(workspace);if(!result){result=securityGraph(this.tx,workspace);this.graphs.set(workspace,result);}return result;}
  private policies=new Map<string,Promise<ObjectAccess>>();
  private fieldMetadata=new Map<string,Promise<{id:string;technical_name:string;value_mode:'stored'|'derived';applicability?:import('@xobject/contracts').FieldApplicability}[]>>();
  private contactMetadata=new Map<string,Promise<{profile:Awaited<ReturnType<typeof contactProfile>>;fields:{id:string;technicalName:string;config:import('@xobject/contracts').FieldConfig}[]}>>();
  private contact(id:string){let value=this.contactMetadata.get(id);if(!value){value=(async()=>{const profile=await contactProfile(this.tx,id);return {profile,fields:profile?(await sql<{id:string;technicalName:string;config:import('@xobject/contracts').FieldConfig}>`SELECT id,technical_name AS "technicalName",config FROM sys_fields WHERE object_type_id=${id}::uuid`.execute(this.tx)).rows:[]};})();this.contactMetadata.set(id,value);}return value;}
  constructor(readonly tx:Executor,readonly actor:string){}
- clear(){this.policies.clear();this.fieldMetadata.clear();this.contactMetadata.clear();}
- policy(id:string):Promise<ObjectAccess>{id=id.toLowerCase();let result=this.policies.get(id);if(!result){result=this.resolve(id);this.policies.set(id,result);}return result;}
+ clear(){this.graphs.clear();this.policies.clear();this.fieldMetadata.clear();this.contactMetadata.clear();}
+ policy(id:string,recordId?:string):Promise<ObjectAccess>{id=id.toLowerCase();let result=this.policies.get(id);if(!result){result=this.resolve(id);this.policies.set(id,result);}return recordId?result.then(async policy=>{await policy.load([recordId]);return policy;}):result;}
  private async resolve(id:string){
   const model=(await sql<{workspace_id:string;is_sensitive:boolean;name:string;state:string}>`SELECT o.workspace_id,o.is_sensitive,o.state,w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid`.execute(this.tx)).rows[0];if(!model)throw new AppError(404,'Object type not found');
   const user=(await sql<{is_admin:boolean;active:boolean}>`SELECT is_admin,active FROM sys_users WHERE id=${this.actor}`.execute(this.tx)).rows[0];
   const member=(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${model.workspace_id}::uuid AND user_id=${this.actor}`.execute(this.tx)).rows.length>0;
-  const graph=await securityGraph(this.tx,model.workspace_id);
+  const graph=await this.graph(model.workspace_id);
   const grants=(await sql<{principal_kind:'user'|'group';principal_id:string;level:ContentLevel|null;can_create:boolean|null;fields:ContentGrant['fields']}>`SELECT principal_kind,principal_id,level,can_create,fields FROM sys_content_grants WHERE object_type_id=${id}::uuid`.execute(this.tx)).rows.map(g=>({kind:g.principal_kind,id:g.principal_id,level:g.level,create:g.can_create,fields:g.fields}));
   const {admin,level,groups,canCreate}=objectCeiling(this.actor,user,member,grants,graph.members);
   const records=new Map<string,{policy:RecordSecurity;access:AccessExplanation;deleted?:boolean}>();
-  if(model.is_sensitive&&model.state!=='deleted'){
-   const rows=(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT r.id,s.policy FROM ${sql.table(model.name)} r LEFT JOIN sys_record_security s ON s.object_type_id=${id}::uuid AND s.record_id=r.id`.execute(this.tx)).rows;
-   rows.push(...(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT record_id AS id,deleted_policy AS policy,true AS deleted FROM sys_record_identities WHERE object_type_id=${id}::uuid AND deleted_at IS NOT NULL`.execute(this.tx)).rows);
-   // Access explanations depend on ownership/privacy/maxima, not record IDs or
-   // field exceptions. Reuse equal resolutions only inside this object load and
-   // transaction; retain each record's original field policy for later checks.
-   const explanations=new Map<string,AccessExplanation>();
-   for(const row of rows){
-    if(!row.policy)throw new AppError(500,'Sensitive record is missing its security policy');
-    const policy=row.policy,key=JSON.stringify([policy.owners,policy.publicLevel,policy.privacy,policy.foreignMax]);
-    let explanation=explanations.get(key);
-    if(!explanation){explanation=admin?{level:'full',source:'administrator',path:[]}:resolveRecordAccess(this.actor,id,policy,graph.members,graph.rules,graph.settings.find(u=>u.userId===this.actor)?.inherit??true);explanations.set(key,explanation);}
-    records.set(row.id,{policy,access:{...explanation,path:[...explanation.path]},deleted:row.deleted});
-   }
-  }
-  return new ObjectAccess(id,model.workspace_id,model.is_sensitive,admin,level,grants,groups,this.actor,canCreate,records);
+  const inherit=graph.settings.find(u=>u.userId===this.actor)?.inherit??true;
+  const load=async(ids:string[])=>{
+   if(!model.is_sensitive)return;
+   const missing=[...new Set(ids)].filter(record=>!records.has(record));if(!missing.length)return;
+   const rows=(await sql<{id:string;policy:RecordSecurity|null;deleted?:boolean}>`SELECT record_id AS id,policy,false AS deleted FROM sys_record_security WHERE object_type_id=${id}::uuid AND record_id=ANY(${missing}::uuid[])
+    UNION ALL SELECT record_id,deleted_policy,true FROM sys_record_identities WHERE object_type_id=${id}::uuid AND record_id=ANY(${missing}::uuid[]) AND deleted_at IS NOT NULL`.execute(this.tx)).rows;
+   for(const row of rows){if(!row.policy)throw new AppError(500,'Sensitive record is missing its security policy');records.set(row.id,{policy:row.policy,access:admin?{level:'full',source:'administrator',path:[]}:resolveRecordAccess(this.actor,id,row.policy,graph.members,graph.rules,inherit),deleted:row.deleted});}
+  };
+  return new ObjectAccess(id,model.workspace_id,model.is_sensitive,admin,level,grants,groups,this.actor,canCreate,records,new ContentAccessQuery(this.actor,id,graph,inherit),this.tx,model.name,load);
  }
- async readable(id:string,recordId:string,includeRecycled=false){const policy=await this.policy(id);if(!policy.capabilities.read||policy.recordLevel(recordId)<2)return false;const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(this.tx)).rows[0];return Boolean(model&&(await sql`SELECT 1 FROM ${sql.table(model.name)} WHERE id=${recordId}::uuid AND ${policy.predicate(undefined,includeRecycled?'all':'active')}`.execute(this.tx)).rows.length);}
+ async readable(id:string,recordId:string,includeRecycled=false){const policy=await this.policy(id);await policy.load([recordId]);if(!policy.capabilities.read||policy.recordLevel(recordId)<2)return false;const model=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(this.tx)).rows[0];return Boolean(model&&(await sql`SELECT 1 FROM ${sql.table(model.name)} WHERE id=${recordId}::uuid AND ${policy.predicate(undefined,includeRecycled?'all':'active')}`.execute(this.tx)).rows.length);}
  async historyReadable(id:string,recordId:string,fieldId?:string,eventId?:string,context?:string){
-  const p=await this.policy(id);if(p.admin)return true;
+  const p=await this.policy(id);if(p.admin)return true;await p.load([recordId]);
   const r=(await sql<{deleted_readers:Record<string,{fields:string[];events:string[];contexts:string[]}>}>`SELECT deleted_readers FROM sys_record_identities WHERE object_type_id=${id}::uuid AND record_id=${recordId}::uuid AND deleted_at IS NOT NULL`.execute(this.tx)).rows[0];
   const snapshot=r?.deleted_readers?.[this.actor];return Boolean(snapshot&&p.capabilities.read&&p.recordLevel(recordId)>=2&&(!fieldId||snapshot.fields.includes(fieldId)&&p.field(fieldId,recordId).read)&&(!eventId||snapshot.events.includes(eventId))&&(!context||snapshot.contexts.includes(context)));
  }
  async require(id:string,recordId:string|undefined,level:'read'|'edit'|'full'|'create'|'duplicate'|'delete'='read',includeRecycled=false){
-  const p=await this.policy(id),cap=recordId?p.recordCapabilities(recordId):p.capabilities;
+  const p=await this.policy(id);if(recordId)await p.load([recordId]);const cap=recordId?p.recordCapabilities(recordId):p.capabilities;
   if(!cap[level])throw new AppError(403,'Content access denied');
   if(recordId&&!await this.readable(id,recordId,includeRecycled))throw new AppError(p.admin?404:403,p.admin?'Record not found':'Content access denied');return p;
  }
  fields(id:string){let fields=this.fieldMetadata.get(id);if(!fields){fields=sql<{id:string;technical_name:string;value_mode:'stored'|'derived';applicability?:import('@xobject/contracts').FieldApplicability}>`SELECT id,technical_name,value_mode,applicability FROM sys_fields WHERE object_type_id=${id}::uuid AND state<>'deleted'`.execute(this.tx).then(result=>result.rows);this.fieldMetadata.set(id,fields);}return fields;}
- async canField(id:string,name:string,mode:'read'|'edit'='read',recordId?:string){const p=await this.policy(id);const field=(await this.fields(id)).find(f=>f.technical_name===name);return field?p.field(field.id,recordId)[mode]:false;}
+ async canField(id:string,name:string,mode:'read'|'edit'='read',recordId?:string){const p=await this.policy(id,recordId);const field=(await this.fields(id)).find(f=>f.technical_name===name);return field?p.field(field.id,recordId)[mode]:false;}
  async canCreateField(id:string,name:string){const p=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);return Boolean(field&&p.creationField(field.id));}
  async fieldValueByName(id:string,name:string,alias?:string){const policy=await this.policy(id),field=(await this.fields(id)).find(f=>f.technical_name===name);if(!field)return sql`NULL::text`;if(field.value_mode==='derived'){
   const binding=(await sql<{field_key:string}>`SELECT field_key FROM sys_module_field_bindings WHERE field_id=${field.id}::uuid`.execute(this.tx)).rows[0];if(!binding)return sql`NULL::text`;
   const value=await contactDerivedValue(this.tx,id,policy,binding.field_key,alias),allowed=policy.field(field.id).read;
   if(!allowed)return sql`NULL::text`;
-  if(policy.sensitive&&!policy.admin)return sql`CASE WHEN ${sql.ref(alias?`${alias}.id`:'id')}=ANY(${[...policy.records.keys()].filter(record=>policy.field(field.id,record).read)}::uuid[]) THEN ${value} ELSE NULL END`;
+  if(policy.sensitive&&!policy.admin)return sql`CASE WHEN ${policy.fieldPredicate(field.id,alias)} THEN ${value} ELSE NULL END`;
   return value;
  }return policy.fieldValue(field.id,name,alias);}
  async keywordReadable(id:string,recordId:string){if(!await this.canField(id,'keyword','read',recordId))return false;const field=(await this.fields(id)).find(f=>f.technical_name==='keyword');if(field?.value_mode!=='derived')return true;const row=await this.project(id,{id:recordId});return row.keyword!==recordId;}
@@ -132,9 +137,9 @@ export class ContentAccess {
   if(policy.sensitive)result.access_principals=policy.records.get(recordId)!.policy.owners;if(!Object.hasOwn(result,'keyword'))result.keyword=recordId;
   return {...result,fieldAccess:Object.fromEntries(fields.map(f=>[f.id,{...policy.field(f.id,recordId),edit:f.value_mode!=='derived'&&policy.field(f.id,recordId).edit}])),access:policy.records.has(recordId)?{...policy.records.get(recordId)!.access,level:contentLevels[policy.recordLevel(recordId)]}:undefined,permissions:policy.recordCapabilities(recordId)};
  }
- async checkWrites(id:string,data:Record<string,unknown>,previous?:Record<string,unknown>){const p=await this.policy(id),recordId=typeof previous?.id==='string'?previous.id:undefined;for(const f of await this.fields(id)){if(!Object.hasOwn(data,f.technical_name))continue;if(f.value_mode==='derived')throw new AppError(403,'Derived field cannot be assigned');if(!(recordId?p.field(f.id,recordId).edit:p.creationField(f.id)))throw new AppError(403,'Field edit denied');}}
+ async checkWrites(id:string,data:Record<string,unknown>,previous?:Record<string,unknown>){const recordId=typeof previous?.id==='string'?previous.id:undefined,p=await this.policy(id,recordId);for(const f of await this.fields(id)){if(!Object.hasOwn(data,f.technical_name))continue;if(f.value_mode==='derived')throw new AppError(403,'Derived field cannot be assigned');if(!(recordId?p.field(f.id,recordId).edit:p.creationField(f.id)))throw new AppError(403,'Field edit denied');}}
  async eligiblePrincipals(id:string){
-  const p=await this.policy(id),graph=await securityGraph(this.tx,p.workspace);
+  const p=await this.policy(id),graph=await this.graph(p.workspace);
   const users=(await sql<{id:string;name:string;active:boolean;is_admin:boolean;member:boolean}>`SELECT u.id,u.name,u.active,u.is_admin,EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.user_id=u.id AND m.workspace_id=${p.workspace}::uuid) AS member FROM sys_users u WHERE u.active AND (u.is_admin OR EXISTS(SELECT 1 FROM sys_workspace_members m WHERE m.user_id=u.id AND m.workspace_id=${p.workspace}::uuid)) ORDER BY u.name,u.id`.execute(this.tx)).rows;
   const result:{kind:'user'|'group';id:string;name:string}[]=[];
   for(const u of users){const ceiling=objectCeiling(u.id,u,u.member,p.grants,graph.members),cap=contentCapabilities(ceiling.level,ceiling.canCreate);if(cap.read||cap.create)result.push({kind:'user',id:u.id,name:u.name});}
@@ -144,7 +149,7 @@ export class ContentAccess {
 }
 export async function getContentPermissions(tx:Executor,id:string):Promise<ContentPermissions>{const row=(await sql<{permissions_version:number;is_sensitive:boolean}>`SELECT permissions_version,is_sensitive FROM sys_object_types WHERE id=${id}::uuid AND state<>'deleted'`.execute(tx)).rows[0];if(!row)throw new AppError(404,'Object type not found');return {objectTypeId:id,version:row.permissions_version,sensitive:row.is_sensitive,grants:(await contentAccess().policy(id)).grants};}
 export async function configureContentPermissions(tx:Executor,args:{objectTypeId:string;version:number;sensitive:boolean;confirmWidening?:boolean;grants:ContentGrant[]},actor:string,journal:(key:string,before:unknown,after:unknown,field?:string)=>Promise<void>){
-  const before=await getContentPermissions(tx,args.objectTypeId),p=await contentAccess().policy(args.objectTypeId);if(!p.admin)throw new AppError(403,'Only Administrators manage content permissions');if(before.version!==args.version)throw new AppError(409,'Permissions version conflict');
+  const before=await getContentPermissions(tx,args.objectTypeId),p=await contentAccess().policy(args.objectTypeId);if(!p.admin)throw new AppError(403,'Only Administrators manage content permissions');if(before.version!==args.version)throw new AppError(409,'Permissions version conflict',{code:"version_conflict"});
   if(!args.sensitive&&await isActivityObject(tx,args.objectTypeId))throw new AppError(400,'Activities must be user-sensitive',{code:'activitySensitivityRequired'});
   if(before.sensitive&&!args.sensitive&&!args.confirmWidening)throw new AppError(400,'Confirm removal of record-level restrictions');
   const seen=new Set<string>();const fields=[...await contentAccess().fields(args.objectTypeId),...await incidentFields(tx,args.objectTypeId)];

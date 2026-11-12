@@ -349,3 +349,48 @@ The native image workflow now additionally requires upgrades from the immutable 
 The [native release-image workflow](https://github.com/ITextremeDE/xobject/actions/runs/43183766781) passed on Linux/AMD64 and Linux/ARM64. Each platform completed fresh installation, backup/restore, upgrades from the immutable 1.0.1, 1.0.2, 1.1.0 and 1.2.0 images, unknown-source refusal/recovery and Caddy HTTPS acceptance. The anonymously retrievable multi-platform digest is `sha256:4c78ebdf11b8879566259fdb9314c63d4ef52b3b14f4ece80b6335812ae7fdb0`. Source archive SHA-256 is `ee7d12df544e56254111134f16ac6f7fb32f8b090484b6788211767a5315ce8a`.
 
 The immutable 1.3.0 documentation snapshot is publicly served alongside all five earlier snapshots; each builds from its own original source archive. The preceding source checkpoints describe the evidence available before publication. Their pending image/publication limits are superseded by this release block. The footer-aware Toast placement additionally passed desktop/mobile Save/Reset and nested Settings checks; both CI browsers pass. Native Safari/VoiceOver and other AI providers were not newly certified.
+
+## Contact-person affiliations — 2026-11-12 (unreleased)
+
+The current source expands the supplied Organization affiliation to Individuals and Contact persons. The separate single main Organization remains the source of inherited Organization details. Existing authored forms and relationship labels are preserved.
+
+- Focused API/MCP coverage passed for several affiliations, reciprocal candidate selection, ordinary Save, retained edge identities through Individual/Contact-person conversion, inherited Organization context, Journal entries, read-only denial and protected definition edits.
+- The exact released-1.3.0 catalog fixture passed the maintenance upgrade, preserved custom labels, edge identities/versions and prior Journal rows, rolled the complete transaction back after an induced Journal failure and made a repeated upgrade a no-op. The affected released-1.0.2 catalog and released-1.2.0 retirement upgrade scenarios also passed.
+- Chromium selected and saved an Organization affiliation for a Contact person while retaining the main Organization. Desktop and 390 × 844 screenshots were inspected; the narrow view had no horizontal page overflow.
+- A local Linux/ARM64 image passed the self-hosting harness against the immutable published 1.3.0 predecessor: backup/restore, stopped-writer upgrade, retained Contact values/versions/history, expanded affiliation definition, creation of a Contact-person affiliation, unknown-source refusal and recovery. The next release workflow includes that immutable predecessor on both native architectures. AMD64 has not been rerun for this source checkpoint.
+- Root typecheck, generated API drift check, web build and the documentation content checks passed. The API contract remains 1.0.0 with 87 operations. Vite retains its existing chunk-size advisory. No application release or production deployment was performed for this checkpoint.
+
+## Bounded permissions, creation retries and Contact overview — 2026-11-12 (unreleased)
+
+The current source passes TypeScript/contract checks, application builds, 216 backend suite tests, an additional targeted receipt-cleanup concurrency test and 160 web tests. Permission-query acceptance compares 2,400 generated ownership/privacy/foreign-path cases against the finite contract resolver and 192 direct/group field-exception/administrative-ceiling combinations against the record field resolver. Existing negative tests retain search/count/paging protection, hidden fields, immediate revocation, history and atomic rollback. Definitions, module installation and record creation now have explicit service boundaries within the existing application transaction.
+
+Creation-retry tests exercise shared API/MCP keys, concurrent repeats, unchanged records/numbers/history, changed-input conflicts, current rights, expiry and rollback after a deliberately rejected receipt insert. Exact released upgrade tests include receipt-table installation. A Linux/ARM64 container acceptance upgraded the immutable released 1.3.0 image, preserved record contents/versions/history, exercised keyed creation under runtime grants, verified backup/restore and refused an unknown source while retaining the stopped recovery state. This is local container acceptance, not a release or production deployment.
+
+A fresh isolated 100,000-record benchmark with eight accounts, 10,000 Journal events, 1,000 Primary edges, 24 samples and concurrency eight met all existing path targets:
+
+| Path | p95 | Existing target |
+| --- | ---: | ---: |
+| Tree branch / cookie HTTP | 169.1 ms | 1,000 ms |
+| Record Journal / cookie HTTP | 233.1 ms | 1,000 ms |
+| Access principals / cookie HTTP | 21.6 ms | 750 ms |
+| Single record / cookie HTTP | 23.3 ms | observation only |
+
+The fixture denies five percent of rows. Requests use local Fastify injection with real authorization, without TLS/network latency. These values establish a local comparison, not production capacity or a service-level promise. Broad workspace/model locks remain deliberately unchanged.
+
+Contact reading omits empty optional sections and prepared image-upload controls; Edit contact reveals the complete applicable form, including inheritance exceptions. New Contacts start in the editor. Individual and combined relationship tables share search, sort, page selection, actions and pagination; record links follow the table convention. Safe-area handling covers the shell and action areas while preserving zoom and text selection. Current browser evidence and native-device limits are recorded below.
+
+The final Chromium run passed 18 tests (17 named workflows plus the outer acceptance) and 82 axe-audited views with no findings in the configured WCAG 2/2.1/2.2 AA tags. It covers Administrator/User/Designer behavior, desktop and 390 px layouts, light/dark/system portals, shared lists, the compact Contact overview, full editing and return/focus after Save. Empty sections are absent from reading; editor values remain intact. A 320 px boundary view, synthetic long names and literal markup were additionally inspected during the preceding audit. Automated accessibility and viewport emulation do not constitute native assistive-technology/device acceptance.
+
+Current native Safari/VoiceOver listening, physical iOS/Android keyboards and installed-PWA Safe Areas remain unverified. The available Firefox automation failed before the app opened because its profile could not start; the required WebKit test binary is not installed. No global browser, macOS or VoiceOver configuration was changed. Fresh AMD64 release-image acceptance remains part of the release workflow; the container proof here is ARM64.
+
+The application build retains its existing Vite size advisory for the approximately 510 kB minified shared chunk (159 kB gzip). The limit was not raised; no runtime performance failure was established for that chunk. Documentation and product-site checks/builds remain separate from application release acceptance.
+
+Focused follow-up browser checks also passed for the mobile navigation drawer (including Escape/focus return) and both individual/combined relationship-link hover styles. The drawer had no findings under the same axe rules. The five packaging checks preserve canonical MCP skills, including creation-retry guidance. Receipt cleanup skips unrelated locked rows and removes skipped expired receipts on a subsequent request.
+
+## Community 1.4.0 release preparation — 2026-11-12
+
+The release scope comprises the Contact-person affiliations and bounded-permission/creation-retry/Contact-overview checkpoints above. Their source-level tests and local ARM64 installation/upgrade evidence remain applicable; release metadata, user/operator guidance and the affected fictional ITextreme Contact/list illustrations are reconciled for 1.4.0. Internal workspace dependency versions and lockfiles are aligned and a clean npm installation, typecheck/contract check and application build pass. No unrelated runtime framework or dependency upgrade is introduced.
+
+Final PR checks, native AMD64/ARM64 image acceptance (including the immutable 1.3.0 predecessor), published artifacts and installed-instance readback remain publication gates. Native Safari/VoiceOver and physical mobile/PWA acceptance have not been repeated; automated browser/axe and emulated viewport evidence do not replace them. Earlier release records remain historical evidence.
+
+The first release PR Chromium run exposed an inherited Base UI composition issue: a collapsed Toast Close was `aria-hidden` but still had the composed Button's default tab stop. The shared Toast Close render now derives the native button's tab index from the primitive's hidden state; appearance, announcements, expansion and dismissal remain with the standard components. A focused rendered regression passed collapsed/expanded/collapsed tab-index checks and axe while expanded, alongside the existing desktop/mobile footer placement and nested Settings behavior. Required CI is rerun on the corrected source.

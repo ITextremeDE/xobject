@@ -9,7 +9,7 @@ export type ConfigurationJournal = (kind: string, id: string, change: string, ke
 export async function configureWorkspaceLanguages(tx: Executor, args: WorkspaceLanguages & { workspaceId: string; version: number; timeZone?: string; regional?: RegionalSettings }, journal: ConfigurationJournal) {
   const before = (await sql<{ default_language: Language; available_languages: Language[]; label_languages: Language[]; language_version: number; time_zone: string; regional: RegionalSettings }>`SELECT default_language, available_languages, label_languages, language_version, time_zone, regional FROM sys_workspaces WHERE id = ${args.workspaceId}::uuid FOR UPDATE`.execute(tx)).rows[0];
   if (!before) throw new AppError(404, 'Workspace not found');
-  if (before.language_version !== args.version) throw new AppError(409, 'Workspace language version conflict');
+  if (before.language_version !== args.version) throw new AppError(409,'Workspace language version conflict',{code:"version_conflict"});
   const next = { regional: args.regional ?? before.regional, time_zone: args.timeZone ?? before.time_zone, default_language: args.defaultLanguage, available_languages: [...args.availableLanguages].sort(), label_languages: [...args.labelLanguages].sort() };
   const changed = (Object.keys(next) as (keyof typeof next)[]).filter(key => !isDeepStrictEqual(before[key], next[key]));
   const version = before.language_version + (changed.length ? 1 : 0);
@@ -34,7 +34,7 @@ export async function createWorkspaceGroup(tx:Executor,args:{workspaceId:string;
  await journal('group',id,change,'name',null,args.name);return (await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===id)!;
 }
 export async function configureGroup(tx:Executor,args:{workspaceId:string;groupId:string;version:number;name?:string;active?:boolean},journal:ConfigurationJournal):Promise<WorkspaceGroup>{
- const before=(await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===args.groupId);if(!before)throw new AppError(404,'Group not found');if(before.version!==args.version)throw new AppError(409,'Group version conflict');
+ const before=(await workspaceGroups(tx,args.workspaceId)).find(g=>g.id===args.groupId);if(!before)throw new AppError(404,'Group not found');if(before.version!==args.version)throw new AppError(409,'Group version conflict',{code:"version_conflict"});
  const name=args.name??before.name,active=args.active??before.active;
  if(name!==before.name||active!==before.active){const change=v7();await sql`UPDATE sys_groups SET name=${name},active=${active},version=version+1 WHERE id=${before.id}::uuid`.execute(tx);
  if(name!==before.name)await journal('group',before.id,change,'name',before.name,name);if(active!==before.active)await journal('group',before.id,change,'active',before.active,active);}
@@ -59,7 +59,7 @@ export async function validateDefinitionLanguages(tx: Executor, operation: strin
   const workspace = (await sql<{ label_languages: string[] }>`SELECT label_languages FROM sys_workspaces WHERE id = ${workspaceId}::uuid`.execute(tx)).rows[0];
   if (!workspace) return;
   const validate = (labels: Record<string, string>, old: Record<string, string> = {}) => {
-    for (const code of new Set([...Object.keys(labels), ...Object.keys(old)])) if (!workspace.label_languages.includes(code) && labels[code] !== old[code]) throw new AppError(400, 'Definition language is unavailable');
+    for (const code of new Set([...Object.keys(labels), ...Object.keys(old)])) if (!workspace.label_languages.includes(code) && labels[code] !== old[code]) throw new AppError(400,'Definition language is unavailable',{code:"definitionLanguageUnavailable"});
   };
   if(args.inputRules){const rules=args.inputRules as {description:Record<string,string>;helpText:Record<string,string>};const old=(previous as {input_rules?:typeof rules})?.input_rules;validate(rules.description,old?.description);validate(rules.helpText,old?.helpText);}
   if (args.labels) validate(args.labels as Record<string, string>, previous?.labels);

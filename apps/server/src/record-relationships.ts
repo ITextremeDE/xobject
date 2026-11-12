@@ -101,7 +101,7 @@ export async function searchRelationshipCandidates(tx:Executor,args:{primaryAnce
   if(!type||!type.active||type.rulesState!=='active'||!supportsSide(type,model.id,args.side))throw new AppError(400,'Relationship field unavailable');
   for(const name of Object.keys(args.sourceValues??{}))if(!(args.recordId?await contentAccess().canField(model.id,name,'read',args.recordId):await contentAccess().canCreateField(model.id,name)))throw new AppError(403,'Restricted relationship condition');
   const ownCondition=args.side==='left'?type.leftApplicability:type.rightApplicability;
-  if(ownCondition&&!(args.recordId?(await contentAccess().policy(model.id)).field(ownCondition.fieldId,args.recordId).read:(await contentAccess().policy(model.id)).creationField(ownCondition.fieldId)))throw new AppError(403,'Restricted relationship condition');
+  if(ownCondition&&!(args.recordId?(await contentAccess().policy(model.id,args.recordId)).field(ownCondition.fieldId,args.recordId).read:(await contentAccess().policy(model.id)).creationField(ownCondition.fieldId)))throw new AppError(403,'Restricted relationship condition');
   if(ownCondition){const column=await conditionColumn(tx,ownCondition,model.id);const source=args.recordId?(await sql<Record<string,unknown>>`SELECT * FROM ${sql.table(table(model))} WHERE id=${args.recordId}::uuid`.execute(tx)).rows[0]??{}:{};const value=Object.hasOwn(args.sourceValues??{},column!)?args.sourceValues![column!]:source[column!];if(!ownCondition.optionIds.includes(String(value??'').toLowerCase()))return {records:[],total:0,offset:args.offset,limit:args.limit};}
   const models=(await sql<Model>`SELECT o.*,w.code FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.workspace_id=${model.workspace_id}::uuid AND o.state='active'`.execute(tx)).rows;
   const chain=type.kind==='primary'?await primaryChain(tx,model.workspace_id):null;
@@ -167,13 +167,13 @@ export async function validateRelationshipGraph(tx:Executor,type:RelationshipTyp
     const min=side==='left'?type.leftMin:type.rightMin,max=side==='left'?type.leftMax:type.rightMax;
     if(!min&&max===null)continue;
     const records=(await sql<{id:string}>`SELECT id FROM ${sql.table(table(model))}`.execute(tx)).rows;
-    for(const row of records){if(!await endpointMatches(tx,type,side,{objectTypeId:model.id,recordId:row.id}))continue;const n=counts.get(`${side}:${model.id}:${row.id}`)??0;if(n<min||(max!==null&&n>max))throw new AppError(409,`Relationship cardinality violated (${type.technicalName}, ${side})`);}
+    for(const row of records){if(!await endpointMatches(tx,type,side,{objectTypeId:model.id,recordId:row.id}))continue;const n=counts.get(`${side}:${model.id}:${row.id}`)??0;if(n<min||(max!==null&&n>max))throw new AppError(409,`Relationship cardinality violated (${type.technicalName}, ${side})`,{code:'relationship_cardinality'});}
   }
   if(type.kind==='primary') {
     const chain=await primaryChain(tx,type.workspaceId);if(!chain)throw new AppError(409,'Primary module levels are not installed');await validatePrimaryChain(tx,type.workspaceId,chain);
     const parents=new Map<string,string>();
-    for(const edge of edges){const child=key(right(edge));if(parents.has(child))throw new AppError(409,'A record has at most one Primary association');parents.set(child,key(left(edge)));}
-    for(const start of parents.keys()){const seen=new Set<string>();let current:string|undefined=start;while(current){if(seen.has(current))throw new AppError(409,'Primary association cycle');seen.add(current);current=parents.get(current);}}
+    for(const edge of edges){const child=key(right(edge));if(parents.has(child))throw new AppError(409,'A record has at most one Primary association',{code:"primaryParentLimitHelp"});parents.set(child,key(left(edge)));}
+    for(const start of parents.keys()){const seen=new Set<string>();let current:string|undefined=start;while(current){if(seen.has(current))throw new AppError(409,'Primary association cycle',{code:"primaryCycleHelp"});seen.add(current);current=parents.get(current);}}
   }
 }
 /** Normal saves inspect changed endpoints only. Definition activation still checks the complete graph. */
@@ -189,7 +189,7 @@ async function validateChangedRelationships(tx:Executor,type:RelationshipType,re
         :side==='left'?sql`left_object_type_id=${ref.objectTypeId}::uuid AND left_record_id=${ref.recordId}::uuid`:sql`right_object_type_id=${ref.objectTypeId}::uuid AND right_record_id=${ref.recordId}::uuid`;
       if(!await endpointMatches(tx,type,side,ref))continue;
       const n=(await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_relationships WHERE workspace_id=${type.workspaceId}::uuid AND relationship_type_id=${type.id}::uuid AND ${filter}`.execute(tx)).rows[0].n;
-      if(n<min||(max!==null&&n>max))throw new AppError(409,`Relationship cardinality violated (${type.technicalName}, ${side})`);
+      if(n<min||(max!==null&&n>max))throw new AppError(409,`Relationship cardinality violated (${type.technicalName}, ${side})`,{code:'relationship_cardinality'});
     }
     if(type.kind==='primary') {
       // UNION deduplicates ancestors and terminates even if an invalid cycle was supplied.
@@ -198,7 +198,7 @@ async function validateChangedRelationships(tx:Executor,type:RelationshipType,re
         UNION
         SELECT e.left_object_type_id,e.left_record_id FROM sys_relationships e JOIN ancestors a ON e.right_object_type_id=a.object_type_id AND e.right_record_id=a.record_id WHERE e.workspace_id=${type.workspaceId}::uuid AND e.relationship_type_id=${type.id}::uuid
       ) SELECT 1 FROM ancestors WHERE object_type_id=${ref.objectTypeId}::uuid AND record_id=${ref.recordId}::uuid LIMIT 1`.execute(tx)).rows.length;
-      if(cycle)throw new AppError(409,'Primary association cycle');
+      if(cycle)throw new AppError(409,'Primary association cycle',{code:"primaryCycleHelp"});
     }
   }
 }
@@ -218,8 +218,8 @@ export async function validateRestoredRelationships(tx:Executor,objectTypeId:str
 }
 export async function activateRelationship(tx:Executor,args:{workspaceId:string;relationshipTypeId:string;version:number},actor:string) {
   const type=(await relationshipTypes(tx,args.workspaceId)).find(d=>d.id===args.relationshipTypeId);
-  if(!type)throw new AppError(404,'Relationship type not found');if(type.version!==args.version)throw new AppError(409,'Relationship version conflict');
-  if(type.kind==='primary'&&!type.active)throw new AppError(400,'Enable the Projects module first');
+  if(!type)throw new AppError(404,'Relationship type not found');if(type.version!==args.version)throw new AppError(409,'Relationship version conflict',{code:"version_conflict"});
+  if(type.kind==='primary'&&!type.active)throw new AppError(400,'Enable the Projects module first',{code:"projectsModuleDisabled"});
   if(type.rulesState==='active')return type;
   await validateRelationshipGraph(tx,type);
   await sql`UPDATE sys_relationship_types SET rules_state='active',version=version+1 WHERE id=${type.id}::uuid`.execute(tx);
@@ -236,7 +236,7 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
   const focus={objectTypeId,recordId},touched=new Map<string,RecordReference>(),affected=new Set<string>(),seen=new Set<string>(),addedJournal:{edge:Edge;type:RelationshipType}[]=[];
   for(const write of writes??[]) {
     const type=definitions.find(d=>d.id===write.relationshipTypeId);
-    if(!type||type.version!==write.version)throw new AppError(409,'Relationship definition version conflict');
+    if(!type||type.version!==write.version)throw new AppError(409,'Relationship definition version conflict',{code:"version_conflict"});
     if(type.rulesState!=='active'||!supportsSide(type,objectTypeId,write.side)||(symmetric(type)&&write.side==='right'))throw new AppError(400,'Relationship field unavailable');
     const field=`${type.id}:${write.side}`;if(seen.has(field))throw new AppError(400,'Duplicate relationship field');seen.add(field);
     const all=(await edgesFor(tx,model.workspace_id)).filter(e=>e.relationship_type_id===type.id);
@@ -245,7 +245,7 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
     for(const target of write.targets) {
       if(key(target)===key(focus)||targets.has(key(target)))throw new AppError(400,'Duplicate or self relationship');targets.add(key(target));
       let a=write.side==='left'?focus:target,b=write.side==='left'?target:focus;
-      if(type.kind==='primary'&&chain&&!primaryPairAllowed(chain,a.objectTypeId,b.objectTypeId))throw new AppError(400,'Primary association does not follow configured levels');
+      if(type.kind==='primary'&&chain&&!primaryPairAllowed(chain,a.objectTypeId,b.objectTypeId))throw new AppError(400,'Primary association does not follow configured levels',{code:"primaryChainInvalidPair"});
       if(!permits(type,a.objectTypeId,b.objectTypeId)&&!(!type.directed&&permits(type,b.objectTypeId,a.objectTypeId)))throw new AppError(400,'Object pair is not allowed');
       if(!type.directed&&((!permits(type,a.objectTypeId,b.objectTypeId))||(symmetric(type)&&key(a)>key(b))))[a,b]=[b,a];
       desired.push({a,b});
@@ -254,7 +254,7 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
     const removals=current.filter(e=>!desired.some(d=>edgeKey(d.a,d.b)===edgeKey(left(e),right(e))));
     const additions=desired.filter(d=>!current.some(e=>edgeKey(d.a,d.b)===edgeKey(left(e),right(e))));
     for(const pair of [...removals.map(edge=>({a:left(edge),b:right(edge)})),...additions]){
-      for(const [rule,ref] of [[type.leftApplicability,pair.a],[type.rightApplicability,pair.b]] as const)if(rule&&!(newRecord&&key(ref)===key(focus)?(await contentAccess().policy(ref.objectTypeId)).creationField(rule.fieldId):(await contentAccess().policy(ref.objectTypeId)).field(rule.fieldId,ref.recordId).read))throw new AppError(403,'Restricted relationship condition');
+      for(const [rule,ref] of [[type.leftApplicability,pair.a],[type.rightApplicability,pair.b]] as const)if(rule&&!(newRecord&&key(ref)===key(focus)?(await contentAccess().policy(ref.objectTypeId)).creationField(rule.fieldId):(await contentAccess().policy(ref.objectTypeId,ref.recordId)).field(rule.fieldId,ref.recordId).read))throw new AppError(403,'Restricted relationship condition');
     }
     for(const ref of [...removals.flatMap(edge=>[left(edge),right(edge)]),...additions.flatMap(edge=>[edge.a,edge.b])])await contentAccess().require(ref.objectTypeId,newRecord&&key(ref)===key(focus)?undefined:ref.recordId,key(ref)===key(focus)?newRecord?'create':'edit':'read');
     if(removals.length||additions.length)affected.add(type.id);
@@ -334,7 +334,7 @@ async function treeExpandableParents(tx:Executor,workspace:string,primaryIds:str
 export async function relationshipTreeBranch(tx:Executor,args:{objectTypeId:string;recordId:string;offset:number;limit:number},actor:string):Promise<import('@xobject/contracts').RelationshipTreeBranch> {
   await contentAccess().require(args.objectTypeId,args.recordId,args.recordId?'read':'create');
   const model=await modelFor(tx,args.objectTypeId),record=await visibleReference(tx,{objectTypeId:args.objectTypeId,recordId:args.recordId},model.workspace_id);
-  if(!await primaryChain(tx,model.workspace_id))throw new AppError(409,'Enable the Projects module first');
+  if(!await primaryChain(tx,model.workspace_id))throw new AppError(409,'Enable the Projects module first',{code:"projectsModuleDisabled"});
   const definitions=await relationshipTypes(tx,model.workspace_id),byId=new Map(definitions.map(type=>[type.id,type])),primaryIds=definitions.filter(type=>type.kind==='primary').map(type=>type.id);
   // Resolve only this record's visible ancestor path, rather than every workspace edge.
   const ancestors:RelatedRecord[]=[],seen=new Set([key(args)]);let current:RecordReference=args,parent:RelatedRecord|undefined;
@@ -365,7 +365,7 @@ export async function primaryChainContext(tx:Executor,args:{objectTypeId:string;
   const roles=primaryRolesForObject(chain,model.id);
   let path:RelatedRecord[]=[];let unavailable=false;
   if(parent&&!await contentAccess().readable(parent.objectTypeId,parent.recordId)){if(args.parent)throw new AppError(403,'Content access denied');parent=null;unavailable=true;}
-  if(parent){if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');if(!primaryPairAllowed(chain,parent.objectTypeId,model.id))throw new AppError(400,'Primary association does not follow configured levels');const branch=await relationshipTreeBranch(tx,{objectTypeId:parent.objectTypeId,recordId:parent.recordId,offset:0,limit:1},actor);if(branch.record.objectTypeId!==parent.objectTypeId)throw new AppError(400,'Invalid Primary context');if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');const {statusLabels,...parentRecord}=branch.record;path=[...branch.ancestors,parentRecord];}
+  if(parent){if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');if(!primaryPairAllowed(chain,parent.objectTypeId,model.id))throw new AppError(400,'Primary association does not follow configured levels',{code:"primaryChainInvalidPair"});const branch=await relationshipTreeBranch(tx,{objectTypeId:parent.objectTypeId,recordId:parent.recordId,offset:0,limit:1},actor);if(branch.record.objectTypeId!==parent.objectTypeId)throw new AppError(400,'Invalid Primary context');if((await modelFor(tx,parent.objectTypeId)).workspace_id!==model.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');const {statusLabels,...parentRecord}=branch.record;path=[...branch.ancestors,parentRecord];}
   const direct=path.at(-1)??null;
   return {configuration:chain,direct,unavailable,levels:roles.map(role=>({role,objectTypeId:chain[role],record:path.find(row=>row.objectTypeId===chain[role])??null,inherited:Boolean(direct&&direct.objectTypeId!==chain[role])}))};
 }
@@ -404,12 +404,12 @@ export async function linkedRecordWrites(tx:Executor,targetId:string,source:impo
  if(original.workspace_id!==target.workspace_id)throw new AppError(400,'Relationship endpoints must share a workspace');
  if(original.state!=='active')throw new AppError(400,'Related objects must be active');
  const row=(await sql<{version:number}>`SELECT version FROM ${sql.table(table(original))} WHERE id=${source.recordId}::uuid`.execute(tx)).rows[0];
- if(!row)throw new AppError(404,'Record not found');if(row.version!==source.recordVersion)throw new AppError(409,'Source record version conflict');
+ if(!row)throw new AppError(404,'Record not found');if(row.version!==source.recordVersion)throw new AppError(409,'Source record version conflict',{code:"version_conflict"});
  const definition=(await relationshipTypes(tx,target.workspace_id)).find(type=>type.id===source.relationshipTypeId);
- if(!definition||definition.version!==source.version)throw new AppError(409,'Relationship definition version conflict');
+ if(!definition||definition.version!==source.version)throw new AppError(409,'Relationship definition version conflict',{code:"version_conflict"});
  if(!definition.active||definition.rulesState!=='active'||!supportsSide(definition,original.id,source.side)||(symmetric(definition)&&source.side==='right'))throw new AppError(400,'Relationship field unavailable');
  const side=oppositeRelationshipSide(definition,source.side),existing=(writes??[]).find(w=>w.relationshipTypeId===definition.id&&w.side===side),ref={objectTypeId:original.id,recordId:source.recordId};
- if(existing&&existing.version!==definition.version)throw new AppError(409,'Relationship definition version conflict');
+ if(existing&&existing.version!==definition.version)throw new AppError(409,'Relationship definition version conflict',{code:"version_conflict"});
  const targets=[...(existing?.targets??[])];if(!targets.some(t=>key(t)===key(ref)))targets.push(ref);
  return [...(writes??[]).filter(w=>w!==existing),{relationshipTypeId:definition.id,version:definition.version,side,targets}];
 }

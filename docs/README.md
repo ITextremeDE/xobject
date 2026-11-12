@@ -40,7 +40,7 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0022](adr/0022-database-integrity-and-concurrency.md) | Versions/locks/installation/roles | Storage safeguards; released container delivery and maintenance are covered by 0035. |
 | [0023](adr/0023-record-journal-and-conditional-fields.md) | Journal/applicability | Current-rights projections refined by 0026 and 0027. |
 | [0024](adr/0024-primary-levels-and-relationship-conditions.md) | Fixed Primary roles/conditions | Protected supplied UUID roles, conditional endpoints. |
-| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Five V1 objects, shared contributions, retained lifecycle and one common object form implemented; PRD sections 1.3/1.4 assign V2 and planned 1.2.0 scope. Released installation updates follow 0035; future schema/template migrations need dedicated acceptance. |
+| [0025](adr/0025-modules-and-form-views.md) | Module catalog and forms | Five V1 objects, shared contributions, retained lifecycle and one common object form implemented; PRD sections 1.3/1.4 assign V2 and released V1 extension scope. Released installation updates follow 0035; future schema/template migrations need dedicated acceptance. |
 | [0026](adr/0026-content-permissions.md) | Object/field ceilings | Current object/field grants; record policy in 0027. |
 | [0027](adr/0027-ownership-and-foreign-access.md) | Ownership and foreign access | Local graded ownership/membership, privacy, foreign paths, Create and record security UI; calendar/notifications later. |
 | [0028](adr/0028-current-installation-baseline.md) | Current installation and development resets | One runtime model, explicit disposable development resets and schema fingerprint; released upgrades use dedicated maintenance tooling under 0035. |
@@ -50,10 +50,11 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0032](adr/0032-structured-fields-temporal-values-and-edge-attributes.md) | Structured fields, time/series and edge attributes | Ten Contact codecs including Pronouns, relationship attributes with both-endpoint rights/history, and the shared temporal codec are implemented. Recurrence/occurrence exceptions and calendar parties remain planned; Contact inheritance exceptions are the separate 1.2.0 feature under ADR 0038. |
 | [0033](adr/0033-configurable-workspace-navigation.md) | Configurable navigation | Module sections, repeated object entries, Contact filters, shared defaults/personal layouts and optional Resources; versioned API/MCP persistence. |
 | [0034](adr/0034-user-bound-api-mcp-access.md) | User-bound API/MCP access | Released tokens/OAuth, current-rights enforcement and generated contracts; offline-lifetime and authorization-journal refinements in 1.0.2. |
-| [0035](adr/0035-container-delivery-and-maintenance.md) | Container delivery and maintenance | Published Linux containers, atomic first setup, verified backup/restore and supported upgrades through 1.1.0. The 1.2.0 path adds Contact inheritance; native release-image acceptance remains separate. |
+| [0035](adr/0035-container-delivery-and-maintenance.md) | Container delivery and maintenance | Published Linux containers, atomic first setup, verified backup/restore and exact released upgrade paths; target-version acceptance is evidenced separately. |
 | [0036](adr/0036-browser-presence-and-live-updates.md) | Browser identity/PWA/live updates | Private previews, authorized commit signals, reconnect and draft reconciliation; public reading later. |
 | [0037](adr/0037-selection-trees-and-choice-dialogs.md) | Selection trees and choice dialogs | General hierarchical fields, Category modes, ancestor closure, atomic history and shared picker UI. |
 | [0038](adr/0038-contact-inheritance-and-conversions.md) | Contact inheritance and kind conversions | 1.2.0 effective fields, sparse exceptions, atomic preview/confirmation workflows and released upgrade paths. |
+| [0039](adr/0039-bounded-permission-queries-and-creation-retries.md) | Bounded permissions and safe creation retries | Transaction-local SQL predicates, targeted policy reads, stable errors and atomic user-scoped retry receipts. |
 
 ## Ownership of repeated information
 

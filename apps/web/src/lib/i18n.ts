@@ -3,6 +3,8 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 const en = {
+contactEdit:"Edit contact",contactShowOverview:"Show overview",contactReadHelp:"Contact overview. Choose Edit contact to change details.",contactEditHelp:"Edit the contact details, then save your changes.",contactNoDetails:"No details entered.",contactOrganization:"Organization",creationRequestConflict:"This creation request has already been saved with different details. Check the record list before creating another record.",
+  formObjectColumn:"Object type column",formObjectColumnFor:"Object type column: {{name}}",formObjectColumn_auto:"Automatic",formObjectColumn_show:"Show",formObjectColumn_hide:"Hide",formObjectColumnHelp:"Automatic hides the column when only one target object type is allowed. Applies to the list and its record selection.",
   contactConversionKeepsOrganization:"The Organization remains available.",
   contactNewOrganizationFields:"New Organization",
   contactConversionIssue_invalid_classification:"Complete the required classification for the new Organization and check its choices.",
@@ -1025,6 +1027,8 @@ const en = {
   workspaceHelp: 'The code prefixes the database tables and is fixed after creation.',
 };
 const de: Record<keyof typeof en, string> = {
+contactEdit:"Kontakt bearbeiten",contactShowOverview:"Übersicht anzeigen",contactReadHelp:"Kontaktübersicht. Zum Ändern „Kontakt bearbeiten“ wählen.",contactEditHelp:"Kontaktangaben bearbeiten und anschließend speichern.",contactNoDetails:"Keine Angaben vorhanden.",contactOrganization:"Organisation",creationRequestConflict:"Diese Anlageanfrage wurde bereits mit anderen Angaben gespeichert. Prüfe die Datensatzliste, bevor Du einen weiteren Datensatz anlegst.",
+  formObjectColumn:"Datenobjekt-Spalte",formObjectColumnFor:"Datenobjekt-Spalte: {{name}}",formObjectColumn_auto:"Automatisch",formObjectColumn_show:"Anzeigen",formObjectColumn_hide:"Ausblenden",formObjectColumnHelp:"Automatisch blendet die Spalte aus, wenn nur ein Zieldatenobjekt erlaubt ist. Gilt für die Liste und ihre Datensatzauswahl.",
   contactConversionKeepsOrganization:"Die Organisation bleibt erhalten.",
   contactNewOrganizationFields:"Neue Organisation",
   contactConversionIssue_invalid_classification:"Die erforderliche Klassifizierung der neuen Organisation vervollständigen und die Auswahl prüfen.",

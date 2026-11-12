@@ -93,7 +93,7 @@ export async function contactConversionPlan(
     throw new AppError(403, "Contact kind field edit denied");
   const root = await fetch(args.recordId);
   if (root.version !== args.version)
-    throw new AppError(409, "Record version conflict");
+    throw new AppError(409,"Record version conflict",{code:"version_conflict"});
   const definitions = await relationshipTypes(tx, model.workspace_id),
     membership = definitions.find(
       (d) => d.id === profile.relationships.contact_person,
@@ -171,7 +171,7 @@ export async function contactConversionPlan(
       ? await Promise.all(members.map((e) => fetch(e.right_record_id)))
       : [root];
   if (!sources.length)
-    throw new AppError(400, "Organization has no Contact persons");
+    throw new AppError(400,"Organization has no Contact persons",{code:"contactConversionNoMembers"});
   if (
     Object.keys(args.contactValues).some(
       (id) => !sources.some((r) => r.id === id),

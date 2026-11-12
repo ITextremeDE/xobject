@@ -19,3 +19,13 @@ test('picker object choices reflect directed endpoints, undirected orientation a
   assert.equal(eligibleTargetObject({...type,directed:false},'b','left','a'),true);
   assert.equal(eligibleTargetObject({...type,allowAll:true},'a','left','c'),true);
 });
+
+test('relationship object columns follow allowed endpoints and explicit form preferences',async()=>{
+ const {relationshipShowsObjectColumn}=await import('../src/lib/relationship-selection.js');
+ const field=(target:string)=>({definition:{allowAll:false,directed:true,pairs:[{leftObjectTypeId:'source',rightObjectTypeId:target}]},side:'left',targets:[]}) as any;
+ assert.equal(relationshipShowsObjectColumn([field('contacts')],'source'),false,'empty fixed-target lists already hide redundant columns');
+ assert.equal(relationshipShowsObjectColumn([field('contacts'),field('devices')],'source'),true,'mixed lists retain object context before records are selected');
+ assert.equal(relationshipShowsObjectColumn([field('contacts')],'source','show'),true);
+ assert.equal(relationshipShowsObjectColumn([field('contacts'),field('devices')],'source','hide'),false);
+ assert.equal(relationshipShowsObjectColumn([{...field('contacts'),definition:{...field('contacts').definition,allowAll:true}}],'source'),true);
+});

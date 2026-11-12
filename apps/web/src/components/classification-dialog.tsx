@@ -1,3 +1,4 @@
+import {domainErrorMessages} from '@xobject/contracts';
 import {ChoicePicker} from './choice-picker';
 import {ChoiceTreeParent} from './choice-tree-parent';
 import {setChoiceActive,closeChoiceSelection,choiceAncestors} from '@xobject/contracts';
@@ -36,20 +37,7 @@ function clean(config: ClassificationConfig): ClassificationRules {
   const { version: _version, ...rules } = config;
   return { ...rules, options: rules.options.map(({ label: _label, canDelete: _canDelete, ...option }) => option) };
 }
-const errorKeys: Record<string, string> = {
-  'Invalid project or task values':'workRulesConflict',
-  'Classification option is in use': 'choiceInUse',
-  'Unknown Status Type': 'typeHasStatuses',
-  'Required classification value missing': 'classificationExistingRequired',
-  'Status does not belong to the selected Type': 'classificationStatusMismatch',
-  'Invalid Category cardinality': 'classificationCategoryCardinality',
-  'Options must be retained with their kind; deactivate instead of deleting': 'classificationRetainOptions',
-  'Required Type needs active options': 'classificationOptionsRequired',
-  'Required Category needs active options': 'classificationOptionsRequired',
-  'Required Status needs options for each available Type, including no Type': 'classificationScopesRequired',
-  'Invalid default Type': 'classificationDefaultsInvalid', 'Invalid default Category': 'classificationDefaultsInvalid',
-  'Invalid initial Status': 'classificationDefaultsInvalid', 'Initial Status requires an active Type': 'classificationDefaultsInvalid',
-};
+
 export function ClassificationDialog({ onDeleted, readOnly = false, definition, field, onClose, onDirtyChange, onBusyChange, finalFocus, create, onCreated }: { create?: 'type_status' | 'category'; onCreated?: () => void; onDeleted?: () => void; readOnly?: boolean; definition: ObjectDefinition; field: FieldDefinition; onClose: () => void; onDirtyChange: (value: boolean) => void; onBusyChange: (value: boolean) => void; finalFocus?: () => HTMLElement | true }) {
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
@@ -155,7 +143,7 @@ export function ClassificationDialog({ onDeleted, readOnly = false, definition, 
     <DialogContent className={cn("bg-background text-foreground flex max-h-[85svh] flex-col overflow-hidden p-0", category ? "sm:max-w-xl" : "sm:max-w-4xl")} closeButtonDisabled={mutation.isPending || lifeBusy} finalFocus={finalFocus ?? (() => document.querySelector<HTMLElement>(`[data-field-editor="${field.id}"]`) ?? true)}>
       <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{create ? t('createStandardField', { name: t(category ? 'classificationCategory' : 'typesAndStatuses') }) : t(category ? 'classificationCategory' : 'typesAndStatuses')}</DialogTitle><DialogDescription>{definition.label} · {t('classificationDescription')}</DialogDescription></DialogHeader>
       <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="classification-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (!readOnly && (dirty || create) && validLabels && !pendingNew && !mutation.isPending && !lifeBusy) mutation.mutate(); }}><FieldGroup>
-        {mutation.isError ? <Alert variant="destructive"><AlertTitle>{t('errorTitle')}</AlertTitle><AlertDescription>{t(mutation.error instanceof ApiError && mutation.error.status === 409 ? 'classificationConflict' : errorKeys[mutation.error.message] ?? 'classificationInvalid')}</AlertDescription></Alert> : null}
+        {mutation.isError ? <Alert variant="destructive"><AlertTitle>{t('errorTitle')}</AlertTitle><AlertDescription>{t(mutation.error instanceof ApiError && mutation.error.status === 409 ? 'classificationConflict' : (mutation.error instanceof ApiError?domainErrorMessages[mutation.error.code]:undefined) ?? 'classificationInvalid')}</AlertDescription></Alert> : null}
         <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
         {readOnly ? <FieldDescription>{t('classificationReadOnlyHelp')}</FieldDescription> : null}<SettingsHelp title={t('configurationDetails')}>{!readOnly ? t('classificationExistingHelp') : null} {t('choiceEditorHelp')} {t('translationHelp')}</SettingsHelp>
         {category ? <>

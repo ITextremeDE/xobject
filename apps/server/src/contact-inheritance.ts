@@ -19,7 +19,7 @@ export async function contactInheritance(
   if (!profile) return [];
   const fields = await contactFields(tx, objectId),
     kind = fields.find((f) => f.field_key === "contact_kind")!,
-    policy = await contentAccess().policy(objectId);
+    policy = await contentAccess().policy(objectId,recordId);
   if (!policy.field(kind.id, recordId).read) return [];
   const model = (
     await sql<{
@@ -44,6 +44,7 @@ export async function contactInheritance(
       tx,
     )
   ).rows[0];
+  if(source)await policy.load([source.id]);
   const own = (
     await sql<{
       field_id: string;
@@ -145,7 +146,7 @@ export async function writeContactInheritance(
         400,
         "Only Contact persons have Organization inheritance",
       );
-    const policy = await contentAccess().policy(objectId);
+    const policy = await contentAccess().policy(objectId,recordId);
     state = inheritedContactFields.flatMap((key) => {
       const field = fields.find((f) => f.field_key === key);
       return field

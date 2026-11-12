@@ -2,6 +2,12 @@
 
 This guide describes the current development source. [Documentation versions](versions.md) identifies retained release snapshots. Use the [self-hosting guide](self-hosting.md) for released installation and maintenance. Use fictional, disposable development data; retain offline recovery artifacts separately when they exist. The [PRD](PRD.md) defines the product target; [the documentation index](README.md) identifies the applicable architecture decisions. The released ownership/foreign-access model follows ADR 0027; recorded acceptance and deferred features are listed below.
 
+## Application boundaries
+
+`Application.execute` owns the common transaction, operation locks, authentication and authorization for UI, API and MCP. Definition lifecycle/configuration lives in `object-definitions.ts`; module contributions and released-template refresh live in `module-installation.ts`; `record-writer.ts` owns atomic record creation and retry receipts. They share the caller's transaction and Journal writer. Use the same services for upgrade/template work rather than copying runtime rules.
+
+Permission list/field predicates use `content-access-query.ts`. Individual capability explanations load only requested policies and keep the finite contract resolver as their reference. Graph/metadata reuse is transaction-local. New permission paths require parity tests and negative pre-count/filter/paging checks. The frontend `use-record-relationships.ts` owns edge/attribute drafts and baselines together. See [ADR 0039](adr/0039-bounded-permission-queries-and-creation-retries.md).
+
 ## Requirements
 
 - Node.js 24 LTS and npm. The root engine range also permits Node.js 25/26 for local evaluation.

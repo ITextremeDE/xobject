@@ -26,7 +26,7 @@ export async function recordSecurity(tx:Executor,objectId:string,recordId:string
 export async function recordTable(tx:Executor,id:string){const row=(await sql<{name:string}>`SELECT w.code||'_'||o.technical_name AS name FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.id=${id}::uuid AND o.state<>'deleted'`.execute(tx)).rows[0];if(!row)throw new AppError(400,'Object must be active');return row.name;}
 export async function saveRecordSecurity(tx:Executor,args:{objectTypeId:string;recordId:string;version:number;policy:RecordSecurity;confirmPublic:boolean},actor:string,journal:RecordSecurityJournal):Promise<RecordWriteResult>{
  const before=await recordSecurity(tx,args.objectTypeId,args.recordId);
- if(before.version!==args.version)throw new AppError(409,'Record version conflict');
+ if(before.version!==args.version)throw new AppError(409,'Record version conflict',{code:"version_conflict"});
  if(await writeRecordSecurity(tx,args,journal))await sql`UPDATE ${sql.table(await recordTable(tx,args.objectTypeId))} SET version=version+1,updated_at=now(),updated_by=${actor} WHERE id=${args.recordId}::uuid`.execute(tx);
  const row=(await sql<Record<string,unknown>>`SELECT * FROM ${sql.table(await recordTable(tx,args.objectTypeId))} WHERE id=${args.recordId}::uuid`.execute(tx)).rows[0];
  return await contentAccess().project(args.objectTypeId,row) as RecordWriteResult;
@@ -48,17 +48,17 @@ export async function writeRecordSecurity(tx:Executor,args:{objectTypeId:string;
 async function validatePolicy(p:ObjectAccess,recordId:string|undefined,next:RecordSecurity,before:RecordSecurity,confirmPublic:boolean){
  const seen=new Set<string>();
  if(next.publicLevel&&accessRank(next.publicLevel)<2)throw new AppError(400,'Public ownership requires Read');
- if(!next.owners.length&&next.publicLevel===null)throw new AppError(400,'An empty owner list must be explicitly workspace-public');
- if(next.publicLevel&&next.privacy!=='normal')throw new AppError(400,'Public records cannot be Personal or Confidential');
- if(next.publicLevel&&(!before.publicLevel||accessRank(next.publicLevel)>accessRank(before.publicLevel))&&!confirmPublic)throw new AppError(400,'Confirm workspace-public access');
+ if(!next.owners.length&&next.publicLevel===null)throw new AppError(400,'An empty owner list must be explicitly workspace-public',{code:"emptyOwnersHelp"});
+ if(next.publicLevel&&next.privacy!=='normal')throw new AppError(400,'Public records cannot be Personal or Confidential',{code:"publicPrivacyConflict"});
+ if(next.publicLevel&&(!before.publicLevel||accessRank(next.publicLevel)>accessRank(before.publicLevel))&&!confirmPublic)throw new AppError(400,'Confirm workspace-public access',{code:"confirmPublicAccess"});
  const eligible=await contentAccess().eligiblePrincipals(p.id);
  for(const owner of next.owners){const key=principalKey(owner);if(seen.has(key))throw new AppError(400,'Duplicate owner');seen.add(key);
-  if(!eligible.some(e=>principalKey(e)===key)&&!before.owners.some(e=>isDeepStrictEqual(e,owner)))throw new AppError(400,'Owner is not eligible');
+  if(!eligible.some(e=>principalKey(e)===key)&&!before.owners.some(e=>isDeepStrictEqual(e,owner)))throw new AppError(400,'Owner is not eligible',{code:"ownerNotEligibleHelp"});
  }
  const fields=[...await contentAccess().fields(p.id),...await incidentFields(contentAccess().tx,p.id)],exceptions=new Set<string>();
  for(const rule of next.fields){const key=principalKey(rule);if(exceptions.has(key))throw new AppError(400,'Duplicate field exception principal');exceptions.add(key);
-  if(!eligible.some(e=>principalKey(e)===key)&&!isDeepStrictEqual(before.fields.find(item=>principalKey(item)===key),rule))throw new AppError(400,'Invalid field exception principal');
-  for(const [id,level] of Object.entries(rule.fields)){if(!fields.some(f=>f.id===id&&f.technical_name!=='access_principals'))throw new AppError(400,'Invalid field exception');const own=p.field(id,recordId);if(!p.admin&&before.fields.find(r=>principalKey(r)===key)?.fields[id]!==level&&accessRank(level)>(own.edit?5:own.read?2:0))throw new AppError(403,'Cannot delegate field capability');}
+  if(!eligible.some(e=>principalKey(e)===key)&&!isDeepStrictEqual(before.fields.find(item=>principalKey(item)===key),rule))throw new AppError(400,'Invalid field exception principal',{code:"ownerNotEligibleHelp"});
+  for(const [id,level] of Object.entries(rule.fields)){if(!fields.some(f=>f.id===id&&f.technical_name!=='access_principals'))throw new AppError(400,'Invalid field exception');const own=p.field(id,recordId);if(!p.admin&&before.fields.find(r=>principalKey(r)===key)?.fields[id]!==level&&accessRank(level)>(own.edit?5:own.read?2:0))throw new AppError(403,'Cannot delegate field capability',{code:"recordFieldDelegationCeiling"});}
  }
  next.owners.sort((a,b)=>principalKey(a).localeCompare(principalKey(b)));next.fields.sort((a,b)=>principalKey(a).localeCompare(principalKey(b)));
 }

@@ -37,7 +37,7 @@ export async function listWorkspaceRecords(tx: Executor, args: z.output<typeof s
   const filter = sql`${args.objectTypeId ? sql`"objectTypeId" = ${args.objectTypeId}::uuid` : sql`true`} AND (position(lower(${args.query}) in lower(COALESCE(keyword, id::text))) > 0 OR position(lower(${args.query}) in lower(record_number)) > 0)`;
   const total = (await sql<{ total: number }>`WITH records AS (${rows}) SELECT count(*)::integer AS total FROM records WHERE ${filter}`.execute(tx)).rows[0].total;
   const records = (await sql`WITH records AS (${rows}) SELECT * FROM records WHERE ${filter} ORDER BY ${sql.ref(args.sortBy)} ${args.sortDirection === 'asc' ? sql`ASC` : sql`DESC`} NULLS LAST, id LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
-  if(recycled)for(const row of records as {objectTypeId:string;id:string;canRestore?:boolean}[]){row.canRestore=types.find(type=>type.id===row.objectTypeId)?.state==='active'&&(await contentAccess().policy(row.objectTypeId)).recordCapabilities(row.id).full;}
+  if(recycled)for(const row of records as {objectTypeId:string;id:string;canRestore?:boolean}[]){const policy=await contentAccess().policy(row.objectTypeId);await policy.load([row.id]);row.canRestore=types.find(type=>type.id===row.objectTypeId)?.state==='active'&&policy.recordCapabilities(row.id).full;}
   return { records, total, limit: args.limit, offset: args.offset };
 }
 export async function workspaceDashboard(tx: Executor, args: z.output<typeof schemas.get_workspace_dashboard>, actor: string) {

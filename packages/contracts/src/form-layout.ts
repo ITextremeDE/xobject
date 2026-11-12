@@ -4,9 +4,11 @@ import type {RelationshipType} from './relationship-types.js';
 import type {PrimaryRequirements,PrimaryChain} from './primary-chain.js';
 import {languageSchema} from './languages.js';
 const width=z.enum(['half','full']);
+export const relationshipObjectColumnSchema=z.enum(['auto','show','hide']);
+export type RelationshipObjectColumn=z.infer<typeof relationshipObjectColumnSchema>;
 export const formEntrySchema=z.union([
   z.object({fieldId:uuidSchema,width}).strict(),
-  z.object({relationshipTypeId:uuidSchema,side:z.enum(['left','right']),width,visible:z.boolean().optional(),expanded:z.enum(['auto','open','closed']).optional()}).strict(),
+  z.object({relationshipTypeId:uuidSchema,side:z.enum(['left','right']),width,visible:z.boolean().optional(),expanded:z.enum(['auto','open','closed']).optional(),objectColumn:relationshipObjectColumnSchema.optional()}).strict(),
   z.object({primary:z.literal(true),width:z.literal('full'),visible:z.boolean().optional()}).strict(),
 ]);
 export type FormEntry=z.infer<typeof formEntrySchema>;
@@ -16,6 +18,7 @@ export const formLayoutSchema=z.object({groups:z.array(z.object({
   labels:z.partialRecord(languageSchema,z.string().trim().min(1).max(200)).refine(value=>Object.keys(value).length>0,'Group needs a label'),
   width:width.optional(),
   relationshipList:z.boolean().optional(),
+  objectColumn:relationshipObjectColumnSchema.optional(),
   fields:z.array(formEntrySchema).max(1000),
 }).strict()).max(50),unassigned:z.array(formEntrySchema).max(1000).optional()}).strict().superRefine((layout,ctx)=>{
   const groups=layout.groups.map(group=>group.id),fields=[...layout.groups.flatMap(group=>group.fields),...(layout.unassigned??[])].map(formEntryKey);

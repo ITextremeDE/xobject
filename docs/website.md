@@ -27,7 +27,7 @@ canonical, `hreflang` and `x-default` metadata, Open Graph metadata and a share 
 
 The canonical English Changelog and Roadmap remain at `/changelog/` and `/roadmap/`. Resource links are ordered Documentation, Changelog, Roadmap, Requirements, Source code in both languages. Legal footer links place Privacy before Legal notice. Current documentation links to the website pages; released documentation snapshots retain their historical copies.
 The build generates them from the root Markdown files; edit those originals,
-not the ignored generated content. Documentation links in these pages resolve to the rendered public Docs, retaining section anchors; code references continue to point to GitHub. The 1.2.0 website explains Contact inheritance and guided conversions as product capabilities; the FAQ reserves V2 for its four agreed themes and distinguishes unassigned later goals. The reference documentation currently remains
+not the ignored generated content. Documentation links in these pages resolve to the rendered public Docs, retaining section anchors; code references continue to point to GitHub. The website explains Contact inheritance and guided conversions as product capabilities; the FAQ reserves V2 for its four agreed themes and distinguishes unassigned later goals. The reference documentation currently remains
 English at <https://docs.xobject.org/>; both product languages state this clearly.
 
 ## Design and components
@@ -68,7 +68,7 @@ new pages do not reuse a stale script from an earlier deployment.
 `src/assets/screenshots/` contains actual fictional ITextreme demo views in both
 interface languages and light/dark modes: a project tree, a record list, a Contact,
 a custom service plan, a record journal and the Contact-conversion confirmation
-preview. The Contact and conversion views use the current 1.2.0 source; the other
+preview. The Contact overview and list views use the 1.4.0 source; the conversion and other
 views retain the unchanged earlier workflow captures. No real customer data or credentials
 are included. Record contents remain in their original English language.
 Capture through a separate browser session and restore temporary account settings.

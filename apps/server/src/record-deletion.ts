@@ -12,7 +12,7 @@ export async function permanentlyDeleteRecord(tx:Executor,input:unknown,actor:st
  const identity=(await sql<{recycled_at:Date|null;deleted_at:Date|null}>`SELECT recycled_at,deleted_at FROM sys_record_identities WHERE object_type_id=${model.id}::uuid AND record_id=${args.recordId}::uuid FOR UPDATE`.execute(tx)).rows[0];
  if(!identity?.recycled_at||identity.deleted_at)throw new AppError(409,'Only recycled records can be permanently deleted');
  const row=(await sql<{version:number}>`SELECT version FROM ${sql.table(table)} WHERE id=${args.recordId}::uuid`.execute(tx)).rows[0];
- if(!row||row.version!==args.version)throw new AppError(409,'Record version conflict');
+ if(!row||row.version!==args.version)throw new AppError(409,'Record version conflict',{code:"version_conflict"});
  const fields=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${model.id}::uuid`.execute(tx)).rows;
  const users=(await sql<{id:string;is_admin:boolean}>`SELECT DISTINCT u.id,u.is_admin FROM sys_users u LEFT JOIN sys_workspace_members m ON m.user_id=u.id AND m.workspace_id=${model.workspace_id}::uuid WHERE u.active AND (u.is_admin OR m.user_id IS NOT NULL)`.execute(tx)).rows;
  // The retained display caption is private Administrator history, independent of the deleting actor's field restrictions.

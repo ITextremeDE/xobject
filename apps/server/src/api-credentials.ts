@@ -54,10 +54,10 @@ export class ApiCredentials {
   const args=schemas.create_api_credential.parse(input),expires=new Date(args.expiresAt),now=Date.now();
   if(expires.getTime()<=now||expires.getTime()>now+366*86400000)throw new AppError(400,'Access token expiry must be within one year');
   for(const [id,item] of this.failures)if(item.until<=now)this.failures.delete(id);
-  const attempts=this.failures.get(actor);if(attempts&&attempts.count>=5)throw new AppError(429,'Password attempts exceeded');
+  const attempts=this.failures.get(actor);if(attempts&&attempts.count>=5)throw new AppError(429,'Password attempts exceeded',{code:"passwordRateLimit"});
   const account=(await sql<{password:string}>`SELECT password FROM sys_accounts WHERE user_id=${actor} AND provider_id='credential' AND password IS NOT NULL`.execute(tx)).rows[0];
   if(!account||!await passwordCrypto.verify({hash:account.password,password:args.currentPassword})){
-   if(this.failures.size>=10000&&!attempts)throw new AppError(429,'Password attempts exceeded');this.failures.set(actor,{count:(attempts?.count??0)+1,until:attempts?.until??now+60000});throw new AppError(400,'Current password is incorrect');
+   if(this.failures.size>=10000&&!attempts)throw new AppError(429,'Password attempts exceeded',{code:"passwordRateLimit"});this.failures.set(actor,{count:(attempts?.count??0)+1,until:attempts?.until??now+60000});throw new AppError(400,'Current password is incorrect',{code:"currentPasswordWrong"});
   }
   if(Number((await sql<{n:number}>`SELECT count(*)::int AS n FROM sys_api_credentials WHERE user_id=${actor} AND revoked_at IS NULL AND expires_at>now()`.execute(tx)).rows[0].n)>=50)throw new AppError(409,'Access token limit reached');
   const id=v7(),token=`xo1_${id}.${randomBytes(32).toString('base64url')}`;

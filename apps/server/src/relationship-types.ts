@@ -31,14 +31,14 @@ export async function relationshipTypes(tx: Executor, workspaceId: string): Prom
 export async function configureRelationship(tx: Executor, args: {workspaceId:string;technicalName?:string;relationshipTypeId?:string;version?:number;configuration:RelationshipConfiguration}, journal: Journal, definitionSource: 'workspace'|'module' = 'workspace') {
   const previous = args.relationshipTypeId ? (await relationshipTypes(tx,args.workspaceId)).find(row=>row.id===args.relationshipTypeId) : undefined;
   if (args.relationshipTypeId && !previous) throw new AppError(404,'Relationship type not found');
-  if (previous && previous.version!==args.version) throw new AppError(409,'Relationship version conflict');
+  if (previous && previous.version!==args.version) throw new AppError(409,'Relationship version conflict',{code:"version_conflict"});
   const next = {...structuredClone(args.configuration),leftApplicability:args.configuration.leftApplicability===undefined?previous?.leftApplicability??null:args.configuration.leftApplicability,rightApplicability:args.configuration.rightApplicability===undefined?previous?.rightApplicability??null:args.configuration.rightApplicability};
   if((next.leftApplicability||next.rightApplicability)&&previous?.kind&&previous.kind!=='custom')throw new AppError(400,'System relationships cannot have endpoint conditions');
   if(next.leftApplicability||next.rightApplicability){if(next.allowAll||next.pairs.length!==1)throw new AppError(400,'Endpoint conditions require one object pair');await conditionColumn(tx,next.leftApplicability,next.pairs[0].leftObjectTypeId);await conditionColumn(tx,next.rightApplicability,next.pairs[0].rightObjectTypeId);}
   next.pairs.sort((a,b)=>`${a.leftObjectTypeId}:${a.rightObjectTypeId}`.localeCompare(`${b.leftObjectTypeId}:${b.rightObjectTypeId}`));
-  if (previous?.kind==='primary' && (!next.directed||next.leftMin!==0||next.leftMax!==null||next.rightMin!==0||next.rightMax!==1||!next.allowAll||next.pairs.length>0||next.active!==previous.active)) throw new AppError(400,'System relationship semantics are protected');
-  if (previous?.kind==='general' && (next.directed||next.leftMin!==0||next.leftMax!==null||next.rightMin!==0||next.rightMax!==null||!next.allowAll||next.pairs.length>0||!next.active)) throw new AppError(400,'System relationship semantics are protected');
-  if ((!previous||previous.kind==='custom')&&(next.allowAll||next.pairs.length!==1))throw new AppError(400,'Custom relationships require exactly one object pair');
+  if (previous?.kind==='primary' && (!next.directed||next.leftMin!==0||next.leftMax!==null||next.rightMin!==0||next.rightMax!==1||!next.allowAll||next.pairs.length>0||next.active!==previous.active)) throw new AppError(400,'System relationship semantics are protected',{code:"relationSystemProtected"});
+  if (previous?.kind==='general' && (next.directed||next.leftMin!==0||next.leftMax!==null||next.rightMin!==0||next.rightMax!==null||!next.allowAll||next.pairs.length>0||!next.active)) throw new AppError(400,'System relationship semantics are protected',{code:"relationSystemProtected"});
+  if ((!previous||previous.kind==='custom')&&(next.allowAll||next.pairs.length!==1))throw new AppError(400,'Custom relationships require exactly one object pair',{code:"relationSinglePairHelp"});
   if (!previous && (names.has(args.technicalName!) || args.technicalName!.startsWith('sys_'))) throw new AppError(400,'Reserved relationship name');
   if ((!previous || previous.kind==='custom') && Object.values(next.labels).some(label=>protectedLabels.has(label.trim().toLowerCase()))) throw new AppError(400,'Reserved relationship name');
   const workspace = (await sql<{label_languages:string[]}>`SELECT label_languages FROM sys_workspaces WHERE id=${args.workspaceId}::uuid`.execute(tx)).rows[0];
@@ -46,7 +46,7 @@ export async function configureRelationship(tx: Executor, args: {workspaceId:str
   // Module templates retain all installed translations, just like supplied objects/fields.
   // This internal origin is never accepted from API/MCP; authored changes use workspace policy.
   const definitionLanguages: readonly string[] = definitionSource === 'module' ? languageCodes : workspace.label_languages;
-  for (const key of ['labels','leftLabels','rightLabels'] as const) for (const language of new Set([...Object.keys(next[key]),...Object.keys(previous?.[key]??{})])) if (!definitionLanguages.includes(language) && next[key][language as 'de'|'en']!==previous?.[key][language as 'de'|'en']) throw new AppError(400,'Definition language is unavailable');
+  for (const key of ['labels','leftLabels','rightLabels'] as const) for (const language of new Set([...Object.keys(next[key]),...Object.keys(previous?.[key]??{})])) if (!definitionLanguages.includes(language) && next[key][language as 'de'|'en']!==previous?.[key][language as 'de'|'en']) throw new AppError(400,'Definition language is unavailable',{code:"definitionLanguageUnavailable"});
   for (const pair of next.pairs) for (const id of [pair.leftObjectTypeId,pair.rightObjectTypeId]) {
     const type=(await sql<{state:string}>`SELECT state FROM sys_object_types WHERE id=${id}::uuid AND workspace_id=${args.workspaceId}::uuid`.execute(tx)).rows[0];
     const retained=previous?.pairs.some(old=>old.leftObjectTypeId===pair.leftObjectTypeId&&old.rightObjectTypeId===pair.rightObjectTypeId);
@@ -54,10 +54,10 @@ export async function configureRelationship(tx: Executor, args: {workspaceId:str
   }
   const changed=(Object.keys(next) as (keyof RelationshipConfiguration)[]).filter(key=>!previous||!isDeepStrictEqual(previous[key],next[key]));
   if (!changed.length) return previous!;
-  if(previous?.isProtected&&changed.some(key=>!['labels','leftLabels','rightLabels'].includes(key)))throw new AppError(403,'Module relationship structure is protected');
-  if(previous?.kind==='custom'&&previous.pairLocked&&!isDeepStrictEqual(previous.pairs,next.pairs))throw new AppError(409,'Used object pair is fixed');
+  if(definitionSource==='workspace'&&previous?.isProtected&&changed.some(key=>!['labels','leftLabels','rightLabels'].includes(key)))throw new AppError(403,'Module relationship structure is protected');
+  if(previous?.kind==='custom'&&previous.pairLocked&&!isDeepStrictEqual(previous.pairs,next.pairs))throw new AppError(409,'Used object pair is fixed',{code:"relationPairLocked"});
   if (previous?.rulesState==='active') {
-    if (previous.directed!==next.directed && (await sql`SELECT 1 FROM sys_relationship_journal_endpoints ep JOIN sys_journal j ON j.id=ep.journal_id WHERE COALESCE(j.new_value->>'relationshipTypeId',j.old_value->>'relationshipTypeId')=${previous.id} LIMIT 1`.execute(tx)).rows.length) throw new AppError(409,'Used relationship direction is fixed');
+    if (previous.directed!==next.directed && (await sql`SELECT 1 FROM sys_relationship_journal_endpoints ep JOIN sys_journal j ON j.id=ep.journal_id WHERE COALESCE(j.new_value->>'relationshipTypeId',j.old_value->>'relationshipTypeId')=${previous.id} LIMIT 1`.execute(tx)).rows.length) throw new AppError(409,'Used relationship direction is fixed',{code:"relationPairLocked"});
     await validateRelationshipGraph(tx,{...previous,...next});
   }
   const id=previous?.id??v7(), change=v7();
@@ -86,7 +86,7 @@ export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:str
   const previous=(await workspaceModules(tx,args.workspaceId)).find(module=>module.key===args.key);
   if(!previous)throw new AppError(404,'Module not found');
   if(!previous.available)throw new AppError(409,'Module is not implemented yet');
-  if(previous.version!==args.version)throw new AppError(409,'Module version conflict');
+  if(previous.version!==args.version)throw new AppError(409,'Module version conflict',{code:"version_conflict"});
   if(previous.enabled===args.enabled&&(!args.enabled||previous.installedVersion===previous.templateVersion))return previous;
   if(previous.enabled&&args.enabled){
     if(previous.installedVersion>previous.templateVersion)throw new AppError(409,'Module template downgrade is not supported');
@@ -103,8 +103,8 @@ export async function configureWorkspaceModule(tx:Executor,args:{workspaceId:str
     return (await workspaceModules(tx,args.workspaceId)).find(m=>m.key===args.key)!;
   }
   const primary=(await relationshipTypes(tx,args.workspaceId)).find(type=>type.kind==='primary')!;
-  if(!args.enabled&&(await sql`SELECT 1 FROM sys_relationships WHERE relationship_type_id=${primary.id}::uuid LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Remove existing Primary associations before disabling Projects');
-  if(!args.enabled&&(await sql`SELECT 1 FROM sys_object_types WHERE workspace_id=${args.workspaceId}::uuid AND state<>'deleted' AND (primary_requirements->>'associationRequired'='true' OR jsonb_array_length(primary_requirements->'requiredLevels')>0) LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Clear Primary requirements before disabling Projects');
+  if(!args.enabled&&(await sql`SELECT 1 FROM sys_relationships WHERE relationship_type_id=${primary.id}::uuid LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Remove existing Primary associations before disabling Projects',{code:"projectsModuleInUse"});
+  if(!args.enabled&&(await sql`SELECT 1 FROM sys_object_types WHERE workspace_id=${args.workspaceId}::uuid AND state<>'deleted' AND (primary_requirements->>'associationRequired'='true' OR jsonb_array_length(primary_requirements->'requiredLevels')>0) LIMIT 1`.execute(tx)).rows.length)throw new AppError(409,'Clear Primary requirements before disabling Projects',{code:"primaryRequirementsModuleInUse"});
   const chain=args.enabled?await install():previous.primaryChain;
   await sql`UPDATE sys_workspace_modules SET enabled=${args.enabled},version=version+1 WHERE workspace_id=${args.workspaceId}::uuid AND module_key=${args.key}`.execute(tx);
   await reconcileModuleDefinitions(tx,args.workspaceId,journal);

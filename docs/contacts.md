@@ -61,7 +61,7 @@ Choose **Link with…**, select Contacts and the Identities relationship, then c
 
 ## Family and Organization affiliations
 
-Use **Link with… → Contacts** for Parents/Children, Partners, Siblings and Organization affiliations. Select the relationship that describes the actual context. These links stay inside the workspace, remain subject to both records' rights and do not copy contact details or grant access. Organizations do not participate in the personal family links. Affiliation is separate from a Contact person's single main Organization; an Individual may have several contextual Organization links.
+Use **Link with… → Contacts** for Parents/Children, Partners, Siblings and Organization affiliations. Select the relationship that describes the actual context. These links stay inside the workspace, remain subject to both records' rights and do not copy contact details or grant access. Organizations do not participate in the personal family links. Affiliation is separate from a Contact person's single main Organization; Individuals and Contact persons may have several contextual Organization links without changing inherited Organization fields.
 
 Type and Category choices are workspace configuration. A value such as Association or Supplier describes your classification, not a fourth Contact kind. From 1.2.0, module installation no longer proposes Association as a Type; existing configured choices and values are retained.
 
@@ -75,7 +75,6 @@ Type and Category choices are workspace configuration. A value such as Associati
 Membership is explicit; no organization, category or group automatically adds all its contacts. Removing a membership keeps the Contact. A distribution list is a business record, not a login group and not a permission grant. V1 stores the list; it does not send mail or invitations.
 
 Use Notes for working observations and the Journal for recorded changes. [Record actions and recovery](user-guide.md) apply to Contacts and Distribution lists as to other records. Standards-oriented storage is a foundation for later exchange; vCard import/export and CardDAV synchronization are not available in V1.
-
 
 ## Organization inheritance
 
@@ -113,3 +112,7 @@ Existing Contact IDs, numbers, access rights and compatible contents/links remai
 *The fictional ITextreme Contact person becomes an Individual. Its inherited company name is retained, so that company name becomes its Keyword. The preview has not changed any record.*
 
 [Open the full-size conversion image](../apps/site/src/assets/screenshots/conversion-en-light.png).
+
+## Reading and editing Contacts
+
+Saved Contacts open in a compact overview of their permitted details. Telephone and email entries offer direct actions; websites open in a new tab. Empty optional details are omitted. Notes retain Markdown rendering. Choose **Edit contact** for the complete form, including inheritance modes and per-field own exceptions; save or reset changes before returning to the overview. New Contacts open directly in the form. Custom extensions and relationship lists retain their shared definitions and normal permissions.

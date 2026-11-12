@@ -14218,7 +14218,7 @@
           "formLayouts": {
             "properties": {
               "default": {
-                "$ref": "#/components/schemas/_groups_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_unassigned_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_primary_true_width_full_visible_boolean_undefined_undefined_"
+                "$ref": "#/components/schemas/_groups_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_objectColumn_auto_show_hide_undefined_unassigned_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_primary_true_width_full_visible_boolean_undefined_undefined_"
               }
             },
             "type": "object"
@@ -16908,11 +16908,11 @@
         },
         "type": "object"
       },
-      "_groups_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_unassigned_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_primary_true_width_full_visible_boolean_undefined_undefined_": {
+      "_groups_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_objectColumn_auto_show_hide_undefined_unassigned_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_primary_true_width_full_visible_boolean_undefined_undefined_": {
         "properties": {
           "groups": {
             "items": {
-              "$ref": "#/components/schemas/_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_"
+              "$ref": "#/components/schemas/_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_objectColumn_auto_show_hide_undefined_"
             },
             "type": "array"
           },
@@ -16923,7 +16923,7 @@
                   "$ref": "#/components/schemas/_fieldId_string_width_half_full_"
                 },
                 {
-                  "$ref": "#/components/schemas/_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_"
+                  "$ref": "#/components/schemas/_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_"
                 },
                 {
                   "$ref": "#/components/schemas/_primary_true_width_full_visible_boolean_undefined_"
@@ -16988,7 +16988,7 @@
         ],
         "type": "object"
       },
-      "_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_": {
+      "_id_string_labels_Partial_Record_de_en_string_fields_fieldId_string_width_half_full_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_primary_true_width_full_visible_boolean_undefined_width_half_full_undefined_relationshipList_boolean_undefined_objectColumn_auto_show_hide_undefined_": {
         "properties": {
           "fields": {
             "items": {
@@ -16997,7 +16997,7 @@
                   "$ref": "#/components/schemas/_fieldId_string_width_half_full_"
                 },
                 {
-                  "$ref": "#/components/schemas/_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_"
+                  "$ref": "#/components/schemas/_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_"
                 },
                 {
                   "$ref": "#/components/schemas/_primary_true_width_full_visible_boolean_undefined_"
@@ -17011,6 +17011,14 @@
           },
           "labels": {
             "$ref": "#/components/schemas/Partial_Record_de_en_string_"
+          },
+          "objectColumn": {
+            "enum": [
+              "auto",
+              "hide",
+              "show"
+            ],
+            "type": "string"
           },
           "relationshipList": {
             "type": "boolean"
@@ -17724,13 +17732,21 @@
         ],
         "type": "object"
       },
-      "_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_": {
+      "_relationshipTypeId_string_side_left_right_width_half_full_visible_boolean_undefined_expanded_open_auto_closed_undefined_objectColumn_auto_show_hide_undefined_": {
         "properties": {
           "expanded": {
             "enum": [
               "auto",
               "closed",
               "open"
+            ],
+            "type": "string"
+          },
+          "objectColumn": {
+            "enum": [
+              "auto",
+              "hide",
+              "show"
             ],
             "type": "string"
           },
@@ -19164,6 +19180,14 @@
                         "relationshipList": {
                           "type": "boolean"
                         },
+                        "objectColumn": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "show",
+                            "hide"
+                          ]
+                        },
                         "fields": {
                           "maxItems": 1000,
                           "type": "array",
@@ -19222,6 +19246,14 @@
                                       "auto",
                                       "open",
                                       "closed"
+                                    ]
+                                  },
+                                  "objectColumn": {
+                                    "type": "string",
+                                    "enum": [
+                                      "auto",
+                                      "show",
+                                      "hide"
                                     ]
                                   }
                                 },
@@ -19323,6 +19355,14 @@
                                 "auto",
                                 "open",
                                 "closed"
+                              ]
+                            },
+                            "objectColumn": {
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "show",
+                                "hide"
                               ]
                             }
                           },
@@ -29189,6 +29229,12 @@
       "Input_create_record": {
         "type": "object",
         "properties": {
+          "requestId": {
+            "description": "Optional creation retry key, scoped to the current user. Reuse with identical input for up to seven days; retries return the current permitted record.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
           "contactInheritance": {
             "maxItems": 4,
             "type": "array",

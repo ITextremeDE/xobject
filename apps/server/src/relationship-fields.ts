@@ -58,7 +58,7 @@ export async function saveRelationshipField(tx:Executor,input:Inputs['create_fie
  return (await relationshipFieldDefinitions(tx,relationship!)).find(f=>f.id===id)!;
 }
 export async function relationshipAttributeCapabilities(field:string,endpoints:{objectTypeId:string;recordId:string}[],newFocus?:{objectTypeId:string;recordId:string}){
- const rights=await Promise.all(endpoints.map(async ref=>{const p=await contentAccess().policy(ref.objectTypeId),creating=newFocus?.objectTypeId===ref.objectTypeId&&newFocus.recordId===ref.recordId;return {read:creating?p.creationField(field):p.field(field,ref.recordId).read,edit:creating?p.creationField(field):p.field(field,ref.recordId).edit};}));
+ const rights=await Promise.all(endpoints.map(async ref=>{const p=await contentAccess().policy(ref.objectTypeId,ref.recordId),creating=newFocus?.objectTypeId===ref.objectTypeId&&newFocus.recordId===ref.recordId;return {read:creating?p.creationField(field):p.field(field,ref.recordId).read,edit:creating?p.creationField(field):p.field(field,ref.recordId).edit};}));
  return {read:rights.every(r=>r.read),edit:rights.every(r=>r.edit)};
 }
 export type AttributeEdge={id:string;workspace_id:string;relationship_type_id:string;left_object_type_id:string;left_record_id:string;right_object_type_id:string;right_record_id:string;version:number};
@@ -80,10 +80,10 @@ export async function writeEdgeAttributes(tx:Executor,focus:{objectTypeId:string
   if(!edge)throw new AppError(400,'Attribute edge must be linked to the source');
   if(seen.has(edge.id))throw new AppError(400,'Duplicate relationship attribute write');seen.add(edge.id);
   const fresh=added.includes(edge.id);
-  if(!fresh&&(write.edgeId!==edge.id||write.version!==edge.version))throw new AppError(409,'Relationship edge version conflict');
+  if(!fresh&&(write.edgeId!==edge.id||write.version!==edge.version))throw new AppError(409,'Relationship edge version conflict',{code:"version_conflict"});
   if(fresh&&(write.edgeId||write.version))throw new AppError(409,'New edge cannot reuse an old edge identity');
   const definition=(await sql<{version:number;active:boolean}>`SELECT version,active FROM sys_relationship_types WHERE id=${edge.relationship_type_id}::uuid`.execute(tx)).rows[0];
-  if(definition.version!==write.definitionVersion)throw new AppError(409,'Relationship definition version conflict');
+  if(definition.version!==write.definitionVersion)throw new AppError(409,'Relationship definition version conflict',{code:"version_conflict"});
   if(!definition.active&&Object.keys(write.values).length)throw new AppError(400,'Relationship type is inactive');
   const fields=(await sql<RelationshipFieldRow>`SELECT * FROM sys_fields WHERE relationship_type_id=${edge.relationship_type_id}::uuid AND state='active'`.execute(tx)).rows;
   const rows=(await sql<{field_id:string;value:FieldValue}>`SELECT key::uuid AS field_id,value FROM sys_relationships r CROSS JOIN LATERAL jsonb_each(r.values) WHERE r.id=${edge.id}::uuid`.execute(tx)).rows;
@@ -119,7 +119,7 @@ export async function relationshipFieldLifecycle(tx:Executor,input:Inputs['set_d
 }
 export async function candidateAttributes(tx:Executor,relationship:string,source:{objectTypeId:string;recordId?:string},target:{objectTypeId:string;recordId:string}){
  const fields=(await sql<RelationshipFieldRow>`SELECT * FROM sys_fields WHERE relationship_type_id=${relationship}::uuid AND state='active'`.execute(tx)).rows,values:Record<string,FieldValue>={},access:Record<string,{read:boolean;edit:boolean}>={};
- for(const field of fields){const sourcePolicy=await contentAccess().policy(source.objectTypeId),targetPolicy=await contentAccess().policy(target.objectTypeId),a=source.recordId?sourcePolicy.field(field.id,source.recordId):{read:sourcePolicy.creationField(field.id),edit:sourcePolicy.creationField(field.id)},b=targetPolicy.field(field.id,target.recordId);const rights={read:a.read&&b.read,edit:a.edit&&b.edit};access[field.id]=rights;if(rights.read)values[field.id]=rights.edit?field.input_rules.defaultValue:null;}
+ for(const field of fields){const sourcePolicy=await contentAccess().policy(source.objectTypeId,source.recordId),targetPolicy=await contentAccess().policy(target.objectTypeId,target.recordId),a=source.recordId?sourcePolicy.field(field.id,source.recordId):{read:sourcePolicy.creationField(field.id),edit:sourcePolicy.creationField(field.id)},b=targetPolicy.field(field.id,target.recordId);const rights={read:a.read&&b.read,edit:a.edit&&b.edit};access[field.id]=rights;if(rights.read)values[field.id]=rights.edit?field.input_rules.defaultValue:null;}
  return {attributeValues:values,attributeAccess:access};
 }
 

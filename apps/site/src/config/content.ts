@@ -106,7 +106,7 @@ export const content = {
     screenshots:
       "Real application views from the fictional ITextreme demo workspace.",
     enDocs: "Documentation is currently available in English.",
-    available: "Community 1.3.0 · Open source",
+    available: "Community 1.4.0 · Open source",
     releaseNotes: "Release notes",
     guide: "Read the guide",
     workflowLabel: "Contact workflows",
@@ -233,7 +233,7 @@ export const content = {
     screenshots:
       "Echte Anwendungsansichten aus dem fiktiven ITextreme-Demoarbeitsbereich.",
     enDocs: "Die Dokumentation ist derzeit auf Englisch verfügbar.",
-    available: "Community 1.3.0 · Open Source",
+    available: "Community 1.4.0 · Open Source",
     releaseNotes: "Release-Änderungen",
     guide: "Zur Anleitung",
     workflowLabel: "Kontakte im Wandel",

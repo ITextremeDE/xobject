@@ -19,7 +19,7 @@ export async function createUser(tx: Executor, args: Inputs['create_user'], jour
 export async function configureUser(tx: Executor, args: Inputs['configure_user'], actor: string, journal: ConfigurationJournal) {
   const previous = (await managedUsers(tx)).find(item => item.id === args.userId);
   if (!previous) throw new AppError(404, 'User not found');
-  if (previous.version !== args.version) throw new AppError(409, 'User version conflict');
+  if (previous.version !== args.version) throw new AppError(409,'User version conflict',{code:"version_conflict"});
   if (actor === args.userId && (!args.active || !args.isAdmin)) throw new AppError(400, 'Cannot remove own Administrator access');
   if (previous.isAdmin && previous.active && (!args.isAdmin || !args.active) && !(await sql`SELECT id FROM sys_users WHERE is_admin AND active AND id <> ${args.userId} LIMIT 1`.execute(tx)).rows.length) throw new AppError(400, 'Last active Administrator must remain');
   const changes = [{ key: 'name', before: previous.name, after: args.name }, { key: 'is_admin', before: previous.isAdmin, after: args.isAdmin }, { key: 'active', before: previous.active, after: args.active }].filter(item => item.before !== item.after);

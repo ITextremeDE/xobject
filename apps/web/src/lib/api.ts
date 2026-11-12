@@ -1,7 +1,7 @@
 import type { Inputs, Operation, Outputs, AuthUser } from '@xobject/contracts';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string,public details?:{code:string;fieldId?:string;context?:string}) { super(message); }
+  constructor(public status: number, message: string,public details?:{code:string;fieldId?:string;context?:string},public code:string=details?.code??'request_failed') { super(message); }
 }
 
 async function request<T>(url: string, body?: unknown): Promise<T> {
@@ -14,7 +14,7 @@ async function request<T>(url: string, body?: unknown): Promise<T> {
   try { result = await response.json(); } catch (error) { if(response.ok)throw error; result={}; }
   if (!response.ok) {
     if (response.status === 401 && url.startsWith('/api/v1/')) window.dispatchEvent(new Event('xobject:session-expired'));
-    throw new ApiError(response.status, result.error || result.message || 'Request failed',result.details);
+    throw new ApiError(response.status, result.error || result.message || 'Request failed',result.details,result.code);
   }
   return result as T;
 }

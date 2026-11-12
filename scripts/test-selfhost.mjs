@@ -61,8 +61,18 @@ try{
   const retainedContact=await api('get_record',{objectTypeId:contactModel.id,recordId:contact.id});
   assert.equal(retainedContact.company_name,contact.company_name);assert.equal(retainedContact.version,contact.version);
   assert.deepEqual(await api('list_record_journal',{objectTypeId:contactModel.id,recordId:contact.id}),contactJournal);
+  const requestId=randomUUID(),creation={objectTypeId:object.id,requestId,keyword:'Retry after upgrade'};
+  const first=await api('create_record',creation),again=await api('create_record',creation);
+  assert.equal(first.id,again.id);
+  assert.equal((await api('list_record_journal',{objectTypeId:object.id,recordId:first.id})).total,1);
   const upgradedContactModel=await api('get_object_type',{objectTypeId:contactModel.id});
   for(const key of ['address_form','letter_salutation','pronouns'])assert.ok(upgradedContactModel.contactProfile.fields[key]);
+  const profile=upgradedContactModel.contactProfile;
+  const affiliation=(await api('list_relationship_types',{workspaceId:ws.id})).find(relation=>relation.id===profile.relationships.contact_affiliation);
+  assert.deepEqual(affiliation.rightApplicability.optionIds,[profile.kinds.individual,profile.kinds.person]);
+  const person=await api('create_record',{objectTypeId:contactModel.id,values:{contact_kind:profile.kinds.person,last_name:[{id:randomUUID(),text:'Affiliation acceptance'}]},relationships:[{relationshipTypeId:affiliation.id,version:affiliation.version,side:'right',targets:[{objectTypeId:contactModel.id,recordId:contact.id}]}]});
+  assert.ok((await api('get_record_relationships',{objectTypeId:contactModel.id,recordId:person.id})).edges.some(edge=>edge.definition.id===affiliation.id&&edge.left.recordId===contact.id));
+
 
   await run('docker',[...compose,'stop','app']);
   await run('docker',[...compose,'exec','-T','db','psql','-X','-v','ON_ERROR_STOP=1','-U','xobject','-d','xobject','-c',"UPDATE sys_schema_version SET definition_hash='unsupported-source' WHERE singleton"]);
@@ -70,7 +80,7 @@ try{
   const failedState=await run('docker',[...compose,'ps','--status','running','--services']);assert.ok(!failedState.stdout.split('\n').includes('app'));
   await helper('restore',bundle,'--confirm-restore');await helper('start');await login();
   assert.equal((await api('get_record',{objectTypeId:object.id,recordId:record.id})).description,'Before backup');
-  await writeFile(path.join(directory,'acceptance.json'),JSON.stringify({status:'passed',platform:process.platform,containerPlatform:(await run('docker',['image','inspect',image,'--format','{{.Os}}/{{.Architecture}}'])).stdout.trim(),imageId,predecessor:predecessor??null,checks:['empty installation','one-time first Administrator','runtime-only application','HTTP security headers','record and journal backup/restore','restoration remains stopped',predecessor?'released-source upgrade with unchanged records/versions/journal':'same-target upgrade','unknown-source rejection remains stopped','recovery after failed upgrade'],publication:'none'},null,2)+'\n',{mode:0o600});
+  await writeFile(path.join(directory,'acceptance.json'),JSON.stringify({status:'passed',platform:process.platform,containerPlatform:(await run('docker',['image','inspect',image,'--format','{{.Os}}/{{.Architecture}}'])).stdout.trim(),imageId,predecessor:predecessor??null,checks:['empty installation','one-time first Administrator','runtime-only application','HTTP security headers','record and journal backup/restore','restoration remains stopped',predecessor?'released-source upgrade with unchanged records/versions/journal':'same-target upgrade','unknown-source rejection remains stopped','recovery after failed upgrade','keyed creation uses upgraded runtime grants'],publication:'none'},null,2)+'\n',{mode:0o600});
   console.log(`Self-hosting acceptance passed: ${directory}`);
 }finally{
   try{const logs=await run('docker',[...compose,'logs','--no-color','app']);await writeFile(path.join(directory,'runtime.log'),logs.stdout,{mode:0o600});}catch{}

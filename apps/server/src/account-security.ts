@@ -30,15 +30,15 @@ export class AccountSecurityService {
       const now = Date.now();
       for (const [id, item] of this.failures) if (item.until <= now) this.failures.delete(id);
       const attempts = this.failures.get(actor);
-      if (attempts && attempts.count >= 5) throw new AppError(429, 'Password attempts exceeded');
+      if (attempts && attempts.count >= 5) throw new AppError(429,'Password attempts exceeded',{code:"passwordRateLimit"});
       const account = (await sql<{ id: string; password: string }>`SELECT id, password FROM sys_accounts WHERE user_id = ${actor} AND provider_id = 'credential' AND password IS NOT NULL FOR UPDATE`.execute(tx)).rows[0];
-      if (!account) throw new AppError(400, 'Local password is not available');
+      if (!account) throw new AppError(400,'Local password is not available',{code:"noLocalPassword"});
       if (!await passwordCrypto.verify({ hash: account.password, password: args.currentPassword })) {
-        if (this.failures.size >= 10000 && !attempts) throw new AppError(429, 'Password attempts exceeded');
+        if (this.failures.size >= 10000 && !attempts) throw new AppError(429,'Password attempts exceeded',{code:"passwordRateLimit"});
         this.failures.set(actor, { count: (attempts?.count ?? 0) + 1, until: attempts?.until ?? now + 60000 });
-        throw new AppError(400, 'Current password is incorrect');
+        throw new AppError(400,'Current password is incorrect',{code:"currentPasswordWrong"});
       }
-      if (await passwordCrypto.verify({ hash: account.password, password: args.newPassword })) throw new AppError(400, 'New password must be different');
+      if (await passwordCrypto.verify({ hash: account.password, password: args.newPassword })) throw new AppError(400,'New password must be different',{code:"passwordMustDiffer"});
       const hash = await passwordCrypto.hash(args.newPassword);
       await sql`UPDATE sys_accounts SET password = ${hash}, updated_at = now() WHERE id = ${account.id}`.execute(tx);
       const user = (await sql<{ must_change_password: boolean }>`SELECT must_change_password FROM sys_users WHERE id = ${actor}`.execute(tx)).rows[0];

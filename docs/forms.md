@@ -26,6 +26,10 @@ On sensitive objects, the protected **Access principals** field can be positione
 
 ## Combine relationship lists (Community 1.3.0)
 
+The next release supplies a **Family / Familie** list as the initial Contacts-module suggestion. It combines Parents, Children, Partners and Siblings with a Relationship type column; the group, label and included sides remain editable in the standard designer. Existing authored layouts are retained. Apply the same grouping yourself by moving the desired to-many sides into one group and enabling **Show relationships in one list**.
+
+The **Object type column** preference is available on combined groups and individual to-many relationship entries: **Automatic**, **Show** or **Hide**. Automatic uses allowed endpoint definitions, including when a list is empty, and omits the column for a single target object. The selection dialog follows the same preference. Expansion settings apply to individual collapsible lists, not combined table groups.
+
 Move the desired to-many relationship elements into one group, name it (for example **Family**) and enable **Show relationships in one list**. A combined group uses full width and contains only to-many custom relationship sides. Ordinary fields, the Primary chain and single-target relationships stay in other groups. Parents and Children are separate sides of the same relationship and can both appear in Family alongside Partners or Siblings.
 
 The record shows one searchable, sortable, paginated table with Relationship, Object type and Keyword. The plus button first asks which available relationship to add, then opens the normal record picker. Removing a row removes that relationship only; it keeps the other record. Changes remain in the ordinary record draft until Save. Combining is presentation metadata: permissions, cardinalities, requiredness and record identities do not change. The same Contact may appear in several rows for different relationships. A shared layout is available through the normal API/MCP form configuration as well as the designer.
@@ -36,7 +40,7 @@ Newly added elements remain Unassigned until you place them. They remain availab
 
 ## Supplied Contact forms
 
-Organizations, Contact persons and Individual contacts have fixed kind-specific core forms. Their name, professional, channel/address, language/time and applicable personal/company sections are provided by the module. The designer arranges additional fields and relationship lists, including supplied family/identity lists in Community 1.3.0. The single main-Organization selector stays in the protected core.
+Organizations, Contact persons and Individual contacts have fixed kind-specific core forms. Their name, professional, channel/address, language/time and applicable personal/company sections are provided by the module. The designer arranges additional fields and relationship lists, including configurable supplied family/identity lists in Community 1.4.0. The single main-Organization selector stays in the protected core.
 
 The core's intended input aids, labels and supported field rules remain configurable in Object types, subject to protection and existing-data validation. You cannot move/remove protected core components or turn a Contact person into an Organization by rearranging the form.
 
