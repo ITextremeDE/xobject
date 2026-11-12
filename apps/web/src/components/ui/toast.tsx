@@ -200,14 +200,15 @@ function ToastList() {
 function Toaster({
   children,
   toastManager = toast,
+  viewportProps,
   ...props
-}: ToastPrimitive.Provider.Props) {
+}: ToastPrimitive.Provider.Props & {viewportProps?:ToastPrimitive.Viewport.Props}) {
   const {t}=useTranslation()
   return (
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
       <ToastPortal>
-        <ToastViewport aria-label={t("toastRegion")}>
+        <ToastViewport aria-label={t("toastRegion")} {...viewportProps}>
           <ToastList />
         </ToastViewport>
       </ToastPortal>

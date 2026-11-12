@@ -411,8 +411,17 @@ test('rendered application workflows on an isolated current installation',{timeo
    await input.fill('+12025550123');await input.press('Tab');await expect(input).toHaveValue('+1 202 555 0123');
    await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
    assert.equal((await api('get_record',{objectTypeId:object.id,recordId:editable.id})).telephone,'+12025550123');
+   await expect(page.locator('[data-slot=toast]').first()).toBeVisible();
+   await expect.poll(async()=>{const toast=await page.locator('[data-slot=toast]').first().boundingBox(),footer=await page.locator('[data-record-form-actions]').boundingBox();return !!toast&&!!footer&&toast.y+toast.height<=footer.y;}).toBe(true);
    await input.fill('+49891234567');await page.getByRole('button',{name:/^Reset/}).click();
    await expect(input).toHaveValue('+1 202 555 0123');await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
+   await page.setViewportSize({width:390,height:844});
+   await input.fill('+49891234567');await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
+   await expect(page.locator('[data-slot=toast]').first()).toBeVisible();
+   await expect.poll(async()=>{const toast=await page.locator('[data-slot=toast]').first().boundingBox(),footer=await page.locator('[data-record-form-actions]').boundingBox();return !!toast&&!!footer&&toast.y+toast.height<=footer.y;}).toBe(true);
+   await input.fill('+12025550123');await page.getByRole('button',{name:/^Reset/}).click();await expect(input).toHaveValue('+49 89 1234567');
+   await settings(page);await expect.poll(async()=>{const toast=await page.locator('[data-slot=toast]').first().boundingBox(),footer=await page.locator('[data-slot=dialog-footer]').boundingBox();return !toast||!!footer&&toast.y+toast.height<=footer.y;}).toBe(true);await page.keyboard.press('Escape');
+   await page.setViewportSize({width:1440,height:1000});
    const phoneField=contact.fields.find(f=>f.config.schema==='phone_entries'),entryId=randomUUID();
    const contactBefore=await api('get_record',{objectTypeId:contact.id,recordId:domain.contacts.record.id});
    await api('update_record',{objectTypeId:contact.id,recordId:contactBefore.id,version:contactBefore.version,values:{[phoneField.technicalName]:[{id:entryId,value:'+12025550123',contexts:[],preference:1}]}});

@@ -18,5 +18,5 @@ export function RecordSectionTabs({isNew=false,treeAvailable,loading=false}:{isN
 }
 export function RecordPageFooter({children}:{children:ReactNode}){
  const {t}=useTranslation();
- return <footer className="sticky bottom-0 mt-auto flex flex-wrap items-center justify-between gap-3 border-t bg-background py-3" aria-label={t('recordFormActions')}>{children}</footer>;
+ return <footer data-record-form-actions className="sticky bottom-0 mt-auto flex flex-wrap items-center justify-between gap-3 border-t bg-background py-3" aria-label={t('recordFormActions')}>{children}</footer>;
 }

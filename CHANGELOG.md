@@ -18,6 +18,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Fixed
 
+- Keep success/error toasts above visible record and dialog action bars so Save/Reset remain usable, including wrapped mobile layouts. Preserve standard toast styling, stacking and dismissal.
 - Limit combined relationship candidate context to its applicability controller so unrelated draft-field permissions do not prevent selection.
 - Require native upgrade acceptance from released 1.2.0 alongside earlier supported predecessors and refresh installation, product guides and fictional website illustrations.
 - Use the standard shadcn tooltip for record-list text and icons.
