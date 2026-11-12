@@ -452,7 +452,7 @@ export class ObjectDefinitions {
         if(!element.single&&entry.width!=='full')throw new AppError(400,'Relationship tables and Primary chain require full width');
         if(!('fieldId' in entry)&&element.required&&entry.visible===false)throw new AppError(400,'Required relationships must remain visible');
       }
-      for(const group of args.layout.groups)if(group.relationshipList&&group.fields.some(entry=>{const element=elements.find(e=>e.key===formEntryKey(entry));return !element?.relationship||element.single||element.relationship.definition.kind!=='custom';}))throw new AppError(400,'Combined lists require to-many custom relationship sides');
+      for(const group of args.layout.groups)if(group.relationshipList&&group.fields.some(entry=>{const element=elements.find(e=>e.key===formEntryKey(entry));return !element?.relationship||element.single||element.relationship.definition.kind==='primary';}))throw new AppError(400,'Combined lists require to-many non-Primary relationship sides');
       const languages=(await sql<{label_languages:string[]}>`SELECT label_languages FROM sys_workspaces WHERE id=${type.workspace_id}::uuid`.execute(tx)).rows[0].label_languages;
       const old=type.form_layouts?.default;
       for(const group of args.layout.groups){

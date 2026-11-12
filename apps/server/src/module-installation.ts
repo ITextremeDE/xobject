@@ -1,5 +1,5 @@
 import {tableName} from './definition-metadata.js';
-import {contactFamilyListLayout} from '@xobject/contracts';
+import {contactRelationshipListLayout} from '@xobject/contracts';
 import {upgradeContactAffiliations} from './contact-affiliation-upgrade.js';
 import {activityObjectKeys} from './activity.js';
 import {workFormLayout} from '@xobject/contracts';
@@ -124,7 +124,7 @@ export class ModuleInstallation {
       const relationships=formRelationshipFields(await relationshipTypes(tx,workspaceId),id,await primaryChain(tx,workspaceId));
       const profile=await workProfile(tx,id);
       let layout=profile?workFormLayout(profile,fields,relationships):resolveFormLayout(undefined,fields,true,relationships);
-      const contact=await contactProfile(tx,id);if(contact)layout=contactFamilyListLayout(contact,layout);
+      const contact=await contactProfile(tx,id);if(contact)layout=contactRelationshipListLayout(contact,layout);
       layout.groups[0].id=v7();
       // Supplied fresh templates retain the module-gated slot before Projects is enabled.
       // Normal form resolution hides the unavailable element; authored layouts are untouched.
