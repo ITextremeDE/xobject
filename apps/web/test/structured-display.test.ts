@@ -8,8 +8,8 @@ const options=[{id:'work',labels:{en:'Work',de:'Geschäftlich'},active:true},{id
 test('structured history makes usage/type-only changes visible using the supplied snapshot labels',()=>{
  const field={kind:'structured',config:{schema:'phone_entries' as const,options}};
  const entry={id,value:'+49891234567',contexts:['work','mobile','voice'],preference:1};
- assert.equal(displayFieldValue(field,[entry],'de',t),'+49891234567 (Geschäftlich · Mobil · Sprachanrufe)');
- assert.equal(displayFieldValue(field,[{...entry,contexts:['work','mobile']}],'en',t),'+49891234567 (Work · Mobile)');
+ assert.equal(displayFieldValue(field,[entry],'de',t),'+49 89 1234567 (Geschäftlich · Mobil · Sprachanrufe)');
+ assert.equal(displayFieldValue(field,[{...entry,contexts:['work','mobile']}],'en',t),'+49 89 1234567 (Work · Mobile)');
  const snapshot={...field,config:{...field.config,options:options.map(o=>({...o,labels:{en:'Historical '+o.labels.en,de:'Früher '+o.labels.de}}))}};
  assert.match(displayFieldValue(snapshot,[entry],'de',t),/Früher Sprachanrufe/);
 });

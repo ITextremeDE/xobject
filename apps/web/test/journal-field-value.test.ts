@@ -25,3 +25,11 @@ test('Contact inheritance history distinguishes own empty, own text and inherite
  assert.equal(journalFieldValue(entry,{mode:'own',value:null},'after','en',i18n.t,'UTC',defaultRegionalSettings),'Own value · Not set');
  assert.equal(journalFieldValue(entry,{mode:'own',value:'Branch office'},'after','en',i18n.t,'UTC',defaultRegionalSettings),'Own value · Branch office');
 });
+
+
+test('structured own exceptions use the captured context and readable telephone presentation',async()=>{
+ const i18n=i18next.createInstance();await i18n.init({lng:'en',resources:{en:{translation:{contactOwn:'Own value',journalNotSet:'Not set'}}}});
+ const entry={value_context:{after:{kind:'structured',config:{schema:'phone_entries',options:[{id:'019da41b-2082-79e3-9bcc-7700db769818',labels:{en:'Reception'},active:true}]}}}} as JournalEntry;
+ const value={mode:'own',value:[{id:'019da41b-2082-79e3-9bcc-7700db769817',value:'+12025550123',contexts:['019da41b-2082-79e3-9bcc-7700db769818'],preference:1}]};
+ assert.equal(journalFieldValue(entry,value,'after','en',i18n.t,'UTC',defaultRegionalSettings),'Own value · +1 202 555 0123 (Reception)');
+});

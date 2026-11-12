@@ -1,3 +1,5 @@
+import {contactPersonValues} from '@/lib/contact-person-summary';
+import {TruncatedText} from './truncated-text';
 import {RecordIcon} from './record-icon';
 import {RelationshipAttributes} from './relationship-attributes';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from '@/components/ui/collapsible';
@@ -44,7 +46,9 @@ function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, 
   const invalid = required && !field.targets.length&&!field.restricted;
   const [expanded,setExpanded]=useState(expandedDefault==='open'||(expandedDefault!=='closed'&&(field.targets.length>0||required)));
   const id = `relation-${field.definition.id}-${field.side}`;
-  const pagination = useClientPagination(field.targets);
+  const listTargets = field.targets.every(target=>target.objectTechnicalName==='contacts') ? [...field.targets].sort((a,b)=>a.keyword.localeCompare(b.keyword,i18n.language)||relatedIdentity(a).localeCompare(relatedIdentity(b))) : field.targets;
+  const pagination = useClientPagination(listTargets);
+  const professional=field.targets.some(target=>target.contactPerson);
   const close = () => { onPickerDirtyChange(false); setPickerOpen(false); };
   const remove = (target: RelatedRecord) => { onChange(field.targets.filter(item => relatedIdentity(item) !== relatedIdentity(target))); requestAnimationFrame(() => document.getElementById(`${id}-choose`)?.focus()); };
   const path = (target: RelatedRecord) => `/w/${workspaceCode}/objects/${target.objectTechnicalName}/${target.recordId}`;
@@ -73,18 +77,19 @@ function RelationshipControl({ workspaceId,sourceValues,objectTypeId, recordId, 
         <CollapsibleTrigger render={<Button type="button" variant="ghost" className="group/relation h-auto min-h-8 min-w-0 shrink flex-wrap justify-start whitespace-normal px-0 py-1 text-left"/>}><ChevronDownIcon data-icon="inline-start" className="transition-transform group-aria-expanded/relation:rotate-180"/><span id={`${id}-title`}>{fieldLabel}</span><Badge variant="secondary">{field.targets.length}</Badge>{single?<span className="text-xs text-muted-foreground">{t('relationshipAtMostOne')}</span>:null}</CollapsibleTrigger>
         {editable ? <Button id={`${id}-choose`} type="button" variant="outline" size="icon-sm" disabled={disabled} aria-label={chooseLabel} title={t(single && field.targets.length ? 'relationshipChange' : 'addRelatedRecord')} onClick={() => setPickerOpen(true)}>{single && field.targets.length ? <PencilIcon/> : <PlusIcon/>}</Button> : null}
       </div>
-      <CollapsibleContent className="flex flex-col gap-3 pt-3"><div className="min-w-0 overflow-hidden rounded-lg border"><Table aria-labelledby={`${id}-title`} className="table-fixed">
-        <TableHeader><TableRow><TableHead>{t('keyword')}</TableHead><TableHead className="w-24 sm:w-40">{t('objectSingular')}</TableHead><TableHead className="w-20"><span className="sr-only">{t('action')}</span></TableHead></TableRow></TableHeader>
+      <CollapsibleContent className="flex flex-col gap-3 pt-3"><div className="min-w-0 overflow-hidden rounded-lg border"><Table aria-labelledby={`${id}-title`} className={professional?'table-fixed min-w-240':'table-fixed'}>
+        <TableHeader><TableRow><TableHead>{t('keyword')}</TableHead><TableHead className="w-24 sm:w-40">{t('objectSingular')}</TableHead>{professional?<>{['contactPersonJobTitle','contactPersonDepartment','contactPersonFunction'].map(key=><TableHead key={key} className="w-36">{t(key)}</TableHead>)}</>:null}<TableHead className="w-20"><span className="sr-only">{t('action')}</span></TableHead></TableRow></TableHeader>
         <TableBody>{pagination.rows.map(target => <TableRow key={relatedIdentity(target)} onClick={event => {
           if (disabled || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString()) return;
           if (event.target instanceof Element && event.target.closest('a, button, input, label')) return;
           void navigate(path(target));
         }}>
-          <TableCell className="truncate"><Button type="button" variant="link" className="h-auto max-w-full justify-start px-0" disabled={disabled} nativeButton={false} render={<Link to={path(target)} />} title={target.keyword}><RecordIcon iconKey={target.iconKey} objectLabel={label(target.objectLabels)}/><span className="truncate">{target.keyword}</span></Button></TableCell>
-          <TableCell className="truncate" title={label(target.objectLabels)}>{label(target.objectLabels)}{target.state === 'inactive' ? <Badge variant="outline" className="ml-2">{t('definition_inactive')}</Badge> : null}</TableCell>
+          <TableCell className="truncate"><Button type="button" variant="link" className="h-auto max-w-full justify-start px-0" disabled={disabled} nativeButton={false} render={<Link to={path(target)} />} ><RecordIcon iconKey={target.iconKey} objectLabel={label(target.objectLabels)}/><TruncatedText>{target.keyword}</TruncatedText></Button></TableCell>
+          <TableCell className="truncate"><TruncatedText>{label(target.objectLabels)}</TruncatedText>{target.state === 'inactive' ? <Badge variant="outline" className="ml-2">{t('definition_inactive')}</Badge> : null}</TableCell>
+          {professional?Object.entries(contactPersonValues(target,i18n.language)).map(([key,value])=><TableCell key={key} className="truncate"><TruncatedText>{value||'—'}</TruncatedText></TableCell>):null}
           <TableCell><div className="flex items-center justify-end">{controls(target)}</div></TableCell>
         </TableRow>)}
-        {!field.targets.length ? <TableRow><TableCell colSpan={3} className="h-16 text-center text-muted-foreground">{t('relationshipNoneSelected')}</TableCell></TableRow> : null}</TableBody>
+        {!field.targets.length ? <TableRow><TableCell colSpan={professional?6:3} className="h-16 text-center text-muted-foreground">{t('relationshipNoneSelected')}</TableCell></TableRow> : null}</TableBody>
       </Table></div>
       {field.targets.length > 10 ? <ClientTablePagination pagination={pagination} disabled={disabled} countLabel={t('relationshipCount', { count: field.targets.length })} /> : null}
       </CollapsibleContent></Collapsible>}

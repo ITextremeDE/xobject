@@ -1,3 +1,4 @@
+import {CustomFieldControl} from './custom-field-control';
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -20,12 +21,14 @@ import {
 } from "./ui/alert-dialog";
 export function ContactInheritanceControl({
   field,
+  workspaceId,objectTypeId,
   state,
   draft,
   disabled,
   onChange,
 }: {
   field: FieldDefinition;
+  workspaceId:string;objectTypeId:string;
   state: ContactInheritanceField;
   draft?: ContactInheritanceWrite[number];
   disabled: boolean;
@@ -41,11 +44,9 @@ export function ContactInheritanceControl({
           ? state.value
           : state.inheritedValue;
   const id = `contact-inheritance-${field.id}`;
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{field.label}</FieldLabel>
-      <ToggleGroup
+  const modes=(<ToggleGroup
         variant="outline"
+        className="max-w-full flex-wrap"
         size="sm"
         value={[mode]}
         disabled={disabled || !state.canEdit}
@@ -59,21 +60,12 @@ export function ContactInheritanceControl({
       >
         <ToggleGroupItem value="inherit">{t("contactInherit")}</ToggleGroupItem>
         <ToggleGroupItem value="own">{t("contactOwn")}</ToggleGroupItem>
-      </ToggleGroup>
-      <Input
-        id={id}
-        maxLength={10000}
-        value={value ?? ""}
-        readOnly={mode === "inherit"}
-        disabled={disabled || !state.canEdit}
-        onChange={(e) =>
-          onChange({
-            fieldId: field.id,
-            mode: "own",
-            value: e.target.value || null,
-          })
-        }
-      />
+      </ToggleGroup>);
+  return (
+    <Field>
+      {field.kind!=='structured'?<><FieldLabel htmlFor={id}>{field.label}</FieldLabel>{modes}</>:null}
+
+      {field.kind==='structured'?<CustomFieldControl legendActions={modes} field={field} value={value} workspaceId={workspaceId} objectTypeId={objectTypeId} disabled={disabled||!state.canEdit||mode==='inherit'} onChange={value=>onChange({fieldId:field.id,mode:'own',value})}/>:<Input id={id} maxLength={10000} value={typeof value==='string'?value:''} readOnly={mode==='inherit'} disabled={disabled||!state.canEdit} onChange={event=>onChange({fieldId:field.id,mode:'own',value:event.target.value||null})}/>}
       <FieldDescription>
         {mode === "own"
           ? t("contactOwnHelp")

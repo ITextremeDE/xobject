@@ -591,7 +591,7 @@ export function ContactConversionDialog({
                                 </dt>
                                 <dd className="wrap-anywhere text-sm">
                                   {f
-                                    ? `${displayFieldValue(f, row.sourceInheritance.find((item) => item.fieldId === p.fields[f.id === p.fields.company_name ? "organization_name" : f.id === p.fields.commercial_register ? "organization_commercial_register" : ""])?.value ?? row.beforeValues[key], i18n.language, t)} → ${displayFieldValue(f, value, i18n.language, t)}`
+                                    ? `${displayFieldValue(f, row.sourceInheritance.find((item) => item.fieldId === p.fields[f.id === p.fields.company_name ? "organization_name" : ""])?.value ?? row.beforeValues[key], i18n.language, t)} → ${displayFieldValue(f, value, i18n.language, t)}`
                                     : String(value ?? "—")}
                                 </dd>
                               </div>

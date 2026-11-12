@@ -1,4 +1,6 @@
+import type {ReactNode} from 'react';
 import {URLInput} from './url-input';
+import {PhoneInput} from './phone-input';
 import {DomainTemporalControl} from './domain-temporal-control';
 import {PostalAddressEntryControl} from './postal-address-entry-control';
 import {ContactTimeZoneControl} from './contact-time-zone-control';
@@ -18,10 +20,11 @@ import {Select,SelectTrigger,SelectValue,SelectContent,SelectGroup,SelectItem} f
 import {NativeSelect,NativeSelectOption} from './ui/native-select';
 import {FieldExplanation,fieldDescriptionIds} from './record-field-hints';
 
-export function StructuredFieldControl({field,value,disabled,onChange,error,legendVariant='label'}:{legendVariant?:'legend'|'label';field:FieldDefinition;value:FieldValue;disabled:boolean;onChange:(value:FieldValue)=>void;error?:string}){
+export function StructuredFieldControl({field,value,disabled,onChange,error,legendActions,legendVariant='label'}:{legendActions?:ReactNode;legendVariant?:'legend'|'label';field:FieldDefinition;value:FieldValue;disabled:boolean;onChange:(value:FieldValue)=>void;error?:string}){
  const {t,i18n}=useTranslation(),schema=field.config.schema!,base=`field-${field.id}`,optionGroups=structuredOptionGroups(schema);
  const grouped=optionGroups.length>0;
  const EntryValueInput=schema==='url_entries'?URLInput:Input;
+ const CollectionValueInput=schema==='phone_entries'?PhoneInput:Input;
  let invalid=false;try{if(value!==null)parseStructuredValue(schema,value);}catch{invalid=true;}
  const entries=(Array.isArray(value)?value:[]) as StructuredEntry[];
  const label=(labels:Record<string,string>)=>labels[i18n.language]??labels.en??labels.de??Object.values(labels)[0];
@@ -68,7 +71,7 @@ export function StructuredFieldControl({field,value,disabled,onChange,error,lege
  if(schema==='time_zone')return <ContactTimeZoneControl field={field} value={value} disabled={disabled} onChange={onChange} error={error}/>;
  if(schema==='partial_date')return <PartialDateControl field={field} value={value} disabled={disabled} onChange={onChange} error={error}/>;
  return <FieldSet id={base} className="gap-3" data-invalid={invalid||Boolean(error)}>
-  <FieldLegend variant={legendVariant} className="flex w-full items-center justify-between gap-3"><span>{field.label}{field.required?' *':''}</span>{addButton}</FieldLegend>
+  <FieldLegend variant={legendVariant} className="flex w-full flex-wrap items-center justify-between gap-3"><span>{field.label}{field.required?' *':''}</span><span className="flex flex-wrap items-center gap-2">{legendActions}{addButton}</span></FieldLegend>
   <FieldExplanation field={field}/>
   {schema==='pronoun_entries'?<FieldDescription>{t('contactPronounsHelp')}</FieldDescription>:null}
   {entries.length>1&&schema!=='pronoun_entries'?<SettingsHelp title={t('contactOrderPreferenceShort')}>{t('contactOrderPreference')}</SettingsHelp>:null}
@@ -81,7 +84,7 @@ export function StructuredFieldControl({field,value,disabled,onChange,error,lege
     <div key={entry.id} className="@container/contact-entry flex min-w-0 flex-col gap-2">
      {schema==='pronoun_entries'&&'language'in entry?pronounFields(entry,index):grouped?<FieldGroup className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 @lg/contact-entry:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,2.5fr)_auto]">
       {collectionGroups(entry,index)}
-      <Field><FieldLabel htmlFor={`${base}-${entry.id}`}>{t(schema==='phone_entries'?'contactPhoneNumber':'contactMessengerURI')}</FieldLabel><Input id={`${base}-${entry.id}`} aria-label={`${field.label} · ${t('structuredEntry',{number:index+1})}`} value={'value'in entry?entry.value:''} disabled={disabled} required maxLength={schema==='phone_entries'?100:2000} type={schema==='phone_entries'?'tel':'text'} placeholder={schema==='messenger_entries'?'xmpp:person@example.test':undefined} aria-invalid={structuredEntryInvalid(schema,entry)} aria-describedby={describedBy} onChange={event=>update(entry.id,{value:event.target.value})}/></Field>
+      <Field><FieldLabel htmlFor={`${base}-${entry.id}`}>{t(schema==='phone_entries'?'contactPhoneNumber':'contactMessengerURI')}</FieldLabel><CollectionValueInput id={`${base}-${entry.id}`} aria-label={`${field.label} · ${t('structuredEntry',{number:index+1})}`} value={'value'in entry?entry.value:''} disabled={disabled} required maxLength={schema==='phone_entries'?100:2000} type={schema==='phone_entries'?'tel':'text'} placeholder={schema==='messenger_entries'?'xmpp:person@example.test':undefined} aria-invalid={structuredEntryInvalid(schema,entry)} aria-describedby={describedBy} onChange={event=>update(entry.id,{value:event.target.value})}/></Field>
       {actions(entry,index)}
      </FieldGroup>:<FieldGroup className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 @lg/contact-entry:grid-cols-[minmax(0,1fr)_minmax(0,2.5fr)_auto]">
       {field.config.options?.length?<div className="col-span-2 min-w-0 @lg/contact-entry:col-span-1">{contexts(entry,index)}</div>:null}
