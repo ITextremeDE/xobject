@@ -20,6 +20,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Fixed
 
+- Keep collapsed toast dismiss controls out of the tab order until expansion, preserving Base UI announcements and keyboard operation.
 - Drive localized errors and conflict recovery through stable machine codes rather than English server-message comparisons.
 - Respect mobile safe areas in the application shell and record/sidebar action areas without disabling zoom or text selection.
 - Correct the current-release guidance and distinguish unreleased Contact/list changes from Community 1.3.0.

@@ -110,7 +110,11 @@ function ToastAction({
 function ToastClose({
   className,
   children,
-  render = <Button variant="ghost" size="icon-sm" />,
+  // Base UI hides a collapsed close control from assistive technology. Its
+  // composed Button must also leave the tab order until the toast expands.
+  render = <Button variant="ghost" size="icon-sm" render={(props) => (
+    <button {...props} tabIndex={props["aria-hidden"] === true || props["aria-hidden"] === "true" ? -1 : props.tabIndex} />
+  )} />,
   ...props
 }: ToastPrimitive.Close.Props) {
   return (

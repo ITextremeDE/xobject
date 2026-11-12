@@ -450,6 +450,17 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
    assert.equal((await api('get_record',{objectTypeId:object.id,recordId:editable.id})).telephone,'+12025550123');
    await expect(page.locator('[data-slot=toast]').first()).toBeVisible();
+   const closeToast=page.locator('[data-slot=toast-close]').first();
+   await expect(closeToast).toHaveAttribute('aria-hidden','true');
+   await expect(closeToast).toHaveAttribute('tabindex','-1');
+   await page.locator('[data-slot=toast]').first().hover();
+   await expect(closeToast).toHaveAttribute('aria-hidden','false');
+   await expect(closeToast).toHaveAttribute('tabindex','0');
+   await auditPage(page,'Expanded success toast');
+   await input.hover();
+   await expect(closeToast).toHaveAttribute('aria-hidden','true');
+   await expect(closeToast).toHaveAttribute('tabindex','-1');
+
    await expect.poll(async()=>{const toast=await page.locator('[data-slot=toast]').first().boundingBox(),footer=await page.locator('[data-record-form-actions]').boundingBox();return !!toast&&!!footer&&toast.y+toast.height<=footer.y;}).toBe(true);
    await input.fill('+49891234567');await page.getByRole('button',{name:/^Reset/}).click();
    await expect(input).toHaveValue('+1 202 555 0123');await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
