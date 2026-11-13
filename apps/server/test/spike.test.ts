@@ -532,7 +532,7 @@ test('first-Administrator CLI provisions an empty installation once and signs in
     assert.equal(signedIn.statusCode,200,signedIn.body);
     const user=(await sql<{is_admin:boolean;must_change_password:boolean}>`SELECT is_admin,must_change_password FROM sys_users`.execute(instance.db)).rows[0];assert.equal(user.is_admin,true);assert.equal(user.must_change_password,false);
     assert.equal((await sql`SELECT 1 FROM sys_journal WHERE entity_kind='user' AND field_key='created'`.execute(instance.db)).rows.length,1);
-  }finally{await instance?.app.close();await sql`DROP DATABASE ${sql.id(name)} WITH (FORCE)`.execute(runtime.db);}
+  }finally{await instance?.app.close();await sql`DROP DATABASE ${sql.id(name)}`.execute(runtime.db);}
 });
 
 test('sign-out revokes the session for API and MCP', async () => {
