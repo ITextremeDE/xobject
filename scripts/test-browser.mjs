@@ -110,7 +110,7 @@ test('rendered application workflows on an isolated current installation',{timeo
    domain[key]={model,record};parent=domain[key];
   }
   const list=supplied.find(o=>o.technicalName==='distribution_lists');domain.distribution_lists={model:list,record:await api('create_record',{objectTypeId:list.id,keyword:'Acceptance distribution'},domainCookie)};
-  browser=await engine.launch({headless:true,timeout:10000});
+  browser=await engine.launch({headless:true,timeout:10000,...(engineName==='firefox'&&process.env.XOBJECT_FIREFOX_JIT==='false'?{firefoxUserPrefs:{'javascript.options.ion':false,'javascript.options.baselinejit':false}}:{})});
   async function auditPage(page,name){
      await page.evaluate(async()=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})));});
      const axe=new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']);
@@ -601,6 +601,10 @@ test('rendered application workflows on an isolated current installation',{timeo
     const dialog=page.getByRole('dialog',{name:'Search and navigate',exact:true}),input=dialog.getByRole('combobox',{name:'Search and navigate',exact:true});
     await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
     await expect(dialog.getByRole('status')).toHaveText('Loading…');
+    if(process.env.DEBUG){
+     const caption=dialog.locator('[cmdk-label]');console.log('Search caption metadata',await caption.evaluate(el=>({for:el.htmlFor,id:el.id,style:el.getAttribute('style')})));
+     for(const metric of ['clientWidth','clientHeight','scrollWidth','scrollHeight']){console.log('Reading caption metric',metric);console.log('Caption metric result',metric,await caption.evaluate((el,key)=>el[key],metric));}
+    }
     await auditPage(page,`Immediate keyboard search from ${mobile?'mobile Sidebar':'desktop shortcut'}`);
     await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
    }finally{releaseSearch();}
