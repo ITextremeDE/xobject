@@ -222,6 +222,7 @@ function RecordForm({ duplicateDraft,accessSnapshot,returnToSource,linkedCreatio
     void queryClient.invalidateQueries({queryKey:['relationship-candidates']});
     void queryClient.invalidateQueries({queryKey:['relationship-types']});
     void queryClient.invalidateQueries({queryKey:['record-link-options']});
+    void queryClient.invalidateQueries({queryKey:['field-tags',definition.id]});
     void queryClient.invalidateQueries({queryKey:['record']});
     void queryClient.invalidateQueries({queryKey:['system-journal']});
     setDependencyContext({applicableFieldIds:result.applicableFieldIds,allowedStatusIds:result.allowedStatusIds});

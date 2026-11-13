@@ -18,6 +18,7 @@ export function displayFieldValue(field: Pick<FieldDefinition,'kind'|'config'>, 
     if(Array.isArray(value))return (value as StructuredEntry[]).map(entry=>(field.config.schema==='phone_entries'&&'value'in entry?formatPhoneNumber(entry.value):structuredSummary(field.config.schema!,[entry]))+contexts(entry)).join('; ')||'—';
     return structuredSummary(field.config.schema!,value);
   }
+  if(field.kind==='tags')return Array.isArray(value)?value.join(', ')||'—':'—';
   if (field.kind === 'phone') return formatPhoneNumber(String(value));
   if (field.kind === 'boolean') return t(value === true ? 'yes' : 'no');
   if (field.kind === 'money') { const money = value as MoneyValue; return formatRegionalMoney(money.amount,money.currency,regional,field.config.scale??2); }

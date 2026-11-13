@@ -85,7 +85,7 @@ test('starter layout separates classification and relationships while keeping no
  assert.deepEqual(result.groups.map(g=>g.labels.en),['General','Primary association','Classification','Relationships','Notes']);
  assert.deepEqual(result.groups[0].fields.map(formEntryKey),[a.id,c.id,'relationship:relation:left']);
  assert.deepEqual(result.groups[1].fields.map(formEntryKey),['primary_chain']);
- assert.deepEqual(result.groups[2].fields.map(formEntryKey),['type','status','category']);assert.equal(result.groups[2].fields[2].width,'full');
+ assert.deepEqual(result.groups[2].fields.map(formEntryKey),['type','status','category']);assert.equal(result.groups[2].fields[2].width,'half');
  assert.deepEqual(result.groups[3].fields.map(formEntryKey),['relationship:relation:right']);assert.deepEqual(result.groups[4].fields.map(formEntryKey),[b.id]);
  const authored={groups:[{id:'classification',labels:{en:'My group'},fields:[{fieldId:b.id,width:'half' as const}]}]};
  assert.deepEqual(resolveFormLayout(authored,fields).groups,authored.groups);
@@ -104,4 +104,10 @@ test('Family is an editable module-template list and object columns are ordinary
  assert.equal(formLayoutSchema.safeParse(next).success,true);
  assert.equal(formLayoutSchema.safeParse({groups:[{...family,objectColumn:'sometimes'}]}).success,false);
  assert.equal(formLayoutSchema.safeParse({groups:[{id:'single',labels:{en:'Single'},fields:[{...relation(a.id,'left'),objectColumn:'hide'}]}]}).success,true);
+});
+
+test('standard Classification pairs Type/Status and Category/Tags on wide forms',()=>{
+ const fields=['type','status','category','tags'].map((name,index)=>({id:`00000000-0000-4000-8000-00000000000${index}`,technicalName:name,kind:name}));
+ const layout=resolveFormLayout(undefined,fields,true),group=layout.groups.find(g=>g.id==='classification')!;
+ assert.deepEqual(group.fields.map(entry=>({id:'fieldId'in entry?entry.fieldId:null,width:entry.width})),fields.map(field=>({id:field.id,width:'half'})));
 });
