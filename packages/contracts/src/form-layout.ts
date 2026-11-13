@@ -40,7 +40,7 @@ export function relationshipSidesForObject(type:RelationshipType,objectId:string
 export function formRelationshipFields(types:RelationshipType[],objectId:string,chain?:PrimaryChain|null,requirements?:PrimaryRequirements):FormRelationship[]{
   return types.filter(type=>type.rulesState==='active'&&(type.kind!=='primary'||type.active)).flatMap(definition=>relationshipSidesForObject(definition,objectId,chain).filter(side=>definition.kind!=='primary'||side==='right').map(side=>({definition,side,...(definition.kind==='primary'?{required:Boolean(requirements?.associationRequired||requirements?.requiredLevels.length)}:{})})));
 }
-export function defaultFormWidth(field:LayoutField):'half'|'full' {return ['keyword','category','access_principals'].includes(field.technicalName)||(['multiline','multiple_choice','tree_choice'].includes(field.kind)||field.kind==='structured'&&field.config?.schema!=='name_components')?'full':'half';}
+export function defaultFormWidth(field:LayoutField):'half'|'full' {if(['category','tags'].includes(field.technicalName))return 'half';return ['keyword','access_principals'].includes(field.technicalName)||(['multiline','multiple_choice','tree_choice','tags'].includes(field.kind)||field.kind==='structured'&&field.config?.schema!=='name_components')?'full':'half';}
 export function formLayoutElements(fields:LayoutField[],relationships:FormRelationship[]=[]):FormElement[]{
   return [...fields.map(field=>({key:field.id,entry:{fieldId:field.id,width:defaultFormWidth(field)} as FormEntry,field,single:true,required:Boolean(field.required)})),...relationships.map(relationship=>{
     const {definition,side}=relationship,single=(side==='left'?definition.leftMax:definition.rightMax)===1,required=relationship.required||definition.active&&(side==='left'?definition.leftMin:definition.rightMin)>0;
@@ -65,13 +65,13 @@ export function resolveFormLayout(layout:FormLayout|undefined,fields:LayoutField
   const groups=layout?layout.groups.map(group=>({...group,fields:normalize(group.fields)})):starterGroups;
   const unassigned=normalize(layout?.unassigned??[]);
   if(complete){
-    const rank=['keyword','type','status','category'];
-    const ordered=layout?elements:[...elements].sort((a,b)=>{const ai=rank.indexOf(a.field?.technicalName??''),bi=rank.indexOf(b.field?.technicalName??'');return (ai<0?4:ai)-(bi<0?4:bi);});
+    const rank=['keyword','type','status','category','tags'];
+    const ordered=layout?elements:[...elements].sort((a,b)=>{const ai=rank.indexOf(a.field?.technicalName??''),bi=rank.indexOf(b.field?.technicalName??'');return (ai<0?5:ai)-(bi<0?5:bi);});
     const included=new Set([...groups.flatMap(group=>group.fields),...unassigned].map(formEntryKey));
     for(const element of ordered)if(!included.has(element.key)&&element.relationship?.definition.kind!=='general'){
       if(layout)unassigned.push(element.entry);
       else {
-        const target=element.relationship?.definition.kind==='primary'?'primary_association':!element.field?(element.single?'general':'relationships'):['type','status','category'].includes(element.field.technicalName)?'classification':element.field.technicalName==='notes'&&element.field.kind==='multiline'?'notes':'general';
+        const target=element.relationship?.definition.kind==='primary'?'primary_association':!element.field?(element.single?'general':'relationships'):(['type','status','category','tags'].includes(element.field.technicalName)||element.field.kind==='tags')?'classification':element.field.technicalName==='notes'&&element.field.kind==='multiline'?'notes':'general';
         groups.find(group=>group.id===target)!.fields.push(element.entry);
       }
     }

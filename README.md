@@ -6,7 +6,7 @@ xObject is developed by **ITextreme** to bring contacts, projects, cases, tasks 
 
 ## Project status
 
-**Version 1.6.0 — Community.** The PostgreSQL-backed application supports configurable typed objects, classification, workspace roles/groups, shared API/MCP operations and atomic journals. Its React/Vite interface includes searchable tables, full-page record forms, Settings, a Form designer, relationship controls, Dossier and a Projects-owned Primary tree. Dashboard statistics/chart content remains exploratory; its record table is normal application UI.
+**Version 1.7.0 — Community.** The PostgreSQL-backed application supports configurable typed objects, classification, workspace roles/groups, shared API/MCP operations and atomic journals. Its React/Vite interface includes searchable tables, full-page record forms, Settings, a Form designer, relationship controls, Dossier and a Projects-owned Primary tree. Dashboard statistics/chart content remains exploratory; its record table is normal application UI.
 
 The permission model combines user/group object and field ceilings, separate Create rights, graded ownership and nested-group/foreign-access inheritance. Sensitive records configure Access principals, public access, Personal/Confidential privacy, foreign maxima and field exceptions. Membership and Designer status grant no content by themselves; Administrators retain installation-wide content access. See [PRD section 4](docs/PRD.md#4-permissions) and [ADR 0027](docs/adr/0027-ownership-and-foreign-access.md). Calendar-only operations and notification delivery remain later work.
 
@@ -25,6 +25,8 @@ Use the [release downloads](https://github.com/ITextremeDE/xobject/releases) and
 ## The idea
 
 Start with a shared object platform and activate the modules you need. An object type can belong to multiple modules, each contributing its own fields to the common form while using the same records and shared values.
+
+Community 1.7.0 adds free-text Tags with chip entry, permission-aware suggestions and list filters. It is an optional standard field in Classification and a general custom field kind; see [field types](docs/field-types.md#tags) for entry and filtering.
 
 Fields support translated descriptions and input hints, typed defaults and scalar uniqueness. Per-object automatic record numbers support prefixes, suffixes and never/yearly/monthly sequences.
 

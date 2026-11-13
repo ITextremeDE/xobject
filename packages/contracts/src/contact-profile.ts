@@ -36,7 +36,7 @@ export const contactKindOrder:ContactKind[]=['organization','person','individual
 type ContactLayoutField={id:string;technicalName:string;kind:string;config?:{schema?:string}};
 /** Module-owned core is fixed; designer metadata contains only additional fields/links. */
 export function contactCoreFieldIds(profile:ContactProfile,fields:ContactLayoutField[]):Set<string>{
- return new Set([...Object.entries(profile.fields).filter(([purpose])=>["contact_kind", "company_name", "first_name", "additional_names", "last_name", "salutation", "academic_title", "name_suffix", "formatted_name", "organization_name", "organization_addresses", "organization_phones", "organization_emails", "emails", "phones", "addresses", "websites", "birthday", "gender", "commercial_register", "notes", "nickname", "languages", "messenger_addresses", "contact_time_zone", "wedding_anniversary", "death_date", "job_title", "function", "department", "keyword", "address_form", "letter_salutation", "pronouns"].includes(purpose)).map(([,id])=>id),...fields.filter(f=>['type','status','category','record_number'].includes(f.technicalName)).map(f=>f.id)]);
+ return new Set([...Object.entries(profile.fields).filter(([purpose])=>["contact_kind", "company_name", "first_name", "additional_names", "last_name", "salutation", "academic_title", "name_suffix", "formatted_name", "organization_name", "organization_addresses", "organization_phones", "organization_emails", "emails", "phones", "addresses", "websites", "birthday", "gender", "commercial_register", "notes", "nickname", "languages", "messenger_addresses", "contact_time_zone", "wedding_anniversary", "death_date", "job_title", "function", "department", "keyword", "address_form", "letter_salutation", "pronouns"].includes(purpose)).map(([,id])=>id),...fields.filter(f=>['type','status','category','tags','record_number'].includes(f.technicalName)).map(f=>f.id)]);
 }
 export function contactCoreEntry(profile:ContactProfile,fields:ContactLayoutField[],entry:FormEntry):boolean{
  return 'fieldId'in entry?contactCoreFieldIds(profile,fields).has(entry.fieldId):'relationshipTypeId'in entry?entry.relationshipTypeId===profile.relationships.contact_person&&entry.side==='right':false;
@@ -70,7 +70,7 @@ export function contactCoreLayout(profile:ContactProfile,fields:ContactLayoutFie
  group('contact-correspondence','Correspondence','Korrespondenz',['address_form','letter_salutation'].flatMap(entry)),
  group('contact-communication','Contact details','Kontaktdaten',['phones','emails','websites','messenger_addresses'].flatMap(entry)),
  group('contact-addresses','Addresses','Anschriften',entry('addresses')),
- group('contact-classification','Classification','Einordnung',fields.filter(f=>['type','status','category'].includes(f.technicalName)).map(f=>({fieldId:f.id,width:f.technicalName==='category'?'full':'half'}))),
+ group('contact-classification','Classification','Einordnung',fields.filter(f=>['type','status','category','tags'].includes(f.technicalName)).map(f=>({fieldId:f.id,width:'half'}))),
  group('contact-notes','Notes','Notizen',entry('notes'))
  ].filter(g=>g.fields.length)};
 }

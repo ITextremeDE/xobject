@@ -47,6 +47,7 @@ jobs:
           XOBJECT_TEST_IMAGE="$image" XOBJECT_TEST_PREDECESSOR_IMAGE=ghcr.io/itextremede/xobject@sha256:4c78ebdf11b8879566259fdb9314c63d4ef52b3b14f4ece80b6335812ae7fdb0 node scripts/test-selfhost.mjs
           XOBJECT_TEST_IMAGE="$image" XOBJECT_TEST_PREDECESSOR_IMAGE=ghcr.io/itextremede/xobject@sha256:b8980025f4209bbecb602a56bb4a03226c3296c9829edc55d155aab83a6444f6 node scripts/test-selfhost.mjs
           XOBJECT_TEST_IMAGE="$image" XOBJECT_TEST_PREDECESSOR_IMAGE=ghcr.io/itextremede/xobject@sha256:5dc2185dd27fbbc30409719368cf5ef88cf1cfe62fd7cabb8e8c85848285e456 node scripts/test-selfhost.mjs
+          XOBJECT_TEST_IMAGE="$image" XOBJECT_TEST_PREDECESSOR_IMAGE=ghcr.io/itextremede/xobject@sha256:d6f5bf53049613156547ad06f4aecdf619e8828b7d21306f4762291630642d22 node scripts/test-selfhost.mjs
           XOBJECT_TEST_IMAGE="$image" node scripts/test-selfhost-proxy.mjs
       - name: Publish the tested architecture
         env:

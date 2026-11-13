@@ -96,6 +96,12 @@ Multiple-choice and selection-tree fields show selected labels in a summary fiel
 
 Designers/Administrators configure a general **Selection tree** field or choose tree mode for **Category**. Expand a choice's details to set its parent. Choices retain their UUIDs when moved or renamed. Inactive parents cannot have active children. Configuration deactivation follows the branch; retained inactive record selections remain readable. Changing the tree adds missing ancestors to stored selections in one journaled transaction. Conversion to a single-choice field is rejected if it would drop selected values.
 
+## Tags
+
+Available since Community 1.7.0.
+
+In a Tags field, type text and press Enter or comma to create a chip. Remove individual tags or paste comma-/line-separated tags; normal **Save** persists the draft. Existing permitted values are suggested, but you can always enter a new tag. Record lists provide a searchable Tags filter, including **Without value**; selections remain in the list URL. See [field types](field-types.md#tags) for limits and the distinction from Category.
+
 ## Opening URL fields
 
 Use the arrow button beside a URL field to open the current HTTP(S) address in a new browser tab. The same action is available for Contact website entries and when you can read a value without editing it. Empty/invalid values have no active link. Opening a link keeps the current form and its unsaved changes in place.

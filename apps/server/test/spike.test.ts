@@ -532,7 +532,7 @@ test('first-Administrator CLI provisions an empty installation once and signs in
     assert.equal(signedIn.statusCode,200,signedIn.body);
     const user=(await sql<{is_admin:boolean;must_change_password:boolean}>`SELECT is_admin,must_change_password FROM sys_users`.execute(instance.db)).rows[0];assert.equal(user.is_admin,true);assert.equal(user.must_change_password,false);
     assert.equal((await sql`SELECT 1 FROM sys_journal WHERE entity_kind='user' AND field_key='created'`.execute(instance.db)).rows.length,1);
-  }finally{await instance?.app.close();await sql`DROP DATABASE ${sql.id(name)} WITH (FORCE)`.execute(runtime.db);}
+  }finally{await instance?.app.close();await sql`DROP DATABASE ${sql.id(name)}`.execute(runtime.db);}
 });
 
 test('sign-out revokes the session for API and MCP', async () => {
@@ -4870,7 +4870,7 @@ test('released 1.0.2 Contact catalog upgrade is additive, atomic, repeatable and
   await inspection.query('ALTER TABLE retained_contacts DROP COLUMN address_form');
   await upgradeInstallation(url.href,runtimeURL.href,true,true);
   current=await execute('get_object_type',{objectTypeId:object.id});
-  assert.equal(current.state,'inactive');assert.deepEqual(current.formLayouts.default,form);
+  assert.equal(current.state,'inactive');assert.deepEqual(current.formLayouts.default.groups.slice(0,form.groups.length),form.groups);assert.ok(current.formLayouts.default.groups.some((g:any)=>g.fields.some((f:any)=>f.fieldId===current.fields.find((field:any)=>field.technicalName==='tags').id)));
   assert.equal((await inspection.query('SELECT retained_extension FROM retained_contacts WHERE id=$1',[row.id])).rows[0].retained_extension,'Keep me');
   assert.deepEqual(current.fields.find((f:any)=>f.id===email.id).config.options.slice(0,3),retained.options);
   assert.equal(current.fields.find((f:any)=>f.id===email.id).config.options.filter((o:any)=>o.labels.en==='Other').length,1);
@@ -5423,4 +5423,92 @@ test('relationship summary and page hydration stay bounded as linked records gro
  }
  assert.ok(Math.max(...events.map(row=>row.sqlCalls))-Math.min(...events.map(row=>row.sqlCalls))<10,JSON.stringify(events));assert.ok(events.every(row=>row.payloadBytes<100000),JSON.stringify(events));
  console.log('BOUNDED_RELATIONSHIP_COST',JSON.stringify(events));
+});
+
+test('tags normalize free text and share defaults, filters, history, duplication and rights through API and MCP',async()=>{
+ const {normalizeTags}=await import('@xobject/contracts');
+ assert.deepEqual(normalizeTags([' Alpha ','alpha',' A   B ','Cafe\u0301']),['Alpha','A B','Café']);
+ for(const invalid of [['a,b'],['a\nb'],['x'.repeat(201)],Array.from({length:101},(_,i)=>String(i))])assert.throws(()=>normalizeTags(invalid));
+ const ws=await ok('create_workspace',{code:'tagchecks',name:'Tag checks'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'items',labels:{en:'Items'},standardFields:['keyword','tags']});
+ let definition=await ok('get_object_type',{objectTypeId:object.id});const field=definition.fields.find((f:any)=>f.technicalName==='tags');
+ assert.equal(field.kind,'tags');assert.equal(field.required,false);
+ assert.ok(definition.formLayouts.default.groups.some((g:any)=>g.labels.en==='Classification'&&g.fields.some((f:any)=>f.fieldId===field.id)));
+ const extra=await ok('create_field',{objectTypeId:object.id,technicalName:'topics',labels:{en:'Topics'},kind:'tags',inputRules:{defaultValue:['Default']}});
+ const first=await tool('create_record',{objectTypeId:object.id,keyword:'First',values:{tags:[' Alpha ','alpha','Beta']}});
+ assert.deepEqual(first.tags,['Alpha','Beta']);assert.deepEqual(first.topics,['Default']);
+ const second=await ok('create_record',{objectTypeId:object.id,keyword:'Second',values:{tags:['Gamma'],topics:['Other']}}),empty=await ok('create_record',{objectTypeId:object.id,keyword:'Empty',values:{tags:[]}});
+ const query=(values:(string|null)[],more:any={})=>ok('list_records',{objectTypeId:object.id,tagFilters:[{fieldId:field.id,values}],...more});
+ assert.equal((await query(['ALPHA'])).total,1);assert.equal((await query(['Alpha','Gamma'],{limit:1})).total,2);
+ assert.deepEqual((await query([null])).records.map((r:any)=>r.id),[empty.id]);
+ assert.equal((await ok('list_records',{objectTypeId:object.id,tagFilters:[{fieldId:field.id,values:['Alpha','Gamma']},{fieldId:extra.id,values:['Other']}]})).total,1);
+ assert.deepEqual(await tool('list_field_tags',{objectTypeId:object.id,fieldId:field.id,query:'al'}),{values:['Alpha'],hasMore:false});
+ const page=await ok('list_field_tags',{objectTypeId:object.id,fieldId:field.id,limit:1});assert.equal(page.values.length,1);assert.equal(page.hasMore,true);
+ assert.equal((await api('create_record',{objectTypeId:object.id,values:{tags:['bad,tag']}})).statusCode,400);
+ assert.equal((await api('create_field',{objectTypeId:object.id,technicalName:'wrong',labels:{en:'Tags'}})).statusCode,400);
+ const updated=await ok('update_record',{objectTypeId:object.id,recordId:first.id,version:first.version,values:{tags:['Beta','Later']}});
+ const event=(await journalEntries({objectTypeId:object.id,recordId:first.id})).find((e:any)=>e.field_key==='tags'&&e.old_value?.includes('Alpha'));
+ assert.deepEqual(event.new_value,['Beta','Later']);assert.deepEqual(event.old_value,['Alpha','Beta']);
+ const duplicate=await ok('duplicate_record',{objectTypeId:object.id,recordId:first.id,version:updated.version});assert.deepEqual(duplicate.tags,['Beta','Later']);
+ assert.equal((await api('configure_field',{fieldId:extra.id,kind:'text',required:false})).statusCode,400,'nonempty tags cannot silently change meaning');
+ await ok('recycle_record',{objectTypeId:object.id,recordId:second.id,version:second.version});
+ assert.ok(!(await ok('list_field_tags',{objectTypeId:object.id,fieldId:field.id})).values.includes('Gamma'));
+ const another=await ok('create_object_type',{workspaceId:ws.id,technicalName:'configured',labels:{en:'Configured'}});
+ const configured=await ok('add_standard_field',{objectTypeId:another.id,field:'tags',required:true,inputRules:{defaultValue:[' Ready ','ready']}});
+ assert.equal(configured.fields.find((f:any)=>f.technicalName==='tags').required,true);
+ assert.deepEqual((await ok('create_record',{objectTypeId:another.id})).tags,['Ready']);
+ assert.equal((await api('create_record',{objectTypeId:another.id,values:{tags:[]}})).statusCode,400);
+ const count=(await ok('list_records',{objectTypeId:another.id})).total;
+ const standard=configured.fields.find((f:any)=>f.technicalName==='tags');
+ assert.equal((await api('configure_field',{fieldId:standard.id,required:true,kind:'text'})).statusCode,400);
+ assert.equal((await ok('list_records',{objectTypeId:another.id})).total,count);
+ const user=(await ok('list_users',{})).find((u:any)=>u.email==='user@example.test');await ok('set_workspace_member',{workspaceId:ws.id,userId:user.id,role:'user',expectedRole:null});
+ let rights=await ok('get_content_permissions',{objectTypeId:object.id});rights=await ok('configure_content_permissions',{...rights,sensitive:true,grants:[{kind:'user',id:user.id,level:'read',fields:{}}]});
+ await ok('create_record',{objectTypeId:object.id,keyword:'Hidden',values:{tags:['DO NOT DISCLOSE']},security:{policy:defaultRecordSecurity([{kind:'user',id:adminId,level:'full'}])}});
+ assert.ok(!(await api('list_field_tags',{objectTypeId:object.id,fieldId:field.id},userCookie)).body.includes('DO NOT DISCLOSE'));
+ assert.equal((await api('list_records',{objectTypeId:object.id,tagFilters:[{fieldId:field.id,values:['DO NOT DISCLOSE']}]},userCookie)).json().total,0);
+ await ok('configure_content_permissions',{...rights,grants:[{kind:'user',id:user.id,level:'read',fields:{[field.id]:'none'}}]});
+ assert.equal((await api('list_field_tags',{objectTypeId:object.id,fieldId:field.id},userCookie)).statusCode,403);
+ assert.equal((await api('list_records',{objectTypeId:object.id,tagFilters:[{fieldId:field.id,values:[null]}]},userCookie)).statusCode,403);
+});
+
+test('released 1.6.0 tags upgrade is atomic, preserves authored layouts and data, and is repeatable',async()=>{
+ const {connect}=await import('../src/database.js'),{Pool}=await import('pg'),operator=new Pool({connectionString:databaseURL});
+ const name=`tags_upgrade_${randomUUID().replaceAll('-','')}`,url=new URL(databaseURL);url.pathname='/'+name;await operator.query(`CREATE DATABASE "${name}"`);
+ const inspection=new Pool({connectionString:url.href}),connection=connect(url.href),app=new Application(connection.db),runtimeURL=new URL(url);runtimeURL.username=`tags_runtime_${randomUUID().replaceAll('-','')}`;
+ try{
+  await initializeDatabase(url.href,secret,baseURL);await inspection.query("INSERT INTO sys_users(id,name,email,email_verified,created_at,updated_at,is_admin,must_change_password) VALUES($1,'Upgrade admin','tags-upgrade@example.test',true,now(),now(),true,false)",[adminId]);
+  const execute=async(operation:Operation,input:unknown)=>app.execute(operation,input,adminId) as Promise<any>;
+  const ws=await execute('create_workspace',{name:'Released tags',code:'releasedtags'});await execute('configure_workspace_module',{workspaceId:ws.id,key:'projects',enabled:true,version:1});
+  const objects=(await inspection.query('SELECT id,technical_name AS "technicalName" FROM sys_object_types WHERE workspace_id=$1',[ws.id])).rows,project=objects.find((o:any)=>o.technicalName==='projects');
+  const row=await execute('create_record',{objectTypeId:project.id,keyword:'Keep this Project'});
+  // Reconstruct the last released catalog, field constraint and absence of tags.
+  const oldCatalog=JSON.parse(readFileSync(new URL('./fixtures/released-1.6.0-module-catalog.json',import.meta.url),'utf8'));
+  for(const object of objects){
+   const fields=(await inspection.query("SELECT id FROM sys_fields WHERE object_type_id=$1 AND technical_name='tags'",[object.id])).rows.map(r=>r.id);
+   await inspection.query('DELETE FROM sys_journal WHERE field_id=ANY($1::uuid[]) OR entity_id=ANY($1::uuid[])',[fields]);
+   await inspection.query('DELETE FROM sys_module_field_contributions WHERE field_id=ANY($1::uuid[])',[fields]);
+   await inspection.query('DELETE FROM sys_fields WHERE id=ANY($1::uuid[])',[fields]);
+   await inspection.query(`ALTER TABLE "releasedtags_${object.technicalName}" DROP COLUMN tags`);
+   const layouts=(await inspection.query('SELECT form_layouts FROM sys_object_types WHERE id=$1',[object.id])).rows[0].form_layouts;
+   for(const layout of Object.values(layouts) as any[])for(const group of layout.groups)group.fields=group.fields.filter((f:any)=>!fields.includes(f.fieldId));
+   if(object.id===project.id){layouts.default.groups[0].labels={en:'My project details',de:'Meine Projektdetails'};}
+   await inspection.query('UPDATE sys_object_types SET form_layouts=$1::jsonb WHERE id=$2',[JSON.stringify(layouts),object.id]);
+  }
+  for(const module of oldCatalog){await inspection.query('UPDATE sys_modules SET objects=$1::jsonb,template_version=$2 WHERE key=$3',[JSON.stringify(module.objects),module.templateVersion,module.key]);await inspection.query('UPDATE sys_module_contributions SET template_version=$1 WHERE module_key=$2',[module.templateVersion,module.key]);}
+  assert.deepEqual((await inspection.query("SELECT object_type_id,technical_name FROM sys_fields WHERE kind='tags'")).rows,[],"All current tags removed before released fixture");
+  await inspection.query("ALTER TABLE sys_fields DROP CONSTRAINT sys_fields_kind_check; ALTER TABLE sys_fields ADD CONSTRAINT sys_fields_kind_check CHECK(kind<>'tags'); UPDATE sys_schema_version SET definition_hash='bfb3a7f3f271951bf9272bf4d6420449e61ff09c9da18acff65f91407a79d0fc'");
+  const history=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows,oldLayouts=(await inspection.query('SELECT form_layouts FROM sys_object_types WHERE id=$1',[project.id])).rows[0].form_layouts;
+  // A conflicting previously legal custom name must leave the source unchanged.
+  const collision=randomUUID();await inspection.query("INSERT INTO sys_fields(id,object_type_id,technical_name,labels,kind,required) VALUES($1,$2,'tags','{\"en\":\"Old custom field\"}','text',false)",[collision,project.id]);
+  await assert.rejects(()=>upgradeInstallation(url.href,runtimeURL.href,true,true),/reserved technical name tags/);
+  assert.equal((await inspection.query('SELECT definition_hash FROM sys_schema_version')).rows[0].definition_hash,'bfb3a7f3f271951bf9272bf4d6420449e61ff09c9da18acff65f91407a79d0fc');
+  await inspection.query('DELETE FROM sys_fields WHERE id=$1',[collision]);await upgradeInstallation(url.href,runtimeURL.href,true,true);
+  for(const object of objects){const def=await execute('get_object_type',{objectTypeId:object.id});assert.equal(def.fields.find((f:any)=>f.technicalName==='tags')?.kind,'tags');}
+  const def=await execute('get_object_type',{objectTypeId:project.id}),tag=def.fields.find((f:any)=>f.technicalName==='tags');assert.equal(tag.isProtected,true);
+  assert.deepEqual(def.formLayouts.default.groups[0],oldLayouts.default.groups[0]);
+  assert.ok(def.formLayouts.default.groups.some((g:any)=>g.fields.some((f:any)=>f.fieldId===tag.id)));
+  const retained=await execute('get_record',{objectTypeId:project.id,recordId:row.id});assert.equal(retained.keyword,row.keyword);assert.equal(retained.version,row.version);
+  assert.deepEqual((await inspection.query('SELECT * FROM sys_journal WHERE id=ANY($1::uuid[]) ORDER BY id',[history.map(r=>r.id)])).rows,history);
+  const journal=(await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows;await upgradeInstallation(url.href,runtimeURL.href,true,true);assert.deepEqual((await inspection.query('SELECT * FROM sys_journal ORDER BY id')).rows,journal);
+ }finally{await connection.db.destroy();if(!connection.pool.ended)await connection.pool.end();await inspection.end();await operator.query(`DROP DATABASE "${name}"`);await operator.end();}
 });

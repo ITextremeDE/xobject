@@ -1,3 +1,5 @@
+import {tagFiltersSchema} from './tags.js';
+export * from './tags.js';
 export * from './error-codes.js';
 export * from './contact-inheritance.js';
 import {contactInheritanceWriteSchema,contactConversionSchema,type ContactInheritanceField,type ContactInheritanceWrite,type ContactConversionPreview,type ContactConversionResult} from './contact-workflows.js';
@@ -47,7 +49,7 @@ const label = z.string().trim().min(1).max(200);
 const labels = z.partialRecord(language, label)
   .refine(value => Object.keys(value).length > 0, 'At least one translated label is required');
 const technicalName = z.string().regex(/^[a-z][a-z0-9_]*$/).max(63);
-const standardField = z.enum(['type_status', 'category', 'keyword']);
+const standardField = z.enum(['type_status', 'category', 'keyword','tags']);
 const values = z.record(z.string(), fieldValueSchema).refine(value=>!Object.hasOwn(value,'access_principals'),'Use record security for Access principals').refine(
   (value) => Object.keys(value).length <= 100, 'At most 100 fields per write',
 ).describe('Field values keyed by each field technicalName from get_object_type, never by field UUID. Choice/reference values still use their discovered option/user/group IDs. Keyword, record_number, access_principals and derived fields are not writable through this map.');
@@ -127,9 +129,10 @@ export const schemas = {
   list_object_types: z.object({ workspaceId: uuid, includeInactive: z.boolean().default(false), includeDeleted: z.boolean().default(false) }).strict(),
   get_workspace_dashboard: z.object({ workspaceId: uuid, days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(90) }).strict(),
   list_workspace_records: z.object({ workspaceId: uuid, objectTypeId: uuid.optional(), query: z.string().max(200).default(''), sortBy: z.enum(['record_number','keyword', 'objectLabel', 'type', 'status', 'category', 'created_at', 'updated_at', 'createdByName', 'updatedByName', 'version']).default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
-  list_records: z.object({ objectTypeId: uuid, classificationFilters:classificationFiltersSchema.default({}), contactKindId:uuid.optional(), query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
-  create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(3).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
-  add_standard_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => args.field === 'keyword' ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
+  list_field_tags:z.object({objectTypeId:uuid,fieldId:uuid,query:z.string().max(200).default(''),limit:z.number().int().min(1).max(100).default(100)}).strict(),
+  list_records: z.object({ tagFilters:tagFiltersSchema.default([]), objectTypeId: uuid, classificationFilters:classificationFiltersSchema.default({}), contactKindId:uuid.optional(), query: z.string().max(200).default(''), sortBy: technicalName.default('updated_at'), sortDirection: z.enum(['asc', 'desc']).default('desc'), limit: z.number().int().min(1).max(100).default(25), offset: z.number().int().min(0).max(100000).default(0) }).strict(),
+  create_object_type: z.object({ workspaceId: uuid, technicalName, labels, standardFields: z.array(standardField).max(4).refine(items => new Set(items).size === items.length, 'Duplicate standard fields').default([]) }).strict(),
+  add_standard_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid, field: standardField, required: z.boolean().optional(), configuration: z.object({ version: z.number().int().positive(), config: classificationRulesSchema }).strict().optional() }).strict().refine(args => ['keyword','tags'].includes(args.field) ? args.configuration === undefined : args.required === undefined, 'Configuration must match the standard field kind'),
   create_field: z.object({ inputRules:fieldInputRulesSchema.optional(),objectTypeId: uuid.optional(),relationshipTypeId:uuid.optional(), applicability: fieldApplicabilitySchema.optional(), technicalName, labels, kind: customFieldKindSchema.default('text'), config: fieldConfigSchema.optional(), required: z.boolean().default(false) }).strict().refine(v=>Boolean(v.objectTypeId)!==Boolean(v.relationshipTypeId),'Exactly one field owner is required'),
   get_object_type: z.object({ objectTypeId: uuid }).strict(),
   configure_field: z.object({ inputRules:fieldInputRulesSchema.optional(),fieldId: uuid, applicability: fieldApplicabilitySchema.optional(), version: z.number().int().positive(), labels: labels.optional(), kind: customFieldKindSchema.optional(), config: fieldConfigSchema.optional(), required: z.boolean() }).strict(),
@@ -205,6 +208,7 @@ export interface Outputs {
   get_relationship_tree_branch: RelationshipTreeBranch;
   list_record_link_options:RecordLinkOption[];
   get_record_relationships: RecordRelationships;
+  list_field_tags:{values:string[];hasMore:boolean};
   get_record_relationship_page:{entries:import('./record-relationships.js').DossierEntry[];total:number;objects:{id:string;label:string}[];limit:number;offset:number};
   search_relationship_candidates: { records: RelatedRecord[]; total: number; limit: number; offset: number };
   activate_relationship_type: RelationshipType;
@@ -266,7 +270,7 @@ export interface Outputs {
   list_record_journal: {entries:JournalEntry[];total:number;limit:number;offset:number};
 }
 
-const reservedStandardFieldNames = new Set(['record_number','record number','datensatznummer','number','nummer','access_principals','access principals','zugriffsberechtigte','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
+const reservedStandardFieldNames = new Set(['record_number','record number','datensatznummer','number','nummer','access_principals','access principals','zugriffsberechtigte','tags','tag','schlagworte','schlagwörter','keyword', 'stichwort', 'type', 'typ', 'status', 'category', 'kategorie']);
 export function isReservedStandardFieldName(value: string) { return reservedStandardFieldNames.has(value.normalize('NFKC').trim().toLowerCase()); }
 export function hasReservedStandardFieldLabel(labels: Record<string, string>) { return Object.values(labels).some(isReservedStandardFieldName); }
 

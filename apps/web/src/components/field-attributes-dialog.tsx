@@ -33,12 +33,12 @@ import { DefinitionLifecycle } from './definition-lifecycle';
 import { ErrorNotice } from './feedback';
 const ClassificationDialog = lazy(() => import('./classification-dialog').then(module => ({ default: module.ClassificationDialog })));
 
-type Props = { relationshipTypeId?:string;standardKind?: 'keyword'; onDeleted?: () => void; readOnly?: boolean; field?: FieldDefinition; definition?: ObjectDefinition; objectTypeId?: string; onClose: () => void; onCreated?: (id: string) => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; finalFocus?: () => HTMLElement | true };
+type Props = { relationshipTypeId?:string;standardKind?: 'keyword'|'tags'; onDeleted?: () => void; readOnly?: boolean; field?: FieldDefinition; definition?: ObjectDefinition; objectTypeId?: string; onClose: () => void; onCreated?: (id: string) => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; finalFocus?: () => HTMLElement | true };
 export function FieldAttributesDialog(props: Props & { field: FieldDefinition; definition: ObjectDefinition }) { return props.field.state !== 'deleted' && ['type', 'status', 'category'].includes(props.field.technicalName) ? <Suspense fallback={<ClassificationLoading category={props.field.technicalName==='category'} objectLabel={props.definition.label} onClose={props.onClose}/>}><ClassificationDialog {...props} onCreated={() => props.onCreated?.(props.field.id)} /></Suspense> : <FieldEditorDialog {...props} />; }
 // Standard fields use the same editors; creation stays staged until submit.
-export function StandardFieldDialog({ standardKind, ...props }: Omit<Props, 'standardKind' | 'field' | 'objectTypeId'> & { standardKind: 'keyword' | 'type_status' | 'category'; definition: ObjectDefinition }) {
+export function StandardFieldDialog({ standardKind, ...props }: Omit<Props, 'standardKind' | 'field' | 'objectTypeId'> & { standardKind: 'keyword' | 'type_status' | 'category'|'tags'; definition: ObjectDefinition }) {
   const { t,i18n } = useTranslation();
-  if (standardKind === 'keyword') return <FieldEditorDialog {...props} standardKind="keyword" />;
+  if (standardKind === 'keyword'||standardKind==='tags') return <FieldEditorDialog {...props} standardKind={standardKind} />;
   const name = standardKind === 'type_status' ? 'type' : 'category';
   const field: FieldDefinition = { version: 1, id: `pending-${name}`,  technicalName: name, labels: {}, label: t(standardKind === 'type_status' ? 'typesAndStatuses' : 'classificationCategory'), kind: name, config: {}, required: false };
   return <Suspense fallback={<ClassificationLoading category={standardKind==='category'} objectLabel={props.definition.label} onClose={props.onClose}/>}><ClassificationDialog {...props} field={field} create={standardKind} onCreated={() => props.onCreated?.(standardKind)} /></Suspense>;
@@ -50,8 +50,8 @@ export function FieldEditorDialog({ relationshipTypeId,standardKind, onDeleted, 
   const owner = useQuery({ queryKey: ['field-editor-owner', objectTypeId], queryFn: () => api('get_object_type', { objectTypeId: objectTypeId! }), enabled: Boolean(objectTypeId && !definition) });
   const context = definition ?? owner.data;
   const protectedField = Boolean(field?.isProtected);
-  const fixed = Boolean(standardKind || field && ['keyword', 'type', 'status', 'category'].includes(field.technicalName));
-  const [baseline, setBaseline] = useState(() => ({ inputRules:field?.inputRules??emptyFieldInputRules(),applicability: field?.applicability ?? null, version: field?.version ?? 1, labels: field?.labels ?? (standardKind ? { de: 'Stichwort', en: 'Keyword' } : {} as Labels), required: field?.required ?? false, kind: field?.kind ?? 'text', config: field?.config ?? {}, technicalName: field?.technicalName ?? (standardKind ? 'keyword' : '') }));
+  const fixed = Boolean(standardKind || field && ['keyword', 'type', 'status', 'category','tags'].includes(field.technicalName));
+  const [baseline, setBaseline] = useState(() => ({ inputRules:field?.inputRules??emptyFieldInputRules(),applicability: field?.applicability ?? null, version: field?.version ?? 1, labels: field?.labels ?? (standardKind ? (standardKind==='tags'?{de:'Schlagworte',en:'Tags'}:{ de: 'Stichwort', en: 'Keyword' }) : {} as Labels), required: field?.required ?? false, kind: field?.kind ?? (standardKind==='tags'?'tags':'text'), config: field?.config ?? {}, technicalName: field?.technicalName ?? (standardKind ?? '') }));
   const [inputRules,setInputRules]=useState<FieldInputRules>(()=>({...baseline.inputRules,defaultValue:localizedFieldDraft({kind:baseline.kind,config:baseline.config},baseline.inputRules.defaultValue,regional)}));
   const [applicability, setApplicability] = useState<FieldApplicability>(baseline.applicability);
   const [labels, setLabels] = useState(baseline.labels);
@@ -93,7 +93,7 @@ export function FieldEditorDialog({ relationshipTypeId,standardKind, onDeleted, 
   const kinds = customFieldKinds.map(value => ({ value, label: t(fieldKindKey(value)) }));
   return <Dialog open onOpenChange={open => { if (!open && !pending) onClose(); }}>
     <DialogContent closeButtonDisabled={pending} className="bg-background text-foreground flex max-h-[85svh] flex-col overflow-hidden p-0 sm:max-w-3xl" finalFocus={finalFocus ?? (() => field ? document.querySelector<HTMLElement>(`[data-field-editor="${field.id}"]`) ?? true : true)}>
-      <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{standardKind ? t('createStandardField', { name: t('keyword') }) : t(field ? 'fieldAttributes' : 'newField')}</DialogTitle><DialogDescription>{context?.label}{field ? ` · ${field.label}` : ''}</DialogDescription></DialogHeader>
+      <DialogHeader className="shrink-0 px-4 pt-4 pr-12"><DialogTitle>{standardKind ? t('createStandardField', { name: t(standardKind==='tags'?'tags':'keyword') }) : t(field ? 'fieldAttributes' : 'newField')}</DialogTitle><DialogDescription>{context?.label}{field ? ` · ${field.label}` : ''}</DialogDescription></DialogHeader>
       <div className="min-h-0 overflow-y-auto px-4 pb-4"><form id="field-attributes-form" data-shortcut-submit onSubmit={event => { event.preventDefault(); if (!readOnly && (dirty || standardKind) && valid && context && !pending) mutation.mutate(); }}><FieldGroup>
         {mutation.isError ? mutation.error instanceof ApiError&&['requiredExisting','unsafeFieldConversion'].includes(mutation.error.code) ? <Alert variant="destructive"><AlertDescription>{t(mutation.error instanceof ApiError&&mutation.error.code === 'unsafeFieldConversion' ? 'unsafeFieldConversion' : 'requiredExisting')}</AlertDescription></Alert> : <ErrorNotice fieldLabel={labels[i18n.language]??Object.values(cleanLabels(labels))[0]} error={mutation.error} /> : null}
         {reservedName ? <Alert variant="destructive"><AlertDescription>{t('reservedStandardName')}</AlertDescription></Alert> : null}

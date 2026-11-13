@@ -1,3 +1,4 @@
+import {listFieldTags,tagFilterPredicate} from './tags.js';
 import {relationshipPage,relationshipSummary} from './relationship-reader.js';
 import {recordJournalPage} from './journal-reader.js';
 import {ObjectDefinitions} from './object-definitions.js';
@@ -240,6 +241,7 @@ export class Application {
           case 'search_workspace': return this.searchWorkspace(tx, schemas.search_workspace.parse(parsed), userId);
           case 'get_workspace_dashboard': return workspaceDashboard(tx, schemas.get_workspace_dashboard.parse(parsed), userId);
           case 'list_workspace_records': return listWorkspaceRecords(tx, schemas.list_workspace_records.parse(parsed), userId);
+          case 'list_field_tags':return listFieldTags(tx,schemas.list_field_tags.parse(parsed));
           case 'list_records': {
             const args = schemas.list_records.parse(parsed);
             const type = await this.definitions.objectType(tx, args.objectTypeId);
@@ -278,7 +280,8 @@ export class Application {
             let contactFilter=sql`true`;
             if(args.contactKindId){const profile=await contactProfile(tx,type.id),kind=sortableFields.find(f=>f.id===profile?.fields.contact_kind);if(!profile||!kind||!Object.values(profile.kinds).includes(args.contactKindId))throw new AppError(400,'Unknown Contact kind');if(!policy.field(kind.id).read)throw new AppError(403,'Cannot filter an unreadable field');contactFilter=sql`${await contentAccess().fieldValueByName(type.id,kind.technical_name)}=${args.contactKindId}::uuid`;}
             const classificationFilter=classificationFilterPredicate(type.classification,sortableFields,args.classificationFilters,policy);
-            const predicate = sql`${policy.predicate()} AND ${contactFilter} AND ${classificationFilter} AND (position(lower(${args.query}) in lower(${permittedSearch})) > 0 OR position(lower(${args.query}) in lower(${numberSearch})) > 0)`;
+            const tagsFilter=await tagFilterPredicate(type.id,sortableFields,args.tagFilters);
+            const predicate = sql`${policy.predicate()} AND ${contactFilter} AND ${classificationFilter} AND ${tagsFilter} AND (position(lower(${args.query}) in lower(${permittedSearch})) > 0 OR position(lower(${args.query}) in lower(${numberSearch})) > 0)`;
             const total = (await sql<{ total: number }>`SELECT count(*)::integer AS total FROM ${sql.table(tableName(type))} WHERE ${predicate}`.execute(tx)).rows[0].total;
             const records = (await sql`SELECT *, ${await recordIconExpression(tx,type.id)} AS "iconKey" FROM ${sql.table(tableName(type))} WHERE ${predicate}
               ORDER BY ${sortExpression} ${direction} NULLS LAST, id LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
@@ -290,7 +293,7 @@ export class Application {
             const type = await this.definitions.objectType(tx, args.objectTypeId);
             const change = v7();
             await this.definitions.addStandardField(tx, type, args.field, userId, change, args.required ?? false);
-            if(args.inputRules){if(args.field!=='keyword')throw new AppError(400,'Standard field defaults use their dedicated configuration');const field=(await sql<Field>`SELECT * FROM sys_fields WHERE object_type_id=${type.id}::uuid AND technical_name='keyword' AND state='active'`.execute(tx)).rows[0];await this.definitions.configureField(tx,{fieldId:field.id,required:field.required,inputRules:args.inputRules},userId,change);}
+            if(args.inputRules){if(!['keyword','tags'].includes(args.field))throw new AppError(400,'Standard field defaults use their dedicated configuration');const field=(await sql<Field>`SELECT * FROM sys_fields WHERE object_type_id=${type.id}::uuid AND technical_name=${args.field} AND state='active'`.execute(tx)).rows[0];await this.definitions.configureField(tx,{fieldId:field.id,required:field.required,inputRules:args.inputRules},userId,change);}
             if (args.configuration) return this.definitions.configureClassification(tx, { objectTypeId: type.id, ...args.configuration }, userId, change);
             return this.definitions.definition(tx, type.id, userId);
           }
@@ -389,7 +392,7 @@ export class Application {
     if (['list_field_schemas','get_time_zone_catalog', 'configure_user_localization', 'get_language_catalog', 'get_access_context', 'list_workspaces',  'set_user_profile'].includes(operation)) return { isAdmin: false };
     if(['get_foreign_access','configure_foreign_access'].includes(operation)){await foreignAccessView(tx,String(args.workspaceId),actor);return {isAdmin:false};}
     if(['get_foreign_access','configure_foreign_access','configure_group_inheritance','get_content_permissions','configure_content_permissions'].includes(operation))throw new AppError(403,'Only Administrators manage content permissions');
-    const contentOperations=['get_contact_conversion_preview','convert_contact','get_record_duplicate','duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','get_record_relationship_page','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
+    const contentOperations=['get_contact_conversion_preview','convert_contact','get_record_duplicate','duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','get_record_relationship_page','search_relationship_candidates','list_record_journal','get_record','list_records','list_field_tags','create_record','update_record','list_access_principals'];
     if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||(['get_record_relationships','get_primary_chain_context','search_relationship_candidates'].includes(operation)&&!args.recordId)?'create':operation==='update_record'?'edit':['configure_record_security','get_contact_conversion_preview','convert_contact'].includes(operation)?'full':['duplicate_record','get_record_duplicate'].includes(operation)?'duplicate':'read');return {isAdmin:false};}
     if(['list_recycled_records','get_workspace_dashboard','list_workspace_records','search_workspace'].includes(operation)){if(!(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${args.workspaceId}::uuid AND user_id=${actor}`.execute(tx)).rows.length)throw new AppError(403,'Access denied');return {isAdmin:false};}
     // Other instance operations remain Administrator-only.

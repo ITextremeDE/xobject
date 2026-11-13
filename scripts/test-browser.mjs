@@ -201,6 +201,46 @@ test('rendered application workflows on an isolated current installation',{timeo
     await api('set_workspace_appearance',{workspaceId:workspace.id,version:current.appearance_version,appearance:baseline});
    }
   },mobile?{width:390,height:844}:{width:1440,height:1000});
+  for(const mobile of [false,true])await scenario(`Tags entry suggestions and filters ${mobile?'mobile':'desktop'}`,'admin',async page=>{
+   const model=await api('create_object_type',{workspaceId:workspace.id,technicalName:mobile?'tagmobile':'tagdesktop',labels:{en:'Tag checks'},standardFields:['keyword','type_status','category','tags']});
+   const definition=await api('get_object_type',{objectTypeId:model.id}),field=definition.fields.find(f=>f.technicalName==='tags');
+   await api('create_record',{objectTypeId:model.id,keyword:'Suggested record',values:{tags:['Suggested']}});
+   await page.goto(`${baseURL}/w/qa/objects/${model.technicalName}/new`);
+   await page.getByRole('textbox',{name:/^Keyword/}).fill('Tagged record');
+   const input=page.getByRole('combobox',{name:'Tags',exact:true});
+   if(!mobile){const category=await page.getByRole('combobox',{name:'Category',exact:true}).boundingBox(),tags=await page.locator('[data-slot="combobox-chips"]').boundingBox();assert.ok(category&&tags&&Math.abs(category.y-tags.y)<3&&tags.x>category.x,'Category and Tags share the second Classification row');}
+   await input.fill('Alpha');await input.press('Enter');await expect(input).toHaveValue('');await expect(page.getByRole('button',{name:'Remove tag Alpha',exact:true})).toBeVisible();
+   await input.fill('Beta');await input.press(',');await expect(input).toHaveValue('');
+   await expect(page.getByRole('button',{name:'Remove tag Alpha',exact:true})).toBeVisible();
+   await page.getByRole('button',{name:'Remove tag Beta',exact:true}).click();
+   await input.fill('Sugg');await page.getByRole('option',{name:'Suggested',exact:true}).click();
+   await expect(input).toHaveValue('');await expect(page.getByRole('button',{name:'Remove tag Suggested',exact:true})).toBeVisible();
+   assert.equal((await api('list_records',{objectTypeId:model.id})).total,1,'Enter in the tag input must not create a record');
+   await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
+   const saved=(await api('list_records',{objectTypeId:model.id,query:'Tagged record'})).records[0];assert.deepEqual(saved.tags,['Alpha','Suggested']);
+   await page.getByRole('button',{name:'Back to overview',exact:true}).click();
+   await page.getByRole('button',{name:'Filter by Tags',exact:true}).click();
+   const dialog=page.getByRole('dialog');await dialog.getByRole('checkbox',{name:'Alpha',exact:true}).click();await dialog.getByRole('button',{name:'Apply filters',exact:true}).click();
+   await expect(page).toHaveURL(/tags=/);await expect(page.getByText('Suggested record',{exact:true})).toHaveCount(0);
+   await expect(page.getByText('Tagged record',{exact:true})).toBeVisible();await page.reload();await expect(page.getByText('Tagged record',{exact:true})).toBeVisible();
+   await auditPage(page,`Tags list ${mobile?'mobile':'desktop'}`);
+   await page.goto(`${baseURL}/w/qa/objects/${model.technicalName}/${saved.id}`);await expect(page.getByRole('button',{name:'Remove tag Alpha',exact:true})).toBeVisible();
+   await mkdir(artifacts,{recursive:true,mode:0o700});await page.screenshot({path:path.join(artifacts,`tags-${mobile?'mobile':'desktop'}.png`),fullPage:true});
+   if(!mobile){
+    const emptyModel=await api('create_object_type',{workspaceId:workspace.id,technicalName:'tagsettings',labels:{en:'Tags configuration'}});
+    await page.goto(`${baseURL}/settings?workspace=qa&section=workspaceObjects&object=${emptyModel.id}`);
+    await page.getByRole('button',{name:'Add field',exact:true}).click();await page.getByRole('menuitem',{name:'Tags',exact:true}).click();
+    const editor=page.getByRole('dialog',{name:'Add Tags',exact:true});await expect(editor.getByRole('textbox',{name:'Field type',exact:true})).toHaveValue('Tags');
+    await editor.getByRole('button',{name:/^Create/}).click();await expect(editor).toHaveCount(0);
+    assert.equal((await api('get_object_type',{objectTypeId:emptyModel.id})).fields.find(f=>f.technicalName==='tags').kind,'tags');
+   }
+   const contactRecord=await api('create_record',{objectTypeId:contact.id,values:{contact_kind:organization,company_name:'Tagged organization',tags:['Contact tag']}});
+   await page.goto(`${baseURL}/w/qa/objects/contacts/${contactRecord.id}`);
+   await expect(page.getByText('Contact tag',{exact:true})).toBeVisible();
+   await expect(page.getByRole('group',{name:'Classification',exact:true})).toContainText('Contact tag');
+   if(mobile)await page.emulateMedia({colorScheme:'dark'});
+
+  },mobile?{width:390,height:844}:{width:1440,height:1000});
   await scenario('Administrator saves and discards record drafts','admin',async page=>{
    await page.goto(recordPath);const keyword=page.getByRole('textbox',{name:/^Keyword(?: \*)?$/});await expect(keyword).toHaveValue('Editable sample');
    await keyword.fill('Saved browser sample');await page.getByRole('button',{name:/^Save/}).click();
@@ -287,6 +327,7 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.route('**/api/v1/get_object_type',holdDefinition);
    try{await selectChecks(page);await expect(page.getByRole('button',{name:'Add field',exact:true})).toHaveCount(0);}finally{releaseDefinition();}
    await page.getByRole('button',{name:'Add field',exact:true}).click();
+   await page.getByRole('menuitem',{name:'Custom field',exact:true}).click();
    const field=page.getByRole('dialog',{name:'Add field',exact:true});await expect(field).toBeVisible();await field.getByRole('textbox',{name:'Name',exact:true}).fill('Designer note');await field.getByRole('textbox',{name:'Technical name',exact:true}).fill('designer_note');
    await field.getByRole('button',{name:/^Create/}).click();await expect(field).toHaveCount(0);await expect(page.getByRole('button',{name:'Designer note',exact:true})).toBeVisible();
    // A visible new field does not yet mean that definition/record refetch and

@@ -1,0 +1,1260 @@
+[
+  {
+    "key": "contacts",
+    "labels": {
+      "de": "Kontakte & Beziehungen",
+      "en": "Contacts & Relations"
+    },
+    "description": {
+      "en": "Base Contacts and Distribution lists. Additional domain templates follow later.",
+      "de": "Basis für Kontakte und Verteiler. Weitere Fachvorlagen folgen später."
+    },
+    "available": true,
+    "position": 1,
+    "objects": [
+      {
+        "key": "contact",
+        "labels": {
+          "de": "Kontakte",
+          "en": "Contacts"
+        },
+        "technicalName": "contacts",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ],
+        "fields": [
+          {
+            "key": "contact_kind",
+            "technicalName": "contact_kind",
+            "labels": {
+              "en": "Contact kind",
+              "de": "Kontaktart"
+            },
+            "kind": "single_choice",
+            "required": true,
+            "choices": [
+              {
+                "key": "organization",
+                "labels": {
+                  "en": "Organization",
+                  "de": "Organisation"
+                }
+              },
+              {
+                "key": "individual",
+                "labels": {
+                  "en": "Individual contact",
+                  "de": "Einzelkontakt"
+                }
+              },
+              {
+                "key": "person",
+                "labels": {
+                  "en": "Contact person",
+                  "de": "Ansprechpartner"
+                }
+              }
+            ]
+          },
+          {
+            "key": "company_name",
+            "technicalName": "company_name",
+            "labels": {
+              "en": "Company name",
+              "de": "Firmenname"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "organization",
+              "individual"
+            ]
+          },
+          {
+            "key": "first_name",
+            "technicalName": "first_name",
+            "labels": {
+              "en": "First name",
+              "de": "Vorname"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "additional_names",
+            "technicalName": "additional_names",
+            "labels": {
+              "en": "Additional given names",
+              "de": "Weitere Vornamen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "last_name",
+            "technicalName": "last_name",
+            "labels": {
+              "en": "Last name",
+              "de": "Nachname"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "salutation",
+            "technicalName": "salutation",
+            "labels": {
+              "en": "Salutation",
+              "de": "Anrede"
+            },
+            "kind": "single_choice",
+            "choices": [
+              {
+                "key": "mr",
+                "labels": {
+                  "en": "Mr",
+                  "de": "Herr"
+                }
+              },
+              {
+                "key": "ms",
+                "labels": {
+                  "en": "Ms",
+                  "de": "Frau"
+                }
+              },
+              {
+                "key": "mx",
+                "labels": {
+                  "en": "Mx",
+                  "de": "Mx"
+                }
+              }
+            ],
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "academic_title",
+            "technicalName": "academic_title",
+            "labels": {
+              "en": "Academic title",
+              "de": "Titel"
+            },
+            "kind": "single_choice",
+            "appliesTo": [
+              "individual",
+              "person"
+            ],
+            "choices": [
+              {
+                "key": "dr",
+                "labels": {
+                  "en": "Dr.",
+                  "de": "Dr."
+                }
+              },
+              {
+                "key": "prof",
+                "labels": {
+                  "en": "Prof.",
+                  "de": "Prof."
+                }
+              },
+              {
+                "key": "prof_dr",
+                "labels": {
+                  "en": "Prof. Dr.",
+                  "de": "Prof. Dr."
+                }
+              },
+              {
+                "key": "dr_med",
+                "labels": {
+                  "en": "Dr. med.",
+                  "de": "Dr. med."
+                }
+              },
+              {
+                "key": "dr_dent",
+                "labels": {
+                  "en": "Dr. med. dent.",
+                  "de": "Dr. med. dent."
+                }
+              },
+              {
+                "key": "dr_jur",
+                "labels": {
+                  "en": "Dr. jur.",
+                  "de": "Dr. jur."
+                }
+              },
+              {
+                "key": "dr_rer_nat",
+                "labels": {
+                  "en": "Dr. rer. nat.",
+                  "de": "Dr. rer. nat."
+                }
+              },
+              {
+                "key": "dr_phil",
+                "labels": {
+                  "en": "Dr. phil.",
+                  "de": "Dr. phil."
+                }
+              },
+              {
+                "key": "dipl_ing",
+                "labels": {
+                  "en": "Dipl.-Ing.",
+                  "de": "Dipl.-Ing."
+                }
+              }
+            ]
+          },
+          {
+            "key": "name_suffix",
+            "technicalName": "name_suffix",
+            "labels": {
+              "en": "Name suffix",
+              "de": "Namenszusatz"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "name_components",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "formatted_name",
+            "technicalName": "formatted_name",
+            "labels": {
+              "en": "Formatted name",
+              "de": "Formatierter Name"
+            },
+            "kind": "text",
+            "derived": true
+          },
+          {
+            "key": "organization_name",
+            "technicalName": "organization_name",
+            "labels": {
+              "en": "Organization name",
+              "de": "Name der Organisation"
+            },
+            "kind": "text",
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          },
+          {
+            "key": "emails",
+            "technicalName": "emails",
+            "labels": {
+              "en": "Email addresses",
+              "de": "E-Mail-Adressen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "email_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                }
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
+                }
+              }
+            ]
+          },
+          {
+            "key": "phones",
+            "technicalName": "phones",
+            "labels": {
+              "en": "Telephone numbers",
+              "de": "Telefonnummern"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "phone_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "mobile",
+                "labels": {
+                  "en": "Mobile",
+                  "de": "Mobil"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "voice",
+                "labels": {
+                  "en": "Voice calls",
+                  "de": "Sprachanrufe"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "fax",
+                "labels": {
+                  "en": "Fax",
+                  "de": "Fax"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "text",
+                "labels": {
+                  "en": "SMS / text",
+                  "de": "SMS / Text"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "video",
+                "labels": {
+                  "en": "Video",
+                  "de": "Video"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "pager",
+                "labels": {
+                  "en": "Pager",
+                  "de": "Pager"
+                },
+                "group": "phone_type"
+              },
+              {
+                "key": "textphone",
+                "labels": {
+                  "en": "Textphone",
+                  "de": "Schreibtelefon"
+                },
+                "group": "phone_type"
+              }
+            ]
+          },
+          {
+            "key": "addresses",
+            "technicalName": "addresses",
+            "labels": {
+              "en": "Addresses",
+              "de": "Anschriften"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "address_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                }
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
+                }
+              }
+            ]
+          },
+          {
+            "key": "websites",
+            "technicalName": "websites",
+            "labels": {
+              "en": "Websites",
+              "de": "Webseiten"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "url_entries"
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                }
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Sonstiges"
+                }
+              }
+            ]
+          },
+          {
+            "key": "birthday",
+            "technicalName": "birthday",
+            "labels": {
+              "en": "Date of birth",
+              "de": "Geburtsdatum"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "partial_date",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "gender",
+            "technicalName": "gender",
+            "labels": {
+              "en": "Gender",
+              "de": "Geschlecht"
+            },
+            "kind": "single_choice",
+            "choices": [
+              {
+                "key": "female",
+                "labels": {
+                  "en": "Female",
+                  "de": "Weiblich"
+                }
+              },
+              {
+                "key": "male",
+                "labels": {
+                  "en": "Male",
+                  "de": "Männlich"
+                }
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Divers"
+                }
+              },
+              {
+                "key": "not_specified",
+                "labels": {
+                  "en": "Not specified",
+                  "de": "Keine Angabe"
+                }
+              }
+            ],
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "commercial_register",
+            "technicalName": "commercial_register",
+            "labels": {
+              "en": "Commercial register",
+              "de": "Handelsregister"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "organization",
+              "individual"
+            ]
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "en": "Notes",
+              "de": "Notizen"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          },
+          {
+            "key": "nickname",
+            "technicalName": "nickname",
+            "labels": {
+              "en": "Nickname",
+              "de": "Spitzname"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "languages",
+            "technicalName": "languages",
+            "labels": {
+              "en": "Communication languages",
+              "de": "Kommunikationssprachen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "language_entries",
+              "options": []
+            }
+          },
+          {
+            "key": "messenger_addresses",
+            "technicalName": "messenger_addresses",
+            "labels": {
+              "en": "Messenger addresses",
+              "de": "Messenger-Adressen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "messenger_entries",
+              "options": []
+            },
+            "choices": [
+              {
+                "key": "work",
+                "labels": {
+                  "en": "Work",
+                  "de": "Geschäftlich"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "home",
+                "labels": {
+                  "en": "Home",
+                  "de": "Privat"
+                },
+                "group": "usage"
+              },
+              {
+                "key": "xmpp",
+                "labels": {
+                  "en": "XMPP",
+                  "de": "XMPP"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "matrix",
+                "labels": {
+                  "en": "Matrix",
+                  "de": "Matrix"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "signal",
+                "labels": {
+                  "en": "Signal",
+                  "de": "Signal"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "whatsapp",
+                "labels": {
+                  "en": "WhatsApp",
+                  "de": "WhatsApp"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "teams",
+                "labels": {
+                  "en": "Microsoft Teams",
+                  "de": "Microsoft Teams"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "telegram",
+                "labels": {
+                  "en": "Telegram",
+                  "de": "Telegram"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "sip",
+                "labels": {
+                  "en": "SIP",
+                  "de": "SIP"
+                },
+                "group": "messenger_type"
+              },
+              {
+                "key": "other",
+                "labels": {
+                  "en": "Other",
+                  "de": "Andere"
+                },
+                "group": "messenger_type"
+              }
+            ]
+          },
+          {
+            "key": "contact_time_zone",
+            "technicalName": "contact_time_zone",
+            "labels": {
+              "en": "Contact time zone",
+              "de": "Zeitzone des Kontakts"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "time_zone",
+              "options": []
+            }
+          },
+          {
+            "key": "wedding_anniversary",
+            "technicalName": "wedding_anniversary",
+            "labels": {
+              "en": "Wedding anniversary",
+              "de": "Hochzeitstag"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "partial_date",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "death_date",
+            "technicalName": "death_date",
+            "labels": {
+              "en": "Date of death",
+              "de": "Todestag"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "partial_date",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "job_title",
+            "technicalName": "job_title",
+            "labels": {
+              "en": "Job title",
+              "de": "Position"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "function",
+            "technicalName": "function",
+            "labels": {
+              "en": "Function",
+              "de": "Funktion"
+            },
+            "kind": "multiple_choice",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "department",
+            "technicalName": "department",
+            "labels": {
+              "en": "Department",
+              "de": "Abteilung"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "address_form",
+            "technicalName": "address_form",
+            "labels": {
+              "en": "Form of address",
+              "de": "Anredeform"
+            },
+            "kind": "single_choice",
+            "appliesTo": [
+              "individual",
+              "person"
+            ],
+            "choices": [
+              {
+                "key": "informal",
+                "labels": {
+                  "en": "Informal (Du)",
+                  "de": "Persönlich (Du)"
+                }
+              },
+              {
+                "key": "formal",
+                "labels": {
+                  "en": "Formal (Sie)",
+                  "de": "Formal (Sie)"
+                }
+              }
+            ]
+          },
+          {
+            "key": "letter_salutation",
+            "technicalName": "letter_salutation",
+            "labels": {
+              "en": "Letter salutation",
+              "de": "Briefanrede"
+            },
+            "kind": "text",
+            "appliesTo": [
+              "individual",
+              "person",
+              "organization"
+            ]
+          },
+          {
+            "key": "pronouns",
+            "technicalName": "pronouns",
+            "labels": {
+              "en": "Pronouns",
+              "de": "Pronomen"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "pronoun_entries",
+              "options": []
+            },
+            "appliesTo": [
+              "individual",
+              "person"
+            ]
+          },
+          {
+            "key": "organization_addresses",
+            "technicalName": "organization_addresses",
+            "labels": {
+              "en": "Organization addresses",
+              "de": "Organisationsanschriften"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "address_entries",
+              "options": []
+            },
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          },
+          {
+            "key": "organization_phones",
+            "technicalName": "organization_phones",
+            "labels": {
+              "en": "Central telephone / fax",
+              "de": "Telefon / Fax der Zentrale"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "phone_entries",
+              "options": []
+            },
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          },
+          {
+            "key": "organization_emails",
+            "technicalName": "organization_emails",
+            "labels": {
+              "en": "Central email addresses",
+              "de": "E-Mail-Adressen der Zentrale"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "email_entries",
+              "options": []
+            },
+            "derived": true,
+            "appliesTo": [
+              "person"
+            ]
+          }
+        ],
+        "navigationPriority": 100
+      },
+      {
+        "key": "distribution_list",
+        "technicalName": "distribution_lists",
+        "labels": {
+          "en": "Distribution lists",
+          "de": "Verteiler"
+        },
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "en": "Description",
+              "de": "Beschreibung"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": false
+            }
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "en": "Notes",
+              "de": "Notizen"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ],
+        "navigationPriority": 90
+      }
+    ],
+    "templateVersion": 5
+  },
+  {
+    "key": "projects",
+    "labels": {
+      "de": "Projekte & Aufgaben",
+      "en": "Projects & Tasks"
+    },
+    "description": {
+      "de": "Kontakte, Projekte, Vorgänge und Aufgaben mit fester Hauptzuordnung.",
+      "en": "Contacts, Projects, Cases and Tasks with a fixed Primary association chain."
+    },
+    "available": true,
+    "position": 2,
+    "objects": [
+      {
+        "key": "contact",
+        "labels": {
+          "de": "Kontakte",
+          "en": "Contacts"
+        },
+        "technicalName": "contacts",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ],
+        "navigationPriority": 70
+      },
+      {
+        "key": "project",
+        "labels": {
+          "de": "Projekte",
+          "en": "Projects"
+        },
+        "technicalName": "projects",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "de": "Beschreibung",
+              "en": "Description"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          },
+          {
+            "key": "responsible",
+            "technicalName": "responsible",
+            "labels": {
+              "de": "Verantwortlich",
+              "en": "Responsible"
+            },
+            "kind": "reference",
+            "config": {
+              "referenceTarget": "both",
+              "multiple": false
+            }
+          },
+          {
+            "key": "start_date",
+            "technicalName": "start_date",
+            "labels": {
+              "de": "Beginn",
+              "en": "Start date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "target_date",
+            "technicalName": "target_date",
+            "labels": {
+              "de": "Zieldatum",
+              "en": "Target date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "de": "Notizen",
+              "en": "Notes"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ],
+        "navigationPriority": 100
+      },
+      {
+        "key": "case",
+        "labels": {
+          "de": "Vorgänge",
+          "en": "Cases"
+        },
+        "technicalName": "cases",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "de": "Beschreibung",
+              "en": "Description"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          },
+          {
+            "key": "responsible",
+            "technicalName": "responsible",
+            "labels": {
+              "de": "Verantwortlich",
+              "en": "Responsible"
+            },
+            "kind": "reference",
+            "config": {
+              "referenceTarget": "both",
+              "multiple": false
+            }
+          },
+          {
+            "key": "start_date",
+            "technicalName": "start_date",
+            "labels": {
+              "de": "Beginn",
+              "en": "Start date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "target_date",
+            "technicalName": "target_date",
+            "labels": {
+              "de": "Zieldatum",
+              "en": "Target date"
+            },
+            "kind": "date"
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "de": "Notizen",
+              "en": "Notes"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ],
+        "navigationPriority": 90
+      },
+      {
+        "key": "task",
+        "labels": {
+          "de": "Aufgaben",
+          "en": "Tasks"
+        },
+        "technicalName": "tasks",
+        "standardFields": [
+          "keyword",
+          "type_status",
+          "category"
+        ],
+        "fields": [
+          {
+            "key": "description",
+            "technicalName": "description",
+            "labels": {
+              "de": "Beschreibung",
+              "en": "Description"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          },
+          {
+            "key": "responsible",
+            "technicalName": "responsible",
+            "labels": {
+              "de": "Verantwortlich",
+              "en": "Responsible"
+            },
+            "kind": "reference",
+            "config": {
+              "referenceTarget": "both",
+              "multiple": false
+            }
+          },
+          {
+            "key": "start",
+            "technicalName": "start",
+            "labels": {
+              "de": "Beginn",
+              "en": "Start"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "temporal"
+            }
+          },
+          {
+            "key": "due",
+            "technicalName": "due",
+            "labels": {
+              "de": "Fällig",
+              "en": "Due"
+            },
+            "kind": "structured",
+            "config": {
+              "schema": "temporal"
+            }
+          },
+          {
+            "key": "priority",
+            "technicalName": "priority",
+            "labels": {
+              "de": "Priorität",
+              "en": "Priority"
+            },
+            "kind": "single_choice",
+            "choices": [
+              {
+                "key": "low",
+                "labels": {
+                  "de": "Niedrig",
+                  "en": "Low"
+                }
+              },
+              {
+                "key": "normal",
+                "labels": {
+                  "de": "Normal",
+                  "en": "Normal"
+                }
+              },
+              {
+                "key": "high",
+                "labels": {
+                  "de": "Hoch",
+                  "en": "High"
+                }
+              }
+            ]
+          },
+          {
+            "key": "progress",
+            "technicalName": "progress",
+            "labels": {
+              "de": "Fortschritt (%)",
+              "en": "Progress (%)"
+            },
+            "kind": "integer"
+          },
+          {
+            "key": "completed_at",
+            "technicalName": "completed_at",
+            "labels": {
+              "de": "Erledigt am",
+              "en": "Completed at"
+            },
+            "kind": "datetime"
+          },
+          {
+            "key": "notes",
+            "technicalName": "notes",
+            "labels": {
+              "de": "Notizen",
+              "en": "Notes"
+            },
+            "kind": "multiline",
+            "config": {
+              "formatted": true
+            }
+          }
+        ],
+        "navigationPriority": 80
+      }
+    ],
+    "templateVersion": 2
+  },
+  {
+    "key": "documents",
+    "labels": {
+      "de": "Dokumente & Kommunikation",
+      "en": "Documents & Communication"
+    },
+    "description": {
+      "de": "E-Mails und Dokumente. Die Fachfunktionen folgen später.",
+      "en": "Emails and Documents. Domain features will follow later."
+    },
+    "available": false,
+    "position": 3,
+    "objects": [
+      {
+        "key": "email",
+        "labels": {
+          "de": "E-Mails",
+          "en": "Emails"
+        },
+        "technicalName": "emails",
+        "navigationPriority": 0
+      },
+      {
+        "key": "document",
+        "labels": {
+          "de": "Dokumente",
+          "en": "Documents"
+        },
+        "technicalName": "documents",
+        "navigationPriority": 0
+      }
+    ],
+    "templateVersion": 1
+  }
+]

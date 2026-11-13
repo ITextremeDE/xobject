@@ -48,6 +48,12 @@ Category supports single selection, multiple selection or a selection tree. Add 
 
 Deactivate a used choice instead of deleting it. Unused Type/Status choices can be deleted only when no current or historical record references them. Renaming keeps identity and history. Changes that invalidate retained selections fail rather than silently dropping them. Task status completion meanings have the additional [Task rules](projects-and-tasks.md#complete-and-reopen-a-task).
 
+## Configure Tags
+
+Available since Community 1.7.0.
+
+Use **Add field → Tags** to install the optional standard field in Classification. Its name and kind are reserved, like the other standard fields; requiredness, descriptions and omission-only defaults follow normal field rules. For an additional independently named tag collection, choose the **Tags** kind in the shared field editor. The designer can move these fields. See [Tags](field-types.md#tags) for entry and filtering.
+
 ## Configure record numbers
 
 An object may have an automatically assigned **Number**, independent of its record ID and Keyword. In the selected object's **Numbering** section, expand **Number format & counter** and configure:

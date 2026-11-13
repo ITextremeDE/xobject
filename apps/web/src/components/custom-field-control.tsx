@@ -1,3 +1,4 @@
+import {TagsInput} from './tags-input';
 import type {ReactNode} from 'react';
 import {URLInput} from './url-input';
 import {PhoneInput} from './phone-input';
@@ -34,6 +35,7 @@ const optionName = (labels: Record<string, string>, language: string) => labels[
 export {displayFieldValue} from '@/lib/field-display';
 export function CustomFieldControl({ field, value, workspaceId, objectTypeId, disabled, onChange,error,legendVariant,legendActions,labelHidden=false,inline=false,unit,idPrefix }: { legendActions?:ReactNode;idPrefix?:string;inline?:boolean;unit?:string;labelHidden?:boolean;legendVariant?:'legend'|'label';error?:string;field: FieldDefinition; value: FieldValue; workspaceId: string; objectTypeId?:string; disabled: boolean; onChange: (value: FieldValue) => void }) {
   // A dialog can render the same field alongside its inert record form. Namespace presentation IDs only.
+  const sourceFieldId=field.id;
   if(idPrefix)field={...field,id:`${idPrefix}${field.id}`};
   const { t, i18n } = useTranslation();
   const regional=useRegional();
@@ -45,6 +47,7 @@ export function CustomFieldControl({ field, value, workspaceId, objectTypeId, di
   if(field.kind==='structured')return <StructuredFieldControl labelHidden={labelHidden} legendActions={legendActions} legendVariant={legendVariant} field={field} value={value} disabled={disabled} onChange={onChange} error={error}/>;
   if(field.kind==='date'||field.kind==='datetime')return <Suspense fallback={<TemporalFieldSkeleton label={`${field.label}${field.required?' *':''}`} datetime={field.kind==='datetime'}/>}><RegionalTemporalField field={field} value={value} disabled={disabled} onChange={onChange} error={error}/></Suspense>;
   if (field.kind === 'reference') return <ReferenceControl field={field} value={value} workspaceId={workspaceId} objectTypeId={objectTypeId} error={error} disabled={disabled} onChange={onChange} />;
+  if(field.kind==='tags')return <Field data-disabled={disabled||undefined} data-invalid={Boolean(error)||undefined}><FieldLabel htmlFor={id}>{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><TagsInput id={id} label={field.label} value={Array.isArray(value)?value as string[]:[]} onChange={onChange} disabled={disabled} required={field.required} invalid={Boolean(error)} describedBy={describedBy} objectTypeId={objectTypeId} fieldId={sourceFieldId}/><FieldExplanation field={field} help/>{error?<FieldError id={`${id}-validation-error`}>{error}</FieldError>:null}</Field>;
   if (field.kind === 'multiple_choice'||field.kind==='tree_choice') {
     const selected=Array.isArray(value)?value as string[]:[];
     return <Field data-disabled={disabled||undefined} data-invalid={Boolean(error)||undefined}><FieldLabel htmlFor={id}>{field.label}{field.required?' *':''}</FieldLabel><FieldExplanation field={field}/><ChoicePicker id={id} label={field.label} options={(field.config.options??[]).map(option=>({...option,label:optionName(option.labels,i18n.language)}))} value={selected} tree={field.kind==='tree_choice'} disabled={disabled} required={field.required} invalid={Boolean(error)} describedBy={describedBy} onChange={onChange}/><FieldExplanation field={field} help/>{error?<FieldError id={`${id}-validation-error`}>{error}</FieldError>:null}</Field>;

@@ -12,6 +12,12 @@ The list shows name, permitted channels, permission restriction, expiration, las
 
 The token's name identifies its application/agent in journal metadata alongside the actual user, channel and credential UUID. A bearer client cannot supply or override its acting user or audit identity. Passwords, bearer tokens and stored hashes are never journaled. Password confirmation has a bounded per-process failed-attempt guard; this is not a distributed gateway rate limiter.
 
+## Since 1.7.0: Tags
+
+`tags` is a general field kind with an array of free-text strings. Add the optional standard field with `add_standard_field({objectTypeId, field: "tags"})`, or select this kind in `create_field`. The regular record writer accepts `values: {tags: ["Customer", "Follow-up"]}`.
+
+`list_field_tags({objectTypeId, fieldId, query, limit})` returns `{values, hasMore}` with at most 100 existing readable values; search narrows larger sets. `list_records.tagFilters` accepts `[{fieldId, values: ["Customer", null]}]`: match any listed tag or an empty field, combine separate fields and existing filters with AND. Filtering precedes counts and pagination and observes current row/field permissions. These are additive API 1.0.0 capabilities in application 1.7.0.
+
 ## Since 1.6.0: paged record relationships
 
 For table-oriented reads, request `get_record_relationships` with `view: "summary"`. Maximum-one fields contain their permitted current targets. Saved to-many fields contain `paged: true`, a permitted `total` and no complete target draft. Omitting `view` retains the released complete response.
@@ -97,7 +103,7 @@ Category arrays select at least one matching value. Tree records already retain 
 - `GET /api/v1/contract`: authenticated operation manifest with the same schemas and references.
 - [Generated contract](../packages/contracts/api-v1.openapi.json): the versioned source artifact; [shared contracts](../packages/contracts/src/index.ts) own its types/validation. `npm run api:generate` regenerates it and `npm run api:check` rejects drift. The TypeScript schema generator is a build dependency, not part of the running HTTP server.
 
-The application features in this guide target Community `1.3.0`. The API contract is versioned independently as `1.0.0`; the MCP protocol revision is a third, separate version. The OAuth lifetime and authorization-journal refinements below are part of application 1.0.2. [Documentation versions](versions.md) identifies the released snapshots; [ADR 0035](adr/0035-container-delivery-and-maintenance.md) defines supported installation updates.
+This guide includes released features through Community `1.7.0`. The API contract is versioned independently as `1.0.0`; the MCP protocol revision is a third, separate version. The OAuth lifetime and authorization-journal refinements below are part of application 1.0.2. [Documentation versions](versions.md) identifies the released snapshots; [ADR 0035](adr/0035-container-delivery-and-maintenance.md) defines supported installation updates.
 
 Requests can pin API major version `1` with `X-XObject-API-Version`; another major is rejected before execution. Responses identify their contract through `X-XObject-API-Version: 1.0.0`. External clients should pin the major and reject incompatible successful responses. Compatible additions may add optional fields/operations; callers should tolerate additional response fields. Breaking changes require a new explicit major contract/endpoint and documented client changes rather than silent reinterpretation.
 
