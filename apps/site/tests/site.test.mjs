@@ -438,7 +438,8 @@ test("localized product site, theme controls, screenshots and resources under pr
             }
           }
           await accessible(page);
-          assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+          const overflow=await page.evaluate(()=>({url:location.href,width:innerWidth,scrollWidth:document.documentElement.scrollWidth,elements:[...document.querySelectorAll('body *')].map(node=>({tag:node.tagName,className:typeof node.className==='string'?node.className:'',left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right})).filter(box=>box.right>innerWidth+1||box.left< -1).slice(0,12)}));
+          assert(overflow.scrollWidth<=overflow.width,JSON.stringify(overflow));
         }
         await page.setViewportSize({width:1440,height:1000});
       }
