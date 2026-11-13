@@ -590,24 +590,21 @@ test('rendered application workflows on an isolated current installation',{timeo
    saved=await api('get_record_relationship_page',{objectTypeId:object.id,recordId:source.id});assert.equal(saved.entries[0].record.attributeValues[attribute.id],'Pending edge detail');
    await table.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('menuitem',{name:'Relationship details',exact:true}).click();await expect(dialog.getByRole('textbox',{name:'Link note',exact:true})).toHaveValue('Pending edge detail');await auditPage(page,'Paged relationship attribute dialog');await dialog.locator('[data-slot=dialog-footer]').getByRole('button',{name:'Close',exact:true}).click();
   });
-  await scenario('Workspace search accepts immediate keyboard input and restores focus','admin',async page=>{
+  for(const mobile of [false,true])await scenario(`Workspace search accepts immediate keyboard input and restores focus ${mobile?'mobile':'desktop'}`,'admin',async page=>{
    let releaseSearch;const searchGate=new Promise(resolve=>{releaseSearch=resolve;});
    await page.route('**/api/v1/search_workspace',async route=>{await searchGate;await route.continue();});
    try{
-   await page.goto(listPath);
-   const trigger=page.locator('main [data-slot="sidebar-trigger"]');await trigger.focus();
-   await page.keyboard.press(process.platform==='darwin'?'Meta+k':'Control+k');
-   const dialog=page.getByRole('dialog',{name:'Search and navigate',exact:true}),input=dialog.getByRole('combobox',{name:'Search and navigate',exact:true});
-   await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
-   await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
-   await page.setViewportSize({width:390,height:844});await trigger.click();
-   await page.getByRole('textbox',{name:'Search and navigate',exact:true}).click();
-   await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
-   await expect(dialog.getByRole('status')).toHaveText('Loading…');
-   await auditPage(page,'Immediate keyboard search from mobile Sidebar');
-   await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
+    await page.goto(listPath);
+    const trigger=page.locator('main [data-slot="sidebar-trigger"]');
+    if(mobile){await trigger.click();await page.getByRole('textbox',{name:'Search and navigate',exact:true}).click();}
+    else{await trigger.focus();await page.keyboard.press(process.platform==='darwin'?'Meta+k':'Control+k');}
+    const dialog=page.getByRole('dialog',{name:'Search and navigate',exact:true}),input=dialog.getByRole('combobox',{name:'Search and navigate',exact:true});
+    await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
+    await expect(dialog.getByRole('status')).toHaveText('Loading…');
+    await auditPage(page,`Immediate keyboard search from ${mobile?'mobile Sidebar':'desktop shortcut'}`);
+    await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
    }finally{releaseSearch();}
-  });
+  },mobile?{width:390,height:844}:{width:1440,height:1000});
   await scenario('Classification filter dropdowns fit long labels without wrapping','admin',async page=>{
    const model=await api('create_object_type',{workspaceId:workspace.id,technicalName:'filter_width',labels:{en:'Filter width'},standardFields:['keyword','type_status','category']}),definition=await api('get_object_type',{objectTypeId:model.id});
    const labels={type:'Comprehensive organizational responsibility',status:'Awaiting an external technical assessment',category:'Procurement and operational coordination'},longLabel='International procurement and operational coordination for exceptionally extensive organizational responsibilities '.repeat(3).slice(0,190).trim();
