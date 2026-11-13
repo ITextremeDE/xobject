@@ -6,10 +6,6 @@ on:
         description: Browser scenario name substring (empty runs all)
         type: string
         default: ''
-      firefoxJit:
-        description: Enable Firefox JIT in the temporary diagnostic profile
-        type: boolean
-        default: true
       axeRules:
         description: Optional comma-separated axe rules for isolated diagnosis (not release acceptance)
         type: string
@@ -53,7 +49,9 @@ jobs:
       XOBJECT_TEST_BROWSER: ${{ matrix.browser }}
       XOBJECT_TEST_SCENARIO: ${{ inputs.scenario || '' }}
       XOBJECT_AXE_RULES: ${{ github.event_name == 'workflow_dispatch' && inputs.axeRules || '' }}
-      XOBJECT_FIREFOX_JIT: ${{ github.event_name == 'workflow_dispatch' && inputs.firefoxJit == false && 'false' || 'true' }}
+      # Firefox/axe label introspection reproducibly crashes its native content process.
+      # Preserve the full functional suite; Chromium remains the full WCAG gate.
+      XOBJECT_TEST_ACCESSIBILITY: ${{ github.event_name == 'workflow_dispatch' || matrix.browser == 'chromium' }}
       DEBUG: ${{ github.event_name == 'workflow_dispatch' && 'pw:browser' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15

@@ -18,6 +18,7 @@ import {defaultWorkspaceAppearance,emptyClassification,contactExtensionLayout} f
 const exec=promisify(execFile),expect=playwrightExpect.configure({timeout:10000});
 const postgresImage='postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5';
 const engineName=process.env.XOBJECT_TEST_BROWSER??'chromium';
+const accessibilityEnabled=process.env.XOBJECT_TEST_ACCESSIBILITY!=='false';
 assert.ok(['chromium','firefox','webkit'].includes(engineName),'Unsupported acceptance browser');
 const engine={chromium,firefox,webkit}[engineName];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -110,9 +111,10 @@ test('rendered application workflows on an isolated current installation',{timeo
    domain[key]={model,record};parent=domain[key];
   }
   const list=supplied.find(o=>o.technicalName==='distribution_lists');domain.distribution_lists={model:list,record:await api('create_record',{objectTypeId:list.id,keyword:'Acceptance distribution'},domainCookie)};
-  browser=await engine.launch({headless:true,timeout:10000,...(engineName==='firefox'&&process.env.XOBJECT_FIREFOX_JIT==='false'?{firefoxUserPrefs:{'javascript.options.ion':false,'javascript.options.baselinejit':false}}:{})});
+  browser=await engine.launch({headless:true,timeout:10000});
   async function auditPage(page,name){
      await page.evaluate(async()=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})));});
+     if(!accessibilityEnabled)return;
      const axe=new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']);
      if(process.env.XOBJECT_AXE_RULES)axe.withRules(process.env.XOBJECT_AXE_RULES.split(',').map(rule=>rule.trim()).filter(Boolean));
      // Audit the active modal surface rather than intentionally dimmed, aria-hidden background tables.
@@ -601,10 +603,6 @@ test('rendered application workflows on an isolated current installation',{timeo
     const dialog=page.getByRole('dialog',{name:'Search and navigate',exact:true}),input=dialog.getByRole('combobox',{name:'Search and navigate',exact:true});
     await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
     await expect(dialog.getByRole('status')).toHaveText('Loading…');
-    if(process.env.DEBUG){
-     const caption=dialog.locator('[cmdk-label]');console.log('Search caption metadata',await caption.evaluate(el=>({for:el.htmlFor,id:el.id,style:el.getAttribute('style')})));
-     for(const metric of ['clientWidth','clientHeight','scrollWidth','scrollHeight']){console.log('Reading caption metric',metric);console.log('Caption metric result',metric,await caption.evaluate((el,key)=>el[key],metric));}
-    }
     await auditPage(page,`Immediate keyboard search from ${mobile?'mobile Sidebar':'desktop shortcut'}`);
     await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
    }finally{releaseSearch();}
@@ -648,9 +646,10 @@ test('rendered application workflows on an isolated current installation',{timeo
    }finally{await context.close();}
   });
   await mkdir(artifacts,{recursive:true,mode:0o700});
-  await writeFile(path.join(artifacts,'result.json'),JSON.stringify({status:scenarios.every(s=>s.status==='passed')&&!accessibilityFindings.length?'passed':'failed',accessibilityFindings,scenarioFilter:process.env.XOBJECT_TEST_SCENARIO??null,browser:engineName,fixture:'disposable current PostgreSQL installation; normal account onboarding',scenarios},null,2)+'\n',{mode:0o600});
+  await writeFile(path.join(artifacts,'result.json'),JSON.stringify({status:scenarios.every(s=>s.status==='passed')&&!accessibilityFindings.length?'passed':'failed',accessibility:{status:accessibilityEnabled?(accessibilityFindings.length?'failed':'passed'):'not-run',coverage:process.env.XOBJECT_AXE_RULES?'selected diagnostic rules':'WCAG A/AA tags',rules:process.env.XOBJECT_AXE_RULES??null},accessibilityFindings,scenarioFilter:process.env.XOBJECT_TEST_SCENARIO??null,browser:engineName,fixture:'disposable current PostgreSQL installation; normal account onboarding',scenarios},null,2)+'\n',{mode:0o600});
   console.log(`Browser acceptance evidence: ${artifacts}`);
-  assert.deepEqual(accessibilityFindings,[],'No automated WCAG A/AA violations across checked views');
+  if(accessibilityEnabled)assert.deepEqual(accessibilityFindings,[],'No automated WCAG A/AA violations across checked views');
+  else console.log('Automated accessibility not run in this functional-only browser acceptance; the Chromium WCAG gate remains required.');
  }catch(error){failure=error;throw error;}finally{
   // Attempt every owned resource even if another close fails; never prune shared Docker state.
   const errors=[];
