@@ -114,7 +114,6 @@ test('rendered application workflows on an isolated current installation',{timeo
   async function auditPage(page,name){
      await page.evaluate(async()=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})));});
      const axe=new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']);
-     if(process.env.XOBJECT_AXE_TRANSPORT==='direct')axe.setLegacyMode(true);
      // Audit the active modal surface rather than intentionally dimmed, aria-hidden background tables.
      // Keep the vendor focus guards in scope, including WebKit/VoiceOver's role-button variant.
      const surfaces=await page.locator('[data-slot="dialog-content"],[data-slot="sheet-content"],[data-slot="alert-dialog-content"]').evaluateAll(elements=>elements.filter(element=>!element.closest('[aria-hidden="true"]')&&element.getBoundingClientRect().width>0).map(element=>element.id).filter(Boolean));

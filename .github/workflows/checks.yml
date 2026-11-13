@@ -11,11 +11,6 @@ on:
         type: choice
         options: [firefox, chromium]
         default: firefox
-      axeTransport:
-        description: Manufacturer axe transport for diagnostic comparison
-        type: choice
-        options: [partial, direct]
-        default: partial
   pull_request:
   push:
     branches: [main]
@@ -41,7 +36,7 @@ jobs:
       - run: npm run test:packaging
       - run: npm run test:benchmark-cleanup
   browser:
-    name: ${{ matrix.browser == 'chromium' && 'browser' || matrix.browser }}
+    name: ${{ github.event_name == 'workflow_dispatch' && format('diagnostic-{0}', matrix.browser) || matrix.browser == 'chromium' && 'browser' || matrix.browser }}
     strategy:
       fail-fast: false
       matrix:
@@ -49,8 +44,7 @@ jobs:
     env:
       XOBJECT_TEST_BROWSER: ${{ matrix.browser }}
       XOBJECT_TEST_SCENARIO: ${{ inputs.scenario || '' }}
-      XOBJECT_AXE_TRANSPORT: ${{ inputs.axeTransport || 'partial' }}
-      DEBUG: pw:browser
+      DEBUG: ${{ github.event_name == 'workflow_dispatch' && 'pw:browser' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
