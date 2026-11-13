@@ -77,7 +77,7 @@ export function FieldEditorDialog({ relationshipTypeId,standardKind, onDeleted, 
     return api('configure_field', { fieldId: field.id, version: baseline.version, required,inputRules:normalizedRules(), ...(!fixed ? { labels: cleanLabels(labels), applicability, kind: kind as CustomFieldKind, ...(!field.isDerived?{config:cleanedConfig}:{}) } : {}) });
   }, onError: async () => { if(relationshipTypeId)await client.invalidateQueries({queryKey:['relationship-types']});await client.invalidateQueries({ queryKey: ['definition', context!.id] }); }, onSuccess: async result => {
     await client.invalidateQueries({ queryKey: ['definition', context!.id] });
-    await client.invalidateQueries({queryKey:['relationship-types']});await client.invalidateQueries({queryKey:['record-relationships']});
+    await client.invalidateQueries({queryKey:['relationship-types']});await client.invalidateQueries({queryKey:['record-relationships']});await client.invalidateQueries({queryKey:['relationship-page']});
     await client.invalidateQueries({ queryKey: ['records', context!.id] });
     await client.invalidateQueries({ queryKey: ['record', context!.id], refetchType: 'all' });
     if (!field) { onDirtyChange(false); onBusyChange(false); onCreated?.(standardKind ? (result as ObjectDefinition).fields.find(item => item.technicalName === standardKind)!.id : (result as { id: string }).id); return; }

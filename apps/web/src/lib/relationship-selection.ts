@@ -45,3 +45,10 @@ export function reformatRelationshipFields(fields:import('@xobject/contracts').R
   const next=reformatNumericDrafts(definitions,target.attributeValues,from,to);if(!next){invalid=true;return target;}return {...target,attributeValues:next};
  })}));return invalid?null:result;
 }
+
+/** Sparse to-many draft: loaded pages are projections, never a replacement baseline. */
+export type RelationshipDraftField=import('@xobject/contracts').RelationshipField&{removedTargets?:import('@xobject/contracts').RecordReference[]};
+export const removedRelationshipTargets=(field:import('@xobject/contracts').RelationshipField)=>(field as RelationshipDraftField).removedTargets??[];
+export function removeRelationshipTarget(field:import('@xobject/contracts').RelationshipField,target:import('@xobject/contracts').RelatedRecord):RelationshipDraftField{
+ return {...field,targets:field.targets.filter(t=>relatedIdentity(t)!==relatedIdentity(target)),...(field.paged&&target.edgeId?{removedTargets:[...removedRelationshipTargets(field).filter(t=>relatedIdentity(t)!==relatedIdentity(target)),{objectTypeId:target.objectTypeId,recordId:target.recordId}]}:{})};
+}

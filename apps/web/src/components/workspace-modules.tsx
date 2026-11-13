@@ -15,7 +15,7 @@ export function WorkspaceModules({workspaceId,readOnly,disabled,onBusyChange}:{w
   const {t,i18n}=useTranslation(),client=useQueryClient();
   const modules=useQuery({queryKey:['workspace-modules',workspaceId],queryFn:()=>api('list_workspace_modules',{workspaceId})});
   const mutation=useMutation({mutationFn:({key,enabled,version}:{key:'contacts'|'projects'|'documents';enabled:boolean;version:number})=>api('configure_workspace_module',{workspaceId,key,enabled,version}),onSettled:async()=>{
-    for(const key of ['workspace-modules','types','objects','definition','workspace-records','workspace-dashboard','relationship-types','record-relationships','primary-chain-context','relationship-candidates','relationship-tree','system-journal'])await client.invalidateQueries({queryKey:[key]});
+    for(const key of ['workspace-modules','types','objects','definition','workspace-records','workspace-dashboard','relationship-types','record-relationships','relationship-page','primary-chain-context','relationship-candidates','relationship-tree','system-journal'])await client.invalidateQueries({queryKey:[key]});
   }});
   useEffect(()=>onBusyChange(mutation.isPending),[mutation.isPending,onBusyChange]);
   const label=(labels:Record<string,string>)=>labels[i18n.language]??labels.en??labels.de??'';

@@ -20,7 +20,7 @@ import {Select,SelectTrigger,SelectValue,SelectContent,SelectGroup,SelectItem} f
 import {NativeSelect,NativeSelectOption} from './ui/native-select';
 import {FieldExplanation,fieldDescriptionIds} from './record-field-hints';
 
-export function StructuredFieldControl({field,value,disabled,onChange,error,legendActions,legendVariant='label'}:{legendActions?:ReactNode;legendVariant?:'legend'|'label';field:FieldDefinition;value:FieldValue;disabled:boolean;onChange:(value:FieldValue)=>void;error?:string}){
+export function StructuredFieldControl({field,value,disabled,onChange,error,legendActions,labelHidden=false,legendVariant='label'}:{labelHidden?:boolean;legendActions?:ReactNode;legendVariant?:'legend'|'label';field:FieldDefinition;value:FieldValue;disabled:boolean;onChange:(value:FieldValue)=>void;error?:string}){
  const {t,i18n}=useTranslation(),schema=field.config.schema!,base=`field-${field.id}`,optionGroups=structuredOptionGroups(schema);
  const grouped=optionGroups.length>0;
  const EntryValueInput=schema==='url_entries'?URLInput:Input;
@@ -71,7 +71,7 @@ export function StructuredFieldControl({field,value,disabled,onChange,error,lege
  if(schema==='time_zone')return <ContactTimeZoneControl field={field} value={value} disabled={disabled} onChange={onChange} error={error}/>;
  if(schema==='partial_date')return <PartialDateControl field={field} value={value} disabled={disabled} onChange={onChange} error={error}/>;
  return <FieldSet id={base} className="gap-3" data-invalid={invalid||Boolean(error)}>
-  <FieldLegend variant={legendVariant} className="flex w-full flex-wrap items-center justify-between gap-3"><span>{field.label}{field.required?' *':''}</span><span className="flex flex-wrap items-center gap-2">{legendActions}{addButton}</span></FieldLegend>
+  <FieldLegend variant={legendVariant} className="flex w-full flex-wrap items-center justify-between gap-3"><span className={labelHidden?'sr-only':undefined}>{field.label}{field.required?' *':''}</span><span className="flex flex-wrap items-center gap-2">{legendActions}{addButton}</span></FieldLegend>
   <FieldExplanation field={field}/>
   {schema==='pronoun_entries'?<FieldDescription>{t('contactPronounsHelp')}</FieldDescription>:null}
   {entries.length>1&&schema!=='pronoun_entries'?<SettingsHelp title={t('contactOrderPreferenceShort')}>{t('contactOrderPreference')}</SettingsHelp>:null}

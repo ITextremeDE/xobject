@@ -1,3 +1,5 @@
+import {useDraftPair} from '@/lib/use-draft-pair';
+import {useSettingsRoute} from '@/lib/settings-route';
 import {notifySuccess} from '@/lib/notifications';
 import {SettingsSection} from './settings-section';
 import {BlocksIcon} from 'lucide-react';
@@ -49,8 +51,9 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
 }) {
   const { t } = useTranslation();
   const [memberActionsTarget,setMemberActionsTarget]=useState<HTMLDivElement|null>(null),[groupActionsTarget,setGroupActionsTarget]=useState<HTMLDivElement|null>(null);
-  const [section, setSection] = useState<'systemJournal' | 'systemUsers' | 'profile' | 'appearance' | 'language' | 'security' | 'workspaceAppearance' | 'workspaceModules' | 'workspaceGeneral' | 'workspaceLanguage' | 'workspaceObjects' | 'workspaceForms' | 'workspaceMembers' | 'workspaceGroups' | 'workspaceRelationships'>('profile');
-  const [visited,setVisited]=useState(()=>new Set(['profile']));
+  const {section,selectSection:setSection}=useSettingsRoute(Boolean(user.isAdmin));
+  const [visited,setVisited]=useState(()=>new Set([section]));
+  useEffect(()=>{setVisited(old=>new Set([...old,section]));},[section]);
   const sections = [{ id: 'profile' as const, label: t('profile'), icon: UserRoundIcon }, { id: 'security' as const, label: t('accountSecurity'), icon: ShieldCheckIcon }, { id: 'appearance' as const, label: t('theme'), icon: PaintbrushIcon }, { id: 'language' as const, label: t('languageRegion'), icon: GlobeIcon }];
   const workspaceSections = [
     { id: 'workspaceGeneral' as const, label: t('general'), icon: Settings2Icon },
@@ -74,10 +77,8 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
   const scope = workspaceSection ? workspace?.name ?? t('workspace') : section.startsWith('system') ? t('instance') : t('personal');
   const client = useQueryClient();
   const { theme, setTheme } = useAppearance();
-  const [baselineProfileName, setBaselineProfileName] = useState(user.name);
-  const [profileName, setProfileName] = useState(user.name);
-  const [baselineLanguage, setBaselineLanguage] = useState<Language | 'inherit'>(user.language ?? 'inherit');
-  const [language, setLanguage] = useState<Language | 'inherit'>(user.language ?? 'inherit');
+  const {value:profileName,baseline:baselineProfileName,setValue:setProfileName,setBaseline:setBaselineProfileName}=useDraftPair(user.name);
+  const {value:language,baseline:baselineLanguage,setValue:setLanguage,setBaseline:setBaselineLanguage}=useDraftPair<Language|'inherit'>(user.language??'inherit');
   const [baselineRegional, setBaselineRegional] = useState(user.regionalPreferences ?? null);
   const [personalRegional, setPersonalRegional] = useState<PersonalRegionalSettings>(user.regionalPreferences ?? inheritRegionalSettings);
   const regionalDirty = JSON.stringify(personalRegional) !== JSON.stringify(baselineRegional ?? inheritRegionalSettings);
@@ -88,16 +89,13 @@ export function SettingsPage({ user, workspace, onDirtyChange, onBusyChange, onC
   const personalLocalizationDirty = language !== baselineLanguage || personalTimeZone !== baselineTimeZone || regionalDirty;
   useEffect(() => { if (!personalLocalizationDirty) { setBaselineLanguage(user.language ?? 'inherit'); setLanguage(user.language ?? 'inherit'); setBaselineTimeZone(user.timeZone ?? null); setPersonalTimeZone(user.timeZone ?? null); setBaselineRegional(user.regionalPreferences ?? null); setPersonalRegional(user.regionalPreferences ?? inheritRegionalSettings); } }, [user.language, user.timeZone, user.regionalPreferences]);
   const [themeDraft, setThemeDraft] = useState<Theme | null>(null);
-  const [baselineName, setBaselineName] = useState(workspace?.name ?? '');
-  const [workspaceName, setWorkspaceName] = useState(workspace?.name ?? '');
-  const [baselineWorkspaceLanguages, setBaselineWorkspaceLanguages] = useState(() => workspaceLanguages(workspace));
-  const [workspaceLanguageDraft, setWorkspaceLanguageDraft] = useState(() => workspaceLanguages(workspace));
+  const {value:workspaceName,baseline:baselineName,setValue:setWorkspaceName,setBaseline:setBaselineName}=useDraftPair(workspace?.name??'');
+  const {value:workspaceLanguageDraft,baseline:baselineWorkspaceLanguages,setValue:setWorkspaceLanguageDraft,setBaseline:setBaselineWorkspaceLanguages}=useDraftPair(()=>workspaceLanguages(workspace));
   const [languageVersion, setLanguageVersion] = useState(workspace?.language_version ?? 1);
   const workspaceLanguageDirty = JSON.stringify(baselineWorkspaceLanguages) !== JSON.stringify(workspaceLanguageDraft);
   useEffect(() => { if (!workspaceLanguageDirty) { setBaselineWorkspaceLanguages(workspaceLanguages(workspace)); setWorkspaceLanguageDraft(workspaceLanguages(workspace)); setLanguageVersion(workspace?.language_version ?? 1); } }, [workspace?.id, workspace?.language_version]);
   const personalLanguages = workspace?.available_languages ?? languageCodes;
-  const [baselineDesign, setBaselineDesign] = useState(workspace?.appearance ?? defaultWorkspaceAppearance);
-  const [design, setDesign] = useState(workspace?.appearance ?? defaultWorkspaceAppearance);
+  const {value:design,baseline:baselineDesign,setValue:setDesign,setBaseline:setBaselineDesign}=useDraftPair(workspace?.appearance??defaultWorkspaceAppearance);
   const [designVersion, setDesignVersion] = useState(workspace?.appearance_version ?? 1);
   const designDirty = JSON.stringify(design) !== JSON.stringify(baselineDesign);
   useEffect(() => {

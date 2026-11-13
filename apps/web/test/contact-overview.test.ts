@@ -20,3 +20,10 @@ test('Contact overview retains explicit empty inheritance exceptions and empty c
  const hidden=structuredClone(layout);(hidden.groups[1].fields[0] as {visible:boolean}).visible=false;
  assert.equal(contactOverviewLayout(hidden,fields,{organization_emails:[]},[relation]).groups.length,0,'an explicitly hidden empty list remains hidden');
 });
+
+test('fixed Contact core retains applicable empty sections without exposing unreadable values',()=>{
+ const fields=[{id:'empty',technicalName:'empty'},{id:'hidden',technicalName:'hidden'}] as FieldDefinition[];
+ const layout:FormLayout={groups:[{id:'contact-correspondence',labels:{en:'Correspondence'},fields:[{fieldId:'empty',width:'full'},{fieldId:'hidden',width:'half'}]}]};
+ assert.deepEqual(contactOverviewLayout(layout,fields,{empty:null},[],true).groups,[{...layout.groups[0],fields:[]}]);
+ assert.equal(layout.groups[0].fields.length,2,'editor retains all applicable inputs');
+});

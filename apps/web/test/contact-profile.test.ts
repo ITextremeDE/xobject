@@ -75,3 +75,14 @@ test('letter salutations use explicit forms/languages, neutral fallbacks and rea
  assert.equal(contactLetterSalutation(model,definitions.filter(f=>f.id!=='last_name'),values),null);
  assert.equal(contactLetterSalutation(model,definitions.map(f=>({...f,fieldPermissions:{read:f.id!=='first_name'}})),values),null);
 });
+
+test('Organization channel and address inheritance occupy separate fixed core sections with unchanged bound field identities',()=>{
+ const purposes=['organization_name','organization_phones','organization_emails','organization_addresses'];
+ const all=purposes.map(p=>({id:`id-${p}`,technicalName:`renamed_${p}`,kind:p==='organization_name'?'text':'structured'}));
+ const bound={...profile,fields:{...profile.fields,...Object.fromEntries(purposes.map(p=>[p,`id-${p}`]))}};
+ const layout=contactCoreLayout(bound,all,[]);
+ const ids=(id:string)=>layout.groups.find(g=>g.id===id)?.fields.map(e=>'fieldId'in e?e.fieldId:null);
+ assert.deepEqual(ids('contact-organization'),purposes.slice(0,3).map(p=>`id-${p}`));
+ assert.deepEqual(ids('contact-organization-addresses'),['id-organization_addresses']);
+ assert.equal(new Set(layout.groups.flatMap(g=>g.fields).map(e=>'fieldId'in e?e.fieldId:null)).size,4);
+});

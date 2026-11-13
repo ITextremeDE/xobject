@@ -1,3 +1,4 @@
+import {assertCurrentWebBuild} from './web-build-id.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
@@ -23,6 +24,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function freePort(){const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));return port;}
 
 test('rendered application workflows on an isolated current installation',{timeout:360000},async t=>{
+ assertCurrentWebBuild();
  const container=`xobject-browser-${randomUUID()}`,baseURL=`http://127.0.0.1:${await freePort()}`;
  const secret=randomBytes(48).toString('base64url'),password=randomBytes(24).toString('base64url');
  const artifacts=path.resolve('.local/browser-acceptance',new Date().toISOString().replace(/[:.]/g,'-'));
@@ -111,7 +113,12 @@ test('rendered application workflows on an isolated current installation',{timeo
   browser=await engine.launch({headless:true,timeout:10000});
   async function auditPage(page,name){
      await page.evaluate(async()=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})));});
-     const accessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();
+     const axe=new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']);
+     // Audit the active modal surface rather than intentionally dimmed, aria-hidden background tables.
+     // Keep the vendor focus guards in scope, including WebKit/VoiceOver's role-button variant.
+     const surfaces=await page.locator('[data-slot="dialog-content"],[data-slot="sheet-content"],[data-slot="alert-dialog-content"]').evaluateAll(elements=>elements.filter(element=>!element.closest('[aria-hidden="true"]')&&element.getBoundingClientRect().width>0).map(element=>element.id).filter(Boolean));
+     if(surfaces.length){for(const id of surfaces)axe.include(`[id=${JSON.stringify(id)}]`);if(await page.locator('[data-base-ui-focus-guard]').count())axe.include('[data-base-ui-focus-guard]');}
+     const accessibility=await axe.analyze();
      await mkdir(artifacts,{recursive:true,mode:0o700});
      await writeFile(path.join(artifacts,`${engineName}-${name.replace(/[^a-z0-9]+/gi,'-')}-axe.json`),JSON.stringify(accessibility.violations,null,2));
      if(accessibility.violations.length){
@@ -350,6 +357,54 @@ test('rendered application workflows on an isolated current installation',{timeo
    const field=page.getByRole('dialog',{name:'Field attributes',exact:true});await expect(field).toBeVisible();assert.ok(await field.evaluate(el=>el.scrollWidth<=el.clientWidth),'No horizontal field dialog overflow');
    await page.keyboard.press('Escape');await page.keyboard.press('Escape');
   },{width:390,height:844});
+  await scenario('Contact section layout is consistent for all kinds in reading and editing','admin',async page=>{
+   const source=await api('create_field',{objectTypeId:contact.id,technicalName:'layout_source_url',labels:{en:'Source URL',de:'Quell-URL'},kind:'url'});
+   let def=await api('get_object_type',{objectTypeId:contact.id});const profile=def.contactProfile;
+   const layout=contactExtensionLayout(profile,def.fields,structuredClone(def.formLayouts.default));
+   layout.groups.push({id:'layout-external-source',labels:{en:'External references',de:'Externe Referenzen'},width:'full',fields:[{fieldId:source.id,width:'full'}]});
+   def=await api('configure_form_layout',{objectTypeId:contact.id,version:def.version,layout});
+   const address={id:randomUUID(),contexts:[],preference:1,address:{poBox:'',extended:'',streetLines:['Example Road'],houseNumber:'10',postalCode:'80331',locality:'Munich',region:'Bavaria',country:'Deutschland',formatted:''}};
+   const common={layout_source_url:'https://example.test/contact',notes:'Activity log.\n\n----- 12.11.2026 14:35 (John Doe) -----\nVerified the contact details.'};
+   const org=await api('create_record',{objectTypeId:contact.id,values:{...common,contact_kind:profile.kinds.organization,company_name:'Layout organization',phones:[{id:randomUUID(),value:'+49891234567',contexts:[],preference:1}],emails:[{id:randomUUID(),value:'office@example.test',contexts:[],preference:1}],addresses:[address]}});
+   const membership=(await api('list_relationship_types',{workspaceId:workspace.id})).find(r=>r.id===profile.relationships.contact_person);
+   const person=await api('create_record',{objectTypeId:contact.id,values:{...common,contact_kind:profile.kinds.person,last_name:[{id:randomUUID(),text:'Layout person'}],job_title:'Consultant',department:'Services',phones:[{id:randomUUID(),value:'+491701234567',contexts:[],preference:1}],emails:[{id:randomUUID(),value:'person@example.test',contexts:[],preference:1}],addresses:[{...address,id:randomUUID(),address:{...address.address,streetLines:['Personal Road'],houseNumber:'44'}}]},relationships:[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:contact.id,recordId:org.id}]}]});
+   const individual=await api('create_record',{objectTypeId:contact.id,values:{...common,contact_kind:profile.kinds.individual,last_name:[{id:randomUUID(),text:'Layout individual'}],job_title:'Independent consultant'}});
+   for(const [kind,record] of [['organization',org],['person',person],['individual',individual]]){
+    await page.setViewportSize({width:1440,height:1000});await page.goto(`${baseURL}/w/qa/objects/contacts/${record.id}`);await expect(page.getByRole('button',{name:'Edit contact',exact:true})).toBeVisible();
+    for(const editing of [false,true]){
+     if(editing)await page.getByRole('button',{name:'Edit contact',exact:true}).click();
+     const box=async id=>{const locator=page.locator(`[data-contact-section="${id}"]`);await expect(locator).toBeVisible();return locator.boundingBox();};
+     const name=await box('contact-name'),media=await box('contact-media');assert.ok(Math.abs(name.y-media.y)<3&&media.x>name.x,'Media is beside Name');
+     if(kind!=='organization'){const business=await box('contact-business');assert.ok(business.y>media.y&&Math.abs(business.x-media.x)<3,'Professional details below media');}
+     const details=await box('contact-details'),correspondence=await box('contact-correspondence'),locale=await box('contact-locale');assert.ok(details.y>name.y&&Math.abs(details.y-correspondence.y)<3&&Math.abs(details.y-locale.y)<3&&details.x<correspondence.x&&correspondence.x<locale.x,'Further details / Correspondence / Language share the next row');
+     const communication=await box('contact-communication'),addresses=await box('contact-addresses');assert.ok(communication.y>details.y&&Math.abs(communication.y-addresses.y)<3&&addresses.x>communication.x,'Own channels and addresses share a row');
+     let previous=communication;
+     if(kind==='person'){const inherited=await box('contact-organization'),inheritedAddresses=await box('contact-organization-addresses');assert.ok(inherited.y>communication.y&&Math.abs(inherited.y-inheritedAddresses.y)<3&&inheritedAddresses.x>inherited.x);previous=inherited;}
+     const classification=await box('contact-classification');assert.ok(classification.y>previous.y&&classification.width>name.width*1.8,'Classification follows at full width');
+     const sourceSection=page.getByText('External references',{exact:true}).locator('xpath=ancestor::section[1]'),relations=page.getByRole('table',{name:'Contact relationships',exact:true}).locator('xpath=ancestor::section[1]'),notes=await box('contact-notes');await expect(sourceSection).toBeVisible();const sourceBox=await sourceSection.boundingBox(),relationBox=await relations.boundingBox();assert.ok(sourceBox.y>classification.y&&relationBox.y>sourceBox.y&&notes.y>relationBox.y);assert.ok(sourceBox.width>name.width*1.8&&relationBox.width>name.width*1.8&&notes.width>name.width*1.8);
+     await expect(page.getByText('Unassigned',{exact:true})).toHaveCount(0);
+     await auditPage(page,`Contact ${kind} ${editing?'edit':'read'} desktop layout`);
+     await page.screenshot({path:path.join(artifacts,`contact-layout-${kind}-${editing?'edit':'read'}-desktop.png`),fullPage:true});
+     await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth,undefined,{timeout:3000});const mobileName=await box('contact-name'),mobileMedia=await box('contact-media');assert.ok(mobileMedia.y>mobileName.y,'Mobile keeps the same reading order');await auditPage(page,`Contact ${kind} ${editing?'edit':'read'} mobile layout`);await page.screenshot({path:path.join(artifacts,`contact-layout-${kind}-${editing?'edit':'read'}-mobile.png`),fullPage:true});await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveClass(/dark/);await auditPage(page,`Contact ${kind} ${editing?'edit':'read'} mobile dark layout`);await page.screenshot({path:path.join(artifacts,`contact-layout-${kind}-${editing?'edit':'read'}-mobile-dark.png`),fullPage:true});await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).not.toHaveClass(/dark/);await page.setViewportSize({width:1440,height:1000});
+    }
+   }
+   const policy=(await api('list_workspaces',{})).find(w=>w.id===workspace.id),session=await (await page.context().request.get(`${baseURL}/api/auth/get-session`)).json(),user=session.user;
+   let policyChange;
+   if(!policy.available_languages.includes('de'))policyChange=await api('configure_workspace_languages',{workspaceId:workspace.id,version:policy.language_version,availableLanguages:[...policy.available_languages,'de'],defaultLanguage:policy.default_language,labelLanguages:[...new Set([...policy.label_languages,'de'])],timeZone:policy.time_zone,regional:policy.regional});
+   await api('configure_user_localization',{language:'de',timeZone:user.timeZone??null,expectedLanguage:user.language??null,expectedTimeZone:user.timeZone??null});
+   try{
+    await page.goto(`${baseURL}/w/qa/objects/contacts/${person.id}`);await expect(page.getByRole('button',{name:'Kontakt bearbeiten',exact:true})).toBeVisible();
+    for(const editing of [false,true]){
+     await page.setViewportSize({width:1440,height:1000});if(editing)await page.getByRole('button',{name:'Kontakt bearbeiten',exact:true}).click();
+     await expect(page.locator('[data-contact-section=contact-locale]').getByText('Sprache & Zeit',{exact:true})).toBeVisible();await expect(page.locator('[data-contact-section=contact-addresses] [data-slot=field-legend]').filter({hasText:/^Anschriften$/})).toBeVisible();
+     await page.screenshot({path:path.join(artifacts,`contact-layout-person-${editing?'edit':'read'}-de-desktop.png`),fullPage:true});
+     await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth,undefined,{timeout:3000});await auditPage(page,`Contact person ${editing?'edit':'read'} German mobile layout`);await page.screenshot({path:path.join(artifacts,`contact-layout-person-${editing?'edit':'read'}-de-mobile.png`),fullPage:true});
+    }
+   }finally{
+    await api('configure_user_localization',{language:user.language??null,timeZone:user.timeZone??null,expectedLanguage:'de',expectedTimeZone:user.timeZone??null});
+    if(policyChange)await api('configure_workspace_languages',{workspaceId:workspace.id,version:policyChange.version,availableLanguages:policy.available_languages,defaultLanguage:policy.default_language,labelLanguages:policy.label_languages,timeZone:policy.time_zone,regional:policy.regional});
+   }
+  });
   await scenario('Central Organization details and configurable Family lists share normal record drafts','admin',async page=>{
    let def=await api('get_object_type',{objectTypeId:contact.id});const profile=def.contactProfile;
    const functionId=randomUUID(),functionField=def.fields.find(field=>field.id===profile.fields.function);await api('configure_field',{fieldId:functionField.id,version:functionField.version,required:false,config:{...functionField.config,options:[{id:functionId,active:true,labels:{en:'Customer adviser',de:'Kundenberatung'}}]}});def=await api('get_object_type',{objectTypeId:contact.id});
@@ -363,9 +418,9 @@ test('rendered application workflows on an isolated current installation',{timeo
    const defaultFamily=def.formLayouts.default.groups.find(group=>group.relationshipList);assert.equal(defaultFamily.labels.en,'Contact relationships');assert.equal(defaultFamily.fields.length,8);
    await page.goto(`${baseURL}/w/qa/objects/contacts/${org.id}`);const people=page.getByRole('table',{name:'Contact relationships',exact:true});await expect(people.getByRole('columnheader',{name:'Object type',exact:true})).toHaveCount(0);await expect(people.getByText('Support manager',{exact:true})).toBeVisible();await expect(people.getByText('Operations',{exact:true})).toBeVisible();await expect(people.getByText('Customer adviser',{exact:true})).toBeVisible();await people.getByRole('link').first().hover();await expect(people.getByRole('link').first()).toHaveCSS('text-decoration-line','none');
    await page.goto(`${baseURL}/w/qa/objects/contacts/${person.id}`);await page.getByRole('button',{name:'Edit contact',exact:true}).click();
-   const inherited=page.locator(`#field-${profile.fields.organization_phones}-${centralPhoneId}`);await expect(inherited).toHaveValue('+1 202 555 0123');await expect(inherited).toBeDisabled();
+   const inherited=page.locator(`#field-${profile.fields.organization_phones}-${centralPhoneId}`),section=page.locator(`[data-contact-inheritance="${profile.fields.organization_phones}"]`);await expect(inherited).toHaveCount(0);await expect(section.getByText('+1 202 555 0123',{exact:true})).toBeVisible();
    await expect(page.locator(`#field-${profile.fields.phones}-${directPhoneId}`)).toHaveValue('+44 20 7946 0018');
-   const section=inherited.locator('xpath=ancestor::fieldset[1]');await section.getByRole('button',{name:'Own value',exact:true}).click();await expect(inherited).toBeEnabled();
+   await section.getByRole('button',{name:'Own value',exact:true}).click();await expect(inherited).toBeEnabled();
    await inherited.fill('+49891234567');await inherited.press('Tab');await expect(inherited).toHaveValue('+49 89 1234567');
    const plus=page.getByRole('button',{name:'Choose linked records: Contact relationships',exact:true});await plus.click();await page.getByRole('menuitem',{name:'Children',exact:true}).click();
    const dialog=page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]');await dialog.locator('#relationship-picker-search').fill('Relative example');await expect(dialog.getByRole('columnheader',{name:'Job title',exact:true})).toBeVisible();await dialog.getByRole('checkbox',{name:/Relative example/}).check();await dialog.getByRole('button',{name:'Apply selection',exact:true}).click();
@@ -431,7 +486,7 @@ test('rendered application workflows on an isolated current installation',{timeo
    await expect(page.getByRole('link',{name:'+1 202 555 0123',exact:true})).toHaveAttribute('href','tel:+12025550123');
    await expect(page.getByText('readable',{exact:true})).toBeVisible();
    await expect(page.locator('#record-link-with')).toBeEnabled();await expect(page.locator('#record-link-with')).toHaveCSS('opacity','1');
-   await expect(page.locator('[data-record-form-actions]')).toHaveCount(0);await expect(page.getByText('No details entered.',{exact:true})).toHaveCount(0);
+   await expect(page.locator('[data-record-form-actions]')).toHaveCount(0);await expect(page.locator('[data-contact-section=contact-correspondence]').getByText('No details entered.',{exact:true})).toBeVisible();await expect(page.locator('[data-contact-section=contact-media]')).toBeVisible();
    const child=await api('create_record',{objectTypeId:contact.id,values:{contact_kind:p.kinds.individual,last_name:[{id:randomUUID(),text:'Overview child'}]}});
    await page.getByRole('button',{name:'Choose linked records: Contact relationships',exact:true}).click();await page.getByRole('menuitem',{name:'Children',exact:true}).click();const picker=page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]');await picker.locator('#relationship-picker-search').fill('Overview child');await picker.getByRole('checkbox',{name:/Overview child/}).check();await picker.getByRole('button',{name:'Apply selection',exact:true}).click();
    await expect(input).toHaveCount(0);await expect(page.getByText('Changes have not been saved yet.',{exact:true})).toBeVisible();const beforeSave=await api('get_record_relationships',{objectTypeId:contact.id,recordId:person.id});assert.ok(!beforeSave.fields.find(r=>r.definition.id===p.relationships.contact_parent&&r.side==='left')?.targets.some(t=>t.recordId===child.id),'Overview linking remains an unsaved draft');await page.locator('button[type=submit]').click();await expect(page.locator('[data-record-form-actions]')).toHaveCount(0);await expect(page.getByRole('table',{name:'Contact relationships',exact:true}).getByText('Overview child',{exact:true})).toBeVisible();
@@ -491,6 +546,84 @@ test('rendered application workflows on an isolated current installation',{timeo
    await contactInput.fill('+49891234567');await expect(contactInput).toHaveValue('+49891234567');await contactInput.press('Tab');await expect(contactInput).toHaveValue('+49 89 1234567');
    await page.locator('button[type=submit]').click();await expect(page.getByRole('button',{name:'Edit contact',exact:true})).toBeVisible();
    assert.equal((await api('get_record',{objectTypeId:contact.id,recordId:contactBefore.id}))[phoneField.technicalName][0].value,'+49891234567');
+  });
+  await scenario('Saved relationship pages preserve unloaded edges and settings deep links','admin',async page=>{
+   const org=await api('create_record',{objectTypeId:contact.id,values:{contact_kind:contact.contactProfile.kinds.organization,company_name:'Paging organization'}});
+   const membership=(await api('list_relationship_types',{workspaceId:workspace.id})).find(r=>r.id===contact.contactProfile.relationships.contact_person);
+   for(let index=0;index<25;index++)await api('create_record',{objectTypeId:contact.id,values:{contact_kind:contact.contactProfile.kinds.person,last_name:[{id:randomUUID(),text:`Paging person ${String(index).padStart(2,'0')}`}]},relationships:[{relationshipTypeId:membership.id,version:membership.version,side:'right',targets:[{objectTypeId:contact.id,recordId:org.id}]}]});
+   const requests=[];page.on('request',request=>{if(request.url().endsWith('/get_record_relationship_page'))requests.push(request.postDataJSON());});
+   await page.goto(`${baseURL}/w/qa/objects/contacts/${org.id}`);
+   const table=page.getByRole('table',{name:'Contact relationships',exact:true}),section=table.locator('xpath=ancestor::div[@data-slot="field"]');
+   await expect(table.getByRole('link')).toHaveCount(10);await expect(table.getByText(/^Paging person 00/)).toBeVisible();
+   await section.getByRole('button',{name:'Next',exact:true}).click();await expect(table.getByText(/^Paging person 10/)).toBeVisible();await expect(table.getByRole('link')).toHaveCount(10);
+   await page.getByRole('button',{name:'Edit contact',exact:true}).click();
+   await section.getByRole('button',{name:'First page',exact:true}).click();
+   const row=table.getByRole('row').filter({hasText:'Paging person 00'});await row.getByRole('button',{name:'Record actions',exact:true}).click();
+   await page.getByRole('menuitem',{name:/^Remove.*Paging person 00/}).click();
+   await expect(table.getByText(/^Paging person 00/)).toHaveCount(0);
+   await page.locator('button[type=submit]').click();await expect(page.getByRole('button',{name:'Edit contact',exact:true})).toBeVisible();
+   const saved=await api('get_record_relationship_page',{objectTypeId:contact.id,recordId:org.id,limit:100});assert.equal(saved.total,24);assert.ok(saved.entries.some(entry=>entry.record.keyword.startsWith('Paging person 24')));
+   assert.ok(requests.length>=3);assert.ok(requests.every(request=>request.limit<=10));await auditPage(page,'Paged Contact relationships');
+   await page.goto(`${baseURL}/settings?workspace=qa&section=workspaceObjects&object=${contact.id}`);await expect(page.locator('#settings-object')).toHaveText(/^Contacts/);
+   await page.reload();await expect(page.locator('#settings-object')).toHaveText(/^Contacts/);
+   await page.goto(`${baseURL}/settings?workspace=qa&section=workspaceForms&object=${contact.id}`);await expect(page.locator('#form-designer-object')).toHaveText(/^Contacts/);
+   await page.reload();await expect(page.locator('#form-designer-object')).toHaveText(/^Contacts/);await auditPage(page,'Deep-linked Form designer');
+  });
+  await scenario('Paged relationship field details remain part of the record draft','admin',async page=>{
+   let relation=await api('create_relationship_type',{workspaceId:workspace.id,technicalName:'paged_details',configuration:{labels:{en:'Detail links'},leftLabels:{en:'Related contacts'},rightLabels:{en:'Checks'},directed:true,leftMin:0,leftMax:null,rightMin:0,rightMax:null,allowAll:false,pairs:[{leftObjectTypeId:object.id,rightObjectTypeId:contact.id}],active:true}});
+   const attribute=await api('create_field',{relationshipTypeId:relation.id,technicalName:'edge_note',labels:{en:'Link note'}});
+   relation=(await api('list_relationship_types',{workspaceId:workspace.id})).find(item=>item.id===relation.id);relation=await api('activate_relationship_type',{workspaceId:workspace.id,relationshipTypeId:relation.id,version:relation.version});
+   const source=await api('create_record',{objectTypeId:object.id,keyword:'Attribute draft',relationships:[{relationshipTypeId:relation.id,version:relation.version,side:'left',targets:[{objectTypeId:contact.id,recordId:domain.contacts.record.id}]}]});
+   const definition=await api('get_object_type',{objectTypeId:object.id}),layout=structuredClone(definition.formLayouts.default);layout.groups.push({id:'edge-details',labels:{en:'Detail links'},relationshipList:true,fields:[{relationshipTypeId:relation.id,side:'left',width:'full'}]});
+   await api('configure_form_layout',{objectTypeId:object.id,version:definition.version,layout});
+   await page.goto(`${listPath}/${source.id}`);const table=page.getByRole('table',{name:'Detail links',exact:true});await expect(table.getByRole('link')).toHaveCount(1);
+   await table.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('menuitem',{name:'Relationship details',exact:true}).click();
+   const dialog=page.getByRole('dialog',{name:'Relationship details',exact:true});await dialog.getByRole('textbox',{name:'Link note',exact:true}).fill('Pending edge detail');
+   await dialog.locator('[data-slot=dialog-footer]').getByRole('button',{name:'Close',exact:true}).click();
+   let saved=await api('get_record_relationship_page',{objectTypeId:object.id,recordId:source.id});assert.equal(saved.entries[0].record.attributeValues[attribute.id],null);
+   await page.locator('button[type=submit]').click();await expect(page.getByText('No unsaved changes.',{exact:true})).toBeVisible();
+   saved=await api('get_record_relationship_page',{objectTypeId:object.id,recordId:source.id});assert.equal(saved.entries[0].record.attributeValues[attribute.id],'Pending edge detail');
+   await table.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('menuitem',{name:'Relationship details',exact:true}).click();await expect(dialog.getByRole('textbox',{name:'Link note',exact:true})).toHaveValue('Pending edge detail');await auditPage(page,'Paged relationship attribute dialog');await dialog.locator('[data-slot=dialog-footer]').getByRole('button',{name:'Close',exact:true}).click();
+  });
+  await scenario('Workspace search accepts immediate keyboard input and restores focus','admin',async page=>{
+   await page.goto(listPath);
+   const trigger=page.locator('main [data-slot="sidebar-trigger"]');await trigger.focus();
+   await page.keyboard.press(process.platform==='darwin'?'Meta+k':'Control+k');
+   const dialog=page.getByRole('dialog',{name:'Search and navigate',exact:true}),input=dialog.getByRole('combobox',{name:'Search and navigate',exact:true});
+   await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
+   await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
+   await page.setViewportSize({width:390,height:844});await trigger.click();
+   await page.getByRole('textbox',{name:'Search and navigate',exact:true}).click();
+   await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
+   await auditPage(page,'Immediate keyboard search from mobile Sidebar');
+   await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
+  });
+  await scenario('Classification filter dropdowns fit long labels without wrapping','admin',async page=>{
+   const model=await api('create_object_type',{workspaceId:workspace.id,technicalName:'filter_width',labels:{en:'Filter width'},standardFields:['keyword','type_status','category']}),definition=await api('get_object_type',{objectTypeId:model.id});
+   const labels={type:'Comprehensive organizational responsibility',status:'Awaiting an external technical assessment',category:'Procurement and operational coordination'},longLabel='International procurement and operational coordination for exceptionally extensive organizational responsibilities '.repeat(3).slice(0,190).trim();
+   const {version:classificationVersion,...classificationRules}=definition.classification;
+   await api('configure_classification',{objectTypeId:model.id,version:classificationVersion,config:{...classificationRules,category:{...classificationRules.category,tree:false},options:[...Object.entries(labels).map(([kind,label])=>({id:randomUUID(),kind,typeId:null,labels:{en:label},active:true})),{id:randomUUID(),kind:'category',typeId:null,labels:{en:longLabel},active:true}]}});
+   await page.goto(`${baseURL}/w/qa/objects/filter_width`);
+   for(const width of [1440,390,320]){
+    await page.setViewportSize({width,height:900});
+    for(const kind of ['Type','Status','Category']){
+     await page.getByRole('button',{name:`Filter by ${kind}`,exact:true}).click();
+     const menu=page.locator('[data-slot=dropdown-menu-content]'),items=menu.getByRole('menuitemcheckbox');await expect(items.first()).toBeVisible();
+     await menu.evaluate(async element=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));await Promise.all(element.getAnimations().filter(animation=>Number.isFinite(animation.effect?.getComputedTiming().endTime)).map(animation=>animation.finished.catch(()=>{})));});
+     const box=await menu.boundingBox();assert.ok(box.width>=Math.min(256,width-32)-1);assert.ok(box.width<=Math.min(512,width-32)+1);assert.ok(box.x>=0&&box.x+box.width<=width+1);
+     for(const item of await items.all()){
+      const label=item.locator('[data-slot=tooltip-trigger]');await expect(label).toHaveCSS('white-space','nowrap');
+      const dimensions=await label.evaluate(element=>({height:element.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(element).lineHeight)}));assert.ok(dimensions.height<=dimensions.lineHeight+1);
+     }
+     if(kind==='Category'){
+      const longItem=menu.getByRole('menuitemcheckbox',{name:longLabel,exact:true});const label=longItem.locator('[data-slot=tooltip-trigger]');assert.ok(await label.evaluate(element=>element.scrollWidth>element.clientWidth));
+      if(width===1440){await label.hover();await expect(page.locator('[data-slot=tooltip-content]')).toHaveText(longLabel);await expect(page.locator('[data-slot=tooltip-content]')).toBeVisible();await page.mouse.move(0,0);await expect(page.locator('[data-slot=tooltip-content]')).toHaveCount(0);}
+     }
+     if(kind==='Status'&&width!==320)await page.screenshot({path:path.join(artifacts,`classification-filter-${width}.png`),fullPage:false});
+     await page.keyboard.press('Escape');await expect(menu).toHaveCount(0);
+    }
+   }
+   await auditPage(page,'Classification filters narrow layout');
   });
   if(!process.env.XOBJECT_TEST_SCENARIO||'Throttled sign-in shows retry guidance'.includes(process.env.XOBJECT_TEST_SCENARIO))await t.test('Throttled sign-in shows retry guidance',async()=>{
    // Isolate this synthetic 429 response from earlier scenarios' shared loopback quota.
