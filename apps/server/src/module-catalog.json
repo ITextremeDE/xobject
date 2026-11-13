@@ -22,7 +22,8 @@
         "standardFields": [
           "keyword",
           "type_status",
-          "category"
+          "category",
+          "tags"
         ],
         "fields": [
           {
@@ -891,7 +892,8 @@
         "standardFields": [
           "keyword",
           "type_status",
-          "category"
+          "category",
+          "tags"
         ],
         "fields": [
           {
@@ -922,7 +924,7 @@
         "navigationPriority": 90
       }
     ],
-    "templateVersion": 5
+    "templateVersion": 6
   },
   {
     "key": "projects",
@@ -947,7 +949,8 @@
         "standardFields": [
           "keyword",
           "type_status",
-          "category"
+          "category",
+          "tags"
         ],
         "navigationPriority": 70
       },
@@ -961,7 +964,8 @@
         "standardFields": [
           "keyword",
           "type_status",
-          "category"
+          "category",
+          "tags"
         ],
         "fields": [
           {
@@ -1032,7 +1036,8 @@
         "standardFields": [
           "keyword",
           "type_status",
-          "category"
+          "category",
+          "tags"
         ],
         "fields": [
           {
@@ -1103,7 +1108,8 @@
         "standardFields": [
           "keyword",
           "type_status",
-          "category"
+          "category",
+          "tags"
         ],
         "fields": [
           {
@@ -1221,7 +1227,7 @@
         "navigationPriority": 80
       }
     ],
-    "templateVersion": 2
+    "templateVersion": 3
   },
   {
     "key": "documents",

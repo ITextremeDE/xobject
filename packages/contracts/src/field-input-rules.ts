@@ -5,7 +5,7 @@ const translatedText=z.partialRecord(languageSchema,z.string().trim().min(1).max
 export const fieldInputRulesSchema=z.object({description:translatedText.default({}),helpText:translatedText.default({}),defaultValue:fieldValueSchema.default(null),unique:z.boolean().default(false)}).strict();
 export type FieldInputRules=z.infer<typeof fieldInputRulesSchema>;
 export const emptyFieldInputRules=():FieldInputRules=>({description:{},helpText:{},defaultValue:null,unique:false});
-export const supportsUniqueField=(kind:string,config:FieldConfig)=>!['structured','multiline','multiple_choice','tree_choice','category','type','status'].includes(kind)&&!(kind==='reference'&&config.multiple);
+export const supportsUniqueField=(kind:string,config:FieldConfig)=>!['structured','multiline','multiple_choice','tree_choice','tags','category','type','status'].includes(kind)&&!(kind==='reference'&&config.multiple);
 export const numberingSchema=z.object({enabled:z.boolean(),prefix:z.string().max(80),suffix:z.string().max(80),start:z.string().regex(/^[1-9]\d{0,29}$/),increment:z.string().regex(/^[1-9]\d{0,29}$/),padding:z.number().int().min(1).max(30),restart:z.enum(['never','yearly','monthly'])}).strict();
 export type Numbering=z.infer<typeof numberingSchema>;
 export const defaultNumbering=():Numbering=>({enabled:false,prefix:'',suffix:'',start:'1',increment:'1',padding:1,restart:'never'});

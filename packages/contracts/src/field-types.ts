@@ -2,7 +2,7 @@ import {structuredSchemaKey,structuredValueSchema} from './structured-fields.js'
 import {uuidSchema} from './identity.js';
 import { z } from 'zod';
 
-export const customFieldKinds = ['text', 'multiline', 'integer', 'decimal', 'money', 'boolean', 'date', 'datetime', 'single_choice', 'multiple_choice', 'tree_choice', 'email', 'phone', 'url', 'reference', 'structured'] as const;
+export const customFieldKinds = ['text', 'multiline', 'integer', 'decimal', 'money', 'boolean', 'date', 'datetime', 'single_choice', 'multiple_choice', 'tree_choice', 'tags', 'email', 'phone', 'url', 'reference', 'structured'] as const;
 export const customFieldKindSchema = z.enum(customFieldKinds);
 export type CustomFieldKind = z.infer<typeof customFieldKindSchema>;
 const translated = z.object({ de: z.string().trim().min(1).max(200).optional(), en: z.string().trim().min(1).max(200).optional() }).strict().refine(value => Object.keys(value).length > 0, 'A label is required');

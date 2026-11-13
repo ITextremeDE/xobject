@@ -41,7 +41,7 @@ export class ModuleInstallation {
 
   async installModuleObjects(tx:Executor,workspaceId:string,actor:string,moduleKey="projects") {
     if(moduleKey==='projects')await this.installModuleObjects(tx,workspaceId,actor,'contacts');
-    const catalog=(await sql<{template_version:number;objects:{key:string;technicalName:string;labels:Record<string,string>;standardFields:('keyword'|'type_status'|'category')[];fields?:{key:string;technicalName:string;labels:Record<string,string>;kind:import('@xobject/contracts').CustomFieldKind;config?:FieldConfig;required?:boolean;derived?:boolean;appliesTo?:string[];choices?:{key:string;labels:Record<string,string>;group?:'usage'|'phone_type'}[]}[]}[]}>`SELECT template_version,objects FROM sys_modules WHERE key=${moduleKey}`.execute(tx)).rows[0];
+    const catalog=(await sql<{template_version:number;objects:{key:string;technicalName:string;labels:Record<string,string>;standardFields:('keyword'|'type_status'|'category'|'tags')[];fields?:{key:string;technicalName:string;labels:Record<string,string>;kind:import('@xobject/contracts').CustomFieldKind;config?:FieldConfig;required?:boolean;derived?:boolean;appliesTo?:string[];choices?:{key:string;labels:Record<string,string>;group?:'usage'|'phone_type'}[]}[]}[]}>`SELECT template_version,objects FROM sys_modules WHERE key=${moduleKey}`.execute(tx)).rows[0];
     const levels:Record<string,string>={},freshObjects=new Set<string>();
     for(const proposal of catalog.objects){
       let binding=(await sql<{object_type_id:string}>`SELECT object_type_id FROM sys_module_object_bindings WHERE workspace_id=${workspaceId}::uuid AND object_key=${proposal.key}`.execute(tx)).rows[0];
@@ -64,6 +64,7 @@ export class ModuleInstallation {
       }
       let type=await this.definitions.objectType(tx,binding.object_type_id);if(type.state==='deleted')throw new AppError(409,'Module definition has been deleted');
       if(type.state==='inactive'){await sql`UPDATE sys_object_types SET state='active',version=version+1 WHERE id=${type.id}::uuid`.execute(tx);await this.journal(tx,actor,workspaceId,type.id,'object_type',type.id,v7(),'state','inactive','active');type=await this.definitions.objectType(tx,type.id);}
+      const previousContribution=(await sql<{template_version:number}>`SELECT template_version FROM sys_module_contributions WHERE workspace_id=${workspaceId}::uuid AND module_key=${moduleKey} AND object_type_id=${type.id}::uuid`.execute(tx)).rows[0];
       if((await sql`INSERT INTO sys_module_contributions VALUES(${workspaceId}::uuid,${moduleKey},${type.id}::uuid,${catalog.template_version}) ON CONFLICT DO NOTHING RETURNING object_type_id`.execute(tx)).rows.length)await this.journal(tx,actor,workspaceId,type.id,'object_type',type.id,v7(),`module.${moduleKey}.contribution`,null,{version:catalog.template_version});
       {
         for(const blueprint of proposal.fields??[]){
@@ -95,6 +96,12 @@ export class ModuleInstallation {
       if(freshObjects.has(type.id)&&['project','case','task'].includes(proposal.key)){
         const meanings=['open','in_progress','done','canceled'] as const,english=['Open','In progress','Done','Canceled'],german=['Offen','In Arbeit','Erledigt','Abgebrochen'];
         await this.definitions.configureClassification(tx,{objectTypeId:type.id,version:type.classification.version,config:{type:{required:false,defaultId:null},status:{required:false,defaults:[]},category:{required:false,multiple:true,defaultIds:[]},options:meanings.map((meaning,index)=>({id:v7(),kind:'status' as const,typeId:null,active:true,labels:{en:english[index],de:german[index]},...(proposal.key==='task'?{meaning}:{})}))}},actor);
+      }
+      if(proposal.standardFields.includes('tags')&&previousContribution&&previousContribution.template_version<catalog.template_version&&!(await sql`SELECT 1 FROM sys_fields WHERE object_type_id=${type.id}::uuid AND technical_name='tags'`.execute(tx)).rows.length){
+        await this.definitions.addStandardField(tx,type,'tags',actor);
+        const added=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${type.id}::uuid AND technical_name='tags' AND state='active'`.execute(tx)).rows[0];
+        await sql`UPDATE sys_fields SET is_protected=true WHERE id=${added.id}::uuid`.execute(tx);
+        await this.journal(tx,actor,workspaceId,type.id,'field',added.id,v7(),'is_protected',false,true,added.id);
       }
       const suppliedNames=[...proposal.standardFields.flatMap(name=>name==='type_status'?['type','status']:[name]),...(proposal.fields??[]).map(f=>f.technicalName),...(proposal.key==='contact'?(await sql<{objects:{key:string;fields:{technicalName:string}[]}[]}>`SELECT objects FROM sys_modules WHERE key='contacts'`.execute(tx)).rows[0].objects.find(o=>o.key==='contact')!.fields.map(f=>f.technicalName):[])];
       const contributed=(await sql<{field_id:string}>`INSERT INTO sys_module_field_contributions SELECT ${workspaceId}::uuid,${moduleKey},${type.id}::uuid,f.id FROM sys_fields f WHERE f.object_type_id=${type.id}::uuid AND f.technical_name=ANY(${suppliedNames}::text[]) ON CONFLICT DO NOTHING RETURNING field_id`.execute(tx)).rows;

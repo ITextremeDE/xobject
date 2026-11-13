@@ -9,7 +9,7 @@ import {contactProfile} from './contact-domain.js';
 import {normalizeInputRules,configureUniqueIndex,writeInputRules,uniqueIndexName,validateUniqueLength} from './field-input-rules.js';
 import {emptyFieldInputRules} from '@xobject/contracts';
 import {contentAccess} from './content-permissions.js';
-import {formLayoutElements,formEntryKey,formLayoutEntries,formRelationshipFields,resolveFormLayout} from '@xobject/contracts';
+import {formLayoutSchema,formLayoutElements,formEntryKey,formLayoutEntries,formRelationshipFields,resolveFormLayout} from '@xobject/contracts';
 import {primaryChain} from './primary-chain.js';
 import {applies,validateApplicability,applicabilityDependents} from './field-applicability.js';
 import {installObjectIntegrity} from './storage-integrity.js';
@@ -64,18 +64,35 @@ export class ObjectDefinitions {
     return { id, ...args, tableName: name };
   }
 
-  async addStandardField(tx: Executor, type: ObjectType, kind: 'type_status' | 'category' | 'keyword', actor: string, change = v7(), keywordRequired = false) {
+  async addStandardField(tx: Executor, type: ObjectType, kind: 'type_status' | 'category' | 'keyword' | 'tags', actor: string, change = v7(), keywordRequired = false) {
     this.requireActive(type);
     const names = kind === 'type_status' ? ['type', 'status'] : [kind];
     if ((await sql`SELECT 1 FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted' AND technical_name = ANY(${names}::text[])`.execute(tx)).rows.length) throw new AppError(409, 'Standard field already exists');
-    if (kind === 'keyword') {
+    if(kind==='tags'){
+      if(keywordRequired&&(await sql`SELECT 1 FROM ${sql.table(tableName(type))} LIMIT 1`.execute(tx)).rows.length)throw new AppError(400,'Existing records have empty required fields',{code:'requiredExisting'});
+      await sql`ALTER TABLE ${sql.table(tableName(type))} ADD COLUMN tags text[]`.execute(tx);
+      await sql`INSERT INTO sys_fields(id,object_type_id,technical_name,labels,kind,required) VALUES(${v7()}::uuid,${type.id}::uuid,'tags','{"de":"Schlagworte","en":"Tags"}'::jsonb,'tags',${keywordRequired})`.execute(tx);
+    } else if (kind === 'keyword') {
       if (keywordRequired && (await sql`SELECT 1 FROM ${sql.table(tableName(type))} LIMIT 1`.execute(tx)).rows.length) throw new AppError(400,'Existing records have empty required fields',{code:"requiredExisting"});
       const labels = { de: 'Stichwort', en: 'Keyword' };
       await sql`ALTER TABLE ${sql.table(tableName(type))} ADD COLUMN keyword text NOT NULL DEFAULT ''`.execute(tx);
       await sql`INSERT INTO sys_fields (id, object_type_id, technical_name, labels, kind, required) VALUES (${v7()}::uuid, ${type.id}::uuid, 'keyword', ${JSON.stringify(labels)}::jsonb, 'text', ${keywordRequired})`.execute(tx);
     } else await addClassificationFields(tx, type.id, tableName(type), names);
     const fields = (await sql<Field>`SELECT id, technical_name, labels, kind, required FROM sys_fields WHERE object_type_id = ${type.id}::uuid AND state <> 'deleted' AND technical_name = ANY(${names}::text[])`.execute(tx)).rows;
+    if(kind==='tags')await this.placeTagsField(tx,type,fields[0].id,actor,change);
     for (const field of fields) for (const [key, value] of Object.entries({ technical_name: field.technical_name, labels: field.labels, kind: field.kind, required: field.required })) await this.journal(tx, actor, type.workspace_id, type.id, 'field', field.id, change, key, null, value, field.id);
+  }
+
+  private async placeTagsField(tx:Executor,type:ObjectType,fieldId:string,actor:string,change:string){
+    const previous=(await this.objectType(tx,type.id)).form_layouts?.default;
+    if(!previous)return;
+    if(formLayoutEntries(previous).some(entry=>'fieldId'in entry&&entry.fieldId===fieldId))return;
+    const classificationIds=(await sql<{id:string}>`SELECT id FROM sys_fields WHERE object_type_id=${type.id}::uuid AND technical_name IN ('type','status','category') AND state='active'`.execute(tx)).rows.map(f=>f.id);
+    const next=structuredClone(previous),group=next.groups.find(g=>g.fields.some(e=>'fieldId'in e&&classificationIds.includes(e.fieldId)));
+    if(group)group.fields.push({fieldId,width:'half'});else next.groups.push({id:v7(),labels:{en:'Classification',de:'Einordnung'},fields:[{fieldId,width:'half'}]});
+    formLayoutSchema.parse(next);
+    await sql`UPDATE sys_object_types SET form_layouts=jsonb_set(form_layouts,'{default}',${JSON.stringify(next)}::jsonb),version=version+1 WHERE id=${type.id}::uuid`.execute(tx);
+    await this.journal(tx,actor,type.workspace_id,type.id,'object_type',type.id,change,'form_layout.default',previous,next);
   }
 
   async createField(tx: Executor, args: z.infer<typeof schemas.create_field>, actor: string) {
@@ -108,6 +125,7 @@ export class ObjectDefinitions {
     await this.journal(tx, actor, type.workspace_id, type.id, 'field', id, change, 'config', null, config, id);
     await this.journal(tx, actor, type.workspace_id, type.id, 'field', id, change, 'required', null, args.required, id);
     if(args.applicability)await this.journal(tx,actor,type.workspace_id,type.id,'field',id,change,'applicability',null,args.applicability,id);
+    if(args.kind==='tags')await this.placeTagsField(tx,type,id,actor,change);
     return { id, ...args, config,inputRules };
   }
 
@@ -142,7 +160,7 @@ export class ObjectDefinitions {
       const field = (await sql<Field & { object_type_id: string }>`SELECT * FROM sys_fields WHERE id = ${args.id}::uuid`.execute(tx)).rows[0];
       if (!field || field.state === 'deleted') throw new AppError(404, 'Field not found');
       if (field.is_protected && !isDeepStrictEqual(field.labels,args.labels)) throw new AppError(403, 'Module definition is protected');
-      if (['keyword', 'type', 'status', 'category'].includes(field.technical_name)) throw new AppError(400, 'Shared field labels are fixed');
+      if (['keyword', 'type', 'status', 'category','tags'].includes(field.technical_name)) throw new AppError(400, 'Shared field labels are fixed');
       if (hasReservedStandardFieldLabel(args.labels)) throw new AppError(400, 'Reserved standard field name');
       type = await this.objectType(tx, field.object_type_id);
       this.requireActive(type);
@@ -168,11 +186,11 @@ export class ObjectDefinitions {
     this.requireActive(type);
     const change = suppliedChangeId ?? v7();
     if(field.value_mode==='derived'&&(args.required!==field.required||args.kind&&args.kind!==field.kind||args.config&&!isDeepStrictEqual(args.config,field.config)||args.inputRules&&(args.inputRules.defaultValue!==null||args.inputRules.unique)))throw new AppError(403,'Derived field definition is protected');
-    if(args.applicability!==undefined&&['keyword','type','status','category'].includes(field.technical_name))throw new AppError(400,'Standard fields cannot have applicability rules');
-    if (['keyword', 'type', 'status', 'category'].includes(field.technical_name)) {
+    if(args.applicability!==undefined&&['keyword','type','status','category','tags'].includes(field.technical_name))throw new AppError(400,'Standard fields cannot have applicability rules');
+    if (['keyword', 'type', 'status', 'category','tags'].includes(field.technical_name)) {
       if ((args.kind && args.kind !== field.kind) || args.config) throw new AppError(400, 'Shared field type is fixed');
       if (args.labels) await this.setLabels(tx, { kind: 'field', id: field.id, labels: args.labels }, actor, change);
-      if (field.technical_name !== 'keyword') {
+      if (!['keyword','tags'].includes(field.technical_name)) {
         const rules=await normalizeInputRules(tx,field,args.inputRules??field.input_rules,type.workspace_id);
         const changed=await writeInputRules(tx,field,rules,(key,before,after)=>this.journal(tx,actor,type.workspace_id,type.id,'field',field.id,change,key,before,after,field.id));
         if(changed&&field.required===args.required)await sql`UPDATE sys_fields SET version=version+1 WHERE id=${field.id}::uuid`.execute(tx);

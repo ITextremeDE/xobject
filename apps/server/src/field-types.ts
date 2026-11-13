@@ -1,3 +1,4 @@
+import {normalizeTags} from '@xobject/contracts';
 import {choiceTreeError,closeChoiceSelection} from '@xobject/contracts';
 import {parseStructuredValue,structuredOptionGroups} from '@xobject/contracts';
 import { z } from 'zod';
@@ -44,12 +45,14 @@ export function fieldStorage(kind: string, config: FieldConfig) {
     case 'datetime': return sql`timestamptz`;
     case 'single_choice': return sql`uuid`;
     case 'multiple_choice': case 'tree_choice': return sql`uuid[]`;
+    case 'tags': return sql`text[]`;
     case 'structured': case 'money': case 'reference': return sql`jsonb`;
     default: return sql`text`;
   }
 }
 export function storedParameter(field: Pick<TypedField, 'kind'>, value: unknown) {
   if (field.kind === 'structured' || field.kind === 'money' || field.kind === 'reference') return sql`${value === null ? null : JSON.stringify(value)}::jsonb`;
+  if(field.kind==='tags')return sql`${value}::text[]`;
   if (field.kind === 'multiple_choice' || field.kind==='tree_choice' || field.kind === 'category') return sql`${value}::uuid[]`;
   return sql`${value}`;
 }
@@ -69,6 +72,7 @@ export function normalizeFieldValue(field: TypedField, input: unknown, previous?
   if (field.required && isEmptyFieldValue(value)) return fail('Required field value missing');
   if (value === null) return null;
   switch (field.kind) {
+    case 'tags': {try{return normalizeTags(value);}catch{return fail('Invalid tags; use at most 100 nonempty texts of 200 characters without commas or control characters');}}
     case 'structured': {
       try {
         const parsed=parseStructuredValue(field.config.schema!,value);
@@ -145,9 +149,10 @@ export async function validateReferences(tx: Executor, field: TypedField, value:
 }
 export function convertFieldValue(previous: TypedField, next: TypedField, input: unknown): FieldValue {
   if (input === null || input === undefined) return normalizeFieldValue(next, null, input);
-  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'structured' && !['partial_date','time_zone'].includes(next.config.schema!) || ['multiple_choice','tree_choice'].includes(next.kind) || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
+  if (Array.isArray(input) && !input.length) return normalizeFieldValue(next, next.kind === 'structured' && !['partial_date','time_zone'].includes(next.config.schema!) || ['multiple_choice','tree_choice','tags'].includes(next.kind) || (next.kind === 'reference' && next.config.multiple) ? [] : null, input);
   if (input === '') return normalizeFieldValue(next, ['text', 'multiline'].includes(next.kind) ? '' : null, input);
   let value = normalizeFieldValue({ ...previous, required: false }, input, input);
+  if(previous.kind==='tags'||next.kind==='tags'){if(previous.kind!==next.kind)return fail('Unsafe field conversion');return normalizeFieldValue(next,value,input);}
   if(previous.kind==='structured'||next.kind==='structured'){if(previous.kind!==next.kind||previous.config.schema!==next.config.schema)return fail('Unsafe field conversion');return normalizeFieldValue(next,value,input);}
   if (previous.kind === 'reference' || next.kind === 'reference') {
     if (previous.kind !== next.kind) return fail('Unsafe field conversion');

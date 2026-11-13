@@ -122,7 +122,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
   const management = await app.execute('create_group', { workspaceId: workspace.id, name: settings.management, members: [{kind: 'user', id: designer.id, level: 'full'}, {kind: 'group', id: group.id, level: 'read'}] }, actorId) as WorkspaceGroup;
   const scenarioGroups:Record<string,WorkspaceGroup>={};
   async function object(name: string, de: string, en: string, fields: SeedField[], types: string[], statuses: string[]) {
-    const created = installed.find(item=>item.technicalName===name) ?? await app.execute('create_object_type', { workspaceId: workspace.id, technicalName: (settings.objects as Record<string,readonly string[]>)[name]?.[0]??name, labels: (settings.objects as Record<string,readonly string[]>)[name]?labels((settings.objects as Record<string,readonly string[]>)[name][1],(settings.objects as Record<string,readonly string[]>)[name][2]):labels(de, en), standardFields: ['keyword', 'type_status', 'category'] }, actorId) as { id: string };
+    const created = installed.find(item=>item.technicalName===name) ?? await app.execute('create_object_type', { workspaceId: workspace.id, technicalName: (settings.objects as Record<string,readonly string[]>)[name]?.[0]??name, labels: (settings.objects as Record<string,readonly string[]>)[name]?labels((settings.objects as Record<string,readonly string[]>)[name][1],(settings.objects as Record<string,readonly string[]>)[name][2]):labels(de, en), standardFields: ['keyword', 'type_status', 'category','tags'] }, actorId) as { id: string };
     let model = await app.execute('get_object_type', { objectTypeId: created.id }, actorId) as ObjectDefinition;
     const keyword = model.fields.find(item => item.technicalName === 'keyword')!;
     if(!keyword.isDerived)await app.execute('configure_field', { fieldId: keyword.id, version: keyword.version, required: true }, actorId);
@@ -154,6 +154,7 @@ export async function seedDemoData(db: Database, actorId: string, code = 'itx', 
     values={...values};
     if(values.responsible&&scenario!=='test')values.responsible={kind:'user',id:scenario==='business'?extras.lead.id:member.id};
     const index=records[objectName].length,projectCount=settings.projectCount;
+    if(model.fields.some(field=>field.technicalName==='tags'))values.tags=index%4===3?[]:scenario==='business'?['Service',index%2?'Internal':'Customer-facing']:scenario==='family'?['Family',index%2?'Planning':'Home']:['Acceptance',index%2?'Keyboard':'Filtering'];
     let story=objectName==='projects'?projectStory(scenario,index):objectName==='cases'?caseStory(scenario,Math.floor(index/2),index%2):objectName==='tasks'&&index<projectCount*7&&index%7<6?taskStory(scenario,Math.floor(index/7),Math.floor((index%7)/3),index%3):customStory(scenario,objectName,index,keyword);
     if(['projects','cases','tasks','mobile_workshops','support_packages','workshop_tools'].includes(objectName))keyword=story.keyword;
     Object.assign(values,story.values??{});
