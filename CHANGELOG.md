@@ -13,6 +13,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Fixed
 
+- Apply Settings object selections immediately while their URL transition settles, so an old object editor cannot remain actionable under the new selection.
 - Keep workspace-search loading and error feedback outside the command listbox so assistive technology receives valid result semantics.
 - Keep the public Changelog/Roadmap mobile section-navigation strip inside its grid column instead of widening the page.
 - Size Type, Status and flat Category filter menus to their contents within desktop/mobile bounds. Keep entries on one line and expose long truncated labels through the shared tooltip.

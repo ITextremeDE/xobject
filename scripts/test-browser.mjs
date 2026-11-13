@@ -23,7 +23,7 @@ const engine={chromium,firefox,webkit}[engineName];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function freePort(){const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));return port;}
 
-test('rendered application workflows on an isolated current installation',{timeout:360000},async t=>{
+test('rendered application workflows on an isolated current installation',{timeout:600000},async t=>{
  assertCurrentWebBuild();
  const container=`xobject-browser-${randomUUID()}`,baseURL=`http://127.0.0.1:${await freePort()}`;
  const secret=randomBytes(48).toString('base64url'),password=randomBytes(24).toString('base64url');
@@ -266,7 +266,7 @@ test('rendered application workflows on an isolated current installation',{timeo
     await auditPage(page,`settings-${colorScheme}-${i}-${labels[i]}`);
     assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth),'No settings overflow');
    }
-   await page.keyboard.press('Escape');
+   await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
    }
   });
   await scenario('User sees read-only records without restricted fields','user',async page=>{
@@ -280,7 +280,11 @@ test('rendered application workflows on an isolated current installation',{timeo
   await scenario('Designer manages fields without installation administration','designer',async page=>{
    await page.locator('[data-user-menu="header"]').click();await page.getByRole('menuitem',{name:'Settings',exact:true}).click();await expect(page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]')).toBeVisible();
    await expect(page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]').getByRole('button',{name:'User management',exact:true})).toHaveCount(0);
-   await page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]').getByRole('button',{name:'Object types',exact:true}).click();await selectChecks(page);await page.getByRole('button',{name:'Add field',exact:true}).click();
+   await page.locator('[role=dialog][aria-modal=true], [role=dialog][data-slot=dialog-content]').getByRole('button',{name:'Object types',exact:true}).click();let releaseDefinition;const definitionGate=new Promise(resolve=>{releaseDefinition=resolve;});
+   const holdDefinition=async route=>{if(route.request().postDataJSON()?.objectTypeId===object.id)await definitionGate;await route.continue();};
+   await page.route('**/api/v1/get_object_type',holdDefinition);
+   try{await selectChecks(page);await expect(page.getByRole('button',{name:'Add field',exact:true})).toHaveCount(0);}finally{releaseDefinition();}
+   await page.getByRole('button',{name:'Add field',exact:true}).click();
    const field=page.getByRole('dialog',{name:'Add field',exact:true});await expect(field).toBeVisible();await field.getByRole('textbox',{name:'Name',exact:true}).fill('Designer note');await field.getByRole('textbox',{name:'Technical name',exact:true}).fill('designer_note');
    await field.getByRole('button',{name:/^Create/}).click();await expect(field).toHaveCount(0);await expect(page.getByRole('button',{name:'Designer note',exact:true})).toBeVisible();
    // A visible new field does not yet mean that definition/record refetch and

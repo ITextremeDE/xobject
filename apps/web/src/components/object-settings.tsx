@@ -1,4 +1,4 @@
-import {useSearchParams} from 'react-router';
+import {useSettingsObjectRoute} from '@/lib/settings-route';
 import {fieldContextLabel} from '@/lib/field-context-label';
 import {notifySuccess} from '@/lib/notifications';
 import {PrimaryRequirementsSettings} from './primary-requirements-settings';
@@ -43,10 +43,9 @@ export function ObjectSettings({ readOnly = false, workspace, user, onDirtyChang
   const { t } = useTranslation();
   const language = user.language ?? workspace.default_language;
   const [showDeleted, setShowDeleted] = useState(false);
-  const [routeParams,setRouteParams]=useSearchParams();
+  const {objectId,selectObject:setSelectedId}=useSettingsObjectRoute();
   const [fallbackId,setFallbackId]=useState('');
-  const selectedId=routeParams.get('object')??fallbackId;
-  const setSelectedId=(value:string)=>{setRouteParams(previous=>{const next=new URLSearchParams(previous);next.set('object',value);return next;},{replace:true});};
+  const selectedId=objectId??fallbackId;
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);

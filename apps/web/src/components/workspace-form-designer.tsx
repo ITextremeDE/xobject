@@ -1,4 +1,4 @@
-import {useSearchParams} from 'react-router';
+import {useSettingsObjectRoute} from '@/lib/settings-route';
 import {SettingsSection} from './settings-section';
 import {useEffect,useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
@@ -14,9 +14,9 @@ import {FormLayoutEditor} from './form-layout-editor';
 type Props={workspace:Workspace;user:AuthUser;readOnly:boolean;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void;actionTarget?:HTMLElement|null};
 export function WorkspaceFormDesigner({workspace,user,readOnly,onDirtyChange,onBusyChange,actionTarget}:Props){
   const {t}=useTranslation(),language=user.language??workspace.default_language;
-  const [params,setParams]=useSearchParams();
+  const {objectId,selectObject:setSelected}=useSettingsObjectRoute();
   const [fallbackId,setFallbackId]=useState('');
-  const selected=params.get('object')??fallbackId,setSelected=(value:string)=>setParams(previous=>{const next=new URLSearchParams(previous);next.set('object',value);return next;},{replace:true});
+  const selected=objectId??fallbackId;
   const [dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[pending,setPending]=useState<string|null>(null);
   const types=useQuery({queryKey:['types',workspace.id,user.id,language,'form-designer'],queryFn:()=>api('list_object_types',{workspaceId:workspace.id,includeInactive:true})});
   const collator=new Intl.Collator(language,{sensitivity:'base'});
