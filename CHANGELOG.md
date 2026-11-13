@@ -4,6 +4,25 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-13
+
+### Changed
+
+- Page saved relationship tables and the Dossier on the server, keep pending additions/removals separate from unloaded links and offer relationship-field details through the normal record draft. Settings sections and selected object types now survive URL reloads.
+- Clarify V2 planning: remove the unspecified guided reassignment target, retain Contact duplicate detection and extend record merging to all supplied/custom object types, with survivor and field-value selection and recycling of the other record. Detailed relationship, permission and restoration rules remain specification work.
+
+### Fixed
+
+- Apply Settings object selections immediately while their URL transition settles, so an old object editor cannot remain actionable under the new selection.
+- Keep workspace-search loading and error feedback outside the command listbox so assistive technology receives valid result semantics.
+- Keep the public Changelog/Roadmap mobile section-navigation strip inside its grid column instead of widening the page.
+- Size Type, Status and flat Category filter menus to their contents within desktop/mobile bounds. Keep entries on one line and expose long truncated labels through the shared tooltip.
+- Focus the workspace search input through Base UI Dialog’s supported initial-focus ref, so Safari/VoiceOver accepts immediate typing after the search shortcut. Verify desktop/mobile keyboard entry and focus restoration.
+- Apply Journal visibility, deletion notices and pagination before loading historical values; batch page-local relationship references and attributes to avoid queries growing with every saved link.
+- Reject stale browser-test assets with the same source fingerprint used by Vite. Keep focused diagnostic runs distinct from full browser acceptance, keep current self-hosting instructions aligned with the latest release and clarify historical architecture evidence and requirement numbering.
+- Align Contact reading, editing and loading: Name beside media with Professional details beneath it; Further details, Correspondence and Language & time; then Contact details beside Addresses. Classification, authored field groups, combined relationship lists, other relationships and Notes follow at full width where configured.
+- Split inherited Organization channels and addresses into two clear sections. Show inherited collections as readable values and retain normal per-field own-value editing/reset. Record fallback sections use Additional fields and Relationships instead of the designer’s Unassigned label.
+
 ## [1.5.0] - 2026-11-12
 
 ### Added
@@ -237,7 +256,8 @@ First Community release under `AGPL-3.0-only`, maintained by Jürgen Schadek und
 
 - Exclude private backup/recovery environment files from Git, build contexts and commit-bound public source archives. Resume unchanged containers after backups with supported Compose v2 commands, reserve the proxy address outside the dynamic pool and keep diagnostics bounded and free of private payloads.
 
-[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/ITextremeDE/xobject/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/ITextremeDE/xobject/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/ITextremeDE/xobject/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/ITextremeDE/xobject/compare/v1.2.0...v1.3.0

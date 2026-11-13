@@ -2,7 +2,7 @@
 
 This is xObject's public product direction. OpenProject leads operational planning; the [PRD](docs/PRD.md) defines requirements and the [changelog](CHANGELOG.md) records delivered changes. Future targets have no committed dates, and only explicitly assigned versions are shown as such.
 
-## Currently released — Community 1.5.0
+## Currently released — Community 1.6.0
 
 - **Connected data:** configurable objects, fields, relationships, forms and journals, with workspace isolation and differentiated user/group permissions.
 - **Contacts and projects:** Contacts & Relations supplies Contacts and Distribution lists; Projects & Tasks adds Projects, Cases and Tasks using the same Contacts.
@@ -11,7 +11,7 @@ This is xObject's public product direction. OpenProject leads operational planni
 - **Web, API and AI:** a responsive web application, shared REST/MCP operations, personal credentials, OAuth and supplied agent skills. Live refresh preserves open drafts.
 - **Self-hosting:** published Linux/AMD64 and Linux/ARM64 containers, Docker Compose setup, first-Administrator provisioning and backup/restore tooling. Version 1.0.2 adds a supported authorization-journal migration from 1.0.0/1.0.1 while retaining data, credentials and history.
 
-See [release notes](CHANGELOG.md#150---2026-11-12), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
+See [release notes](CHANGELOG.md#160---2026-11-13), [downloadable releases](https://github.com/ITextremeDE/xobject/releases) and the [quality report](docs/quality-acceptance.md) for details and verified coverage. The English/German product website and English documentation are also published independently; [versioned documentation snapshots](docs/versions.md) retain each released baseline.
 
 ### Contact workflows in 1.2.0–1.3.0
 
@@ -20,7 +20,7 @@ See [release notes](CHANGELOG.md#150---2026-11-12), [downloadable releases](http
 - **Combined relationship lists:** arrange supplied/custom to-many sides in a searchable, sortable designer group such as Family. Keep each relationship's rules and permissions. Linked Contact persons show permitted Position, Department and translated Function.
 - **List consistency:** readable phone numbers, Keyword-based Contact defaults and common shadcn tooltips.
 
-ADR 0038 defines these V1 extensions. Dedicated maintenance tooling upgrades supported released 1.0.0–1.3.0 installations. Contact maintenance and duplicate detection/merging remain in V2.
+ADR 0038 defines these V1 extensions. Dedicated maintenance tooling upgrades supported released 1.0.0–1.3.0 installations. Contact duplicate detection and a common record-merging workflow remain in V2.
 
 ### Reliability and interface in 1.4.0
 
@@ -28,7 +28,7 @@ ADR 0038 defines these V1 extensions. Dedicated maintenance tooling upgrades sup
 - **Contact reading and list consistency:** compact Contact overviews, shared relationship tables, editable supplied Family lists, configurable object columns and Contact-person affiliations.
 - **Maintainability and mobile behavior:** separate definition/module/record services, stable error codes and safe-area handling.
 
-The [changelog](CHANGELOG.md#unreleased) records the source changes; the [quality report](docs/quality-acceptance.md) records acceptance and remaining platform limits. Community 1.4.0 delivers these additions; acceptance and retained platform limits are recorded separately.
+The [changelog](CHANGELOG.md) records the source changes; the [quality report](docs/quality-acceptance.md) records acceptance and remaining platform limits. Community 1.4.0 delivers these additions; acceptance and retained platform limits are recorded separately.
 
 ### Contact interface and configuration in 1.5.0
 
@@ -36,11 +36,18 @@ The [changelog](CHANGELOG.md#unreleased) records the source changes; the [qualit
 - **Direct relationship work:** mixed configurable Contact lists with normal Save/Reset drafts from the overview, optional professional columns and explicit General-list placement.
 - **Clear filtering and history:** searchable category-tree criteria, unique accessible search controls and complete collection values in journal details.
 
+### Bounded reading and consistent Contact forms in 1.6.0
+
+- **Scalable linked records:** server-paged relationship lists and Dossier, authorized counts and sparse edits that preserve unloaded links.
+- **Clear Contact forms:** matching reading/editing/loading sections and separate inherited Organization channels/addresses.
+- **Reliable navigation:** reloadable Settings/object links, immediate Safari search typing and single-line responsive filter menus.
+- **Bounded Journal reads:** authorization and paging precede historical-value hydration; existing immutable history stays unchanged.
+
 ## Planned — Version 2
 
 - **Personal table layouts:** remember column order and widths in addition to the column visibility already available in V1 (R-030).
 - **Documents & Communication:** supplied Documents, Emails and Phone calls, together with email handling, uploads, attachments and file versioning.
-- **Contact maintenance:** guided reassignment, duplicate detection and merging, with explicit identity and permission rules.
+- **Duplicate detection and record merging:** detect duplicate Contacts and merge records consistently for every supplied or custom object type. Choose the surviving record, compare differing fields and select retained values; move the other record to the recycle bin after confirmation. Records must share an object type and workspace. Relationship handling, permissions, history and restoration rules require detailed specification ([PRD](docs/PRD.md#35-planned-v2-record-merging)).
 - **Previous/Next record:** browse the originating list's complete filtered and sorted result, including across pages, while preserving return context and protecting unsaved changes (R-063).
 
 ## Later — Version not assigned

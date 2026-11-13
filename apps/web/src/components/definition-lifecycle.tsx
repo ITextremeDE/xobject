@@ -24,7 +24,7 @@ export function DefinitionLifecycle({ label, kind, id, objectTypeId, state = 'ac
   const [confirm, setConfirm] = useState(false);
   const mutation = useMutation({ mutationFn: (next: DefinitionState) => api('set_definition_state', { kind, id, expectedState: state === 'inactive' ? 'inactive' : 'active', state: next, confirm: next === 'deleted' }), onMutate: () => onBusyChange(true), onSuccess: async result => {
     setConfirm(false);
-    await Promise.all([client.invalidateQueries({queryKey:['relationship-types']}),client.invalidateQueries({queryKey:['record-relationships']}),client.invalidateQueries({ queryKey: ['definition', objectTypeId] }), client.invalidateQueries({ queryKey: ['types'] }), client.invalidateQueries({ queryKey: ['records', objectTypeId] }), client.invalidateQueries({ queryKey: ['record', objectTypeId], refetchType: 'all' }), client.invalidateQueries({ queryKey: ['definition-journal', objectTypeId] })]);
+    await Promise.all([client.invalidateQueries({queryKey:['relationship-types']}),client.invalidateQueries({queryKey:['record-relationships']}),client.invalidateQueries({queryKey:['relationship-page']}),client.invalidateQueries({ queryKey: ['definition', objectTypeId] }), client.invalidateQueries({ queryKey: ['types'] }), client.invalidateQueries({ queryKey: ['records', objectTypeId] }), client.invalidateQueries({ queryKey: ['record', objectTypeId], refetchType: 'all' }), client.invalidateQueries({ queryKey: ['definition-journal', objectTypeId] })]);
     if (result.state === 'deleted') onDeleted?.();
   }, onSettled: () => onBusyChange(false) });
   const blocked = disabled || mutation.isPending || isProtected || state === 'deleted';

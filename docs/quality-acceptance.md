@@ -438,3 +438,84 @@ All six public payloads were downloaded again and matched `SHA256SUMS`; both Git
 An installed 1.4.0 instance was updated under stopped-writer maintenance with a verified backup and retained predecessor installer. Pre/post hashes matched all compared business/security/configuration tables and the entire Journal; an isolated off-host restore of that backup matched the same hashes. Authentication, existing MCP access, health/readiness, monitoring and a fresh post-update backup passed without business-data changes. Earlier source/preparation checkpoints remain historical evidence; these results supersede their pending publication/native-image gates.
 
 The targeted WebKit and unconfirmed same-page contrast-measurement discrepancy retain their preparation scope above. Native Safari/VoiceOver and physical mobile/PWA acceptance were not repeated. The existing shared-chunk advisory and development-only dependency findings remain; no suppression, dependency fork or new production-capacity claim was introduced.
+
+
+## Unreleased architecture/UI audit corrections — 2026-11-13
+
+The audit retained PostgreSQL, typed dynamic tables, shared metadata/contracts, React/Vite, TanStack Query, Base UI/shadcn and the common REST/MCP transaction boundary. The measured reader bottlenecks justified focused services and sparse drafts rather than a replacement application. [ADR 0040](adr/0040-bounded-journal-and-relationship-readers.md) records the implementation and limits. Existing released upgrade paths remain supported; no database schema change is part of this checkpoint.
+
+### Implemented corrections
+
+- The record Journal authorizes and deduplicates deletion notices before SQL count/page selection; canonical redaction hydrates only the returned page. Existing historical/deleted/field-permission acceptance remains in the backend suite.
+- Relationship metadata and maximum-one targets are separate from server-paged to-many tables/Dossier. References and attributes are batched for the page. Sparse additions/removals preserve unloaded links, source/definition/edge versions and atomic history. Relationship-field details use the enclosing record draft. Page caches participate in live, lifecycle and definition refreshes.
+- Record/settings draft values and their baselines share a small reducer. Settings sections, workspace and selected object have reloadable URLs. Implicit local object defaults remain stable on rename; hidden settings panels do not rewrite another panel's URL.
+- Browser acceptance checks the same source fingerprint as Vite and rejects missing/stale assets before creating infrastructure. An isolated regression covers changed contract sources as well as missing/current builds.
+- Self-hosting installation examples consistently target the latest released version, 1.5.0. Documentation/release preparation checks that version against the Changelog. Historical upgrade examples remain historical. The duplicate PRD subsection number and ADR 0002's ambiguous historical status are clarified.
+
+### Bounded-reader evidence
+
+Synthetic disposable PostgreSQL fixtures return ten rows at each scale. The tests instrument PostgreSQL calls around the shared API operations, validate the response schemas, require stable query counts and bounded relationship payloads, and clean only their own containers.
+
+| Reader | Fixture size | SQL calls | Returned payload / timing observations |
+| --- | --- | --- | --- |
+| Record Journal | 101 / 1,001 / 5,001 relationship events | 88 / 88 / 88 | Ten entries; 45 / 154 / 603 ms in the final full suite. |
+| Relationship summary plus first page | 25 / 100 / 500 linked records | 108 / 108 / 108 | 11,895 / 11,897 / 11,904 bytes; 32 / 30 / 40 ms in the final full suite. |
+
+The prior complete-reader measurements grew to 25,040 SQL calls for 5,001 relationship events and 8,049 calls / about 1.25 MB for 500 targets. Database count/filter/sort still depends on eligible rows and metadata. Timings vary with concurrent local tests; these observations establish bounded hydration and payloads, not production throughput or constant-time SQL.
+
+### Validation and retained limits
+
+The final backend suite passed all 220 tests and the Web suite all 170. Root typecheck, generated API drift checks, server/Web builds and seven packaging/build-fingerprint checks passed. The contract remains API 1.0.0, with the additive page operation bringing the current source to 88 operations. One earlier upgrade-fixture run lost a database connection during teardown; its targeted repeat and the subsequent complete backend run passed without relaxing the test.
+
+Chromium passed all 20 browser scenarios, including desktop/mobile roles, Contact reading/editing/loading, nested settings, theme portals, classifications, duplicate/recycle drafts and the two added relationship scenarios. These explicitly cover paging 25 Contact persons, sparse removal retaining unloaded links, reloadable object/designer URLs and relationship-field changes persisting only on normal record Save. After the final cache/default-selection refinements, both new scenarios were repeated against the rebuilt current fingerprint and passed. Modal accessibility checks target the active dialog plus the manufacturer's focus guards, rather than intentionally dimmed, aria-hidden background tables; no axe rule is disabled.
+
+The targeted WebKit paging/deep-link workflow completed its interaction checks, but axe retained `aria-command-name` on Base UI's two invisible `data-base-ui-focus-guard` elements. The installed vendor implementation intentionally assigns their button role for VoiceOver/WebKit cursor trapping. Native Safari/VoiceOver confirmation was unavailable at the initial checkpoint. The targeted native follow-up below now resolves the guard-announcement and containment question for the checked surfaces; the application neither hides the guards nor forks the dependency, and the automated diagnostic remains retained.
+
+Firefox could not start its automation profile on this host (`Could not find profile folder`), including a retry with a canonical temporary path. The new workflow therefore has no Firefox acceptance in this checkpoint. Existing earlier release evidence is unchanged. Physical mobile/PWA acceptance was not repeated. The existing shared-chunk size advisory remains.
+
+Public documentation checks/tests/build passed, including generated links/assets/anchors; the website typecheck/test/build passed. Production data was not used as an automated fixture. No application release, production deployment or Git publication is evidenced by this local checkpoint.
+
+
+## Unreleased native Safari/VoiceOver follow-up — 2026-11-13
+
+Targeted native acceptance used Safari 27.2 on macOS 27.2.1 with the current local build and fictional demo data. Apple's installed VoiceOver scripting interface supplied the real virtual/keyboard cursor text and spoken phrases. These are native screenreader observations, separate from Playwright WebKit and axe.
+
+| Surface | Native checks | Result |
+| --- | --- | --- |
+| Settings / Profile | Named dialog announcement; 70 forward and 85 backward cursor steps, including repeated boundaries. | Stayed between the named title and Close; no unnamed guard buttons or underlying Dashboard contents. |
+| Date format chooser | Nine Down/Up events each; 14 forward/backward virtual-cursor steps each; Escape. | All five options named, inherited selection announced, contained option boundaries and return to Date format. The original value remained and Reset/Save were disabled. |
+| Nested field attributes | Named child-dialog announcement; 70 forward and 85 backward cursor steps; Escape. | Stayed inside the child dialog; returned to the invoking Expected result field in Object types. No definition was changed. |
+| Responsive Sidebar Sheet | Native narrow window at 620 px; 70/85 virtual-cursor steps and 40 Tab/Shift-Tab steps each; Escape. | Named Navigation dialog, bounded traversal, no background record/table contents or unnamed guards. Settled AX and VoiceOver readback returned to Navigation. This is a desktop Safari window, not iOS/device acceptance. |
+| Search and navigate | Keyboard opening, immediate typing, result-list interaction and three repeated open/type/close cycles after correction. | Named input receives focus, `settings` is retained as the query, the Settings result is spoken and Escape returns to a named workspace control. |
+
+The native search check exposed an actual entry-focus problem: React `autoFocus` did not reliably establish the VoiceOver editing context. The application now passes its input ref through Base UI Dialog's supported `initialFocus` property and removes the competing input `autoFocus`. No vendor component, hidden guard or styling was patched. An added isolated Chromium regression checks immediate keyboard typing, the Settings result and focus restoration on desktop and when opening from the mobile Sidebar. It passed, as did all 170 Web tests and the Web build.
+
+The first search transcripts are diagnostic pre-fix evidence and are not positive acceptance. Immediate cursor/phrase reads can also lag a just-closed surface: the mobile Escape result was confirmed again after settling through both native AX and VoiceOver. Virtual-cursor movement, actual keyboard events and final focus/value checks are kept as distinct evidence. This is not a pronunciation/audio-quality certification or a claim that every product screen has been tested with native VoiceOver.
+
+The two Base UI focus guards were not exposed as unnamed commands during the accepted dialog/Sheet/list traversals. Their automated `aria-command-name` signal remains recorded as manufacturer behavior; the native evidence supplies the previously missing interaction assessment without suppressing axe rules.
+
+Restoration was verified against the captured baseline: VoiceOver off and process stopped; AppleScript control unchecked and its capability flag absent; welcome preference unchanged; Safari dimensions/position restored; test session signed out and the test tab closed while retaining the original tab. Safari and VoiceOver Utility were then stopped, matching their initial non-running state. The Utility lost its window during permission reversal, so the setting was read back in a newly opened process before final shutdown. Safari automation/JavaScript permissions, keyboard settings, voice, volume and caption preferences were not changed. No business records or definitions were saved. The local test server runs the corrected build; no commit, push, release or production deployment was performed.
+
+## Community 1.6.0 release preparation — 2026-11-13
+
+The preceding audit, implementation and native follow-up cover the working-tree source leading to this release. Their unreleased headings describe the state at those checkpoints. Community 1.6.0 packages those changes; API 1.0.0 remains independent and the 1.4.0/1.5.0 schema/catalog fingerprint stays unchanged.
+
+After synchronizing all six application/documentation/site package versions and internal dependencies, clean root `npm ci`, root typecheck/build, API drift verification (88 operations), seven packaging tests and the separate source-fingerprint regression passed. Documentation diagnostics reported no errors/warnings and all five documentation tests passed. Existing 220-backend/170-Web results remain applicable to unchanged business logic; the release PR supplies final commit-bound CI. Fresh Contact screenshots in both interface languages and themes use the fictional ITextreme workspace and restore its temporary language preference.
+
+The final filter regression passed at 1,440, 390 and 320 px: Type, Status and flat Category menus fit their long labels within the viewport, remain single-line and expose clipped labels through the shared tooltip. The category-tree dialog is unchanged. The added desktop/mobile command-search regression passed immediate keyboard entry and Escape focus restoration. These targeted checks supplement the preceding full Chromium run, rather than claiming a new full native-device or cross-browser audit.
+
+Native AMD64/ARM64 installation, recovery and upgrades including the immutable installed 1.5.0 predecessor are required on the final image before publication. Release downloads, registry access, retained public snapshot and production preservation/runtime checks remain pending at this preparation checkpoint.
+
+The first release PR Website check reproduced a 431 px navigation column in a 390 px Changelog viewport on Linux Chromium. Geometry diagnostics localized the overflow to the section-navigation grid item; the mobile grid now uses a zero-minimum track and the aside can shrink to it. The original overflow assertion remains, with actionable geometry on failure.
+
+The release Chromium run also caught `aria-required-children` when workspace search placed its loading status inside the result listbox. Loading, failure/retry and refine-search feedback now sit beside the list, preserving the original command components and focus refs. The keyboard-search regression holds the server response pending and passed desktop/mobile keyboard entry, loading-state accessibility and focus restoration. Linux Firefox's first run crashed inside the axe evaluation of that surface; this is retained as a failed run, with final Firefox acceptance still required. The preceding backend release CI passed all 220 backend tests, 170 Web tests and packaging checks.
+
+A later Linux Chromium trace reproduced an object-selection race: the Select already showed Checks while a deferred Settings URL transition still exposed Cases' Add field action. Its dialog then disappeared when the Checks definition arrived. Object settings and Form designer now share immediate local selection with guarded URL synchronization. A deliberately held target-definition response verifies the old editor is unavailable, then releases it and completes field creation; the targeted Chromium test passed.
+
+The theme-navigation scenario now explicitly waits for its Settings dialog to close before the outer whole-page audit, preventing an inclusion selector for a disappearing modal. No audit rule or checked view was removed. The expanded 22-scenario suite receives ten minutes inside a fifteen-minute CI job; individual action timeouts remain ten seconds. The previous Firefox run exceeded its six-minute parent budget after a disappearing-context axe failure; those failures/cancellations remain recorded until the final complete rerun succeeds.
+
+### Firefox/Axe tooling boundary
+
+Repeated isolated Linux Firefox 1.65.0/Axe 4.14.0 runs terminate the native content process with signal 11 in the WCAG `label` scan of the search dialog. Rule-group bisection isolates `label`; contrast and all other tested groups pass. The crash also occurs with the supported direct Axe transport, fresh desktop/mobile contexts and disabled Firefox JIT. Trial Command-label/CSS changes and temporary browser preferences were rejected and removed. The isolated harness retains a failing minimal scenario through its local scenario filter; [run 43404661272](https://github.com/ITextremeDE/xobject/actions/runs/43404661272) includes the native failure and successful DOM-metric reads before it.
+
+Release CI therefore separates the full Chromium functional/WCAG gate from the full Firefox functional gate. All configured WCAG rules remain active in Chromium, including the delayed search loading state. Firefox manifests explicitly mark automated accessibility **not run**; this is an unresolved test-tool boundary, not a passed Firefox accessibility certification. Temporary manual CI/rule-bisection controls were removed after diagnosis. The release requires the complete regular PR workflow, and the failed diagnostic runs remain distinct evidence. Native Safari/VoiceOver evidence remains scoped to the earlier named workflows; physical mobile hardware is untested. No vendor component fork, browser-specific application branch or accessibility-rule exception is shipped.

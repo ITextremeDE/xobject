@@ -67,7 +67,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const objectRoute = matchPath('/w/:code/objects/:name/:recordId?', contentPath);
   const recycleRoute=matchPath('/w/:code/recycle-bin',contentPath);
   const dashboardRoute = matchPath('/w/:code', contentPath);
-  const workspaceCode = objectRoute?.params.code ?? recycleRoute?.params.code ?? dashboardRoute?.params.code ?? (location.pathname === '/settings' && typeof location.state?.workspaceCode === 'string' ? location.state.workspaceCode : undefined);
+  const workspaceCode = objectRoute?.params.code ?? recycleRoute?.params.code ?? dashboardRoute?.params.code ?? (location.pathname === '/settings' ? new URLSearchParams(location.search).get('workspace') ?? (typeof location.state?.workspaceCode==='string'?location.state.workspaceCode:undefined) : undefined);
   const view = recycleRoute?'recycle-bin':objectRoute ? 'records' : 'dashboard';
   const recordId = objectRoute?.params.recordId ?? null;
   const linkedDraft=linkedCreationSchema.safeParse(location.state?.linkedCreation);
@@ -101,7 +101,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
   const objectPath = selectedType ? `${dashboardPath}/objects/${selectedType.technicalName}` : dashboardPath;
   const definition = useQuery({ queryKey: ['definition', selectedType?.id, user.id, language], queryFn: () => api('get_object_type', { objectTypeId: selectedType!.id }), enabled: Boolean(selectedType) });
   const logout = useMutation({ mutationFn: signOut, onSuccess: onSignOut });
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => (busy || guardedDirty) && (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search));
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => (busy || guardedDirty) && (currentLocation.pathname !== nextLocation.pathname || (currentLocation.search !== nextLocation.search && !(currentLocation.pathname==='/settings'&&nextLocation.pathname==='/settings'&&new URLSearchParams(currentLocation.search).get('workspace')===new URLSearchParams(nextLocation.search).get('workspace')))));
   useEffect(() => { if (busy && blocker.state === 'blocked') blocker.reset(); }, [busy, blocker]);
   useEffect(() => { if (location.pathname === '/' && workspace) void routeNavigate(dashboardPath, { replace: true }); }, [location.pathname, workspace, dashboardPath, routeNavigate]);
   useEffect(() => { setOpenMobile(false); setDialog(null);setNavigationOpen(false); }, [location.pathname, setOpenMobile]);
@@ -142,7 +142,7 @@ function WorkspaceScreen({ user, onSignOut }: { user: AuthUser; onSignOut: () =>
     });
   }
   function showPage(page: 'dashboard' | 'settings') {
-    if (!busy) void routeNavigate(page === 'settings' ? '/settings' : dashboardPath, { state: page === 'settings' ? { workspaceCode: workspace?.code, backgroundPath: `${location.pathname}${location.search}` } : null });
+    if (!busy) void routeNavigate(page === 'settings' ? `/settings${workspace?`?workspace=${encodeURIComponent(workspace.code)}`:''}` : dashboardPath, { state: page === 'settings' ? { workspaceCode: workspace?.code, backgroundPath: `${location.pathname}${location.search}` } : null });
   }
   useEffect(()=>{if(returnAfterAccessLoss&&!busy&&!dirty){setReturnAfterAccessLoss(false);void routeNavigate(recordReturnPath(location.state?.recordOrigin,dashboardPath,objectPath,location.search));}},[returnAfterAccessLoss,busy,dirty,routeNavigate,location.state,location.search,dashboardPath,objectPath]);
   function closeRecord() {

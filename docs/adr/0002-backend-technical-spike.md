@@ -3,6 +3,10 @@
 - Status: Accepted for the technical spike; production design remains open
 - Date: 2026-10-29
 
+## Current reading — 2026-11-13
+
+This ADR records the original technical experiment. Its loopback-only, cookie-only and open production-delivery statements describe that experiment. Released external access follows [ADR 0034](0034-user-bound-api-mcp-access.md); installation, supported upgrades and recovery follow [ADR 0035](0035-container-delivery-and-maintenance.md). The [self-hosting guide](../self-hosting.md) owns current operator instructions. The historical decision and verification below remain retained.
+
 ## Context
 
 Before committing to the full application foundation, verify that local authentication, dynamic PostgreSQL definitions, shared API/MCP behavior and atomic per-field journal writes work together. The full version-1 PRD is larger than this experiment.

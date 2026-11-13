@@ -1,4 +1,6 @@
 import {CustomFieldControl} from './custom-field-control';
+import {RecordReadField} from './contact-summary-group';
+import {Link} from 'react-router';
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -6,7 +8,7 @@ import type {
   ContactInheritanceWrite,
   FieldDefinition,
 } from "@xobject/contracts";
-import { Field, FieldLabel, FieldDescription } from "./ui/field";
+import { Field, FieldSet, FieldLegend, FieldLabel, FieldDescription } from "./ui/field";
 import { Input } from "./ui/input";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import {
@@ -21,17 +23,17 @@ import {
 } from "./ui/alert-dialog";
 export function ContactInheritanceControl({
   field,
-  workspaceId,objectTypeId,
+  workspaceId,objectTypeId,workspaceCode,
   state,
   draft,
-  disabled,
+  disabled,hideLabel=false,
   onChange,
 }: {
   field: FieldDefinition;
-  workspaceId:string;objectTypeId:string;
+  workspaceId:string;objectTypeId:string;workspaceCode:string;
   state: ContactInheritanceField;
   draft?: ContactInheritanceWrite[number];
-  disabled: boolean;
+  disabled: boolean;hideLabel?:boolean;
   onChange: (write: ContactInheritanceWrite[number]) => void;
 }) {
   const { t } = useTranslation(),
@@ -62,15 +64,15 @@ export function ContactInheritanceControl({
         <ToggleGroupItem value="own">{t("contactOwn")}</ToggleGroupItem>
       </ToggleGroup>);
   return (
-    <Field>
+    <Field data-contact-inheritance={field.id}>
       {field.kind!=='structured'?<><FieldLabel htmlFor={id}>{field.label}</FieldLabel>{modes}</>:null}
 
-      {field.kind==='structured'?<CustomFieldControl legendActions={modes} field={field} value={value} workspaceId={workspaceId} objectTypeId={objectTypeId} disabled={disabled||!state.canEdit||mode==='inherit'} onChange={value=>onChange({fieldId:field.id,mode:'own',value})}/>:<Input id={id} maxLength={10000} value={typeof value==='string'?value:''} readOnly={mode==='inherit'} disabled={disabled||!state.canEdit} onChange={event=>onChange({fieldId:field.id,mode:'own',value:event.target.value||null})}/>}
+      {field.kind==='structured'?(mode==='inherit'?<FieldSet><FieldLegend variant="label" className="flex w-full flex-wrap items-center justify-between gap-3"><span className={hideLabel?'sr-only':undefined}>{field.label}</span>{modes}</FieldLegend><RecordReadField hideLabel field={field} value={value} workspaceCode={workspaceCode}/></FieldSet>:<CustomFieldControl labelHidden={hideLabel} legendActions={modes} field={field} value={value} workspaceId={workspaceId} objectTypeId={objectTypeId} disabled={disabled||!state.canEdit} onChange={value=>onChange({fieldId:field.id,mode:'own',value})}/>):<Input id={id} maxLength={10000} value={typeof value==='string'?value:''} readOnly={mode==='inherit'} disabled={disabled||!state.canEdit} onChange={event=>onChange({fieldId:field.id,mode:'own',value:event.target.value||null})}/>}
       <FieldDescription>
         {mode === "own"
           ? t("contactOwnHelp")
           : state.source
-            ? t("contactInheritedFrom", { name: state.source.keyword })
+            ? <Link to={`/w/${workspaceCode}/objects/contacts/${state.source.recordId}`}>{t("contactInheritedFrom", { name: state.source.keyword })}</Link>
             : t("contactInheritedUnavailable")}
       </FieldDescription>
       <AlertDialog open={reset} onOpenChange={setReset}>

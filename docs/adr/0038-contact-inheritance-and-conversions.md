@@ -50,6 +50,6 @@ Fresh installations include the sparse table and additive protected module field
 
 ## Consequences
 
-The model remains two explicit fields rather than a general formula engine. Conversion previews can block on custom definitions and require separate user resolution; they never guess how specialist data should move. Existing client record saves remain valid, while consumers that change inheritance or Contact kind must use the dedicated typed inputs. Contact maintenance, matching and merging stay separate V2 work.
+The model remains two explicit fields rather than a general formula engine. Conversion previews can block on custom definitions and require separate user resolution; they never guess how specialist data should move. Existing client record saves remain valid, while consumers that change inheritance or Contact kind must use the dedicated typed inputs. Contact duplicate detection and the common record-merging workflow for all object types stay separate V2 work; PRD sections 3.5 and 6.1 define the current target.
 
 Structured exceptions are validated with the source collection configuration, retain canonical telephone values and have one atomic field event per changed collection. Their journal event captures the effective formatting configuration, so later input-aid edits do not reinterpret an older exception. Supported released-source upgrades include exact 1.2.0 as well as the previously supported predecessors. No runtime compatibility branch remains after migration.

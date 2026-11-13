@@ -72,6 +72,7 @@ const purposes: Record<Operation, string> = {
   get_relationship_tree_branch: 'Read a paginated Primary-only descendant branch while Projects is enabled.',
   list_record_link_options: 'Discover eligible object/relationship/side choices for existing linking or linked creation.',
   get_record_relationships: 'Read authorized current edges and relationship-field metadata for a record.',
+  get_record_relationship_page:'Read a permission-filtered, sorted page of linked records without loading complete relationship drafts.',
   search_relationship_candidates: 'Search authorized link candidates with endpoint/cardinality/Primary constraints applied before paging.',
   activate_relationship_type: 'Activate a relationship definition after atomic preflight of existing records and edges.',
   get_primary_chain_context: 'Resolve the fixed Contact/Project/Case ancestry and current permitted selections.',

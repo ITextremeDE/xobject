@@ -1,3 +1,4 @@
+import {useSettingsObjectRoute} from '@/lib/settings-route';
 import {SettingsSection} from './settings-section';
 import {useEffect,useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
@@ -13,12 +14,15 @@ import {FormLayoutEditor} from './form-layout-editor';
 type Props={workspace:Workspace;user:AuthUser;readOnly:boolean;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void;actionTarget?:HTMLElement|null};
 export function WorkspaceFormDesigner({workspace,user,readOnly,onDirtyChange,onBusyChange,actionTarget}:Props){
   const {t}=useTranslation(),language=user.language??workspace.default_language;
-  const [selected,setSelected]=useState(''),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[pending,setPending]=useState<string|null>(null);
+  const {objectId,selectObject:setSelected}=useSettingsObjectRoute();
+  const [fallbackId,setFallbackId]=useState('');
+  const selected=objectId??fallbackId;
+  const [dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[pending,setPending]=useState<string|null>(null);
   const types=useQuery({queryKey:['types',workspace.id,user.id,language,'form-designer'],queryFn:()=>api('list_object_types',{workspaceId:workspace.id,includeInactive:true})});
   const collator=new Intl.Collator(language,{sensitivity:'base'});
   const sorted=[...(types.data??[])].sort((a,b)=>collator.compare(a.label,b.label)||a.id.localeCompare(b.id));
   const id=sorted.some(type=>type.id===selected)?selected:sorted[0]?.id;
-  useEffect(()=>{if(id&&selected!==id)setSelected(id);},[id,selected]);
+  useEffect(()=>{if(!fallbackId&&sorted[0])setFallbackId(sorted[0].id);},[fallbackId,sorted[0]?.id]);
   useEffect(()=>{onDirtyChange(dirty);},[dirty,onDirtyChange]);
   useEffect(()=>{onBusyChange(busy);},[busy,onBusyChange]);
   const definition=useQuery({queryKey:['definition',id,user.id,language],queryFn:()=>api('get_object_type',{objectTypeId:id!}),enabled:Boolean(id)});

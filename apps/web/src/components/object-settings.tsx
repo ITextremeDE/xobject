@@ -1,3 +1,4 @@
+import {useSettingsObjectRoute} from '@/lib/settings-route';
 import {fieldContextLabel} from '@/lib/field-context-label';
 import {notifySuccess} from '@/lib/notifications';
 import {PrimaryRequirementsSettings} from './primary-requirements-settings';
@@ -42,7 +43,9 @@ export function ObjectSettings({ readOnly = false, workspace, user, onDirtyChang
   const { t } = useTranslation();
   const language = user.language ?? workspace.default_language;
   const [showDeleted, setShowDeleted] = useState(false);
-  const [selectedId, setSelectedId] = useState('');
+  const {objectId,selectObject:setSelectedId}=useSettingsObjectRoute();
+  const [fallbackId,setFallbackId]=useState('');
+  const selectedId=objectId??fallbackId;
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -56,8 +59,8 @@ export function ObjectSettings({ readOnly = false, workspace, user, onDirtyChang
   const collator = new Intl.Collator(language, { sensitivity: 'base' });
   const sorted = [...(types.data ?? [])].sort((a, b) => collator.compare(a.label, b.label) || a.technicalName.localeCompare(b.technicalName));
   const id = sorted.some(type => type.id === selectedId) ? selectedId : sorted[0]?.id;
-  // Keep the chosen identity stable if a renamed label changes alphabetical order.
-  useEffect(() => { if (id && selectedId !== id) setSelectedId(id); }, [id, selectedId]);
+  // A local default stays stable on rename without letting hidden Settings panels rewrite the URL.
+  useEffect(()=>{if(!fallbackId&&sorted[0])setFallbackId(sorted[0].id);},[fallbackId,sorted[0]?.id]);
   const definition = useQuery({ queryKey: ['definition', id, user.id, language], queryFn: () => api('get_object_type', { objectTypeId: id! }), enabled: Boolean(id) });
   useEffect(() => { onDirtyChange(dirty || createDirty); }, [dirty, createDirty, onDirtyChange]);
   useEffect(() => { onBusyChange(busy || createBusy); }, [busy, createBusy, onBusyChange]);

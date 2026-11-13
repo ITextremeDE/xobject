@@ -44,7 +44,7 @@ test('release candidate rejects a dirty checkout before creating artifacts or ru
  const directory=await mkdtemp(path.join(tmpdir(),'xobject-release-dirty-'));
  try{
   await mkdir(path.join(directory,'scripts'));
-  for(const file of ['prepare-release.mjs','release-source.mjs'])await cp(new URL(`scripts/${file}`,root),path.join(directory,'scripts',file));
+  for(const file of ['prepare-release.mjs','release-source.mjs','self-hosting-version.mjs'])await cp(new URL(`scripts/${file}`,root),path.join(directory,'scripts',file));
   await put(directory,'README.md','Reviewed');git(directory,'init','-q');git(directory,'config','user.name','Release test');git(directory,'config','user.email','release@example.test');git(directory,'add','.');git(directory,'commit','-qm','Reviewed fixture');
   await put(directory,'README.md','Uncommitted');const output=path.join(directory,'artifacts');
   assert.throws(()=>execFileSync(process.execPath,['scripts/prepare-release.mjs','--output',output],{cwd:directory,stdio:'pipe'}),error=>String(error.stderr).includes('Commit or discard tracked changes'));

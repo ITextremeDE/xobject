@@ -63,9 +63,9 @@ export async function relationshipAttributeCapabilities(field:string,endpoints:{
 }
 export type AttributeEdge={id:string;workspace_id:string;relationship_type_id:string;left_object_type_id:string;left_record_id:string;right_object_type_id:string;right_record_id:string;version:number};
 const endpoints=(e:AttributeEdge)=>[{objectTypeId:e.left_object_type_id,recordId:e.left_record_id},{objectTypeId:e.right_object_type_id,recordId:e.right_record_id}];
-export async function projectEdgeAttributes(tx:Executor,edge:AttributeEdge){
- const fields=(await sql<RelationshipFieldRow>`SELECT * FROM sys_fields WHERE relationship_type_id=${edge.relationship_type_id}::uuid AND state<>'deleted'`.execute(tx)).rows;
- const rows=(await sql<{field_id:string;value:FieldValue}>`SELECT key::uuid AS field_id,value FROM sys_relationships r CROSS JOIN LATERAL jsonb_each(r.values) WHERE r.id=${edge.id}::uuid`.execute(tx)).rows;
+export async function projectEdgeAttributes(tx:Executor,edge:AttributeEdge,loaded?:{fields:RelationshipFieldRow[];values:Record<string,FieldValue>}){
+ const fields=loaded?.fields??(await sql<RelationshipFieldRow>`SELECT * FROM sys_fields WHERE relationship_type_id=${edge.relationship_type_id}::uuid AND state<>'deleted'`.execute(tx)).rows;
+ const rows=loaded?Object.entries(loaded.values).map(([field_id,value])=>({field_id,value})):(await sql<{field_id:string;value:FieldValue}>`SELECT key::uuid AS field_id,value FROM sys_relationships r CROSS JOIN LATERAL jsonb_each(r.values) WHERE r.id=${edge.id}::uuid`.execute(tx)).rows;
  const values:Record<string,FieldValue>={},access:Record<string,{read:boolean;edit:boolean}>={};
  for(const field of fields){const rights=await relationshipAttributeCapabilities(field.id,endpoints(edge));access[field.id]=rights;if(rights.read)values[field.id]=rows.find(r=>r.field_id===field.id)?.value??null;}
  return {values,access};

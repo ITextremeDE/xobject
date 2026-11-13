@@ -12,6 +12,14 @@ The list shows name, permitted channels, permission restriction, expiration, las
 
 The token's name identifies its application/agent in journal metadata alongside the actual user, channel and credential UUID. A bearer client cannot supply or override its acting user or audit identity. Passwords, bearer tokens and stored hashes are never journaled. Password confirmation has a bounded per-process failed-attempt guard; this is not a distributed gateway rate limiter.
 
+## Since 1.6.0: paged record relationships
+
+For table-oriented reads, request `get_record_relationships` with `view: "summary"`. Maximum-one fields contain their permitted current targets. Saved to-many fields contain `paged: true`, a permitted `total` and no complete target draft. Omitting `view` retains the released complete response.
+
+Use `get_record_relationship_page` with the source object/record IDs, optional relationship-side `entries`, search `query`, `sortBy`/`sortDirection`, `limit` and `offset`. The response contains `entries`, `total`, `objects`, `limit` and `offset`. Object-filter choices remain stable across pages/search; rights govern all counts and projected/searchable fields. Use `targetObjectTypeId` for an object filter. `exclude` omits explicitly staged removals from the projected list.
+
+Save sparse changes in `update_record.relationships`: set `mode: "patch"`, supply new target references in `targets` and removed references in `remove`. Other current links are retained. Include current source and relationship-definition versions as usual. Complete replacement is still the default. Relationship-attribute writes retain their existing edge/version contract. All changes use the same validated transactional writer through REST and MCP.
+
 ## REST
 
 Use HTTPS. Plain HTTP is suitable only for a loopback development instance. Send tokens in the Authorization header, never in URLs or request bodies. Do not send a browser session cookie together with a bearer token.

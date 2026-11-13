@@ -100,13 +100,13 @@ export const content = {
       ],
       [
         "What is planned next?",
-        "Version 2 is planned to add personal column order and widths; Documents & Communication with documents, emails, phone calls, uploads, attachments and file versioning; contact reassignment, duplicate detection and merging; and Previous/Next record navigation. Standards-based synchronization, SSO and native clients remain later goals without a version assignment. The roadmap has no committed delivery dates.",
+        "Version 2 is planned to add personal column order and widths; Documents & Communication with documents, emails, phone calls, uploads, attachments and file versioning; Contact duplicate detection and record merging for all object types; and Previous/Next record navigation. Standards-based synchronization, SSO and native clients remain later goals without a version assignment. The roadmap has no committed delivery dates.",
       ],
     ],
     screenshots:
       "Real application views from the fictional ITextreme demo workspace.",
     enDocs: "Documentation is currently available in English.",
-    available: "Community 1.5.0 · Open source",
+    available: "Community 1.6.0 · Open source",
     releaseNotes: "Release notes",
     guide: "Read the guide",
     workflowLabel: "Contact workflows",
@@ -227,13 +227,13 @@ export const content = {
       ],
       [
         "Was kommt später?",
-        "Für V2 sind persönliche Spaltenreihenfolge und -breiten, Dokumente & Kommunikation mit Dokumenten, E-Mails, Telefonaten, Uploads, Anhängen und Dateiversionierung, Kontaktpflege mit Neuzuordnung, Dublettenerkennung und Zusammenführen sowie Vor-/Zurückblättern zwischen Datensätzen vorgesehen. Standardbasierte Synchronisation, SSO und native Clients bleiben spätere Ziele ohne Versionszuordnung. Es gibt keine zugesagten Liefertermine.",
+        "Für V2 sind persönliche Spaltenreihenfolge und -breiten, Dokumente & Kommunikation mit Dokumenten, E-Mails, Telefonaten, Uploads, Anhängen und Dateiversionierung, Dublettenerkennung für Kontakte und Zusammenführen von Datensätzen aller Datenobjekte sowie Vor-/Zurückblättern zwischen Datensätzen vorgesehen. Standardbasierte Synchronisation, SSO und native Clients bleiben spätere Ziele ohne Versionszuordnung. Es gibt keine zugesagten Liefertermine.",
       ],
     ],
     screenshots:
       "Echte Anwendungsansichten aus dem fiktiven ITextreme-Demoarbeitsbereich.",
     enDocs: "Die Dokumentation ist derzeit auf Englisch verfügbar.",
-    available: "Community 1.5.0 · Open Source",
+    available: "Community 1.6.0 · Open Source",
     releaseNotes: "Release-Änderungen",
     guide: "Zur Anleitung",
     workflowLabel: "Kontakte im Wandel",

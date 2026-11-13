@@ -19,7 +19,7 @@ export function useLiveUpdates(workspaceId:string|undefined,dirty:boolean,busy:b
   if(guard.current.dirty||guard.current.busy){deferred.current=true;if(indicated)setPending(true);
    void client.invalidateQueries({refetchType:'none'});
    // Refresh current permissions/record version without resetting definitions/settings drafts.
-   if(!guard.current.busy)for(const key of ['record','record-security','record-relationships','session'])void client.invalidateQueries({queryKey:[key]});
+   if(!guard.current.busy)for(const key of ['record','record-security','record-relationships','relationship-page','session'])void client.invalidateQueries({queryKey:[key]});
   }else{deferred.current=false;setPending(false);void client.invalidateQueries({predicate:query=>query.queryKey[0]!=='client-info'});}
  };
  useEffect(()=>{if(!dirty&&!busy&&deferred.current)refresh.current();},[dirty,busy]);

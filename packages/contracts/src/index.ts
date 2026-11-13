@@ -85,7 +85,8 @@ export const schemas = {
   configure_form_layout: z.object({objectTypeId:uuid,version:z.number().int().positive(),layout:formLayoutSchema.nullable()}).strict(),
   get_relationship_tree_branch: z.object({objectTypeId:uuid,recordId:uuid,offset:z.number().int().min(0).default(0),limit:z.number().int().min(1).max(100).default(25)}).strict(),
   list_record_link_options:z.object({objectTypeId:uuid,recordId:uuid,sourceValues:z.record(z.string(),fieldValueSchema).optional()}).strict(),
-  get_record_relationships: z.object({ objectTypeId: uuid, recordId: uuid.optional() }).strict(),
+  get_record_relationships: z.object({ objectTypeId: uuid, recordId: uuid.optional(),view:z.enum(['complete','summary']).optional() }).strict(),
+  get_record_relationship_page:z.object({objectTypeId:uuid,recordId:uuid,entries:z.array(z.object({relationshipTypeId:uuid,side:z.enum(['left','right'])}).strict()).max(200).optional(),exclude:z.array(z.object({relationshipTypeId:uuid,side:z.enum(['left','right']),objectTypeId:uuid,recordId:uuid}).strict()).max(1000).default([]),query:z.string().max(200).default(''),targetObjectTypeId:uuid.optional(),sortBy:z.enum(['keyword','object','relationship','jobTitle','department','function','type','status','category']).default('keyword'),sortDirection:z.enum(['asc','desc']).default('asc'),limit:z.number().int().min(1).max(100).default(10),offset:z.number().int().min(0).default(0)}).strict(),
   search_relationship_candidates: z.object({primaryAncestor:z.object({objectTypeId:uuid,recordId:uuid}).strict().optional(),sourceValues:z.record(z.string(),fieldValueSchema).optional(), targetObjectTypeId: uuid.optional(), objectTypeId: uuid, recordId: uuid.optional(), relationshipTypeId: uuid, side: z.enum(['left','right']), query: z.string().trim().max(200).default(''), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict(),
   activate_relationship_type: z.object({ workspaceId: uuid, relationshipTypeId: uuid, version: z.number().int().positive() }).strict(),
   get_primary_chain_context: z.object({objectTypeId:uuid,recordId:uuid.optional(),parent:z.object({objectTypeId:uuid,recordId:uuid}).strict().nullable().optional()}).strict(),
@@ -204,6 +205,7 @@ export interface Outputs {
   get_relationship_tree_branch: RelationshipTreeBranch;
   list_record_link_options:RecordLinkOption[];
   get_record_relationships: RecordRelationships;
+  get_record_relationship_page:{entries:import('./record-relationships.js').DossierEntry[];total:number;objects:{id:string;label:string}[];limit:number;offset:number};
   search_relationship_candidates: { records: RelatedRecord[]; total: number; limit: number; offset: number };
   activate_relationship_type: RelationshipType;
   get_primary_chain_context: PrimaryChainContext;

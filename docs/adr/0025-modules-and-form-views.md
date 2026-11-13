@@ -94,3 +94,13 @@ The four guided Contact-kind conversions move from V2 to planned Community 1.2.0
 Combined groups may include explicitly placed General relationship sides, alongside supplied/custom to-many sides. The Primary chain and maximum-one controls remain separate. General is not automatically added to authored forms. Optional `professionalColumns` metadata on a list group or entry controls Contact-person Job title/Department/Function columns in the table and picker; the default is the lean list. Object-column preferences retain their existing semantics.
 
 Fresh Contacts templates propose one Contact relationships group for family, identity, affiliation and the Organization-side Contact-person list. Group labels and included sides stay editable; existing authored forms are retained. The saved Contact overview displays the same configured lists, including empty lists, and edits prepare the ordinary versioned draft rather than persisting immediately. This refinement adds no relationship kinds, storage tables or permission paths. Form guidance and PRD section 1.4 own the user-facing behavior.
+
+## Contact section composition — 2026-11-13 (unreleased)
+
+The [form guide](../forms.md#supplied-contact-forms) owns the fixed Contact-kind section order. Reading, editing and loading use one responsive composition and DOM order, including a shared side column for media and Professional details and separate own/inherited Organization context. Authored field groups precede combined lists and other relationships; within each category, authored order, labels, entries and widths remain intact. Applicable fixed sections retain a compact empty state rather than moving other sections into their positions.
+
+Inherited collections use the shared read-value presentation until Own value is selected. Their existing field identities, source permissions, explicit empty exceptions, reset confirmation and versioned writer are unchanged. The record presentation splits unassigned fields and relationships into meaningful fallback sections; the designer keeps its Unassigned placement state. This is a presentation change with no schema/catalog migration or automatic creation of external-reference fields.
+
+### V2 maintenance scope refinement — 2026-11-13
+
+Contact duplicate detection stays in V2. The common record-merging workflow now applies to all supplied and custom object types: select the surviving record, compare differing fields and choose retained values, then recycle the non-surviving record. PRD sections 3.5 and 6.1 own this planned scope and its remaining specification decisions. This refines the maintenance scope above; it does not claim implementation or alter the module architecture.
