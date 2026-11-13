@@ -1,3 +1,5 @@
+import {relationshipPage,relationshipSummary} from './relationship-reader.js';
+import {recordJournalPage} from './journal-reader.js';
 import {ObjectDefinitions} from './object-definitions.js';
 import {ModuleInstallation} from './module-installation.js';
 import {tableName,localizedLabel} from './definition-metadata.js';
@@ -153,7 +155,8 @@ export class Application {
           case 'list_access_principals':return contentAccess().eligiblePrincipals((parsed as {objectTypeId:string}).objectTypeId);
           case 'get_relationship_tree_branch': return relationshipTreeBranch(tx,schemas.get_relationship_tree_branch.parse(parsed),userId);
           case 'list_record_link_options':return recordLinkOptions(tx,schemas.list_record_link_options.parse(parsed));
-          case 'get_record_relationships': {const args=schemas.get_record_relationships.parse(parsed);return recordRelationships(tx,args.objectTypeId,args.recordId);}
+          case 'get_record_relationships': {const args=schemas.get_record_relationships.parse(parsed);return args.view==='summary'?relationshipSummary(tx,args.objectTypeId,args.recordId):recordRelationships(tx,args.objectTypeId,args.recordId);}
+          case 'get_record_relationship_page':return relationshipPage(tx,schemas.get_record_relationship_page.parse(parsed));
           case 'search_relationship_candidates': return searchRelationshipCandidates(tx,schemas.search_relationship_candidates.parse(parsed));
           case 'activate_relationship_type': return activateRelationship(tx,schemas.activate_relationship_type.parse(parsed),userId);
           case 'get_primary_chain_context': return primaryChainContext(tx,schemas.get_primary_chain_context.parse(parsed),userId);
@@ -349,10 +352,7 @@ export class Application {
             const deleted=await deletedRecordIdentity(tx,type.id,args.recordId);
             if(deleted?.deleted_at){if(!args.includeDeleted||!await contentAccess().historyReadable(type.id,args.recordId))throw new AppError(403,'Content access denied');}else{await contentAccess().require(type.id,args.recordId,'read',args.includeRecycled);await this.record(tx,type,args.recordId);}
             if(args.fieldId&&!(await sql`SELECT 1 FROM sys_fields WHERE id=${args.fieldId}::uuid AND object_type_id=${type.id}::uuid`.execute(tx)).rows.length)throw new AppError(400,'Unknown journal field');
-            const where=sql`j.workspace_id=${type.workspace_id}::uuid AND ((j.object_type_id=${type.id}::uuid AND j.entity_kind='record' AND j.entity_id=${args.recordId}::uuid) OR EXISTS(SELECT 1 FROM sys_relationship_journal_endpoints ep WHERE ep.journal_id=j.id AND ep.workspace_id=${type.workspace_id}::uuid AND ep.object_type_id=${type.id}::uuid AND ep.record_id=${args.recordId}::uuid)) AND ${args.fieldId?sql`j.field_id=${args.fieldId}::uuid`:sql`true`} AND ${args.entityKind?sql`j.entity_kind=${args.entityKind}`:sql`true`}`;
-            const all=(await sql<import('@xobject/contracts').JournalEntry>`SELECT j.*,a.name AS actor_name FROM sys_journal j LEFT JOIN sys_users a ON a.id=j.actor_id WHERE ${where} ORDER BY j.created_at DESC,j.id DESC`.execute(tx)).rows;
-            const visible=await readableRecordJournal(type.id,all,args.includeRecycled,args.recordId);
-            return {entries:await journalValueContexts(tx,visible.slice(args.offset,args.offset+args.limit)),total:visible.length,offset:args.offset,limit:args.limit};
+            return recordJournalPage(tx,args,type.workspace_id);
           }
 
         }
@@ -389,7 +389,7 @@ export class Application {
     if (['list_field_schemas','get_time_zone_catalog', 'configure_user_localization', 'get_language_catalog', 'get_access_context', 'list_workspaces',  'set_user_profile'].includes(operation)) return { isAdmin: false };
     if(['get_foreign_access','configure_foreign_access'].includes(operation)){await foreignAccessView(tx,String(args.workspaceId),actor);return {isAdmin:false};}
     if(['get_foreign_access','configure_foreign_access','configure_group_inheritance','get_content_permissions','configure_content_permissions'].includes(operation))throw new AppError(403,'Only Administrators manage content permissions');
-    const contentOperations=['get_contact_conversion_preview','convert_contact','get_record_duplicate','duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
+    const contentOperations=['get_contact_conversion_preview','convert_contact','get_record_duplicate','duplicate_record','get_record_security','configure_record_security','list_record_link_options','get_primary_chain_context','get_relationship_tree_branch','get_record_relationships','get_record_relationship_page','search_relationship_candidates','list_record_journal','get_record','list_records','create_record','update_record','list_access_principals'];
     if(contentOperations.includes(operation)){await contentAccess().require(String(args.objectTypeId),args.recordId as string|undefined,operation==='create_record'||(['get_record_relationships','get_primary_chain_context','search_relationship_candidates'].includes(operation)&&!args.recordId)?'create':operation==='update_record'?'edit':['configure_record_security','get_contact_conversion_preview','convert_contact'].includes(operation)?'full':['duplicate_record','get_record_duplicate'].includes(operation)?'duplicate':'read');return {isAdmin:false};}
     if(['list_recycled_records','get_workspace_dashboard','list_workspace_records','search_workspace'].includes(operation)){if(!(await sql`SELECT 1 FROM sys_workspace_members WHERE workspace_id=${args.workspaceId}::uuid AND user_id=${actor}`.execute(tx)).rows.length)throw new AppError(403,'Access denied');return {isAdmin:false};}
     // Other instance operations remain Administrator-only.

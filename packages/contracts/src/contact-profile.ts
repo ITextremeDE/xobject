@@ -62,13 +62,14 @@ export function contactCoreLayout(profile:ContactProfile,fields:ContactLayoutFie
  const group=(id:string,en:string,de:string,entries:FormEntry[])=>({id,labels:{en,de},fields:entries});
  return {groups:[
  group('contact-name','Name & organization','Name & Organisation',[...entry('company_name'),...entry('salutation'),...entry('academic_title'),...entry('first_name'),...entry('additional_names'),...entry('last_name'),...entry('name_suffix'),...entry('nickname'),...entry('pronouns'),...relation('contact_person').filter(e=>'side'in e&&e.side==='right').map(e=>({...e,width:'full' as const}))]),
- group('contact-organization','Organization','Organisation',['organization_name','organization_phones','organization_emails','organization_addresses'].flatMap(entry).map(e=>'fieldId'in e?{...e,width:[profile.fields.organization_phones,profile.fields.organization_emails].includes(e.fieldId)?'half' as const:'full' as const}:e)),
+ group('contact-organization','Organization contact details','Kontaktdaten der Organisation',['organization_name','organization_phones','organization_emails'].flatMap(entry)),
+ group('contact-organization-addresses','Organization addresses','Anschriften der Organisation',entry('organization_addresses')),
  group('contact-business','Professional details','Berufliche Angaben',['job_title','department','function'].flatMap(entry)),
  group('contact-details','Further details','Weitere Angaben',[...fields.filter(f=>f.technicalName==='record_number').map(f=>({fieldId:f.id,width:'half' as const})),...['birthday','death_date','wedding_anniversary','gender','commercial_register'].flatMap(entry)]),
- group('contact-locale','Language & time zone','Sprache & Zeitzone',['contact_time_zone','languages'].flatMap(entry)),
+ group('contact-locale','Language & time','Sprache & Zeit',['contact_time_zone','languages'].flatMap(entry)),
  group('contact-correspondence','Correspondence','Korrespondenz',['address_form','letter_salutation'].flatMap(entry)),
  group('contact-communication','Contact details','Kontaktdaten',['phones','emails','websites','messenger_addresses'].flatMap(entry)),
- group('contact-addresses','Addresses','Adressen',entry('addresses')),
+ group('contact-addresses','Addresses','Anschriften',entry('addresses')),
  group('contact-classification','Classification','Einordnung',fields.filter(f=>['type','status','category'].includes(f.technicalName)).map(f=>({fieldId:f.id,width:f.technicalName==='category'?'full':'half'}))),
  group('contact-notes','Notes','Notizen',entry('notes'))
  ].filter(g=>g.fields.length)};

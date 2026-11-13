@@ -1,3 +1,5 @@
+import {relationshipSummary} from './relationship-reader.js';
+import type {RelationshipFieldRow} from './relationship-fields.js';
 import {contactFields} from './contact-domain.js';
 import {recordIconExpression} from './record-icons.js';
 import {candidateAttributes,projectEdgeAttributes,writeEdgeAttributes} from './relationship-fields.js';
@@ -15,7 +17,7 @@ import { relationshipTypes } from './relationship-types.js';
 import type { RelationshipType, RelationshipWrite, RecordReference, RelatedRecord, RecordRelationships, RecordRelationship } from '@xobject/contracts';
 
 type Model = { id:string; workspace_id:string; technical_name:string; code:string; labels:Record<string,string>; state:'active'|'inactive'|'deleted' };
-type Edge = { version:number;id:string; workspace_id:string; relationship_type_id:string; left_object_type_id:string; left_record_id:string; right_object_type_id:string; right_record_id:string };
+export type Edge = { values?:Record<string,import('@xobject/contracts').FieldValue>;version:number;id:string; workspace_id:string; relationship_type_id:string; left_object_type_id:string; left_record_id:string; right_object_type_id:string; right_record_id:string };
 const table = (model:Model) => `${model.code}_${model.technical_name}`;
 const key = (ref:RecordReference) => `${ref.objectTypeId}:${ref.recordId}`;
 const left = (edge:Edge):RecordReference => ({objectTypeId:edge.left_object_type_id,recordId:edge.left_record_id});
@@ -60,10 +62,7 @@ export async function recordRelationships(tx:Executor,objectTypeId:string,record
   const model=await modelFor(tx,objectTypeId);if(recordId)await reference(tx,{objectTypeId,recordId},model.workspace_id);
   const definitions=await relationshipTypes(tx,model.workspace_id),chain=await primaryChain(tx,model.workspace_id);
   const own=recordId?(await sql<Edge>`SELECT * FROM sys_relationships WHERE workspace_id=${model.workspace_id}::uuid AND ((left_object_type_id=${objectTypeId}::uuid AND left_record_id=${recordId}::uuid) OR (right_object_type_id=${objectTypeId}::uuid AND right_record_id=${recordId}::uuid)) ORDER BY id`.execute(tx)).rows:[];
-  const attributeProjections=new Map(await Promise.all(own.map(async edge=>[edge.id,await projectEdgeAttributes(tx,edge)] as const)));
-  const edges:RecordRelationship[]=[];
-  for(const edge of own)if(await contentAccess().readable(edge.left_object_type_id,edge.left_record_id)&&await contentAccess().readable(edge.right_object_type_id,edge.right_record_id))edges.push({version:edge.version,attributes:attributeProjections.get(edge.id)!.values,id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:await visibleReference(tx,left(edge),model.workspace_id),right:await visibleReference(tx,right(edge),model.workspace_id)});
-  await enrichContactPersons(tx,edges.flatMap(edge=>[edge.left,edge.right]));
+  const {edges,attributeProjections}=await projectRelationshipEdges(tx,model.workspace_id,own,definitions);
   const fields:RecordRelationships['fields']=[];
   for(const definition of definitions.filter(d=>(d.kind!=='primary'||d.active)&&(d.rulesState==='active'||own.some(e=>e.relationship_type_id===d.id)))) {
     for(const side of relationshipSidesForObject(definition,objectTypeId,chain)) {
@@ -74,8 +73,18 @@ export async function recordRelationships(tx:Executor,objectTypeId:string,record
     }
   }return {primaryChain:chain,fields,edges,dossier:await dossierEntries(tx,edges,objectTypeId,recordId)};
 }
+export async function projectRelationshipEdges(tx:Executor,workspace:string,own:Edge[],definitions:RelationshipType[]){
+  const references=await treeReferences(tx,workspace,own.flatMap(edge=>[left(edge),right(edge)]));
+  for(const object of new Set([...references.values()].map(ref=>ref.objectTypeId)))await (await contentAccess().policy(object)).load([...references.values()].filter(ref=>ref.objectTypeId===object).map(ref=>ref.recordId));
+  const attributeFields=(await sql<RelationshipFieldRow>`SELECT * FROM sys_fields WHERE relationship_type_id=ANY(${[...new Set(own.map(edge=>edge.relationship_type_id))]}::uuid[]) AND state<>'deleted'`.execute(tx)).rows;
+  const attributeProjections=new Map(await Promise.all(own.filter(edge=>references.has(key(left(edge)))&&references.has(key(right(edge)))).map(async edge=>[edge.id,await projectEdgeAttributes(tx,edge,{fields:attributeFields.filter(f=>f.relationship_type_id===edge.relationship_type_id),values:edge.values??{}})] as const)));
+  const edges:RecordRelationship[]=[];
+  for(const edge of own)if(attributeProjections.has(edge.id))edges.push({version:edge.version,attributes:attributeProjections.get(edge.id)!.values,id:edge.id,definition:definitions.find(d=>d.id===edge.relationship_type_id)!,left:references.get(key(left(edge)))!,right:references.get(key(right(edge)))!});
+  await enrichContactPersons(tx,edges.flatMap(edge=>[edge.left,edge.right]));
+  return {edges,attributeProjections};
+}
 /** Current standard-field projection for the opposite endpoint; it never changes journal snapshots. */
-async function dossierEntries(tx:Executor,edges:RecordRelationship[],objectTypeId:string,recordId?:string):Promise<DossierEntry[]> {
+export async function dossierEntries(tx:Executor,edges:RecordRelationship[],objectTypeId:string,recordId?:string):Promise<DossierEntry[]> {
   const entries=edges.map(edge=>({id:edge.id,definition:edge.definition,target:key(edge.left)===`${objectTypeId}:${recordId}`?edge.right:edge.left}));
   const values=await classificationSnapshots(tx,entries.map(entry=>entry.target));
   return entries.map(entry=>({id:entry.id,definition:entry.definition,record:{...entry.target,...values.get(key(entry.target))!}}));
@@ -144,6 +153,10 @@ export async function searchRelationshipCandidates(tx:Executor,args:{primaryAnce
   const rows=sql.join(selects,sql` UNION ALL `),filter=sql`(position(lower(${args.query}) IN lower(keyword))>0 OR position(lower(${args.query}) IN lower(COALESCE("recordNumber",'')))>0) AND NOT ("objectTypeId"=${args.objectTypeId}::uuid AND "recordId"=${args.recordId??null}::uuid IS TRUE)`;
   const total=(await sql<{total:number}>`WITH candidates AS (${rows}) SELECT count(*)::integer AS total FROM candidates WHERE ${filter}`.execute(tx)).rows[0].total;
   const records=(await sql<RelatedRecord>`WITH candidates AS (${rows}) SELECT * FROM candidates WHERE ${filter} ORDER BY lower(keyword),"objectTypeId","recordId" LIMIT ${args.limit} OFFSET ${args.offset}`.execute(tx)).rows;
+  if(args.recordId&&records.length){
+   const existing=(await sql<Edge>`SELECT * FROM sys_relationships WHERE relationship_type_id=${type.id}::uuid AND ((left_object_type_id=${args.objectTypeId}::uuid AND left_record_id=${args.recordId}::uuid AND right_record_id=ANY(${records.map(r=>r.recordId)}::uuid[])) OR (right_object_type_id=${args.objectTypeId}::uuid AND right_record_id=${args.recordId}::uuid AND left_record_id=ANY(${records.map(r=>r.recordId)}::uuid[])))`.execute(tx)).rows;
+   for(const record of records){const edge=existing.find(edge=>key(left(edge))===key(record)||key(right(edge))===key(record));if(edge){record.edgeId=edge.id;record.edgeVersion=edge.version;}}
+  }
   await enrichContactPersons(tx,records);
   return {records:await Promise.all(records.map(async record=>({...record,...await candidateAttributes(tx,type.id,{objectTypeId:args.objectTypeId,recordId:args.recordId},record)}))),total,limit:args.limit,offset:args.offset};
 }
@@ -234,13 +247,21 @@ export async function writeRecordRelationships(tx:Executor,objectTypeId:string,r
   beforeSnapshots??=await captureRelationshipJournalBefore(tx,objectTypeId,recordId,writes);
   const chain=await primaryChain(tx,model.workspace_id);
   const focus={objectTypeId,recordId},touched=new Map<string,RecordReference>(),affected=new Set<string>(),seen=new Set<string>(),addedJournal:{edge:Edge;type:RelationshipType}[]=[];
-  for(const write of writes??[]) {
+  for(let write of writes??[]) {
     const type=definitions.find(d=>d.id===write.relationshipTypeId);
     if(!type||type.version!==write.version)throw new AppError(409,'Relationship definition version conflict',{code:"version_conflict"});
     if(type.rulesState!=='active'||!supportsSide(type,objectTypeId,write.side)||(symmetric(type)&&write.side==='right'))throw new AppError(400,'Relationship field unavailable');
     const field=`${type.id}:${write.side}`;if(seen.has(field))throw new AppError(400,'Duplicate relationship field');seen.add(field);
-    const all=(await edgesFor(tx,model.workspace_id)).filter(e=>e.relationship_type_id===type.id);
+    const all=(await sql<Edge>`SELECT * FROM sys_relationships WHERE relationship_type_id=${type.id}::uuid AND ((left_object_type_id=${objectTypeId}::uuid AND left_record_id=${recordId}::uuid) OR (right_object_type_id=${objectTypeId}::uuid AND right_record_id=${recordId}::uuid))`.execute(tx)).rows;
     const current=all.filter(e=>symmetric(type)?key(left(e))===key(focus)||key(right(e))===key(focus):key(write.side==='left'?left(e):right(e))===key(focus));
+    if(write.mode==='patch'){
+      const removed=new Set((write.remove??[]).map(key));
+      if(removed.size!==(write.remove??[]).length)throw new AppError(400,'Duplicate relationship removal');
+      const retained=current.map(e=>key(left(e))===key(focus)?right(e):left(e));
+      const merged=new Map(retained.filter(ref=>!removed.has(key(ref))).map(ref=>[key(ref),ref]));
+      for(const target of write.targets){if(removed.has(key(target)))throw new AppError(400,'A relationship cannot be added and removed together');merged.set(key(target),target);}
+      write={...write,targets:[...merged.values()]};
+    }else if(write.remove?.length)throw new AppError(400,'Relationship removals require patch mode');
     const desired: {a:RecordReference;b:RecordReference}[]=[];const targets=new Set<string>();
     for(const target of write.targets) {
       if(key(target)===key(focus)||targets.has(key(target)))throw new AppError(400,'Duplicate or self relationship');targets.add(key(target));
@@ -293,7 +314,12 @@ export async function captureRelationshipJournalBefore(tx:Executor,objectTypeId:
   if(!writes?.length)return snapshots;
   const model=await modelFor(tx,objectTypeId),definitions=await relationshipTypes(tx,model.workspace_id);
   const edges=(await sql<Edge>`SELECT * FROM sys_relationships WHERE relationship_type_id=ANY(${writes.map(w=>w.relationshipTypeId)}::uuid[]) AND ((left_object_type_id=${objectTypeId}::uuid AND left_record_id=${recordId}::uuid) OR (right_object_type_id=${objectTypeId}::uuid AND right_record_id=${recordId}::uuid))`.execute(tx)).rows;
-  for(const edge of edges){const type=definitions.find(t=>t.id===edge.relationship_type_id)!;snapshots.set(edge.id,await edgeSnapshot(tx,edge,type));}
+  for(const edge of edges){
+    const type=definitions.find(t=>t.id===edge.relationship_type_id)!;
+    const focus={objectTypeId,recordId},target=key(left(edge))===key(focus)?right(edge):left(edge);
+    const removed=writes.some(write=>write.relationshipTypeId===type.id&&(symmetric(type)||key(write.side==='left'?left(edge):right(edge))===key(focus))&&(write.mode==='patch'?(write.remove??[]).some(ref=>key(ref)===key(target)):!write.targets.some(ref=>key(ref)===key(target))));
+    if(removed)snapshots.set(edge.id,await edgeSnapshot(tx,edge,type));
+  }
   return snapshots;
 }
 async function journalEdge(tx:Executor,edge:Edge,type:RelationshipType,actor:string,change:string,added:boolean,before?:Awaited<ReturnType<typeof edgeSnapshot>>) {
@@ -376,7 +402,7 @@ export async function recordLinkOptions(tx:Executor,args:{objectTypeId:string;re
  const model=await modelFor(tx,args.objectTypeId);if(model.state!=='active')return [];
  const source=(await sql<Record<string,unknown>>`SELECT * FROM ${sql.table(table(model))} WHERE id=${args.recordId}::uuid`.execute(tx)).rows[0];if(!source)throw new AppError(404,'Record not found');
  for(const name of Object.keys(args.sourceValues??{}))if(!(args.recordId?await contentAccess().canField(model.id,name,'read',args.recordId):await contentAccess().canCreateField(model.id,name)))throw new AppError(403,'Restricted relationship condition');
- const fields=(await recordRelationships(tx,model.id,args.recordId)).fields,chain=await primaryChain(tx,model.workspace_id);
+ const fields=(await relationshipSummary(tx,model.id,args.recordId)).fields,chain=await primaryChain(tx,model.workspace_id);
  const models=(await sql<Model>`SELECT o.*,w.code FROM sys_object_types o JOIN sys_workspaces w ON w.id=o.workspace_id WHERE o.workspace_id=${model.workspace_id}::uuid AND o.state='active'`.execute(tx)).rows;
  const result:import('@xobject/contracts').RecordLinkOption[]=[];
  for(const other of models){

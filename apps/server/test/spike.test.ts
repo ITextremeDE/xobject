@@ -2925,6 +2925,8 @@ test('content permissions protect relationship candidates, Primary context, tree
   const tree=await api('get_relationship_tree_branch',input,userCookie);assert.equal(tree.statusCode,200,tree.body);assert.equal(tree.json().total,0);assert.equal(tree.json().ancestors.length,0);assert.ok(!tree.body.includes(hidden.id));
   const context=await api('get_primary_chain_context',input,userCookie);assert.equal(context.statusCode,200,context.body);assert.equal(context.json().direct,null);
   const relations=await api('get_record_relationships',input,userCookie);assert.equal(relations.statusCode,200);assert.equal(relations.json().dossier.length,0);assert.equal(relations.json().fields.find((f:any)=>f.definition.kind==='primary'&&f.side==='right').editable,false);
+  const paged=await api('get_record_relationship_page',input,userCookie);assert.equal(paged.statusCode,200,paged.body);assert.equal(paged.json().total,0);assert.deepEqual(paged.json().objects,[]);assert.ok(!paged.body.includes(hidden.id));
+  const summary=await api('get_record_relationships',{...input,view:'summary'},userCookie);assert.equal(summary.statusCode,200);assert.ok(summary.json().fields.some((f:any)=>f.restricted));
   const candidates=await api('search_relationship_candidates',{...input,relationshipTypeId:primary.id,side:'right'},userCookie);assert.equal(candidates.statusCode,200,candidates.body);assert.equal(candidates.json().total,0);
   const history=await api('list_record_journal',input,userCookie);assert.ok(!history.body.includes('Hidden organization'));assert.ok(!history.body.includes('Hidden task'));
   let current=(await api('get_record',input,userCookie)).json();let changed=await api('update_record',{...input,version:current.version,keyword:'Changed project',relationships:[]},userCookie);assert.equal(changed.statusCode,200,changed.body);
@@ -5366,4 +5368,59 @@ test('creation receipt expiry cleanup skips unrelated locked receipts and remove
  assert.equal((await sql`SELECT 1 FROM sys_record_creation_requests WHERE request_id=${expired}::uuid`.execute(runtime.db)).rows.length,1);
  await ok('create_record',{objectTypeId:object.id,requestId:randomUUID(),keyword:'Next cleanup'});
  assert.equal((await sql`SELECT 1 FROM sys_record_creation_requests WHERE request_id=${expired}::uuid`.execute(runtime.db)).rows.length,0);
+});
+
+
+test('paged relationship projections and sparse edits retain unloaded edges across API and MCP',async()=>{
+ const ws=await ok('create_workspace',{code:'pagedlinks',name:'Paged links'}),object=await ok('create_object_type',{workspaceId:ws.id,technicalName:'samples',labels:{en:'Samples'},standardFields:['keyword']});
+ const source=await ok('create_record',{objectTypeId:object.id,keyword:'Source'}),targets:{id:string}[]=[];
+ for(let i=0;i<25;i++)targets.push(await ok('create_record',{objectTypeId:object.id,keyword:`Target ${String(i).padStart(2,'0')}`}));
+ const rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((r:any)=>r.kind==='general');
+ await ok('update_record',{objectTypeId:object.id,recordId:source.id,version:source.version,relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'left',targets:targets.map(t=>({objectTypeId:object.id,recordId:t.id}))}]});
+ const summary=await ok('get_record_relationships',{objectTypeId:object.id,recordId:source.id,view:'summary'}),field=summary.fields.find((f:any)=>f.definition.id===rel.id);assert.equal(field.paged,true);assert.equal(field.total,25);assert.deepEqual(field.targets,[]);assert.deepEqual(summary.dossier,[]);
+ const first=await tool('get_record_relationship_page',{objectTypeId:object.id,recordId:source.id,limit:10});assert.equal(first.total,25);assert.equal(first.entries.length,10);assert.ok(first.entries.every((e:any)=>e.record.edgeId));
+ const second=await ok('get_record_relationship_page',{objectTypeId:object.id,recordId:source.id,offset:10,limit:10});assert.equal(second.entries.length,10);assert.ok(!second.entries.some((r:any)=>first.entries.some((a:any)=>r.id===a.id)));
+ const fresh=await ok('get_record',{objectTypeId:object.id,recordId:source.id});
+ await ok('update_record',{objectTypeId:object.id,recordId:source.id,version:fresh.version,relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'left',mode:'patch',targets:[],remove:[{objectTypeId:object.id,recordId:targets[0].id}]}]});
+ const last=await ok('get_record_relationship_page',{objectTypeId:object.id,recordId:source.id,limit:100});assert.equal(last.total,24);assert.ok(last.entries.some((e:any)=>e.record.recordId===targets[24].id));assert.ok(!last.entries.some((e:any)=>e.record.recordId===targets[0].id));
+ assert.equal((await api('update_record',{objectTypeId:object.id,recordId:source.id,version:fresh.version,relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'left',mode:'patch',targets:[],remove:[{objectTypeId:object.id,recordId:targets[1].id}]}]})).statusCode,409);
+});
+
+test('journal hydration stays bounded as relationship history grows',async()=>{
+ const ws=await ok('create_workspace',{code:'jrnaudit',name:'Synthetic Journal Audit'});
+ const obj=await ok('create_object_type',{workspaceId:ws.id,technicalName:'samples',labels:{en:'Samples'},standardFields:['keyword']});
+ const a=await ok('create_record',{objectTypeId:obj.id,keyword:'Sample A'}),b=await ok('create_record',{objectTypeId:obj.id,keyword:'Sample B'});
+ const rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((x:any)=>x.kind==='general');
+ await ok('update_record',{objectTypeId:obj.id,recordId:a.id,version:a.version,relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'left',targets:[{objectTypeId:obj.id,recordId:b.id}]}]});
+ const event=(await sql<any>`SELECT * FROM sys_journal WHERE workspace_id=${ws.id}::uuid AND entity_kind='relationship' LIMIT 1`.execute(runtime.db)).rows[0];assert.ok(event);
+ const events=[];let previous=0;
+ for (const target of [100,1000,5000]){
+  await sql`WITH added AS (INSERT INTO sys_journal(id,change_id,workspace_id,object_type_id,entity_kind,entity_id,field_id,field_key,old_value,new_value,actor_id) SELECT gen_random_uuid(),gen_random_uuid(),workspace_id,object_type_id,entity_kind,entity_id,field_id,field_key,old_value,new_value,actor_id FROM sys_journal CROSS JOIN generate_series(1,${target-previous}) WHERE id=${event.id}::uuid RETURNING id,workspace_id) INSERT INTO sys_relationship_journal_endpoints(journal_id,workspace_id,object_type_id,record_id) SELECT j.id,j.workspace_id,ep.object_type_id,ep.record_id FROM added j CROSS JOIN sys_relationship_journal_endpoints ep WHERE ep.journal_id=${event.id}::uuid`.execute(runtime.db);
+  previous=target;
+  let queries=0;const proto=PgClient.prototype as any,original=proto.query;proto.query=function(...args:any[]){queries++;return original.apply(this,args);};
+  const start=performance.now();let result;
+  try{result=await ok('list_record_journal',{objectTypeId:obj.id,recordId:a.id,limit:10,offset:0});}finally{proto.query=original;}
+  events.push({syntheticRelationshipEvents:target+1,total:result.total,returned:result.entries.length,ms:Math.round(performance.now()-start),sqlCalls:queries});
+ }
+ assert.ok(events.every(row=>row.returned===10));assert.ok(Math.max(...events.map(row=>row.sqlCalls))-Math.min(...events.map(row=>row.sqlCalls))<10,JSON.stringify(events));
+ console.log('BOUNDED_JOURNAL_COST',JSON.stringify(events));
+});
+
+
+test('relationship summary and page hydration stay bounded as linked records grow',async()=>{
+ const ws=await ok('create_workspace',{code:'relaudit',name:'Synthetic Relationship Audit'});
+ const obj=await ok('create_object_type',{workspaceId:ws.id,technicalName:'samples',labels:{en:'Samples'},standardFields:['keyword']});
+ const a=await ok('create_record',{objectTypeId:obj.id,keyword:'Root sample'});
+ const rel=(await ok('list_relationship_types',{workspaceId:ws.id})).find((x:any)=>x.kind==='general');
+ const targets:any[]=[],events=[];
+ for(const target of [25,100,500]){
+  while(targets.length<target){const row=await ok('create_record',{objectTypeId:obj.id,keyword:'Related sample '+targets.length});targets.push({objectTypeId:obj.id,recordId:row.id});}
+  const current=await ok('get_record',{objectTypeId:obj.id,recordId:a.id});
+  await ok('update_record',{objectTypeId:obj.id,recordId:a.id,version:current.version,relationships:[{relationshipTypeId:rel.id,version:rel.version,side:'left',targets}]});
+  let queries=0;const proto=PgClient.prototype as any,original=proto.query;proto.query=function(...args:any[]){queries++;return original.apply(this,args);};const start=performance.now();let result;
+  try{const summary=await ok('get_record_relationships',{objectTypeId:obj.id,recordId:a.id,view:'summary'});const page=await ok('get_record_relationship_page',{objectTypeId:obj.id,recordId:a.id,limit:10});assert.equal(page.total,target);assert.equal(page.entries.length,10);result={summary,page};}finally{proto.query=original;}
+  events.push({linkedRecords:target,ms:Math.round(performance.now()-start),sqlCalls:queries,payloadBytes:Buffer.byteLength(JSON.stringify(result))});
+ }
+ assert.ok(Math.max(...events.map(row=>row.sqlCalls))-Math.min(...events.map(row=>row.sqlCalls))<10,JSON.stringify(events));assert.ok(events.every(row=>row.payloadBytes<100000),JSON.stringify(events));
+ console.log('BOUNDED_RELATIONSHIP_COST',JSON.stringify(events));
 });

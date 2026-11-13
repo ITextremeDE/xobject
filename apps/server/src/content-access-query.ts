@@ -54,7 +54,7 @@ export class ContentAccessQuery {
       WHEN ${policy}->>'privacy'='personal' THEN 0 ELSE ${foreign} END)`;
   }
 
-  field(policy: RawBuilder<unknown>, fieldId: string, groups: string[]): RawBuilder<number> {
+  field(policy: RawBuilder<unknown>, fieldId: string | RawBuilder<unknown>, groups: string[]): RawBuilder<number> {
     return sql<number>`COALESCE(
       (SELECT ${rank(sql`f->'fields'->>${fieldId}`)} FROM jsonb_array_elements(${policy}->'fields') f
        WHERE f->>'kind'='user' AND f->>'id'=${this.actor} AND f->'fields' ? ${fieldId} LIMIT 1),
