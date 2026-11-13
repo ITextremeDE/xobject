@@ -41,7 +41,7 @@ export const content = {
       ],
       [
         "Your own data objects",
-        "Model devices, service plans or something completely different. Define fields, relationships and forms without changing application code.",
+        "Model devices, service plans or something completely different. Define fields, relationships and forms without changing application code. Add free-text tags and filter records by them.",
       ],
     ],
     control: "Keep control. Understand every change.",
@@ -106,7 +106,7 @@ export const content = {
     screenshots:
       "Real application views from the fictional ITextreme demo workspace.",
     enDocs: "Documentation is currently available in English.",
-    available: "Community 1.6.0 · Open source",
+    available: "Community 1.7.0 · Open source",
     releaseNotes: "Release notes",
     guide: "Read the guide",
     workflowLabel: "Contact workflows",
@@ -167,7 +167,7 @@ export const content = {
       ],
       [
         "Deine eigenen Datenobjekte",
-        "Geräte, Servicepläne oder etwas völlig anderes abbilden. Felder, Verknüpfungen und Formulare ohne Änderungen am Anwendungscode definieren.",
+        "Geräte, Servicepläne oder etwas völlig anderes abbilden. Felder, Verknüpfungen und Formulare ohne Änderungen am Anwendungscode definieren. Freie Schlagworte vergeben und Datensätze danach filtern.",
       ],
     ],
     control: "Kontrolle behalten. Änderungen verstehen.",
@@ -233,7 +233,7 @@ export const content = {
     screenshots:
       "Echte Anwendungsansichten aus dem fiktiven ITextreme-Demoarbeitsbereich.",
     enDocs: "Die Dokumentation ist derzeit auf Englisch verfügbar.",
-    available: "Community 1.6.0 · Open Source",
+    available: "Community 1.7.0 · Open Source",
     releaseNotes: "Release-Änderungen",
     guide: "Zur Anleitung",
     workflowLabel: "Kontakte im Wandel",

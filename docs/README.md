@@ -56,6 +56,7 @@ ADRs record decisions and their evolution. A later refinement supersedes only th
 | [0038](adr/0038-contact-inheritance-and-conversions.md) | Contact inheritance and kind conversions | 1.2.0 effective fields, sparse exceptions, atomic preview/confirmation workflows and released upgrade paths. |
 | [0039](adr/0039-bounded-permission-queries-and-creation-retries.md) | Bounded permissions and safe creation retries | Transaction-local SQL predicates, targeted policy reads, stable errors and atomic user-scoped retry receipts. |
 | [0040](adr/0040-bounded-journal-and-relationship-readers.md) | Bounded Journal and relationship readers | Permission-first SQL paging, sparse relationship drafts, Settings deep links and build/version drift guards. |
+| [0041](adr/0041-free-text-tags.md) | Free-text Tags | Text-array values, permission-aware suggestions/filters and additive module defaults. |
 
 ## Ownership of repeated information
 

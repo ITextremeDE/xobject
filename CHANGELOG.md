@@ -4,6 +4,16 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-13
+
+### Added
+
+- Add free-text Tags fields with removable chips, permission-aware suggestions and URL-preserved record-list filters, including records without tags. Supplied module objects include optional Tags in Classification; custom tag fields share defaults, requiredness, field rights and per-field history. Dedicated upgrades add the current schema/catalog without replacing authored forms or existing contents.
+
+### Changed
+
+- Pair Type/Status in the first Classification row and Category/Tags in the second in standard forms. Narrow screens stack fields; authored form widths remain configurable.
+
 ## [1.6.0] - 2026-11-13
 
 ### Changed
@@ -256,7 +266,8 @@ First Community release under `AGPL-3.0-only`, maintained by Jürgen Schadek und
 
 - Exclude private backup/recovery environment files from Git, build contexts and commit-bound public source archives. Resume unchanged containers after backups with supported Compose v2 commands, reserve the proxy address outside the dynamic pool and keep diagnostics bounded and free of private payloads.
 
-[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/ITextremeDE/xobject/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/ITextremeDE/xobject/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ITextremeDE/xobject/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/ITextremeDE/xobject/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/ITextremeDE/xobject/compare/v1.3.0...v1.4.0

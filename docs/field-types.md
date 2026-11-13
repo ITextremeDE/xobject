@@ -19,11 +19,20 @@ Choose a field kind according to the value you need to store. These are the cust
 | URL | One web address | HTTP(S) link action opens a new tab; no automatic fetch |
 | Single choice | One configured value | Stable option identity with translated label |
 | Multiple choice | Several configured values | Searchable checkbox picker; Apply then record Save |
+| Tags | Free-text keywords without a configured dictionary | Enter/comma accepts a chip; existing readable tags become suggestions |
 | Selection tree | Hierarchical choices | Selecting a child includes its ancestors |
 | User/group reference | Coordinating responsibility or other identity reference | User, group or both; single/multiple configuration; no implicit access or assignment |
 | Structured data | Contact collections, partial dates, domain times | Select one installed schema with defined components and validation |
 
 Markdown is a Multiline text setting, not a separate kind. Keyword, Number, Access principals and Type/Status/Category are standard fields with additional system/domain rules; installing an ordinary field with a similar label cannot reproduce them.
+
+## Tags
+
+Available since Community 1.7.0.
+
+Use **Add field → Tags** for the optional standard field in **Classification**. For a separately named field, select **Tags** in the ordinary field editor. Enter text and press Enter or comma; paste comma- or line-separated text to add several tags. Remove a chip with its remove button or the keyboard, then use normal record **Save**. Defaults and requiredness use the regular field settings.
+
+Each field holds up to 100 tags of 200 characters. Whitespace is normalized and case-insensitive duplicates are removed. Tags are business contents and have no translated labels per value. Unlike Category, they have no configured option identities or hierarchy. The record list offers a searchable filter per tags field, with **Without value**; several tags in one filter mean any of them, while separate filters must all match. Suggestions and counts use current record and field rights.
 
 ## Structured schemas
 

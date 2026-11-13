@@ -55,7 +55,9 @@ The 11 additional Contacts objects and six additional Projects objects have no r
 
 <span id="14-planned-community-120"></span>
 
-### 1.4 Community 1.2.0–1.6.0 release scope
+### 1.4 Community V1 extensions
+
+Community 1.7.0 adds **Tags / Schlagworte**, an optional standard field in Classification and a general free-text tag field kind (R-066). Existing capabilities below retain their original release versions.
 
 Community 1.6.0 adds bounded permission-aware Journal and relationship readers, server-paged lists with sparse drafts, reloadable Settings URLs and aligned Contact reading/editing/loading sections (ADR 0040). The complete 1.4.0/1.5.0 schema/catalog fingerprint remains unchanged.
 
@@ -188,7 +190,7 @@ See [ADR 0001](adr/0001-readable-workspace-table-names.md) for the naming decisi
 | R-011 | Number sequences support prefix, suffix, starting value, increment, padding and configurable restart rules. | Concurrent creations cannot obtain the same record number within the configured sequence. IDs do not change when number-format configuration changes. Monthly/yearly restart includes the period in the number, using the workspace time zone. Issued numbers and UUIDs remain unchanged; numbers are immutable, never reused and assigned only to new records while enabled. See ADR 0030. |
 | R-012 | Field configuration supports German/English labels, helper text, ordering, required/default values, applicable validation and uniqueness within type/workspace. | Invalid input is rejected by backend validation. Duplicate values in an enabled uniqueness rule cannot be accepted through concurrent writes. |
 
-Supported field types: Text, Multiline text with optional formatting, Integer, Decimal with configurable scale, Money with currency, Boolean, Date, Date/time with timezone handling, Single choice, Multiple choice, Selection tree, Email, Telephone with international formatting, URL, and User/Group references with single or multiple selection.
+Supported field types: Text, Multiline text with optional formatting, Integer, Decimal with configurable scale, Money with currency, Boolean, Date, Date/time with timezone handling, Single choice, Multiple choice, Selection tree, Tags with free-text entries, Email, Telephone with international formatting, URL, and User/Group references with single or multiple selection.
 
 Scalar storage, collections and references must be mapped explicitly in the technical design; a multi-valued field must not be assumed to be one scalar column. Date-only values such as birthdays must retain their date meaning, while timestamps are displayed in the appropriate timezone.
 
@@ -197,6 +199,14 @@ Scalar storage, collections and references must be mapped explicitly in the tech
 The general custom field kind **Selection tree / Auswahlbaum** (`tree_choice`) supports hierarchical multiple selection independently of Category. Category can also use single, multiple or tree selection. A node has one optional same-dictionary parent. Selecting a child includes all ancestors; deselecting a parent clears its descendants. Selecting a parent alone leaves its children unselected. Active children require active ancestors; cycles, cross-dictionary parents and invalid configurations are rejected.
 
 Multiple/tree fields use a summary field with a selection button and a searchable list/tree dialog. Apply updates the form draft, then the ordinary Save persists it. Defaults follow the same semantics. Existing selections gain required ancestors atomically when a hierarchy changes, with record version increments and one journal entry per changed field. Preserve values on safe flat/tree conversion; reject single-choice conversion when it would discard selected values. Shared UI/API/MCP validation, permissions, history, requiredness and limits follow [ADR 0037](adr/0037-selection-trees-and-choice-dialogs.md).
+
+#### Free-text tags — V1 extension
+
+**Tags / Schlagworte** (`tags`) accepts free text, displays individual removable chips and suggests existing values visible to the current user. It is distinct from configured Category choices and the record's Keyword. Supplied module objects include the optional standard `tags` field in **Classification / Einordnung**. Administrators/Designers may also add that standard field or create additional fields of kind `tags`; the starter layout places tag fields in Classification, while the designer remains configurable.
+
+| ID | Requirement | Acceptance |
+| --- | --- | --- |
+| R-066 | Free-text tag fields support ordinary field permissions, requiredness, omission-only defaults, lifecycle, duplication, atomic per-field history and shared UI/API/MCP validation. | Enter/comma accepts a tag; delimited paste accepts several; keyboard/removal controls edit chips before normal Save. Normalize NFC, trim/collapse whitespace and ignore case-insensitive duplicates while retaining first spelling/order. Limit each field to 100 tags of 200 characters; reject empty entries, commas/control characters and unsafe nonempty type conversions. Suggestions never expose unreadable fields, inaccessible or recycled records. Lists filter by each active readable tag field before counts/paging: OR within one criterion, AND between fields/other criteria, with explicit Without value. Preserve filters in the URL. Released upgrades add the kind and module defaults atomically while preserving authored groups, records, rights and history; reject structural name conflicts. |
 
 ### 3.3 Languages and physical column order
 

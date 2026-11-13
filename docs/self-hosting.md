@@ -1,8 +1,8 @@
 # Self-hosting and recovery
 
-Install **Community 1.6.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
+Install **Community 1.7.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
 
-Use the [1.6.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.6.0) and its matching installer/image. For an earlier installation, use its [released documentation snapshot](versions.md).
+Use the [1.7.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.7.0) and its matching installer/image. For an earlier installation, use its [released documentation snapshot](versions.md).
 
 ## Prepare an installation
 
@@ -11,18 +11,18 @@ Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, Open
 In a new working directory on that host, download the matching installer, checksum list and image references:
 
 ```sh
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.6.0/xobject-1.6.0-selfhost.tar.gz
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.6.0/SHA256SUMS
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.6.0/IMAGE_DIGESTS.txt
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.7.0/xobject-1.7.0-selfhost.tar.gz
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.7.0/SHA256SUMS
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.7.0/IMAGE_DIGESTS.txt
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 Continue only when the installer reports **OK**. The check ignores other release artifacts that were not downloaded; obtain the checksums from the same trusted release. Inspect `IMAGE_DIGESTS.txt` and use its **Multi-platform** image reference. Extract into a new installation directory:
 
 ```sh
-mkdir xobject-1.6.0
-tar -xzf xobject-1.6.0-selfhost.tar.gz -C xobject-1.6.0
-cd xobject-1.6.0
+mkdir xobject-1.7.0
+tar -xzf xobject-1.7.0-selfhost.tar.gz -C xobject-1.7.0
+cd xobject-1.7.0
 ```
 
 Configure the installation, replacing the example origin, digest and TLS contact address:
@@ -103,6 +103,10 @@ Only exact published 1.0.0/1.0.1, 1.0.2, 1.1.0 and 1.2.0 fingerprints are accept
 ### Upgrade to Community 1.4.0
 
 The current source also accepts the exact Community 1.3.0 fingerprint. Its maintenance upgrade expands supplied Organization affiliations to include Contact persons alongside Individuals, preserves relationship identities, custom labels, existing links and history, and journals the definition change atomically. The single main Organization and its inherited fields remain independent. A repeated upgrade is a no-op. Use the matching 1.4.0 installer and immutable image; creation-retry storage is installed in the same stopped-writer upgrade.
+
+### Upgrade to Community 1.7.0 — Tags
+
+Community 1.7.0 adds the `tags` field kind and advances the supplied Contacts/Projects templates. Dedicated maintenance tooling also accepts the exact released 1.4.0–1.6.0 fingerprint; it adds optional Tags to supplied objects without replacing authored forms, records or history. An existing non-Tags field named `tags` must be resolved before upgrading; the complete operation rolls back on a conflict. Use the matching 1.7.0 installer and immutable image, with the same stopped-writer backup, migration and integrity checks. The predecessor 1.6.0 image does not contain this extension.
 
 ### Upgrade to Community 1.6.0
 

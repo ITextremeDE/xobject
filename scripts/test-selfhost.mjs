@@ -67,6 +67,9 @@ try{
   assert.equal((await api('list_record_journal',{objectTypeId:object.id,recordId:first.id})).total,1);
   const upgradedContactModel=await api('get_object_type',{objectTypeId:contactModel.id});
   for(const key of ['address_form','letter_salutation','pronouns'])assert.ok(upgradedContactModel.contactProfile.fields[key]);
+  const tags=upgradedContactModel.fields.find(field=>field.technicalName==='tags');assert.equal(tags?.kind,'tags');
+  const tagged=await api('update_record',{objectTypeId:contactModel.id,recordId:contact.id,version:retainedContact.version,values:{tags:['Upgrade accepted']}});assert.deepEqual(tagged.tags,['Upgrade accepted']);
+  assert.deepEqual((await api('list_field_tags',{objectTypeId:contactModel.id,fieldId:tags.id})).values,['Upgrade accepted']);
   const profile=upgradedContactModel.contactProfile;
   const affiliation=(await api('list_relationship_types',{workspaceId:ws.id})).find(relation=>relation.id===profile.relationships.contact_affiliation);
   assert.deepEqual(affiliation.rightApplicability.optionIds,[profile.kinds.individual,profile.kinds.person]);
