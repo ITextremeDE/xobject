@@ -68,7 +68,7 @@ new pages do not reuse a stale script from an earlier deployment.
 `src/assets/screenshots/` contains actual fictional ITextreme demo views in both
 interface languages and light/dark modes: a project tree, a record list, a Contact,
 a custom service plan, a record journal and the Contact-conversion confirmation
-preview. The Contact overview uses the 1.5.0 source and the list views retain their unchanged 1.4.0 captures; the conversion and other
+preview. The Contact overview uses the 1.6.0 source and the list views retain their unchanged 1.4.0 captures; the conversion and other
 views retain the unchanged earlier workflow captures. No real customer data or credentials
 are included. Record contents remain in their original English language.
 Capture through a separate browser session and restore temporary account settings.

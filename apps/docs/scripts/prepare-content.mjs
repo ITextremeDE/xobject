@@ -1,8 +1,10 @@
+import {assertSelfHostingVersion} from '../../../scripts/self-hosting-version.mjs';
 import {readFile,writeFile,mkdir,readdir,rm,stat,copyFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../../../',import.meta.url)),app=fileURLToPath(new URL('../',import.meta.url));
+assertSelfHostingVersion(await readFile(path.join(root,'CHANGELOG.md'),'utf8'),await readFile(path.join(root,'docs/self-hosting.md'),'utf8'));
 const version=process.env.XOBJECT_DOCS_VERSION,base=version?`/versions/${version}/`:'/';
 if(version&&!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version))throw Error('Invalid documentation version');
 const sourceRef=process.env.XOBJECT_SOURCE_REF??'main';

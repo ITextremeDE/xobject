@@ -42,11 +42,13 @@ Combining lists changes presentation metadata. It retains cardinalities, require
 
 ## Unassigned and removed groups
 
-Newly added elements remain Unassigned until you place them. They remain available; adding or deleting a group never deletes field definitions or data. Removing a group moves its elements to Unassigned. Required inputs must remain reachable. Do not use form placement as a permission boundary or as a substitute for [definition lifecycle](model-design.md#place-fields-link-objects-and-manage-lifecycle).
+Newly added elements remain Unassigned until you place them. They remain available; adding or deleting a group never deletes field definitions or data. Removing a group moves its elements to Unassigned. In record views, these fallback elements appear under Additional fields or Relationships; Unassigned is the designer placement state. Required inputs must remain reachable. Do not use form placement as a permission boundary or as a substitute for [definition lifecycle](model-design.md#place-fields-link-objects-and-manage-lifecycle).
 
 ## Supplied Contact forms
 
 Organizations, Contact persons and Individual contacts have fixed kind-specific core forms. Their name, professional, channel/address, language/time and applicable personal/company sections are provided by the module. The designer arranges additional fields and relationship lists, including configurable supplied family, identity, affiliation and Contact-person lists. The single main-Organization selector stays in the protected core.
+
+The 1.6.0 layout uses one section order in reading, editing and loading: Name & organization beside Photo/Logo (Professional details beneath media for Contact persons and Individuals); Further details, Correspondence and Language & time in the next row; then Contact details beside Addresses. Contact persons have a further row for Organization contact details beside Organization addresses. Classification follows at full width, then authored field groups, combined relationship lists, other relationship groups and finally Notes. Authored labels, field order and widths remain configurable; no external-reference field is supplied automatically. Applicable fixed sections remain recognizable when empty, with no unreadable values exposed.
 
 The core's intended input aids, labels and supported field rules remain configurable in Object types, subject to protection and existing-data validation. You cannot move/remove protected core components or turn a Contact person into an Organization by rearranging the form.
 
@@ -56,6 +58,14 @@ Conditional visibility by Type/Status is [planned](PRD.md#34-planned-conditional
 
 ## Contact reading and classification filters
 
-Saved Contacts display field values rather than disabled inputs. Type and Status use their configured labels; hierarchical Categories show paths without repeating selected ancestors. Inherited Organization fields show their mode and readable source. An explicit empty own value remains visible as an exception. Edit contact opens the same core section order for changes; custom extension fields retain their configured grouping.
+Saved Contacts display field values rather than disabled inputs. Type and Status use their configured labels; hierarchical Categories show paths without repeating selected ancestors. Inherited Organization fields show their mode and readable source. An explicit empty own value remains visible as an exception. In the 1.6.0 editor, inherited Organization collections also use readable values rather than disabled collection editors; select Own value to edit the usual controls and reset inheritance through the existing confirmation. Edit contact opens the same core section order for changes; custom extension fields retain their configured grouping.
 
 A tree Category filter opens a searchable, keyboard-operable dialog. Choose criteria and Apply filters; remove individual criteria using the path-labelled buttons. Criteria within one classification are OR-combined; Type, Status and Category are AND-combined. A parent criterion matches records in its descendants because stored selections include ancestors. Selecting a child filter does not additionally select its parent. Inactive and empty values remain filterable. These query rules differ intentionally from record entry, which selects ancestors automatically.
+
+## Since 1.6.0: saved relationship tables and Settings links
+
+Saved relationship lists and the Dossier search, sort and page on the server. Only the current page is loaded. The Dossier object filter retains all permitted linked object types across pages. In an editable relationship list, use the row menu to remove an existing edge or inspect its field values. **Relationship details** edits stay in the record draft until the normal Save; merely opening details makes no change.
+
+The plus chooser adds records. Existing saved links remain checked and are removed through the table row menu. Unsaved additions appear before saved pages until Save; Discard restores the saved list. Paging, filtering or sorting does not replace links that have not been loaded.
+
+Settings retain their section and selected object in the URL. A link such as `/settings?workspace=studio&section=workspaceForms&object=<object-id>` reopens that object's Form designer after reload. Object-type settings use `section=workspaceObjects`; unknown sections return to Profile. The workspace code and object UUID must belong to the installation, and current access rights still apply.

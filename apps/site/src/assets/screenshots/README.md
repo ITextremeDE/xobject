@@ -8,7 +8,7 @@ is a fictional demo user.
 All six views (`contact`, `conversion`, `project`, `list`, `custom` and `journal`)
 were captured with Chromium on the local fictional demo on 2026-11-12 for
 Community 1.3.0. Contact and list captures were refreshed on the same date for
-Community 1.4.0, in both languages and themes. Contact captures were refreshed again for Community 1.5.0; its English light Contact-relationships detail is also used in the form guide. Contact shows the compact overview;
+Community 1.4.0, in both languages and themes. Contact captures were refreshed again for Community 1.5.0 and on 2026-11-13 for Community 1.6.0; its English light Contact-relationships detail is also used in the form guide. Contact shows the compact overview;
 conversion shows a completed
 read-only preview before confirmation. No conversion was executed. Temporary
 language preferences were restored and appearance was selected only inside the

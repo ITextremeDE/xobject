@@ -1,3 +1,5 @@
+import './test-web-build-id.ts';
+import {assertSelfHostingVersion} from './self-hosting-version.mjs';
 import './test-release-source.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,4 +21,12 @@ test('plugin package preserves canonical skills and rejects unsafe endpoints/ove
   for(const file of manifest.skills){const bytes=await readFile(new URL(file.path,root));assert.equal(createHash('sha256').update(bytes).digest('hex'),file.sha256);const relative=file.path.replace('apps/server/src/','');assert.deepEqual(await readFile(path.join(output,relative)),bytes);}
   const mcp=JSON.parse(await readFile(path.join(output,'mcp.json'),'utf8'));assert.equal(mcp.mcpServers.xobject.type,'streamable-http');assert.deepEqual(Object.keys(mcp.mcpServers.xobject).sort(),['type','url']);
  }finally{await rm(directory,{recursive:true,force:true});}
+});
+
+test('current installation version stays aligned while historical upgrade examples remain unchanged',async()=>{
+ const changelog=await readFile(new URL('CHANGELOG.md',root),'utf8'),guide=await readFile(new URL('docs/self-hosting.md',root),'utf8');
+ const version=assertSelfHostingVersion(changelog,guide);assert.ok(version);
+ assert.throws(()=>assertSelfHostingVersion(changelog,guide.replace(/Community \d+\.\d+\.\d+/,'Community 0.0.0')));
+ assert.throws(()=>assertSelfHostingVersion(changelog,guide.replace(/releases\/download\/v\d+\.\d+\.\d+/,'releases/download/v0.0.0')));
+ assert.equal(assertSelfHostingVersion(changelog,guide+'\nHistorical: xobject-0.0.1'),version);
 });

@@ -1,3 +1,4 @@
+import {assertSelfHostingVersion} from './self-hosting-version.mjs';
 import {releaseSourceSnapshot,archiveReleaseSource} from './release-source.mjs';
 import {execFileSync} from 'node:child_process';
 import {mkdir,readFile,writeFile,cp,readdir} from 'node:fs/promises';
@@ -11,6 +12,8 @@ const output=path.resolve(get('--output')),version=args.includes('--version')?ge
 if(!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version))throw Error('Invalid candidate version');
 // Validate the checked-out revision before creating artifacts or running builds.
 const snapshot=releaseSourceSnapshot(root),source=snapshot.source;
+assertSelfHostingVersion(await readFile(path.join(root,'CHANGELOG.md'),'utf8'),await readFile(path.join(root,'docs/self-hosting.md'),'utf8'));
+
 const artifactEnv={...process.env,XOBJECT_SOURCE_REF:snapshot.commit};
 await mkdir(path.dirname(output),{recursive:true});await mkdir(output,{mode:0o700});
 const run=(command,argv,options={})=>execFileSync(command,argv,{cwd:root,encoding:'utf8',...options});

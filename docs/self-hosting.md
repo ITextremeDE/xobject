@@ -1,8 +1,8 @@
 # Self-hosting and recovery
 
-Install the **Community 1.3.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
+Install **Community 1.6.0** on a Linux Docker host, create the first Administrator and keep a verified recovery path. The standard route below uses the supplied Caddy TLS proxy. For an existing proxy, apply [the alternative topology](#use-an-existing-reverse-proxy) before setup. New installation creates no demo accounts, workspaces or business records.
 
-Use the [1.4.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.4.0) and its matching installer/image. For an earlier installation, use its [released documentation snapshot](versions.md).
+Use the [1.6.0 release](https://github.com/ITextremeDE/xobject/releases/tag/v1.6.0) and its matching installer/image. For an earlier installation, use its [released documentation snapshot](versions.md).
 
 ## Prepare an installation
 
@@ -11,18 +11,18 @@ Use a Linux host with Docker Engine, Docker Compose v2.38.2 or newer, Bash, Open
 In a new working directory on that host, download the matching installer, checksum list and image references:
 
 ```sh
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.4.0/xobject-1.4.0-selfhost.tar.gz
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.4.0/SHA256SUMS
-curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.4.0/IMAGE_DIGESTS.txt
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.6.0/xobject-1.6.0-selfhost.tar.gz
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.6.0/SHA256SUMS
+curl --fail --show-error --location --remote-name https://github.com/ITextremeDE/xobject/releases/download/v1.6.0/IMAGE_DIGESTS.txt
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 Continue only when the installer reports **OK**. The check ignores other release artifacts that were not downloaded; obtain the checksums from the same trusted release. Inspect `IMAGE_DIGESTS.txt` and use its **Multi-platform** image reference. Extract into a new installation directory:
 
 ```sh
-mkdir xobject-1.3.0
-tar -xzf xobject-1.4.0-selfhost.tar.gz -C xobject-1.3.0
-cd xobject-1.3.0
+mkdir xobject-1.6.0
+tar -xzf xobject-1.6.0-selfhost.tar.gz -C xobject-1.6.0
+cd xobject-1.6.0
 ```
 
 Configure the installation, replacing the example origin, digest and TLS contact address:
@@ -104,9 +104,9 @@ Only exact published 1.0.0/1.0.1, 1.0.2, 1.1.0 and 1.2.0 fingerprints are accept
 
 The current source also accepts the exact Community 1.3.0 fingerprint. Its maintenance upgrade expands supplied Organization affiliations to include Contact persons alongside Individuals, preserves relationship identities, custom labels, existing links and history, and journals the definition change atomically. The single main Organization and its inherited fields remain independent. A repeated upgrade is a no-op. Use the matching 1.4.0 installer and immutable image; creation-retry storage is installed in the same stopped-writer upgrade.
 
-### Upgrade to Community 1.5.0
+### Upgrade to Community 1.6.0
 
-Use the matching 1.5.0 installer and immutable image through the same stopped-writer backup/upgrade/verify procedure. The complete 1.4.0 schema/catalog fingerprint is unchanged; no additional SQL conversion is needed. Earlier supported released fingerprints still migrate to this same complete target model before serving requests. Optional form metadata extends presentation without changing data or rights. Existing authored forms, including deliberately grouped Contact relationships, are retained; the new Contact-list proposal applies to fresh module objects.
+Use the matching 1.6.0 installer and immutable image through the same stopped-writer backup/upgrade/verify procedure. The complete 1.4.0/1.5.0 schema/catalog fingerprint is unchanged; no additional SQL conversion is needed. Earlier supported released fingerprints still migrate to this same complete target model before serving requests. Optional form metadata extends presentation without changing data or rights. Existing authored forms, including deliberately grouped Contact relationships, are retained; the new Contact-list proposal applies to fresh module objects.
 
 ## Use an existing reverse proxy
 
