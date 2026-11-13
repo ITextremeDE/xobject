@@ -327,6 +327,7 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.route('**/api/v1/get_object_type',holdDefinition);
    try{await selectChecks(page);await expect(page.getByRole('button',{name:'Add field',exact:true})).toHaveCount(0);}finally{releaseDefinition();}
    await page.getByRole('button',{name:'Add field',exact:true}).click();
+   await page.getByRole('menuitem',{name:'Custom field',exact:true}).click();
    const field=page.getByRole('dialog',{name:'Add field',exact:true});await expect(field).toBeVisible();await field.getByRole('textbox',{name:'Name',exact:true}).fill('Designer note');await field.getByRole('textbox',{name:'Technical name',exact:true}).fill('designer_note');
    await field.getByRole('button',{name:/^Create/}).click();await expect(field).toHaveCount(0);await expect(page.getByRole('button',{name:'Designer note',exact:true})).toBeVisible();
    // A visible new field does not yet mean that definition/record refetch and
