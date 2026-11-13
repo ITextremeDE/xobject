@@ -6,6 +6,10 @@ on:
         description: Browser scenario name substring (empty runs all)
         type: string
         default: ''
+      axeRules:
+        description: Optional comma-separated axe rules for isolated diagnosis (not release acceptance)
+        type: string
+        default: ''
       browser:
         description: Browser for the focused diagnostic
         type: choice
@@ -44,6 +48,7 @@ jobs:
     env:
       XOBJECT_TEST_BROWSER: ${{ matrix.browser }}
       XOBJECT_TEST_SCENARIO: ${{ inputs.scenario || '' }}
+      XOBJECT_AXE_RULES: ${{ github.event_name == 'workflow_dispatch' && inputs.axeRules || '' }}
       DEBUG: ${{ github.event_name == 'workflow_dispatch' && 'pw:browser' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
