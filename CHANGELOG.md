@@ -13,6 +13,7 @@ All notable changes to xObject are documented here, using [Keep a Changelog](htt
 
 ### Fixed
 
+- Keep workspace-search loading and error feedback outside the command listbox so assistive technology receives valid result semantics.
 - Keep the public Changelog/Roadmap mobile section-navigation strip inside its grid column instead of widening the page.
 - Size Type, Status and flat Category filter menus to their contents within desktop/mobile bounds. Keep entries on one line and expose long truncated labels through the shared tooltip.
 - Focus the workspace search input through Base UI Dialog’s supported initial-focus ref, so Safari/VoiceOver accepts immediate typing after the search shortcut. Verify desktop/mobile keyboard entry and focus restoration.

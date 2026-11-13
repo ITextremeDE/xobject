@@ -586,6 +586,9 @@ test('rendered application workflows on an isolated current installation',{timeo
    await table.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('menuitem',{name:'Relationship details',exact:true}).click();await expect(dialog.getByRole('textbox',{name:'Link note',exact:true})).toHaveValue('Pending edge detail');await auditPage(page,'Paged relationship attribute dialog');await dialog.locator('[data-slot=dialog-footer]').getByRole('button',{name:'Close',exact:true}).click();
   });
   await scenario('Workspace search accepts immediate keyboard input and restores focus','admin',async page=>{
+   let releaseSearch;const searchGate=new Promise(resolve=>{releaseSearch=resolve;});
+   await page.route('**/api/v1/search_workspace',async route=>{await searchGate;await route.continue();});
+   try{
    await page.goto(listPath);
    const trigger=page.locator('main [data-slot="sidebar-trigger"]');await trigger.focus();
    await page.keyboard.press(process.platform==='darwin'?'Meta+k':'Control+k');
@@ -595,8 +598,10 @@ test('rendered application workflows on an isolated current installation',{timeo
    await page.setViewportSize({width:390,height:844});await trigger.click();
    await page.getByRole('textbox',{name:'Search and navigate',exact:true}).click();
    await expect(input).toBeFocused();await page.keyboard.type('settings');await expect(input).toHaveValue('settings');await expect(dialog.getByRole('option',{name:'Settings',exact:true})).toBeVisible();
+   await expect(dialog.getByRole('status')).toHaveText('Loading…');
    await auditPage(page,'Immediate keyboard search from mobile Sidebar');
    await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
+   }finally{releaseSearch();}
   });
   await scenario('Classification filter dropdowns fit long labels without wrapping','admin',async page=>{
    const model=await api('create_object_type',{workspaceId:workspace.id,technicalName:'filter_width',labels:{en:'Filter width'},standardFields:['keyword','type_status','category']}),definition=await api('get_object_type',{objectTypeId:model.id});
