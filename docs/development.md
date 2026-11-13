@@ -256,6 +256,6 @@ With accessibility enabled, the harness uses the pinned Axe integration for WCAG
 
 Use `XOBJECT_TEST_SCENARIO` for a case-sensitive substring of a scenario title when investigating a finding. The artifact records the filter; a focused run is not full-suite evidence. The full suite has twelve workflows/thirteen Node test entries, including lifecycle and throttled-sign-in feedback. See the [acceptance map](quality-acceptance.md#expanded-v1-product-acceptance--2026-11-06) for checked views, reused evidence and remaining release gates.
 
-### Focused browser diagnostics
+### Focused browser diagnosis
 
-Run the existing `Application checks` workflow manually on a branch with a browser and scenario substring, for example `gh workflow run checks.yml --ref <branch> -f browser=firefox -f scenario='Workspace search accepts'`. Manual `diagnostic-*` jobs always enable accessibility; optional `axeRules` narrows a diagnostic to named rules. They do not replace the mandatory full PR checks. Keep rule filters out of release acceptance; normal Chromium CI always uses the complete configured WCAG tag set.
+Use `XOBJECT_TEST_SCENARIO='Workspace search accepts' XOBJECT_TEST_BROWSER=firefox npm run test:browser` on a machine with the intended Playwright engine. Accessibility is enabled by default for local diagnosis. `XOBJECT_TEST_ACCESSIBILITY=false` selects functional-only checks and is recorded explicitly in the result. The temporary manual CI/rule-bisection controls used for the Firefox investigation are removed; retained diagnostic runs do not replace the full required PR workflow.

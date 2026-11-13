@@ -1,20 +1,5 @@
 name: Application checks
 on:
-  workflow_dispatch:
-    inputs:
-      scenario:
-        description: Browser scenario name substring (empty runs all)
-        type: string
-        default: ''
-      axeRules:
-        description: Optional comma-separated axe rules for isolated diagnosis (not release acceptance)
-        type: string
-        default: ''
-      browser:
-        description: Browser for the focused diagnostic
-        type: choice
-        options: [firefox, chromium]
-        default: firefox
   pull_request:
   push:
     branches: [main]
@@ -22,7 +7,6 @@ permissions:
   contents: read
 jobs:
   backend:
-    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -40,19 +24,16 @@ jobs:
       - run: npm run test:packaging
       - run: npm run test:benchmark-cleanup
   browser:
-    name: ${{ github.event_name == 'workflow_dispatch' && format('diagnostic-{0}', matrix.browser) || matrix.browser == 'chromium' && 'browser' || matrix.browser }}
+    name: ${{ matrix.browser == 'chromium' && 'browser' || matrix.browser }}
     strategy:
       fail-fast: false
       matrix:
-        browser: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.browser)) || fromJSON('["chromium","firefox"]') }}
+        browser: [chromium, firefox]
     env:
       XOBJECT_TEST_BROWSER: ${{ matrix.browser }}
-      XOBJECT_TEST_SCENARIO: ${{ inputs.scenario || '' }}
-      XOBJECT_AXE_RULES: ${{ github.event_name == 'workflow_dispatch' && inputs.axeRules || '' }}
       # Firefox/axe label introspection reproducibly crashes its native content process.
       # Preserve the full functional suite; Chromium remains the full WCAG gate.
-      XOBJECT_TEST_ACCESSIBILITY: ${{ github.event_name == 'workflow_dispatch' || matrix.browser == 'chromium' }}
-      DEBUG: ${{ github.event_name == 'workflow_dispatch' && 'pw:browser' || '' }}
+      XOBJECT_TEST_ACCESSIBILITY: ${{ matrix.browser == 'chromium' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -79,7 +60,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
   container:
-    if: github.event_name != 'workflow_dispatch'
     needs: backend
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -95,7 +75,6 @@ jobs:
       - run: node scripts/test-selfhost.mjs
       - run: node scripts/test-selfhost-proxy.mjs
   documentation:
-    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
@@ -116,7 +95,6 @@ jobs:
       - run: npm test
       - run: XOBJECT_DOCS_VERSION=0.0.0-unreleased npm run build
   artifact-transfer:
-    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

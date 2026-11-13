@@ -116,7 +116,6 @@ test('rendered application workflows on an isolated current installation',{timeo
      await page.evaluate(async()=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})));});
      if(!accessibilityEnabled)return;
      const axe=new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']);
-     if(process.env.XOBJECT_AXE_RULES)axe.withRules(process.env.XOBJECT_AXE_RULES.split(',').map(rule=>rule.trim()).filter(Boolean));
      // Audit the active modal surface rather than intentionally dimmed, aria-hidden background tables.
      // Keep the vendor focus guards in scope, including WebKit/VoiceOver's role-button variant.
      const surfaces=await page.locator('[data-slot="dialog-content"],[data-slot="sheet-content"],[data-slot="alert-dialog-content"]').evaluateAll(elements=>elements.filter(element=>!element.closest('[aria-hidden="true"]')&&element.getBoundingClientRect().width>0).map(element=>element.id).filter(Boolean));
@@ -646,7 +645,7 @@ test('rendered application workflows on an isolated current installation',{timeo
    }finally{await context.close();}
   });
   await mkdir(artifacts,{recursive:true,mode:0o700});
-  await writeFile(path.join(artifacts,'result.json'),JSON.stringify({status:scenarios.every(s=>s.status==='passed')&&!accessibilityFindings.length?'passed':'failed',accessibility:{status:accessibilityEnabled?(accessibilityFindings.length?'failed':'passed'):'not-run',coverage:process.env.XOBJECT_AXE_RULES?'selected diagnostic rules':'WCAG A/AA tags',rules:process.env.XOBJECT_AXE_RULES??null},accessibilityFindings,scenarioFilter:process.env.XOBJECT_TEST_SCENARIO??null,browser:engineName,fixture:'disposable current PostgreSQL installation; normal account onboarding',scenarios},null,2)+'\n',{mode:0o600});
+  await writeFile(path.join(artifacts,'result.json'),JSON.stringify({status:scenarios.every(s=>s.status==='passed')&&!accessibilityFindings.length?'passed':'failed',accessibility:{status:accessibilityEnabled?(accessibilityFindings.length?'failed':'passed'):'not-run',coverage:'WCAG A/AA tags'},accessibilityFindings,scenarioFilter:process.env.XOBJECT_TEST_SCENARIO??null,browser:engineName,fixture:'disposable current PostgreSQL installation; normal account onboarding',scenarios},null,2)+'\n',{mode:0o600});
   console.log(`Browser acceptance evidence: ${artifacts}`);
   if(accessibilityEnabled)assert.deepEqual(accessibilityFindings,[],'No automated WCAG A/AA violations across checked views');
   else console.log('Automated accessibility not run in this functional-only browser acceptance; the Chromium WCAG gate remains required.');
