@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+type AppearanceSelectKey = 'baseColor' | 'theme' | 'chartColor' | 'font' | 'fontHeading' | 'radius' | 'menuColor' | 'menuAccent' | 'logoIcon';
+
 export function WorkspaceAppearanceFields({ value, disabled, onChange }: { value: WorkspaceAppearance; disabled: boolean; onChange: (value: WorkspaceAppearance) => void }) {
   const { t } = useTranslation();
   const [previewMode, setPreviewMode] = useState('light');
@@ -31,9 +33,10 @@ export function WorkspaceAppearanceFields({ value, disabled, onChange }: { value
       return [key, '#' + [...rgb].slice(0, 3).map(channel => channel.toString(16).padStart(2, '0')).join('')];
     }));
   }, [lightPrimary,darkPrimary, value.secondaryColor, value.secondaryColorDark, value.theme, value.baseColor]);
-  function select<K extends 'baseColor' | 'theme' | 'chartColor' | 'font' | 'fontHeading' | 'radius' | 'menuColor' | 'menuAccent' | 'logoIcon'>(key: K, options: { value: WorkspaceAppearance[K]; label: string }[]) {
+  function select<K extends AppearanceSelectKey>(key: K, options: { value: WorkspaceAppearance[K]; label: string }[]) {
     const id = `workspace-${key}`;
-    return <Field data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(`design_${key}`)}</FieldLabel><Select items={options} value={value[key]} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [key]: next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent>{key==='logoIcon'?workspaceLogoIconGroups.map(group=><SelectGroup key={group.key}><SelectLabel>{t(`workspaceIconGroup_${group.key}`)}</SelectLabel>{group.icons.map(icon=><SelectItem key={icon} value={icon}><WorkspaceLogo icon={icon}/>{t(`workspaceIcon_${icon}`)}</SelectItem>)}</SelectGroup>):<SelectGroup>{options.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup>}</SelectContent></Select></Field>;
+    const labelKey: `design_${AppearanceSelectKey}` = `design_${key}`;
+    return <Field data-disabled={disabled || undefined}><FieldLabel htmlFor={id}>{t(labelKey)}</FieldLabel><Select items={options} value={value[key]} disabled={disabled} onValueChange={next => { if (next) onChange({ ...value, [key]: next }); }}><SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent>{key==='logoIcon'?workspaceLogoIconGroups.map(group=><SelectGroup key={group.key}><SelectLabel>{t(`workspaceIconGroup_${group.key}`)}</SelectLabel>{group.icons.map(icon=><SelectItem key={icon} value={icon}><WorkspaceLogo icon={icon}/>{t(`workspaceIcon_${icon}`)}</SelectItem>)}</SelectGroup>):<SelectGroup>{options.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup>}</SelectContent></Select></Field>;
   }
   function color(key: 'primaryColor' | 'primaryColorDark' | 'secondaryColor' | 'secondaryColorDark') {
     const id = `workspace-${key}`;
